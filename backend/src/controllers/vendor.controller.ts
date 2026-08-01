@@ -1,0 +1,446 @@
+import type { Request, Response } from "express";
+
+import { vendorService } from "../services/vendor.service";
+import { sendCreated, sendSuccess } from "../utils/ApiResponse";
+import asyncHandler from "../utils/asyncHandler";
+import { buildPaginationMeta } from "../utils/pagination";
+import type {
+  CreateVendorBody,
+  UpdateVendorBody,
+  VendorLocationBody,
+} from "../validators/vendor.validators";
+
+/**
+ * @swagger
+ * /vendors:
+ *   get:
+ *     summary: List approved vendors with filters
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: per_page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: q
+ *         schema: { type: string }
+ *         description: Free-text search on name, slug, description, city.
+ *       - in: query
+ *         name: city
+ *         schema: { type: string }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: is_open
+ *         schema: { type: string, enum: ["true", "false"] }
+ *     responses:
+ *       200:
+ *         description: Paginated vendor list.
+ */
+export const listVendors = asyncHandler(async (req: Request, res: Response) => {
+  const query = req.query as { page?: string; per_page?: string; q?: string; city?: string; category?: string; is_open?: string };
+  const result = await vendorService.list({
+    page: query.page ? Number(query.page) : undefined,
+    per_page: query.per_page ? Number(query.per_page) : undefined,
+    q: query.q,
+    city: query.city,
+    category: query.category,
+    is_open: query.is_open,
+  });
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /vendors/nearby:
+ *   get:
+ *     summary: Find vendors within a delivery radius
+ *     description: Returns vendors sorted by distance. Only vendors whose delivery radius covers the point are included.
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: query
+ *         name: lat
+ *         required: true
+ *         schema: { type: number }
+ *       - in: query
+ *         name: lng
+ *         required: true
+ *         schema: { type: number }
+ *       - in: query
+ *         name: radius
+ *         schema: { type: number, default: 5 }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: is_open
+ *         schema: { type: string, enum: ["true", "false"] }
+ *     responses:
+ *       200:
+ *         description: Vendors sorted by distance.
+ */
+export const nearbyVendors = asyncHandler(async (req: Request, res: Response) => {
+  const query = req.query as { lat?: string; lng?: string; radius?: string; category?: string; is_open?: string; page?: string; per_page?: string };
+  const lat = Number(query.lat);
+  const lng = Number(query.lng);
+  const radius = query.radius ? Number(query.radius) : 5;
+  const page = query.page ? Number(query.page) : 1;
+  const perPage = query.per_page ? Number(query.per_page) : 20;
+  const result = await vendorService.nearby(lat, lng, radius, {
+    category: query.category,
+    isOpen: query.is_open === "true",
+    page,
+    perPage,
+  });
+  return sendSuccess(res, result.vendors, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /vendors/me:
+ *   get:
+ *     summary: Get the authenticated vendor's own profile
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     responses:
+ *       200:
+ *         description: Vendor profile.
+ *       404:
+ *         $ref: "#/components/responses/NotFound"
+ */
+export const getMyVendor = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors:
+ *   post:
+ *     summary: Register a vendor profile
+ *     description: Requires an authenticated vendor account. Profile starts in PENDING status.
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [business_name, address, city, state, pincode]
+ *             properties:
+ *               business_name: { type: string }
+ *               description: { type: string, nullable: true }
+ *               category: { type: string, nullable: true }
+ *               address: { type: string }
+ *               city: { type: string }
+ *               state: { type: string }
+ *               pincode: { type: string }
+ *               latitude: { type: number, nullable: true }
+ *               longitude: { type: number, nullable: true }
+ *               delivery_radius_km: { type: number }
+ *               business_hours: { type: string, nullable: true }
+ *     responses:
+ *       201:
+ *         description: Vendor profile created.
+ */
+export const createVendor = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.create(req.user!.id, req.body as CreateVendorBody, req);
+  return sendCreated(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/me:
+ *   put:
+ *     summary: Update the authenticated vendor's own profile
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Vendor profile updated.
+ */
+export const updateMyVendor = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.update(req.user!.id, req.body as UpdateVendorBody, req);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/me/availability:
+ *   put:
+ *     summary: Toggle the vendor's open/closed status
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [is_open]
+ *             properties:
+ *               is_open: { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Availability updated.
+ */
+export const setVendorAvailability = asyncHandler(async (req: Request, res: Response) => {
+  const { is_open } = req.body as { is_open: boolean };
+  const vendor = await vendorService.setAvailability(req.user!.id, is_open, req);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/me/location:
+ *   put:
+ *     summary: Update the vendor's location (lat/lng)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [lat, lng]
+ *             properties:
+ *               lat: { type: number }
+ *               lng: { type: number }
+ *     responses:
+ *       200:
+ *         description: Location updated.
+ */
+export const updateVendorLocation = asyncHandler(async (req: Request, res: Response) => {
+  const { lat, lng } = req.body as { lat: number; lng: number };
+  const vendor = await vendorService.setLocation(req.user!.id, lat, lng, req);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/me/hours:
+ *   put:
+ *     summary: Update the vendor's business hours
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [business_hours]
+ *             properties:
+ *               business_hours: { type: string }
+ *               available_from: { type: string, nullable: true }
+ *               available_to: { type: string, nullable: true }
+ *     responses:
+ *       200:
+ *         description: Hours updated.
+ */
+export const updateVendorHours = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as { business_hours: string; available_from?: string | null; available_to?: string | null };
+  const vendor = await vendorService.setHours(
+    req.user!.id,
+    body.business_hours,
+    body.available_from ?? null,
+    body.available_to ?? null,
+    req
+  );
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/{vendor_id}:
+ *   get:
+ *     summary: Get a public vendor profile by id
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor details.
+ *       404:
+ *         $ref: "#/components/responses/NotFound"
+ */
+export const getVendorById = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getById(req.params.vendor_id as string);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/by-slug/{slug}:
+ *   get:
+ *     summary: Get a public approved vendor by slug
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Vendor details.
+ *       404:
+ *         $ref: "#/components/responses/NotFound"
+ */
+export const getVendorBySlug = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getBySlug(req.params.slug as string);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/location:
+ *   patch:
+ *     summary: Update the authenticated vendor's full location details
+ *     description: Updates any subset of latitude, longitude, address, landmark, city, state, country, pincode and delivery radius.
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               latitude: { type: number, nullable: true }
+ *               longitude: { type: number, nullable: true }
+ *               address: { type: string }
+ *               landmark: { type: string, nullable: true }
+ *               city: { type: string }
+ *               state: { type: string }
+ *               country: { type: string }
+ *               pincode: { type: string }
+ *               delivery_radius_km: { type: number }
+ *     responses:
+ *       200:
+ *         description: Vendor location updated.
+ */
+export const patchVendorLocation = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.updateLocation(req.user!.id, req.body as VendorLocationBody, req);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/location:
+ *   get:
+ *     summary: Get the authenticated vendor's current location
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     responses:
+ *       200:
+ *         description: Vendor location details.
+ */
+export const getMyLocation = asyncHandler(async (req: Request, res: Response) => {
+  const location = await vendorService.getMyLocation(req.user!.id);
+  return sendSuccess(res, location);
+});
+
+/**
+ * @swagger
+ * /vendors/{vendor_id}/location:
+ *   get:
+ *     summary: Get a public vendor's location
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor location details.
+ *       404:
+ *         $ref: "#/components/responses/NotFound"
+ */
+export const getVendorLocation = asyncHandler(async (req: Request, res: Response) => {
+  const location = await vendorService.getLocationById(req.params.vendor_id as string);
+  return sendSuccess(res, location);
+});
+
+/**
+ * @swagger
+ * /vendors/{vendor_id}/review:
+ *   post:
+ *     summary: Approve or reject a vendor application
+ *     description: Admin / super_admin only.
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [decision]
+ *             properties:
+ *               decision: { type: string, enum: ["approve", "reject"] }
+ *               reason: { type: string, nullable: true }
+ *     responses:
+ *       200:
+ *         description: Vendor reviewed.
+ */
+export const reviewVendor = asyncHandler(async (req: Request, res: Response) => {
+  const { decision, reason } = req.body as { decision: "approve" | "reject"; reason?: string | null };
+  const vendor = await vendorService.review(req.user!.id, req.params.vendor_id as string, decision, reason ?? null, req);
+  return sendSuccess(res, vendor);
+});
+
+/**
+ * @swagger
+ * /vendors/{vendor_id}/suspend:
+ *   post:
+ *     summary: Suspend a vendor
+ *     description: Admin / super_admin only.
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor suspended.
+ */
+export const suspendVendor = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.suspend(req.user!.id, req.params.vendor_id as string, req);
+  return sendSuccess(res, vendor);
+});

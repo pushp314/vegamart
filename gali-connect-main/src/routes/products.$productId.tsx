@@ -1,0 +1,463 @@
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useMemo, useState, useEffect } from "react";
+import {
+  Heart,
+  Share2,
+  Star,
+  Minus,
+  Plus,
+  ShieldCheck,
+  Truck,
+  Clock,
+  MapPin,
+  ArrowLeft,
+  ArrowRight,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import type { Product, Vendor } from "@/types";
+import { useCart } from "@/context/cart-context";
+import { useAuth } from "@/context/auth-context";
+import { useWishlist } from "@/context/wishlist-context";
+import { useLocation } from "@/hooks/use-location";
+
+export const Route = createFileRoute("/products/$productId")({
+  loader: async ({ params }) => {
+    const res = await api.get<Product>(`/products/${params.productId}`);
+    if (!res.success || !res.data) throw notFound();
+    return { product: res.data };
+  },
+  head: ({ loaderData }) => {
+    const p = loaderData?.product;
+    return {
+      meta: [
+        { title: p ? `${p.name} — Vegamart` : "Product" },
+        {
+          name: "description",
+          content: p ? `${p.name} · ${p.unit} at ₹${p.price}. Fresh from your local vendor.` : "",
+        },
+        { property: "og:image", content: p?.images?.[0]?.url ?? "" },
+      ],
+    };
+  },
+  component: ProductDetail,
+  notFoundComponent: () => (
+    <div className="min-h-screen grid place-items-center bg-background">
+      <div className="text-center">
+        <h1 className="font-display text-2xl font-bold">Product not found</h1>
+        <Link
+          to="/vendors"
+          className="mt-4 inline-flex rounded-full bg-primary text-primary-foreground font-semibold text-sm h-11 px-5 items-center"
+        >
+          Browse vendors
+        </Link>
+      </div>
+    </div>
+  ),
+});
+
+const WEIGHT_VARIANTS = [
+  { id: "250g", label: "250 g", multiplier: 0.28 },
+  { id: "500g", label: "500 g", multiplier: 0.55 },
+  { id: "1kg", label: "1 kg", multiplier: 1 },
+  { id: "2kg", label: "2 kg", multiplier: 1.9 },
+];
+
+function ProductDetail() {
+  const { product } = Route.useLoaderData();
+  const { addToCart } = useCart();
+  const { isAuthenticated } = useAuth();
+  const { displayLocation } = useLocation();
+
+  useEffect(() => {
+    if (isAuthenticated && product?.id) {
+      api.post("/users/me/recently-viewed", { product_id: product.id }).catch(() => {});
+    }
+  }, [isAuthenticated, product?.id]);
+
+  const { data: vendorRes } = useQuery({
+    queryKey: ["vendor", product.vendor_id],
+    queryFn: () => api.get<Vendor>(`/vendors/${product.vendor_id}`),
+    enabled: !!product.vendor_id && !product.vendor,
+  });
+  
+  const vendor = product.vendor || vendorRes?.data;
+  
+  const { data: relatedRes } = useQuery({
+    queryKey: ["products", { category_id: product.category_id }],
+    queryFn: () => api.get<Product[]>(`/products?category_id=${product.category_id}`),
+    enabled: !!product.category_id,
+  });
+
+  const [variant, setVariant] = useState(WEIGHT_VARIANTS[2].id);
+  const [qty, setQty] = useState(1);
+  const [imageIdx, setImageIdx] = useState(0);
+
+  const { isWishlisted, toggleWishlist } = useWishlist();
+  const wishlisted = isWishlisted(product.id);
+
+  const gallery = useMemo(() => {
+    if (product.images && product.images.length > 0) {
+      return product.images.sort((a, b) => a.sort_order - b.sort_order).map((img) => img.url);
+    }
+    return ["https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop"];
+  }, [product.images]);
+
+  const activeVariant = WEIGHT_VARIANTS.find((v) => v.id === variant)!;
+  const unitPrice = Math.round(product.price * activeVariant.multiplier);
+  const unitMrp = Math.round(product.mrp * activeVariant.multiplier);
+  const total = unitPrice * qty;
+  const discount = unitMrp > unitPrice ? Math.round(((unitMrp - unitPrice) / unitMrp) * 100) : 0;
+
+  const related = (relatedRes?.data || []).filter((p) => p.id !== product.id).slice(0, 4);
+  const reviewCount = product.review_count || 0;
+
+  const handleAdd = () => {
+    addToCart(product, qty, activeVariant.label);
+    toast.success(`Added ${qty} × ${product.name} (${activeVariant.label}) to cart`);
+  };
+
+  return (
+    <div className="min-h-screen bg-background pb-32 lg:pb-16">
+      <div className="lg:mx-auto lg:max-w-6xl lg:px-6 lg:pt-8 lg:grid lg:grid-cols-2 lg:gap-8">
+        {/* Gallery */}
+        <div className="relative bg-emerald-50 lg:rounded-3xl lg:overflow-hidden lg:sticky lg:top-24 lg:self-start">
+          <div className="absolute top-4 left-4 right-4 z-10 flex justify-between lg:hidden">
+            <Link
+              to="/"
+              aria-label="Back"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/95 backdrop-blur shadow"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div className="flex gap-2">
+              <button
+                aria-label="Share"
+                className="grid h-10 w-10 place-items-center rounded-full bg-white/95 backdrop-blur shadow"
+              >
+                <Share2 className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => {
+                  toggleWishlist(product);
+                  if (wishlisted) {
+                    toast.info(`Removed ${product.name} from wishlist`);
+                  } else {
+                    toast.success(`Added ${product.name} to wishlist ❤️`);
+                  }
+                }}
+                aria-label="Save"
+                aria-pressed={wishlisted}
+                className="grid h-10 w-10 place-items-center rounded-full bg-white/95 backdrop-blur shadow hover:scale-105 transition-transform"
+              >
+                <Heart className={`h-5 w-5 transition-colors ${wishlisted ? "fill-rose-500 text-rose-500" : "text-zinc-600"}`} />
+              </button>
+            </div>
+          </div>
+          <div className="aspect-square w-full overflow-hidden">
+            <img
+              src={gallery[imageIdx]}
+              alt={product.name}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          {discount > 0 && (
+            <span className="absolute left-4 bottom-4 rounded-full bg-emerald-700 px-3 py-1 text-[11px] font-bold text-white">
+              {discount}% OFF
+            </span>
+          )}
+        </div>
+
+        {/* Thumbnails */}
+        {gallery.length > 1 && (
+          <div className="mx-auto max-w-3xl px-4 mt-4 lg:hidden">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {gallery.map((src, i) => (
+                <button
+                  key={i}
+                  onClick={() => setImageIdx(i)}
+                  className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition ${
+                    imageIdx === i ? "border-primary" : "border-border opacity-70"
+                  }`}
+                  aria-label={`View image ${i + 1}`}
+                >
+                  <img src={src} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <main className="mx-auto max-w-3xl px-4 mt-5 lg:mx-0 lg:max-w-none lg:px-0 lg:mt-0">
+          {/* Info card */}
+          <section className="rounded-2xl bg-card border p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary text-[10.5px] font-bold px-2 py-0.5">
+                <Star className="h-3 w-3 fill-current" /> {product.rating || "0.0"}
+                <span className="text-muted-foreground font-normal ml-1">
+                  ({reviewCount.toLocaleString("en-IN")})
+                </span>
+              </span>
+            </div>
+            <h1 className="mt-2 font-display text-2xl font-bold leading-tight">{product.name}</h1>
+            {vendor && (
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                by{" "}
+                <Link
+                  to="/vendors/$vendorId"
+                  params={{ vendorId: vendor.id }}
+                  className="text-primary font-semibold"
+                >
+                  {vendor.business_name}
+                </Link>{" "}
+                · {product.unit}
+              </p>
+            )}
+
+            {/* Price */}
+            <div className="mt-4 flex items-baseline gap-3">
+              <span className="font-display text-3xl font-bold tabular-nums">₹{unitPrice}</span>
+              {unitMrp > unitPrice && (
+                <span className="text-sm text-muted-foreground line-through tabular-nums">
+                  ₹{unitMrp}
+                </span>
+              )}
+              {discount > 0 && (
+                <span className="text-[12px] font-bold text-primary">
+                  You save ₹{unitMrp - unitPrice}
+                </span>
+              )}
+            </div>
+            <p className="text-[11.5px] text-muted-foreground">Inclusive of all taxes</p>
+
+            {/* Variants */}
+            <div className="mt-5">
+              <div className="text-[12px] font-semibold text-foreground/80">Pack size</div>
+              <div className="mt-2 grid grid-cols-4 gap-2">
+                {WEIGHT_VARIANTS.map((v) => {
+                  const active = v.id === variant;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => setVariant(v.id)}
+                      className={`rounded-xl border p-2.5 text-center transition ${
+                        active
+                          ? "border-primary bg-emerald-50"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <div className={`text-[13px] font-semibold ${active ? "text-primary" : ""}`}>
+                        {v.label}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
+                        ₹{Math.round(product.price * v.multiplier)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Qty */}
+            <div className="mt-5 flex items-center justify-between">
+              <span className="text-[13px] font-semibold">Quantity</span>
+              <div className="inline-flex items-center rounded-full bg-emerald-50 text-primary">
+                <button
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  className="grid h-10 w-10 place-items-center"
+                  aria-label="Decrease"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="w-8 text-center font-semibold tabular-nums">{qty}</span>
+                <button
+                  onClick={() => setQty((q) => Math.min(20, q + 1))}
+                  className="grid h-10 w-10 place-items-center"
+                  aria-label="Increase"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Delivery promises */}
+          <section className="mt-4 rounded-2xl bg-card border p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin className="h-4 w-4 text-primary" />
+              <span className="font-semibold">Delivering to {displayLocation}</span>
+              <button className="ml-auto text-[12px] font-semibold text-primary">Change</button>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Fact
+                icon={<Clock className="h-4 w-4" />}
+                label="ETA"
+                value="15 min"
+              />
+              <Fact icon={<Truck className="h-4 w-4" />} label="Delivery" value="Free ₹199+" />
+              <Fact
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Promise"
+                value="Fresh or refund"
+              />
+            </div>
+          </section>
+
+          {/* About */}
+          {product.description && (
+            <section className="mt-4 rounded-2xl bg-card border p-5 shadow-sm">
+              <h2 className="font-display text-[16px] font-bold">About this product</h2>
+              <p className="mt-2 text-[13.5px] text-muted-foreground leading-relaxed">
+                {product.description}
+              </p>
+            </section>
+          )}
+
+          {/* Related */}
+          {related.length > 0 && (
+            <section className="mt-6">
+              <h2 className="font-display text-[16px] font-bold mb-3">You may also like</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                {related.map((p) => {
+                  const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
+                  const imageUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                  return (
+                    <Link
+                      key={p.id}
+                      to="/products/$productId"
+                      params={{ productId: p.id }}
+                      className="rounded-2xl bg-card border overflow-hidden shadow-sm"
+                    >
+                      <div className="relative aspect-square bg-muted">
+                        <img src={imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                        {disc > 0 && (
+                          <span className="absolute top-2 left-2 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white">
+                            {disc}% OFF
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+                          <Star className="h-3 w-3 fill-primary text-primary" /> {p.rating || "0.0"}
+                        </div>
+                        <h3 className="mt-0.5 font-semibold text-[13.5px] truncate">{p.name}</h3>
+                        <p className="text-[11.5px] text-muted-foreground">{p.unit}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-sm">₹{p.price}</span>
+                            {p.mrp > p.price && (
+                              <span className="ml-1 text-[10.5px] text-muted-foreground line-through">
+                                ₹{p.mrp}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            aria-label={`Add ${p.name}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              addToCart(p, 1);
+                              toast.success(`Added ${p.name} to cart`);
+                            }}
+                            className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </main>
+      </div>
+
+      {/* Inline desktop action bar */}
+      <div className="hidden lg:block mx-auto max-w-6xl px-6 mt-6">
+        <div className="flex items-center gap-3 justify-end">
+          <div className="mr-auto">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Total
+            </div>
+            <div className="font-display text-2xl font-bold tabular-nums">₹{total}</div>
+          </div>
+          <button
+            onClick={() => {
+              toggleWishlist(product);
+              if (wishlisted) {
+                toast.info(`Removed ${product.name} from wishlist`);
+              } else {
+                toast.success(`Added ${product.name} to wishlist ❤️`);
+              }
+            }}
+            className={`inline-flex items-center gap-2 rounded-full border px-5 text-sm font-bold h-12 transition-all ${
+              wishlisted ? "bg-rose-50 border-rose-200 text-rose-600" : "bg-card hover:bg-muted text-foreground"
+            }`}
+          >
+            <Heart className={`h-4 w-4 ${wishlisted ? "fill-rose-500 text-rose-500" : ""}`} />
+            {wishlisted ? "Wishlisted" : "Save to Wishlist"}
+          </button>
+          <button
+            onClick={handleAdd}
+            className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary font-semibold text-sm h-12 px-6"
+          >
+            Add to cart
+          </button>
+          <Link
+            to="/checkout"
+            className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground font-semibold text-sm h-12 px-6"
+          >
+            Buy now <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+
+      {/* Sticky action bar (mobile) */}
+      <div
+        className="lg:hidden fixed inset-x-0 z-40 pointer-events-none"
+        style={{ bottom: "calc(88px + env(safe-area-inset-bottom))" }}
+      >
+        <div className="mx-auto max-w-md px-4">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 backdrop-blur border p-1.5 pl-4 shadow-[0_12px_30px_-10px_rgba(0,0,0,0.15)]">
+            <div className="flex-1 min-w-0">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Total
+              </div>
+              <div className="font-display text-lg font-bold leading-none tabular-nums">
+                ₹{total}
+              </div>
+            </div>
+            <button
+              onClick={handleAdd}
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary font-semibold text-[13px] h-11 px-4"
+            >
+              Add
+            </button>
+            <Link
+              to="/checkout"
+              className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground font-semibold text-[13px] h-11 px-4"
+            >
+              Buy now <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-emerald-50/60 p-2.5 text-center">
+      <span className="inline-grid h-7 w-7 place-items-center rounded-full bg-primary text-primary-foreground mx-auto">
+        {icon}
+      </span>
+      <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="text-[12px] font-semibold">{value}</div>
+    </div>
+  );
+}

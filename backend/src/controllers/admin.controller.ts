@@ -1,0 +1,599 @@
+import type { Request, Response } from "express";
+
+import { dashboardService } from "../services/dashboard.service";
+import { adminUserService } from "../services/admin-user.service";
+import { adminVendorService } from "../services/admin-vendor.service";
+import { adminDeliveryService } from "../services/admin-delivery.service";
+import { auditLogService } from "../services/audit-log.service";
+import { sendSuccess } from "../utils/ApiResponse";
+import asyncHandler from "../utils/asyncHandler";
+import { buildPaginationMeta } from "../utils/pagination";
+
+/**
+ * @swagger
+ * /admin/dashboard:
+ *   get:
+ *     summary: Get platform dashboard metrics
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Dashboard metrics.
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
+ *       403:
+ *         $ref: "#/components/responses/Forbidden"
+ */
+export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
+  const data = await dashboardService.getMetrics(req.user!.id, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users:
+ *   get:
+ *     summary: List all users with filters
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: per_page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: q
+ *         schema: { type: string }
+ *       - in: query
+ *         name: role
+ *         schema: { type: string, enum: [customer, vendor, delivery, admin, super_admin] }
+ *       - in: query
+ *         name: status
+ *         schema: { type: string, enum: [active, inactive, suspended, banned] }
+ *     responses:
+ *       200:
+ *         description: Paginated user list.
+ */
+export const listUsers = asyncHandler(async (req: Request, res: Response) => {
+  const result = await adminUserService.list(req.query as never);
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}:
+ *   get:
+ *     summary: Get user details for admin
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: User details.
+ */
+export const getUser = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.getById(req.params.user_id as string);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}/suspend:
+ *   post:
+ *     summary: Suspend a user
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason: { type: string }
+ *     responses:
+ *       200:
+ *         description: User suspended.
+ */
+export const suspendUser = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.suspend(
+    req.user!.id,
+    req.params.user_id as string,
+    (req.body as { reason?: string | null }).reason ?? null,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}/activate:
+ *   post:
+ *     summary: Activate a suspended user
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: User activated.
+ */
+export const activateUser = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.activate(req.user!.id, req.params.user_id as string, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}:
+ *   delete:
+ *     summary: Soft-delete a user
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: User deleted.
+ */
+export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.remove(req.user!.id, req.params.user_id as string, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}/restore:
+ *   post:
+ *     summary: Restore a soft-deleted user
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: User restored.
+ */
+export const restoreUser = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.restore(req.user!.id, req.params.user_id as string, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}/reset-password:
+ *   post:
+ *     summary: Reset a user's password
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [password]
+ *             properties:
+ *               password: { type: string }
+ *     responses:
+ *       200:
+ *         description: Password reset.
+ */
+export const resetUserPassword = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.resetPassword(
+    req.user!.id,
+    req.params.user_id as string,
+    (req.body as { password: string }).password,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}/force-logout:
+ *   post:
+ *     summary: Force logout a user across all sessions
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: User logged out.
+ */
+export const forceLogoutUser = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.forceLogout(req.user!.id, req.params.user_id as string, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/users/{user_id}/role:
+ *   patch:
+ *     summary: Change a user's role
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [role]
+ *             properties:
+ *               role: { type: string, enum: [customer, vendor, delivery, admin, super_admin] }
+ *     responses:
+ *       200:
+ *         description: Role updated.
+ */
+export const changeUserRole = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminUserService.changeRole(
+    req.user!.id,
+    req.params.user_id as string,
+    (req.body as { role: string }).role,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/vendors:
+ *   get:
+ *     summary: List all vendors for admin
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Paginated vendor list.
+ */
+export const listVendorsAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const result = await adminVendorService.list(req.query as never);
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /admin/vendors/{vendor_id}:
+ *   get:
+ *     summary: Get vendor details with stats
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor details and stats.
+ */
+export const getVendorAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminVendorService.getById(req.params.vendor_id as string);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/vendors/{vendor_id}/review:
+ *   post:
+ *     summary: Approve or reject a vendor
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [decision]
+ *             properties:
+ *               decision: { type: string, enum: [approve, reject] }
+ *               reason: { type: string }
+ *     responses:
+ *       200:
+ *         description: Vendor decision applied.
+ */
+export const reviewVendorAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as { decision: "approve" | "reject"; reason?: string | null };
+  const data = await adminVendorService.review(
+    req.user!.id,
+    req.params.vendor_id as string,
+    body.decision,
+    body.reason ?? null,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/vendors/{vendor_id}/suspend:
+ *   post:
+ *     summary: Suspend a vendor
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor suspended.
+ */
+export const suspendVendorAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminVendorService.suspend(
+    req.user!.id,
+    req.params.vendor_id as string,
+    (req.body as { reason?: string | null }).reason ?? null,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/vendors/{vendor_id}/restore:
+ *   post:
+ *     summary: Restore a suspended/deleted vendor
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor restored.
+ */
+export const restoreVendorAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminVendorService.restore(req.user!.id, req.params.vendor_id as string, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/vendors/{vendor_id}/earnings:
+ *   get:
+ *     summary: Get vendor earnings summary
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor earnings stats.
+ */
+export const getVendorEarnings = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminVendorService.earnings(req.params.vendor_id as string);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/delivery-partners:
+ *   get:
+ *     summary: List all delivery partners
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Paginated delivery partner list.
+ */
+export const listDeliveryPartners = asyncHandler(async (req: Request, res: Response) => {
+  const result = await adminDeliveryService.list(req.query as never);
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /admin/delivery-partners/{delivery_id}:
+ *   get:
+ *     summary: Get delivery partner details
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: delivery_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Delivery partner details.
+ */
+export const getDeliveryPartner = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminDeliveryService.getById(req.params.delivery_id as string);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/delivery-partners/{delivery_id}/review:
+ *   post:
+ *     summary: Approve or reject a delivery partner
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: delivery_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [decision]
+ *             properties:
+ *               decision: { type: string, enum: [approve, reject] }
+ *               reason: { type: string }
+ *     responses:
+ *       200:
+ *         description: Delivery partner decision applied.
+ */
+export const reviewDeliveryPartner = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as { decision: "approve" | "reject"; reason?: string | null };
+  const data = await adminDeliveryService.review(
+    req.user!.id,
+    req.params.delivery_id as string,
+    body.decision,
+    body.reason ?? null,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/delivery-partners/{delivery_id}/suspend:
+ *   post:
+ *     summary: Suspend a delivery partner
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: delivery_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Delivery partner suspended.
+ */
+export const suspendDeliveryPartner = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminDeliveryService.suspend(
+    req.user!.id,
+    req.params.delivery_id as string,
+    (req.body as { reason?: string | null }).reason ?? null,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/delivery-partners/{delivery_id}/restore:
+ *   post:
+ *     summary: Restore a suspended delivery partner
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: delivery_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Delivery partner restored.
+ */
+export const restoreDeliveryPartner = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminDeliveryService.restore(req.user!.id, req.params.delivery_id as string, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/audit-logs:
+ *   get:
+ *     summary: List audit logs with filters
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Paginated audit log list.
+ */
+export const listAuditLogs = asyncHandler(async (req: Request, res: Response) => {
+  const result = await auditLogService.list(req.query as never);
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /admin/audit-logs/{audit_log_id}:
+ *   get:
+ *     summary: Get a single audit log entry
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: audit_log_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Audit log entry.
+ */
+export const getAuditLog = asyncHandler(async (req: Request, res: Response) => {
+  const data = await auditLogService.getById(req.params.audit_log_id as string);
+  return sendSuccess(res, data);
+});

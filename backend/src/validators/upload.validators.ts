@@ -1,0 +1,11 @@
+import { z } from "zod";
+
+const folderEnum = z.enum(["products", "vendors", "profiles", "categories", "documents", "invoices"]);
+
+export const uploadFolderSchema = z.object({
+  folder: folderEnum,
+});
+
+export const deleteFileSchema = z.object({
+  key: z.string().min(1, "key is required.").max(500),
+});
