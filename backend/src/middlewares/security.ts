@@ -10,6 +10,7 @@ import { securityEventFromReq } from "../monitoring/security-events";
  * Referrer-Policy and Permissions-Policy headers.
  */
 export function securityHeaders(req: Request, res: Response, next: NextFunction): void {
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   helmet({
     contentSecurityPolicy: isProduction
       ? {
@@ -50,8 +51,6 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
       preload: true,
     },
   })(req, res, next);
-
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
 }
 
 const COMMON_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
@@ -64,7 +63,7 @@ const COMMON_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
  */
 const abuseWindow = new Map<string, { count: number; resetAt: number }>();
 const ABUSE_WINDOW_MS = 60_000;
-const ABUSE_MAX = 60;
+const ABUSE_MAX = 300;
 
 export function ipAbuseGuard(req: Request, res: Response, next: NextFunction): void {
   const ip = req.ip;

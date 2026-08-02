@@ -6,6 +6,7 @@ import { env } from "./config";
 import log from "./config/logger";
 import { connectDatabase, disconnectDatabase } from "./database/connection";
 import { startJobs, stopJobs } from "./jobs/scheduler";
+import { periodicAbuseCleanup } from "./middlewares/security";
 import { initRealtime } from "./realtime/realtime";
 
 const PORT = env.APP_PORT;
@@ -39,6 +40,9 @@ async function bootstrap(): Promise<void> {
   }
 
   startJobs();
+
+  const abuseCleanup = setInterval(periodicAbuseCleanup, 60_000);
+  abuseCleanup.unref();
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EADDRINUSE") {
