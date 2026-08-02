@@ -1,0 +1,14 @@
+# Never commit runtime secrets or generated artifacts.
+.env.production
+.env.production.*
+generated-db-password.txt
+
+# Runtime data (keep only the .gitkeep placeholders).
+backups/*
+logs/*
+releases/*
+configs/*
+!backups/.gitkeep
+!logs/.gitkeep
+!releases/.gitkeep
+!configs/.gitkeep
