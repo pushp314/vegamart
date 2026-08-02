@@ -11,8 +11,12 @@ load_config
 require_var DOMAIN "Add 'DOMAIN=your-domain.com' to configs/deploy.env."
 
 CERT_DIR="/etc/letsencrypt/live/${DOMAIN}"
-EXTRA_DOMAINS=()
-for d in ${SSL_EXTRA_DOMAINS:-}; do EXTRA_DOMAINS+=("-d" "$d"); done
+SSL_DOMAINS=("$DOMAIN")
+if [[ -n "${API_DOMAIN:-}" ]]; then
+  SSL_DOMAINS+=("$API_DOMAIN")
+  info "Certificate will also cover API subdomain: ${API_DOMAIN}"
+fi
+for d in ${SSL_EXTRA_DOMAINS:-}; do SSL_DOMAINS+=("$d"); done
 
 step "SSL setup (Let's Encrypt / Certbot)"
 
@@ -24,18 +28,22 @@ if [[ -f "${CERT_DIR}/fullchain.pem" ]]; then
   info "Current cert expires: ${expires_on}"
 else
   # Ensure DNS resolves before asking Let's Encrypt for a cert.
-  if ! getent ahostsv4 "$DOMAIN" >/dev/null 2>&1; then
-    die "DNS for ${DOMAIN} does not resolve to this server yet. Point the A/AAAA records at the VPS IP, wait for propagation, then re-run."
-  fi
+  for d in "${SSL_DOMAINS[@]}"; do
+    if ! getent ahostsv4 "$d" >/dev/null 2>&1; then
+      die "DNS for ${d} does not resolve to this server yet. Point the A/AAAA records at the VPS IP, wait for propagation, then re-run."
+    fi
+  done
 
-  sub "Requesting certificate for ${DOMAIN} ${EXTRA_DOMAINS[*]:-}"
+  sub "Requesting certificate for: ${SSL_DOMAINS[*]}"
   EMAIL_ARGS=()
   if [[ -n "${ADMIN_EMAIL:-}" ]]; then
     EMAIL_ARGS+=("-m" "$ADMIN_EMAIL")
   else
     EMAIL_ARGS+=("--register-unsafely-without-email")
   fi
-  certbot --nginx -d "$DOMAIN" "${EXTRA_DOMAINS[@]}" \
+  CERT_ARGS=()
+  for d in "${SSL_DOMAINS[@]}"; do CERT_ARGS+=("-d" "$d"); done
+  certbot --nginx "${CERT_ARGS[@]}" \
     --redirect --non-interactive --agree-tos "${EMAIL_ARGS[@]}" \
     --keep-until-expiring
   ok "Certificate obtained"

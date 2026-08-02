@@ -27,6 +27,12 @@ fill_secrets() {
 
   sed -i "s|__YOUR_DOMAIN__|${DOMAIN}|g" "$ENV_FILE"
 
+  if [[ -n "${API_DOMAIN:-}" ]]; then
+    sed -i "s|__API_DOMAIN__|${API_DOMAIN}|g" "$ENV_FILE"
+  else
+    sed -i "s|__API_DOMAIN__|${DOMAIN}|g" "$ENV_FILE"
+  fi
+
   if [[ -f "$DB_PASSWORD_FILE" ]]; then
     DB_PASSWORD="$(tr -d '\r\n' < "$DB_PASSWORD_FILE")"
     sed -i "s|__DB_PASSWORD__|${DB_PASSWORD}|g" "$ENV_FILE"

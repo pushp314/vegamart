@@ -144,7 +144,7 @@ nano /opt/vegamart/deploy/configs/deploy.env       # GIT_REPO_URL, DOMAIN, ADMIN
 `deploy.env` essentials:
 
 ```env
-GIT_REPO_URL=https://github.com/you/vegamart.git   # or git@github.com:you/vegamart.git
+GIT_REPO_URL=https://github.com/pushp314/vegamart.git   # or git@github.com:you/vegamart.git
 GIT_BRANCH=main
 DOMAIN=shop.example.com
 ADMIN_EMAIL=you@example.com

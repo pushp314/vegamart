@@ -16,6 +16,8 @@ SITE_LINK="/etc/nginx/sites-enabled"
 SITE_NAME="vegamart"
 SITE_FILE="${SITE_DIR}/${SITE_NAME}"
 CERT_DIR="/etc/letsencrypt/live/${DOMAIN}"
+SPLIT_MODE="no"
+[[ -n "${API_DOMAIN:-}" ]] && SPLIT_MODE="yes"
 
 mkdir -p "$SITE_DIR" "$SITE_LINK"
 
@@ -31,10 +33,21 @@ fi
 TMP_OUT="$(mktemp /tmp/vegamart-nginx.XXXXXX)"
 sed \
   -e "s|__DOMAIN__|${DOMAIN}|g" \
+  -e "s|__API_DOMAIN__|${API_DOMAIN:-}|g" \
   -e "s|__WEB_PORT__|${WEB_PORT}|g" \
   -e "s|__API_PORT__|${API_PORT}|g" \
   -e "s|__CERT_PATH__|${CERT_DIR}|g" \
   "$TEMPLATE" > "$TMP_OUT"
+
+# Mode selection: keep the single-domain block, or keep the split blocks.
+if [[ "$SPLIT_MODE" == "yes" ]]; then
+  awk '/__SINGLE_MODE__/{skip=1} /__SINGLE_MODE_END__/{skip=0; next} !skip' "$TMP_OUT" > "${TMP_OUT}.mode"
+  info "Rendering split-domain config (frontend ${DOMAIN}, API ${API_DOMAIN})"
+else
+  awk '/__SPLIT_MODE__/{skip=1} /__SPLIT_MODE_END__/{skip=0; next} !skip' "$TMP_OUT" > "${TMP_OUT}.mode"
+  info "Rendering single-domain config (${DOMAIN})"
+fi
+mv "${TMP_OUT}.mode" "$TMP_OUT"
 
 if [[ "$MODE" == "ssl" ]]; then
   # Keep SSL block, drop HTTP_ONLY block.
@@ -44,7 +57,7 @@ else
   awk '/__SSL_BLOCK__/{skip=1} /__SSL_BLOCK_END__/{skip=0; next} !skip' "$TMP_OUT" > "${TMP_OUT}.2"
 fi
 # Strip any leftover block markers from the retained block.
-sed -i '/__SSL_BLOCK__/d; /__SSL_BLOCK_END__/d; /__HTTP_ONLY_BLOCK__/d; /__HTTP_ONLY_BLOCK_END__/d' "${TMP_OUT}.2"
+sed -i '/__SSL_BLOCK__/d; /__SSL_BLOCK_END__/d; /__HTTP_ONLY_BLOCK__/d; /__HTTP_ONLY_BLOCK_END__/d; /__SINGLE_MODE__/d; /__SINGLE_MODE_END__/d; /__SPLIT_MODE__/d; /__SPLIT_MODE_END__/d' "${TMP_OUT}.2"
 mv "${TMP_OUT}.2" "$TMP_OUT"
 
 mv "$TMP_OUT" "$SITE_FILE"

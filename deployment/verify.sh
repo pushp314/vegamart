@@ -73,6 +73,18 @@ if [[ -n "${DOMAIN:-}" ]]; then
     check WARN "ssl ${DOMAIN}" "no cert yet — run setup-ssl.sh after DNS points here"
   fi
 fi
+if [[ -n "${API_DOMAIN:-}" ]]; then
+  if getent ahostsv4 "$API_DOMAIN" >/dev/null 2>&1; then
+    check PASS "domain ${API_DOMAIN}" "resolves ($(getent ahostsv4 "$API_DOMAIN" | awk 'NR==1{print $1}'))"
+  else
+    check FAIL "domain ${API_DOMAIN}" "does not resolve — add an A record for ${API_DOMAIN}"
+  fi
+  if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
+    check PASS "ssl ${API_DOMAIN}" "covered by ${DOMAIN} cert"
+  else
+    check WARN "ssl ${API_DOMAIN}" "no cert yet"
+  fi
+fi
 
 # --- Security --------------------------------------------------------------------
 if ufw status 2>/dev/null | grep -q "Status: active"; then
