@@ -39,6 +39,8 @@ trap on_error ERR
 
 step "Updating Vegamart"
 
+preflight_check
+
 sub "Pre-update database backup"
 "${DEPLOY_DIR}/backup.sh" --db --quiet
 

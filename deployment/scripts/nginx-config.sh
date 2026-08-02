@@ -4,7 +4,7 @@
 # values from configs/deploy.env. Safe to run repeatedly.
 # ==============================================================================
 set -Eeuo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/lib.sh" && pwd)/lib.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_root
 load_config

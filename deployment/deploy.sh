@@ -29,8 +29,10 @@ SEED=0
 
 step "Deploying Vegamart → ${APP_BASE_DIR}"
 
+preflight_check
+
 # ------------------------------------------------------------------------------
-# 0. Preflight — provision missing pieces so a bare box still succeeds.
+# 0. Provision missing pieces so a bare box still succeeds.
 # ------------------------------------------------------------------------------
 command -v git >/dev/null 2>&1 || apt_ensure git ca-certificates openssl
 command -v node >/dev/null 2>&1 || "${DEPLOY_DIR}/setup-node.sh"

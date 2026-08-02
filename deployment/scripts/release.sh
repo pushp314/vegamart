@@ -6,7 +6,7 @@
 # ==============================================================================
 set -Eeuo pipefail
 # shellcheck disable=SC1091
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/lib.sh" && pwd)/lib.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 # ------------------------------------------------------------------------------
 # Environment file handling
@@ -64,6 +64,35 @@ validate_env() {
     die "Required values missing/placeholder in ${ENV_FILE}: ${missing[*]}. The backend refuses to boot without R2 + Razorpay credentials in production."
   fi
   info "Environment validated (${#missing[@]} required checks passed)"
+}
+
+# ------------------------------------------------------------------------------
+# Preflight — fail fast with clear messages; auto-provisionable tools warn only.
+# ------------------------------------------------------------------------------
+preflight_check() {
+  step "Preflight checks"
+  for tool in git node npm pm2 psql nginx curl; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      info "  ok  ${tool}: $(command -v "$tool")"
+    else
+      warn "  !!  ${tool} is missing — it will be provisioned automatically during deploy."
+    fi
+  done
+
+  local free_kb free_gb
+  free_kb="$(df -Pk "$APP_BASE_DIR" 2>/dev/null | awk 'NR==2{print $4}' || echo 0)"
+  free_gb=$(( free_kb / 1024 / 1024 ))
+  if (( free_gb >= 2 )); then
+    info "  ok  disk space on ${APP_BASE_DIR}: ${free_gb} GB free"
+  else
+    die "Only ${free_gb} GB free on ${APP_BASE_DIR} — free space before deploying."
+  fi
+
+  require_var GIT_REPO_URL "Add 'GIT_REPO_URL=git@host:user/repo.git' (or https) to configs/deploy.env."
+  require_var GIT_BRANCH   "Set 'GIT_BRANCH' in configs/deploy.env."
+  [[ -f "$ENV_FILE" ]] || die ".env.production not found at ${ENV_FILE} — copy it from deployment/.env.production.example and fill it."
+  [[ -d "$DEPLOY_DIR/scripts" ]] || die "Toolkit is incomplete: '${DEPLOY_DIR}/scripts' is missing."
+  ok "Preflight complete"
 }
 
 # ------------------------------------------------------------------------------
