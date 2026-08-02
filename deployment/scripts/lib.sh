@@ -7,6 +7,11 @@
 
 set -Eeuo pipefail
 
+# Idempotent source guard — scripts may source lib.sh indirectly multiple times
+# (e.g. deploy.sh sources both lib.sh and release.sh, which also sources lib.sh).
+if [[ -z "${VEGAMART_LIB_LOADED:-}" ]]; then
+readonly VEGAMART_LIB_LOADED=1
+
 DEPLOY_VERSION="1.0.0"
 
 # ------------------------------------------------------------------------------
@@ -192,3 +197,5 @@ print_success_banner() {
   printf '  ╚══════════════════════════════════════════════════════════════╝\n'
   printf '%s\n' "${C_RESET}"
 }
+
+fi  # end VEGAMART_LIB_LOADED source guard
