@@ -32,7 +32,12 @@ export const adminVendorService = {
       (page - 1) * perPage,
       perPage
     );
-    return { rows, total, page, perPage };
+    const serialized = rows.map((v) => ({
+      ...v,
+      status: v.status.toLowerCase(),
+      vendor_type: v.roaming ? "roaming" : "shop",
+    }));
+    return { rows: serialized, total, page, perPage };
   },
 
   async getById(id: string) {

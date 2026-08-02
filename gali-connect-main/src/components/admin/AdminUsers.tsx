@@ -42,7 +42,7 @@ export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
                   </td>
                   <td className="px-8 py-5">
                     <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest bg-zinc-800/50 border border-zinc-700 px-3 py-1.5 rounded-xl">
-                      {u.role}
+                      {u.role?.slug || u.role || "unknown"}
                     </span>
                   </td>
                   <td className="px-8 py-5">

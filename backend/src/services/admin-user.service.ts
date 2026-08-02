@@ -39,7 +39,14 @@ export const adminUserService = {
       (page - 1) * perPage,
       perPage
     );
-    return { rows, total, page, perPage };
+    const serialized = rows.map((u) => {
+      const safe = sanitizeUser(u as Record<string, unknown>);
+      return {
+        ...safe,
+        is_active: (u as { status?: string }).status === "ACTIVE",
+      };
+    });
+    return { rows: serialized, total, page, perPage };
   },
 
   async getById(id: string) {

@@ -108,7 +108,16 @@ export async function listDeliveryPartners(
   const [rows, total] = await Promise.all([
     prisma.deliveryProfile.findMany({
       where,
-      select: baseSelect,
+      select: {
+        ...baseSelect,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
       orderBy: { created_at: "desc" },
       skip,
       take,

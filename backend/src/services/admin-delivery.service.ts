@@ -27,7 +27,12 @@ export const adminDeliveryService = {
       (page - 1) * perPage,
       perPage
     );
-    return { rows, total, page, perPage };
+    const serialized = rows.map((p) => ({
+      ...p,
+      status: p.status.toLowerCase(),
+      availability_status: p.availability_status.toLowerCase(),
+    }));
+    return { rows: serialized, total, page, perPage };
   },
 
   async getById(id: string) {
