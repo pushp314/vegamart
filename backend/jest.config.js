@@ -22,5 +22,8 @@ module.exports = {
   coverageDirectory: "coverage",
   verbose: true,
   clearMocks: true,
-  restoreMocks: true
+  restoreMocks: true,
+  testTimeout: 60000,
+  maxWorkers: "50%",
+  setupFilesAfterEnv: ["<rootDir>/tests/setup-after-env.ts"]
 };

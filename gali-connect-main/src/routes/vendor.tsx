@@ -79,20 +79,20 @@ function VendorDashboard() {
   // Fetch Vendor Products
   const { data: productsRes, isLoading: prodsLoading } = useQuery({
     queryKey: ["vendorProducts", vendor?.id],
-    queryFn: () => api.get<{ data: Product[] }>(`/products?vendor_id=${vendor?.id}`),
+    queryFn: () => api.get<Product[]>(`/products?vendor_id=${vendor?.id}`),
     enabled: !!vendor?.id && vendor?.status === "approved",
   });
 
-  const productList: Product[] = productsRes?.data?.data || [];
+  const productList: Product[] = productsRes?.data || [];
 
   // Fetch Vendor Orders
   const { data: ordersRes, isLoading: ordersLoading } = useQuery({
     queryKey: ["vendorOrders"],
-    queryFn: () => api.get<{ data: any[] }>("/orders/vendor"),
+    queryFn: () => api.get<any[]>("/orders/vendor"),
     enabled: !!vendor?.id && vendor?.status === "approved",
   });
 
-  const vendorOrders = ordersRes?.data?.data || [];
+  const vendorOrders = ordersRes?.data || [];
 
   // Fetch KYC
   const { data: kycRes, isLoading: kycLoading } = useQuery({
@@ -145,10 +145,10 @@ function VendorDashboard() {
     const timer = setTimeout(async () => {
       setIsSearchingImages(true);
       try {
-        const res = await api.get<{ data: Product[] }>(`/products?q=${encodeURIComponent(prodName)}`);
-        if (res.success && res.data?.data) {
+        const res = await api.get<Product[]>(`/products?q=${encodeURIComponent(prodName)}`);
+        if (res.success && res.data) {
           const images = new Set<string>();
-          res.data.data.forEach((p) => {
+          res.data.forEach((p) => {
             if (p.images?.[0]?.url) {
               images.add(p.images[0].url);
             }
@@ -189,8 +189,19 @@ function VendorDashboard() {
   });
 
   const updateOrderStatusMutation = useMutation({
-    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
-      api.put(`/orders/${orderId}/status`, { status }),
+    mutationFn: ({ orderId, status }: { orderId: string; status: string }) => {
+      const VENDOR_ORDER_STATUS_MAP: Record<string, string> = {
+        accepted: "CONFIRMED",
+        preparing: "PREPARING",
+        packed: "PACKED",
+        ready_for_pickup: "READY_FOR_PICKUP",
+        out_for_delivery: "OUT_FOR_DELIVERY",
+        delivered: "DELIVERED",
+      };
+      return api.patch(`/vendors/orders/${orderId}/status`, {
+        status: VENDOR_ORDER_STATUS_MAP[status] || status,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
       toast.success("Order status updated");
@@ -429,10 +440,10 @@ function VendorDashboard() {
       setIsUploading(true);
       const formData = new FormData();
       formData.append("file", prodImageFile);
-      const uploadRes = await api.post<{ data: { url: string; key: string } }>("/uploads", formData);
+      const uploadRes = await api.post<{ url: string; key: string }>("/uploads", formData);
       setIsUploading(false);
-      if (uploadRes.success && uploadRes.data?.data?.url) {
-        finalImageUrl = uploadRes.data.data.url;
+      if (uploadRes.success && uploadRes.data?.url) {
+        finalImageUrl = uploadRes.data.url;
       } else {
         toast.error("Image upload failed");
         return;

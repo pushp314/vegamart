@@ -1,4 +1,4 @@
-import { rateLimit } from "express-rate-limit";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import type { SendCommandFn } from "rate-limit-redis";
 import type { Request } from "express";
@@ -64,6 +64,19 @@ export const authLimiter = createLimiter({
   windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
   max: env.AUTH_RATE_LIMIT_MAX,
   message: "Too many authentication attempts, please slow down.",
+});
+
+function identifierKeyGenerator(req: Request): string {
+  const body = (req.body ?? {}) as { email?: unknown; identifier?: unknown };
+  const id = String(body.email ?? body.identifier ?? "anonymous").toLowerCase().trim();
+  return `${ipKeyGenerator(req.ip ?? "unknown")}:${id}`;
+}
+
+export const otpLimiter = createLimiter({
+  windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+  max: Math.max(5, env.AUTH_RATE_LIMIT_MAX),
+  message: "Too many OTP attempts for this account, please try again later.",
+  keyGenerator: identifierKeyGenerator,
 });
 
 export const paymentLimiter = createLimiter({

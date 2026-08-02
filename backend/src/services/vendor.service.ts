@@ -9,6 +9,7 @@ import { findById as findUserById } from "../repositories/user.repository";
 import { cacheService } from "../database/cache";
 import { notificationService } from "./notification.service";
 import { emailService } from "./email.service";
+import { realtime } from "../realtime/realtime";
 import { ApiError, ConflictError, ForbiddenError } from "../utils/ApiError";
 import { boundingBox, haversineDistanceKm } from "../utils/geo";
 import { HttpStatus } from "../utils/httpStatus";
@@ -174,6 +175,7 @@ export const vendorService = {
     const vendor = await this.getMyVendor(userId);
     const updated = await vendorRepo.updateVendor(vendor.id, { latitude, longitude });
     await cacheService.invalidateNamespace("vendor");
+    realtime.publishRoamingVendor(vendor.id, latitude, longitude);
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.VENDOR_LOCATION_UPDATED, entityType: "vendor", entityId: vendor.id, newValues: { latitude, longitude } },
       req

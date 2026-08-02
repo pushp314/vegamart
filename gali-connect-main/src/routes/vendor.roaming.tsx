@@ -30,6 +30,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
+import { authStorage } from "@/lib/api";
 import { addStreetBroadcast } from "@/lib/street-broadcasts";
 
 export const Route = createFileRoute("/vendor/roaming")({
@@ -101,7 +102,10 @@ function RoamingVendorDashboard() {
 
     const baseURL = import.meta.env.VITE_API_URL || "http://localhost:8080";
     const wsURL = baseURL.replace("http://", "ws://").replace("https://", "wss://");
-    const ws = new WebSocket(`${wsURL}/api/v1/vendors/${vendor.id}/stream-alerts`);
+    const token = authStorage.getAccessToken();
+    const ws = new WebSocket(
+      `${wsURL}/api/v1/vendors/${vendor.id}/stream-alerts${token ? `?token=${encodeURIComponent(token)}` : ""}`
+    );
 
     ws.onmessage = (event) => {
       try {

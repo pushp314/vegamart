@@ -208,6 +208,14 @@ class ApiClient {
     });
   }
 
+  patch<T>(endpoint: string, data?: unknown) {
+    const isFormData = data instanceof FormData;
+    return this.request<T>(endpoint, {
+      method: "PATCH",
+      body: isFormData ? (data as FormData) : data ? JSON.stringify(data) : undefined,
+    });
+  }
+
   delete<T>(endpoint: string) {
     return this.request<T>(endpoint, { method: "DELETE" });
   }

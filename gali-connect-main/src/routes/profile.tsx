@@ -74,9 +74,9 @@ function Profile() {
     if (avatarFile) {
       const formData = new FormData();
       formData.append("file", avatarFile);
-      const uploadRes = await api.post<{ data: { url: string; key: string } }>("/uploads", formData);
-      if (uploadRes.success && uploadRes.data?.data?.url) {
-        finalAvatarUrl = uploadRes.data.data.url;
+      const uploadRes = await api.post<{ url: string; key: string }>("/uploads", formData);
+      if (uploadRes.success && uploadRes.data?.url) {
+        finalAvatarUrl = uploadRes.data.url;
       } else {
         toast.error("Avatar upload failed");
         setSaving(false);

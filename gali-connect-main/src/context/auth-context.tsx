@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { api, authStorage } from "@/lib/api";
 
 export type UserRole = "customer" | "vendor" | "admin" | "delivery";
 
@@ -180,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await api.post("/auth/reset-password", {
       email,
       otp,
-      new_password: newPassword,
+      password: newPassword,
     });
     return { success: res.success, message: res.message || res.error?.message };
   };
@@ -224,10 +224,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    api.post("/auth/logout", { refresh_token: "" }).catch(() => {});
+    api.post("/auth/logout", { refresh_token: authStorage.getRefreshToken() || "" }).catch(() => {});
     setUser(null);
     setAccessToken(null);
     localStorage.removeItem("vegamart_access_token");
+    localStorage.removeItem("vegamart_refresh_token");
     localStorage.removeItem("vegamart_user");
   };
 

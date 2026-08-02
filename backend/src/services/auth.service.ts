@@ -6,13 +6,14 @@ import { GUEST_USER_ID, OTP_TTL_MINUTES } from "../constants";
 import { AUDIT_ACTIONS, EMAIL_VERIFY_TOKEN_BYTES } from "../constants/auth";
 import { emailService } from "./email.service";
 import { auditService } from "./audit.service";
+import { exchangeGoogleCode } from "./google-oauth.service";
 import { generateAndStoreOtp, otpPurposeLabel, verifyOtp } from "./otp.service";
 import { createRefreshToken, hashRefreshToken, isValidRefreshTokenFormat, signAccessToken } from "./token.service";
 import { createSession, countActive as countActiveSessionsForUser, findActiveById, revoke, revokeAllForUser as revokeAllSessionsForUser, updateLastActivity } from "../repositories/session.repository";
 import { createRefreshToken as createRefreshTokenRepo, findByTokenHash, revoke as revokeRefreshToken, revokeAllForSession, revokeAllForUser as revokeAllTokensForUser } from "../repositories/refresh-token.repository";
 import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
 import { createOtp, findByHash as findOtpByHash, markUsed as markOtpUsed, revokeActiveFor } from "../repositories/otp.repository";
-import { create as createUserRepo, findByEmail, findById as findUserById, incrementLoginFailures, markEmailVerified, resetLoginFailures, setLastLogin, setLocked, updatePassword, UserWithRoleAndPermissions } from "../repositories/user.repository";
+import { create as createUserRepo, findByEmail, findById as findUserById, incrementLoginFailures, markEmailVerified, resetLoginFailures, setLastLogin, setLocked, update as updateUserRepo, updatePassword, UserWithRoleAndPermissions } from "../repositories/user.repository";
 import { assertStrongPassword, hashPassword, normalizeEmail, verifyPassword } from "../utils/password";
 import { checkPasswordExpiry, enforcePasswordPolicy } from "../utils/password-policy";
 import { ApiError, ForbiddenError, UnauthorizedError, ValidationError } from "../utils/ApiError";
@@ -265,6 +266,67 @@ export const authService = {
     await setLastLogin(user.id);
     await auditService.record(
       { userId: user.id, action: AUDIT_ACTIONS.USER_LOGIN_OTP_VERIFIED, entityType: "user", entityId: user.id },
+      req
+    );
+
+    return createSessionAndTokens(user.id, req);
+  },
+
+  async googleLogin(code: string, req: Request): Promise<AuthSessionResult> {
+    const profile = await exchangeGoogleCode(code);
+    if (!profile.email) {
+      throw new UnauthorizedError("Google account has no verified email address.");
+    }
+
+    let user = await findByEmail(profile.email);
+
+    if (!user || user.deleted_at) {
+      const roleRow = await findRoleBySlug("customer");
+      if (!roleRow) {
+        throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, `Role "customer" is not configured.`, {
+          code: "ROLE_NOT_FOUND",
+          expose: false,
+        });
+      }
+      user = await createUserRepo({
+        name: profile.name || profile.email.split("@")[0] || "Google User",
+        email: profile.email,
+        password_hash: generateOpaqueToken(32),
+        is_verified: profile.email_verified,
+        email_verified_at: profile.email_verified ? new Date() : null,
+        avatar_url: profile.picture,
+        provider: "google",
+        provider_id: profile.sub,
+        role: { connect: { id: roleRow.id } },
+      });
+      await auditService.record(
+        { userId: user.id, action: AUDIT_ACTIONS.USER_REGISTERED, entityType: "user", entityId: user.id, newValues: { email: profile.email, role: "customer", provider: "google" } },
+        req
+      );
+      void emailService.sendWelcomeEmail(profile.email, user.name);
+      return createSessionAndTokens(user.id, req);
+    }
+
+    if (user.status === UserStatus.SUSPENDED || user.status === UserStatus.BANNED) {
+      throw new ForbiddenError("This account has been suspended. Contact support.");
+    }
+
+    if (user.provider !== "google" || !user.provider_id) {
+      await updateUserRepo(user.id, {
+        provider: "google",
+        provider_id: profile.sub,
+        ...(profile.picture && !user.avatar_url ? { avatar_url: profile.picture } : {}),
+      });
+    }
+
+    if (profile.email_verified && !user.is_verified) {
+      await markEmailVerified(user.id);
+    }
+
+    await setLastLogin(user.id);
+    await resetLoginFailures(user.id);
+    await auditService.record(
+      { userId: user.id, action: AUDIT_ACTIONS.USER_LOGIN_GOOGLE, entityType: "user", entityId: user.id, newValues: { provider: "google" } },
       req
     );
 

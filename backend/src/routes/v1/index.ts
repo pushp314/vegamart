@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import healthRoutes from "./health.routes";
 import metricsRoutes from "./metrics.routes";
+import integrationRoutes, { integrationAdminRoutes } from "./integration.routes";
 import authRoutes from "./auth.routes";
 import userRoutes from "./user.routes";
 import categoryRoutes from "./category.routes";
@@ -25,6 +26,7 @@ const v1Router = Router();
 
 v1Router.use(healthRoutes);
 v1Router.use(metricsRoutes);
+v1Router.use(integrationRoutes);
 v1Router.use(authRoutes);
 v1Router.use("/users", userRoutes);
 v1Router.use(categoryRoutes);
@@ -42,6 +44,7 @@ v1Router.use(paymentRoutes);
 v1Router.use(notificationRoutes);
 v1Router.use(uploadRoutes);
 v1Router.use("/admin", adminRoutes);
+v1Router.use("/admin", integrationAdminRoutes);
 v1Router.use(publicSettingsRoutes);
 
 export default v1Router;

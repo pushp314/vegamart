@@ -18,6 +18,7 @@ import * as userRepo from "../repositories/user.repository";
 import * as roleRepo from "../repositories/role.repository";
 import * as productRepo from "../repositories/product.repository";
 import * as addressRepo from "../repositories/address.repository";
+import * as settingsRepo from "../repositories/settings.repository";
 import { ApiError, ConflictError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { realtime } from "../realtime/realtime";
@@ -199,9 +200,15 @@ export const integrationService = {
     for (const key of allowed) {
       if (key in body && body[key] !== undefined) clean[key] = body[key];
     }
-    if (clean.subscription_plan !== undefined) {
-      delete clean.subscription_plan;
+    const plan = body.subscription_plan;
+    if (typeof plan === "string" && plan.trim().length > 0) {
+      await settingsRepo.upsertSetting({
+        key: `vendor_subscription:${vendor.id}`,
+        value: { plan: plan.trim() },
+        type: "json",
+      });
     }
+    delete clean.subscription_plan;
     if (Object.keys(clean).length === 0) {
       return vendor;
     }
@@ -394,8 +401,8 @@ export const integrationService = {
         total: true,
         created_at: true,
         vendor: { select: { business_name: true, address: true, city: true } },
-        user: { select: { id: true, name: true, phone: true } },
-        address: { select: { street_address: true, city: true, state: true, pincode: true } },
+        customer: { select: { id: true, name: true, phone: true } },
+        address: { select: { full_address: true, city: true, state: true, pincode: true } },
       },
     });
     return rows.map((r) => ({
@@ -405,8 +412,8 @@ export const integrationService = {
       total_amount: r.total.toNumber(),
       created_at: r.created_at,
       vendor: r.vendor,
-      user: r.user,
-      address: r.address,
+      user: r.customer,
+      address: { ...r.address, street_address: r.address.full_address },
     }));
   },
 
@@ -427,8 +434,8 @@ export const integrationService = {
         otp_code: true,
         created_at: true,
         vendor: { select: { business_name: true, address: true, city: true, latitude: true, longitude: true } },
-        user: { select: { id: true, name: true, phone: true } },
-        address: { select: { street_address: true, city: true, state: true, pincode: true, latitude: true, longitude: true } },
+        customer: { select: { id: true, name: true, phone: true } },
+        address: { select: { full_address: true, city: true, state: true, pincode: true, latitude: true, longitude: true } },
       },
     });
     return rows.map((r) => ({
@@ -439,8 +446,8 @@ export const integrationService = {
       delivery_fee: r.delivery_fee.toNumber(),
       created_at: r.created_at,
       vendor: r.vendor,
-      user: r.user,
-      address: r.address,
+      user: r.customer,
+      address: { ...r.address, street_address: r.address.full_address },
     }));
   },
 
@@ -542,7 +549,7 @@ export const integrationService = {
     return updated;
   },
 
-  async updateDeliveryLocation(userId: string, input: DeliveryLocationBody, orderId?: string) {
+  async updateDeliveryLocation(userId: string, input: DeliveryLocationBody) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
@@ -551,16 +558,20 @@ export const integrationService = {
       current_lat: input.lat,
       current_lng: input.lng,
     });
-    if (orderId) {
-      const order = await orderRepo.findById(orderId);
-      if (order && order.delivery_partner_id === partner.id) {
-        await prisma.deliveryTracking.upsert({
-          where: { order_id: orderId },
-          update: { driver_lat: input.lat, driver_lng: input.lng },
-          create: { order_id: orderId, driver_lat: input.lat, driver_lng: input.lng },
-        });
-        realtime.publishOrderLocation(orderId, input.lat, input.lng);
-      }
+    const activeOrders = await prisma.order.findMany({
+      where: {
+        delivery_partner_id: partner.id,
+        status: { in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
+      },
+      select: { id: true },
+    });
+    for (const order of activeOrders) {
+      await prisma.deliveryTracking.upsert({
+        where: { order_id: order.id },
+        update: { driver_lat: input.lat, driver_lng: input.lng },
+        create: { order_id: order.id, driver_lat: input.lat, driver_lng: input.lng },
+      });
+      realtime.publishOrderLocation(order.id, input.lat, input.lng);
     }
     return updated;
   },
@@ -857,16 +868,72 @@ export const integrationService = {
   // ---------------------------------------------------------------------------
   // Addresses under /users/me (alias to canonical /addresses)
   // ---------------------------------------------------------------------------
+  mapAddress(address: addressRepo.AddressRow, userName: string) {
+    const line1 = address.full_address;
+    return {
+      id: address.id,
+      label: address.label,
+      full_name: userName,
+      phone: address.phone ?? null,
+      line1,
+      line2: address.landmark ?? undefined,
+      street_address: line1,
+      full_address: line1,
+      landmark: address.landmark ?? null,
+      city: address.city,
+      state: address.state,
+      country: address.country,
+      pincode: address.pincode,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      is_default: address.is_default,
+    };
+  },
+
   async listMyAddresses(userId: string) {
-    return addressService.list(userId);
+    const [addresses, user] = await Promise.all([
+      addressService.list(userId),
+      userRepo.findById(userId, {}),
+    ]);
+    return addresses.map((a) => this.mapAddress(a, user?.name ?? ""));
   },
 
   async createMyAddress(userId: string, body: Record<string, unknown>) {
-    return addressService.create(userId, body as never);
+    const user = await userRepo.findById(userId, {});
+    const fullAddress = [body.line1, body.line2]
+      .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+      .join(", ");
+    const created = await addressService.create(userId, {
+      label: typeof body.label === "string" ? body.label : "Home",
+      full_address: fullAddress.length > 0 ? fullAddress : (typeof body.full_address === "string" ? body.full_address : "Address"),
+      landmark: typeof body.line2 === "string" ? body.line2 : null,
+      phone: typeof body.phone === "string" ? body.phone : null,
+      city: typeof body.city === "string" ? body.city : "",
+      state: typeof body.state === "string" ? body.state : "",
+      country: typeof body.country === "string" ? body.country : "India",
+      pincode: typeof body.pincode === "string" ? body.pincode : "",
+      is_default: Boolean(body.is_default),
+    } as never);
+    return this.mapAddress(created, user?.name ?? "");
   },
 
   async updateMyAddress(userId: string, addressId: string, body: Record<string, unknown>) {
-    return addressService.update(userId, addressId, body as never);
+    const user = await userRepo.findById(userId, {});
+    const input: Record<string, unknown> = {};
+    if (typeof body.label === "string") input.label = body.label;
+    if (typeof body.line1 === "string") {
+      input.full_address = [body.line1, body.line2]
+        .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+        .join(", ");
+    }
+    if (typeof body.line2 === "string") input.landmark = body.line2;
+    if (typeof body.phone === "string") input.phone = body.phone;
+    if (typeof body.city === "string") input.city = body.city;
+    if (typeof body.state === "string") input.state = body.state;
+    if (typeof body.pincode === "string") input.pincode = body.pincode;
+    if (typeof body.is_default === "boolean") input.is_default = body.is_default;
+    const updated = await addressService.update(userId, addressId, input as never);
+    return this.mapAddress(updated, user?.name ?? "");
   },
 
   async removeMyAddress(userId: string, addressId: string) {
@@ -874,6 +941,8 @@ export const integrationService = {
   },
 
   async setDefaultAddress(userId: string, addressId: string) {
-    return addressService.setDefault(userId, addressId);
+    const user = await userRepo.findById(userId, {});
+    const updated = await addressService.setDefault(userId, addressId);
+    return this.mapAddress(updated, user?.name ?? "");
   },
 };

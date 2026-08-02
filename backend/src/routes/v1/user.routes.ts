@@ -18,6 +18,7 @@ router.use(authenticate);
 
 router.get("/me", getMe);
 router.patch("/me", validate({ body: updateProfileSchema }), updateMe);
+router.put("/me", validate({ body: updateProfileSchema }), updateMe);
 router.delete("/me", deactivateMe);
 router.get("/me/sessions", listMySessions);
 router.delete("/me/sessions/:session_id", validate({ params: sessionParamsSchema }), revokeSession);

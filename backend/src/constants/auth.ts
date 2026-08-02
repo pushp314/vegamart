@@ -21,6 +21,7 @@ export const AUDIT_ACTIONS = {
   USER_REGISTERED: "user.registered",
   USER_LOGIN_SUCCESS: "user.login.success",
   USER_LOGIN_FAILED: "user.login.failed",
+  USER_LOGIN_GOOGLE: "user.login.google",
   USER_LOGIN_OTP_SENT: "user.login.otp_sent",
   USER_LOGIN_OTP_VERIFIED: "user.login.otp_verified",
   USER_LOGOUT: "user.logout",

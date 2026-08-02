@@ -18,6 +18,14 @@ router.post(
   validate({ body: uploadFolderSchema }),
   uploadImage
 );
+// Frontend-compatible alias: POST /uploads (multipart "file")
+router.post(
+  "/uploads",
+  authenticate,
+  upload.single("file"),
+  validate({ body: uploadFolderSchema }),
+  uploadImage
+);
 router.post(
   "/upload/document",
   authenticate,

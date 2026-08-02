@@ -65,6 +65,7 @@ function BecomeVendorPage() {
           name: authName,
           email: authEmail,
           password: authPassword,
+          role: "vendor",
         });
 
         if (!authRes.success || !authRes.data?.access_token) {

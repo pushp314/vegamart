@@ -116,14 +116,13 @@ export function StreetVendorMap() {
   }, [googleMap]);
   const { data: realVendorsData } = useQuery({
     queryKey: ['live-vendors'],
-    queryFn: () => api.get<{data: any[]}>('/vendors?is_open=true'),
+    queryFn: () => api.get<any[]>('/vendors?is_open=true'),
     refetchInterval: 5000,
   });
 
   useEffect(() => {
-    if (realVendorsData?.data?.data) {
-      const liveVendors = realVendorsData.data.data
-        .filter((v: any) => v.latitude && v.longitude && v.vendor_type === 'roaming')
+    const liveVendors = (realVendorsData?.data || [])
+      .filter((v: any) => v.latitude && v.longitude && v.vendor_type === 'roaming')
         .map((v: any) => ({
           id: v.id,
           name: v.business_name,
@@ -134,11 +133,10 @@ export function StreetVendorMap() {
           isMoving: true,
           eta: "Live tracking",
         }));
-      
+
       if (liveVendors.length > 0) {
         setVendors(liveVendors);
       }
-    }
   }, [realVendorsData]);
 
   // Load Google Maps JavaScript API

@@ -1,6 +1,58 @@
 import { z } from "zod";
+import { OtpPurpose } from "@prisma/client";
 
 import { createVendorSchema } from "./vendor.validators";
+
+export const createCmsOfferSchema = z.object({
+  title: z.string().trim().min(2).max(200),
+  sub: z.string().trim().max(2000).optional().nullable(),
+  tag: z.string().trim().max(60).optional().nullable(),
+  tone: z.string().trim().max(30).optional().nullable(),
+});
+
+export type CreateCmsOfferBody = z.infer<typeof createCmsOfferSchema>;
+
+export const createCmsBannerSchema = z.object({
+  title: z.string().trim().max(200).optional().nullable(),
+  type: z.string().trim().max(40).optional().nullable(),
+  link_url: z.string().trim().max(500).optional().nullable(),
+  image_url: z.string().trim().url("image_url must be a valid URL.").max(500),
+});
+
+export type CreateCmsBannerBody = z.infer<typeof createCmsBannerSchema>;
+
+export const createCmsFaqSchema = z.object({
+  question: z.string().trim().min(2).max(300),
+  answer: z.string().trim().min(2),
+  sort_order: z.coerce.number().int().min(0).optional(),
+});
+
+export type CreateCmsFaqBody = z.infer<typeof createCmsFaqSchema>;
+
+export const productIdAliasParamsSchema = z.object({
+  product_id: z.string().uuid("product_id must be a valid UUID."),
+});
+
+export const featureProductSchema = z.object({
+  is_featured: z.coerce.boolean(),
+});
+
+export type FeatureProductBody = z.infer<typeof featureProductSchema>;
+
+export const sendLoginOtpSchema = z.object({
+  email: z.string().trim().toLowerCase().email("A valid email is required."),
+  purpose: z.nativeEnum(OtpPurpose).optional(),
+});
+
+export type SendLoginOtpBody = z.infer<typeof sendLoginOtpSchema>;
+
+export const verifyLoginOtpSchema = z.object({
+  email: z.string().trim().toLowerCase().email("A valid email is required."),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be exactly 6 digits."),
+  purpose: z.nativeEnum(OtpPurpose).optional(),
+});
+
+export type VerifyLoginOtpBody = z.infer<typeof verifyLoginOtpSchema>;
 
 export const createOrderAliasSchema = z.object({
   address_id: z.string().uuid("address_id must be a valid UUID."),

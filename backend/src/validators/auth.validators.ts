@@ -51,6 +51,12 @@ export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email("A valid email is required."),
 });
 
+export const googleCallbackSchema = z.object({
+  code: z.string().trim().min(1, "code is required.").max(5000),
+});
+
+export type GoogleCallbackBody = z.infer<typeof googleCallbackSchema>;
+
 export const resetPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email("A valid email is required."),
   otp: z.string().regex(/^\d{6}$/, "OTP must be exactly 6 digits."),

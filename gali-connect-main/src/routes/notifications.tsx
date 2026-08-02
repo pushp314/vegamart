@@ -20,15 +20,40 @@ interface NotificationItem {
   is_read: boolean;
 }
 
+interface BackendNotification {
+  id: string;
+  title: string;
+  body?: string | null;
+  type: string;
+  time?: string;
+  created_at?: string;
+  is_read: boolean;
+}
+
+function toNotificationType(type: string): NotificationItem["type"] {
+  const t = (type || "").toLowerCase();
+  if (t.includes("order")) return "order";
+  if (t.includes("promo")) return "promo";
+  return "system";
+}
+
 function NotificationsPage() {
   const queryClient = useQueryClient();
 
   const { data: notifRes, isLoading } = useQuery({
     queryKey: ["notifications"],
-    queryFn: () => api.get<{ data: NotificationItem[] }>("/notifications"),
+    queryFn: () => api.get<BackendNotification[]>("/notifications"),
   });
 
-  const notifications: NotificationItem[] = notifRes?.data?.data || [];
+  const notifications: NotificationItem[] = (notifRes?.data || []).map((n) => ({
+    id: n.id,
+    title: n.title,
+    message: n.body || "",
+    type: toNotificationType(n.type),
+    time: n.time,
+    created_at: n.created_at,
+    is_read: n.is_read,
+  }));
 
   const markReadMutation = useMutation({
     mutationFn: (id: string) => api.put(`/notifications/${id}/read`),

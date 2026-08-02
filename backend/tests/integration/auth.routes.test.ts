@@ -71,4 +71,23 @@ describe("Phase 2 auth routes (no DB required)", () => {
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("NOT_FOUND");
   });
+
+  it("GET /auth/google/url returns 503 when OAuth is not configured", async () => {
+    const res = await request(app).get("/api/v1/auth/google/url");
+    expect(res.status).toBe(503);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe("GOOGLE_OAUTH_NOT_CONFIGURED");
+  });
+
+  it("POST /auth/google/callback returns 401 when OAuth is not configured", async () => {
+    const res = await request(app).post("/api/v1/auth/google/callback").send({ code: "abc" });
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("rejects POST /auth/google/callback with a missing code as 422", async () => {
+    const res = await request(app).post("/api/v1/auth/google/callback").send({});
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
 });

@@ -124,9 +124,9 @@ function Checkout() {
   });
 
   const createOrderMutation = useMutation({
-    mutationFn: (data: any) => api.post<{ data: any }>("/checkout/create-order", data),
+    mutationFn: (data: any) => api.post<any>("/checkout/create-order", data),
     onSuccess: async (res) => {
-      const order = res.data?.data;
+      const order = res.data;
       if (payment === "upi" || payment === "card") {
          setCreatedOrder(order);
          const resScript = await loadRazorpayScript();
@@ -197,8 +197,7 @@ function Checkout() {
   const handleSaveAddress = (data: AddressData) => {
     createAddressMutation.mutate(data, {
       onSuccess: (res: any) => {
-        // the backend should return the created address
-        const addrId = res.data?.id;
+        const addrId = res?.id;
         if (addrId) {
           setSelectedAddressId(addrId);
         }

@@ -22,7 +22,9 @@ const notificationIdParamsSchema = z.object({
 router.get("/notifications", authenticate, validate({ query: listQuerySchema }), listNotifications);
 router.get("/notifications/unread-count", authenticate, unreadCount);
 router.post("/notifications/read-all", authenticate, markAllRead);
+router.put("/notifications/read-all", authenticate, markAllRead);
 router.post("/notifications/:notification_id/read", authenticate, validate({ params: notificationIdParamsSchema }), markRead);
+router.put("/notifications/:notification_id/read", authenticate, validate({ params: notificationIdParamsSchema }), markRead);
 router.delete("/notifications/:notification_id", authenticate, validate({ params: notificationIdParamsSchema }), removeNotification);
 
 export default router;

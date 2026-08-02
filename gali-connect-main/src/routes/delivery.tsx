@@ -54,7 +54,7 @@ function DeliveryDashboard() {
   // Fetch Delivery Requests
   const { data: requestsRes, refetch: refetchRequests } = useQuery({
     queryKey: ["deliveryRequests"],
-    queryFn: () => api.get<{ data: any[] }>("/delivery/requests"),
+    queryFn: () => api.get<any[]>("/delivery/requests"),
     enabled: !!partner && partner.status === "approved" && isOnline,
     refetchInterval: 5000,
   });
@@ -62,12 +62,12 @@ function DeliveryDashboard() {
   // Fetch My Active Deliveries
   const { data: myDeliveriesRes } = useQuery({
     queryKey: ["myDeliveries"],
-    queryFn: () => api.get<{ data: any[] }>("/delivery/my-deliveries"),
+    queryFn: () => api.get<any[]>("/delivery/my-deliveries"),
     enabled: !!partner && partner.status === "approved",
   });
 
-  const requests = requestsRes?.data?.data || [];
-  const myDeliveries = myDeliveriesRes?.data?.data || [];
+  const requests = requestsRes?.data || [];
+  const myDeliveries = myDeliveriesRes?.data || [];
   
   const completedOrders = myDeliveries.filter((o: any) => o.status === "delivered");
   const activeOrders = myDeliveries.filter((o: any) => o.status !== "delivered");

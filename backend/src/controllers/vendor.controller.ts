@@ -4,6 +4,7 @@ import { vendorService } from "../services/vendor.service";
 import { sendCreated, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
+import { getByKey } from "../repositories/settings.repository";
 import type {
   CreateVendorBody,
   UpdateVendorBody,
@@ -118,7 +119,9 @@ export const nearbyVendors = asyncHandler(async (req: Request, res: Response) =>
  */
 export const getMyVendor = asyncHandler(async (req: Request, res: Response) => {
   const vendor = await vendorService.getMyVendor(req.user!.id);
-  return sendSuccess(res, vendor);
+  const planRow = await getByKey(`vendor_subscription:${vendor.id}`);
+  const plan = planRow?.value as { plan?: string } | null;
+  return sendSuccess(res, { ...vendor, subscription_plan: plan?.plan ?? null });
 });
 
 /**

@@ -1,12 +1,15 @@
 import type { Request, Response } from "express";
 
 import { authService, AuthSessionResult } from "../services/auth.service";
+import { buildGoogleAuthUrl, isGoogleOAuthConfigured } from "../services/google-oauth.service";
 import { sendNoContent, sendSuccess } from "../utils/ApiResponse";
+import { ApiError } from "../utils/ApiError";
 import asyncHandler from "../utils/asyncHandler";
 import { clearRefreshTokenCookie, setRefreshTokenCookie } from "../utils/cookies";
 import { HttpStatus } from "../utils/httpStatus";
 import type {
   ChangePasswordBody,
+  GoogleCallbackBody,
   LoginBody,
   LoginWithOtpBody,
   RegisterBody,
@@ -360,5 +363,54 @@ export const verifyOtp = asyncHandler(async (req: Request, res: Response) => {
  */
 export const createGuestSession = asyncHandler(async (req: Request, res: Response) => {
   const session = await authService.createGuestSession(req);
+  return respondWithSession(res, session);
+});
+
+/**
+ * @swagger
+ * /auth/google/url:
+ *   get:
+ *     summary: Get the Google OAuth authorization URL
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Authorization URL ready to redirect the browser to Google.
+ *       503:
+ *         description: Google OAuth is not configured on the server.
+ */
+export const googleAuthUrl = asyncHandler(async (_req: Request, res: Response) => {
+  if (!isGoogleOAuthConfigured()) {
+    throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, "Google OAuth is not configured on this server.", {
+      code: "GOOGLE_OAUTH_NOT_CONFIGURED",
+    });
+  }
+  const { url } = buildGoogleAuthUrl();
+  return sendSuccess(res, { url });
+});
+
+/**
+ * @swagger
+ * /auth/google/callback:
+ *   post:
+ *     summary: Complete Google OAuth login with an authorization code
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code]
+ *             properties:
+ *               code: { type: string }
+ *     responses:
+ *       200:
+ *         description: Session issued for the Google account.
+ *       401:
+ *         description: Invalid or expired authorization code.
+ */
+export const googleCallback = asyncHandler(async (req: Request, res: Response) => {
+  const { code } = req.body as GoogleCallbackBody;
+  const session = await authService.googleLogin(code, req);
   return respondWithSession(res, session);
 });

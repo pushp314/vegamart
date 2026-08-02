@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { WS_BASE_URL, api } from "../lib/api";
+import { WS_BASE_URL, api, authStorage } from "../lib/api";
 
 export interface Location {
   lat: number;
@@ -55,7 +55,10 @@ export function useDeliveryTracking(orderId: string) {
     let reconnectTimer: NodeJS.Timeout;
 
     const connect = () => {
-      ws = new WebSocket(`${WS_BASE_URL}/delivery/order/${orderId}/stream`);
+      const token = authStorage.getAccessToken();
+      ws = new WebSocket(
+        `${WS_BASE_URL}/delivery/order/${orderId}/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`
+      );
 
       ws.onopen = () => {
         setIsConnected(true);

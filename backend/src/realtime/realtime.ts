@@ -2,6 +2,7 @@ import http from "http";
 import type { IncomingMessage } from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import log from "../config/logger";
+import { verifyAccessToken } from "../services/token.service";
 
 const WS_PATH = "/api/v1";
 
@@ -13,9 +14,27 @@ function roomKey(name: string): string {
   return `vegamart:room:${name}`;
 }
 
-function send(client: Client, type: string, data: unknown): void {
-  if (client.readyState !== WebSocket.OPEN) return;
-  client.send(JSON.stringify({ type, data }));
+function tokenFromQuery(req: IncomingMessage): string | null {
+  const url = req.url ?? "/";
+  const queryIndex = url.indexOf("?");
+  if (queryIndex === -1) return null;
+  return new URLSearchParams(url.slice(queryIndex + 1)).get("token");
+}
+
+function authenticateWs(req: IncomingMessage, room: string): boolean {
+  // Public broadcast room — anyone may listen to the roaming vendor map.
+  if (room === "roaming") return true;
+  // Vendor alerts and delivery order streams expose user-specific data.
+  const requiresAuth = room.startsWith("vendor:") || room.startsWith("order:");
+  if (!requiresAuth) return true;
+  const token = tokenFromQuery(req);
+  if (!token) return false;
+  try {
+    verifyAccessToken(token);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function broadcast(room: string, type: string, data: unknown): void {
@@ -62,9 +81,16 @@ export function initRealtime(httpServer: http.Server): WebSocketServer {
       socket.destroy();
       return;
     }
+    const room = resolveRoom(parsed.segments);
+    if (room && !authenticateWs(req, room)) {
+      socket.write(
+        "HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nWWW-Authenticate: Bearer\r\n\r\n"
+      );
+      socket.destroy();
+      return;
+    }
     wss.handleUpgrade(req, socket, head, (ws) => {
       const client = ws as Client;
-      const room = resolveRoom(parsed.segments);
       client.clientId = room ? clientIdFor(room) : `unknown:${Math.random().toString(36).slice(2)}`;
       clients.add(client);
       attach(client);
