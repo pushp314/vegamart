@@ -21,7 +21,7 @@ function assertSingleFile(req: Request): Express.Multer.File {
  * /upload/image:
  *   post:
  *     summary: Upload an image to R2 storage
- *     description: Accepts multipart form-data with a "file" field. Allowed image MIME types: jpeg, png, webp, avif, gif. Max 5 MB.
+ *     description: Accepts multipart form-data with a field named file. Allowed image MIME types (jpeg, png, webp, avif, gif). Max 5 MB.
  *     security:
  *       - bearerAuth: []
  *     tags: [Uploads]
@@ -31,10 +31,22 @@ function assertSingleFile(req: Request): Express.Multer.File {
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [file, folder]
+ *             required:
+ *               - file
+ *               - folder
  *             properties:
- *               file: { type: string, format: binary }
- *               folder: { type: string, enum: [products, vendors, profiles, categories, documents, invoices] }
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *               folder:
+ *                 type: string
+ *                 enum:
+ *                   - products
+ *                   - vendors
+ *                   - profiles
+ *                   - categories
+ *                   - documents
+ *                   - invoices
  *     responses:
  *       201:
  *         description: Uploaded file URL.
@@ -63,7 +75,7 @@ export const uploadImage = asyncHandler(async (req: Request, res: Response) => {
  * /upload/document:
  *   post:
  *     summary: Upload a document to R2 storage
- *     description: Accepts multipart form-data with a "file" field. Allowed document MIME types: application/pdf, text/plain. Max 10 MB.
+ *     description: Accepts multipart form-data with a field named file. Allowed document MIME types (application/pdf, text/plain). Max 10 MB.
  *     security:
  *       - bearerAuth: []
  *     tags: [Uploads]
@@ -73,10 +85,22 @@ export const uploadImage = asyncHandler(async (req: Request, res: Response) => {
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [file, folder]
+ *             required:
+ *               - file
+ *               - folder
  *             properties:
- *               file: { type: string, format: binary }
- *               folder: { type: string, enum: [products, vendors, profiles, categories, documents, invoices] }
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *               folder:
+ *                 type: string
+ *                 enum:
+ *                   - products
+ *                   - vendors
+ *                   - profiles
+ *                   - categories
+ *                   - documents
+ *                   - invoices
  *     responses:
  *       201:
  *         description: Uploaded file URL.
