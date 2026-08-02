@@ -20,7 +20,7 @@ function createRedisClient(): CustomRedis | null {
   const client = new Redis(env.REDIS_URL, {
     password: env.REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+    enableOfflineQueue: true,
     connectTimeout: 3000,
     lazyConnect: false,
     retryStrategy: (times: number) => Math.min(times * 100, 1000),
