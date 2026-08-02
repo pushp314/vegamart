@@ -119,7 +119,7 @@ if [[ -n "${DOMAIN:-}" && -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]];
 import sys, subprocess, datetime
 out = subprocess.check_output(["openssl", "x509", "-enddate", "-noout", "-in", sys.argv[1]]).decode()
 exp = datetime.datetime.strptime(out.split("=", 1)[1].strip(), "%b %d %H:%M:%S %Y %Z")
-print((exp - datetime.datetime.now(datetime.timezone.utc)).days)
+print((exp - datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)).days)
 PYEOF
 )"
   if [[ -n "$days" ]] && (( days > 7 )); then
