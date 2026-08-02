@@ -137,13 +137,18 @@ ensure_dirs() {
 # Template rendering — replaces {{KEY}} tokens using current env vars.
 # ------------------------------------------------------------------------------
 render_template() {
-  local src="$1" dst="$2" key val
-  cp "$src" "$dst"
+  # Replaces {{KEY}} tokens using current env vars. Pure-bash substitution so
+  # values containing |, &, \ or other sed-special characters can never break it.
+  local src="$1" dst="$2" key val val_esc content
+  content="$(<"$src")"
   while IFS='=' read -r key val; do
     [[ -z "$key" ]] && continue
-    sed -i "s|{{${key}}}|${val//|/\|}|g" "$dst"
+    val_esc="${val//\\/\\\\}"
+    val_esc="${val_esc//&/\\&}"
+    content="${content//{{${key}}}/${val_esc}}"
   done < <(env | grep -E '^[A-Z0-9_]+=')
-  sed -i 's|{{[A-Z0-9_]*}}||g' "$dst"
+  content="${content//{{[A-Z0-9_]*}}/}"
+  printf '%s\n' "$content" > "$dst"
 }
 
 # ------------------------------------------------------------------------------

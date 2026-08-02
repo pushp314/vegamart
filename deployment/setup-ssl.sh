@@ -36,9 +36,10 @@ else
 
   sub "Requesting certificate for: ${SSL_DOMAINS[*]}"
   EMAIL_ARGS=()
-  if [[ -n "${ADMIN_EMAIL:-}" ]]; then
+  if [[ -n "${ADMIN_EMAIL:-}" && "$ADMIN_EMAIL" == *@* && "$ADMIN_EMAIL" != *example* ]]; then
     EMAIL_ARGS+=("-m" "$ADMIN_EMAIL")
   else
+    warn "ADMIN_EMAIL missing or invalid — registering without an email (no renewal reminders)."
     EMAIL_ARGS+=("--register-unsafely-without-email")
   fi
   CERT_ARGS=()
