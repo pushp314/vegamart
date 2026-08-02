@@ -26,9 +26,21 @@ else
 fi
 
 # Service (cluster may be named e.g. 16/main)
-PG_CLUSTER="$(pg_lsclusters -h 2>/dev/null | awk 'NR>1{print $1"/"$2; exit}')"
 systemctl enable postgresql >/dev/null 2>&1 || true
 systemctl start postgresql >/dev/null 2>&1 || true
+
+# Detect the PostgreSQL cluster robustly (pg_lsclusters -h removes the header,
+# so the FIRST data row is line 1). Falls back to the directory layout.
+PG_CLUSTER="$(pg_lsclusters --no-header 2>/dev/null | awk 'NR==1{print $1"/"$2; exit}')"
+if [[ -z "$PG_CLUSTER" ]]; then
+  PG_VER="$(ls /etc/postgresql 2>/dev/null | head -n1)"
+  PG_CONF_NAME="$(ls "/etc/postgresql/${PG_VER}" 2>/dev/null | head -n1)"
+  PG_CLUSTER="${PG_VER}/${PG_CONF_NAME}"
+fi
+if [[ -z "$PG_CLUSTER" || ! -d "/etc/postgresql/${PG_CLUSTER}" ]]; then
+  die "Could not detect the PostgreSQL cluster under /etc/postgresql."
+fi
+info "PostgreSQL cluster: ${PG_CLUSTER}"
 
 # ------------------------------------------------------------------------------
 # 2. Secure password (idempotent — never regenerates an existing one)
@@ -41,21 +53,29 @@ ensure_db_password
 PGCONF="/etc/postgresql/${PG_CLUSTER}/postgresql.conf"
 PGHBA="/etc/postgresql/${PG_CLUSTER}/pg_hba.conf"
 
-if ! grep -qE "^[[:space:]]*listen_addresses" "$PGCONF"; then
-  sub "Binding PostgreSQL to 127.0.0.1 only"
-  cp "$PGCONF" "${PGCONF}.bak"
-  sed -i "s|^#listen_addresses.*|listen_addresses = '127.0.0.1'|" "$PGCONF"
-  grep -qE "^[[:space:]]*listen_addresses" "$PGCONF" || echo "listen_addresses = '127.0.0.1'" >> "$PGCONF"
+if [[ -f "$PGCONF" ]]; then
+  if ! grep -qE "^[[:space:]]*listen_addresses" "$PGCONF"; then
+    sub "Binding PostgreSQL to 127.0.0.1 only"
+    cp "$PGCONF" "${PGCONF}.bak"
+    sed -i "s|^#listen_addresses.*|listen_addresses = '127.0.0.1'|" "$PGCONF"
+    grep -qE "^[[:space:]]*listen_addresses" "$PGCONF" || echo "listen_addresses = '127.0.0.1'" >> "$PGCONF"
+  fi
+else
+  warn "postgresql.conf not found (${PGCONF}) — skipping listen_addresses hardening."
 fi
 
-# Ensure scram-sha-256 for local TCP (replaces trust/ident where present)
-cp "$PGHBA" "${PGHBA}.bak" 2>/dev/null || true
-sed -i "s|^\(host[[:space:]]*all[[:space:]]*all[[:space:]]*127.0.0.1/32[[:space:]]*\).*|\1scram-sha-256|" "$PGHBA"
-grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+127.0.0.1/32" "$PGHBA" || \
-  echo "host all all 127.0.0.1/32 scram-sha-256" >> "$PGHBA"
-sed -i "s|^\(host[[:space:]]*all[[:space:]]*all[[:space:]]*::1/128[[:space:]]*\).*|\1scram-sha-256|" "$PGHBA"
-grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128" "$PGHBA" || \
-  echo "host all all ::1/128 scram-sha-256" >> "$PGHBA"
+if [[ -f "$PGHBA" ]]; then
+  cp "$PGHBA" "${PGHBA}.bak" 2>/dev/null || true
+  # Ensure scram-sha-256 for local TCP (replaces trust/ident where present)
+  sed -i "s|^\(host[[:space:]]*all[[:space:]]*all[[:space:]]*127.0.0.1/32[[:space:]]*\).*|\1scram-sha-256|" "$PGHBA"
+  grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+127.0.0.1/32" "$PGHBA" || \
+    echo "host all all 127.0.0.1/32 scram-sha-256" >> "$PGHBA"
+  sed -i "s|^\(host[[:space:]]*all[[:space:]]*all[[:space:]]*::1/128[[:space:]]*\).*|\1scram-sha-256|" "$PGHBA"
+  grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128" "$PGHBA" || \
+    echo "host all all ::1/128 scram-sha-256" >> "$PGHBA"
+else
+  warn "pg_hba.conf not found (${PGHBA}) — skipping auth hardening."
+fi
 
 systemctl restart postgresql >/dev/null 2>&1
 
