@@ -38,6 +38,9 @@ command -v git >/dev/null 2>&1 || apt_ensure git ca-certificates openssl
 command -v node >/dev/null 2>&1 || "${DEPLOY_DIR}/setup-node.sh"
 command -v psql >/dev/null 2>&1 || "${DEPLOY_DIR}/setup-postgres.sh"
 command -v pm2 >/dev/null 2>&1 || "${DEPLOY_DIR}/setup-node.sh"
+if ! command -v redis-server >/dev/null 2>&1 || [[ ! -f "$REDIS_PASSWORD_FILE" ]]; then
+  "${DEPLOY_DIR}/setup-redis.sh"
+fi
 
 fill_secrets
 validate_env

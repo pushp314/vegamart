@@ -97,6 +97,11 @@ if systemctl is-active --quiet fail2ban 2>/dev/null; then
 else
   check FAIL "fail2ban" "inactive"
 fi
+if command -v redis-cli >/dev/null 2>&1 && systemctl is-active --quiet redis-server 2>/dev/null; then
+  check PASS "redis" "active on 127.0.0.1"
+else
+  check WARN "redis" "not installed — optional cache"
+fi
 if crontab -l 2>/dev/null | grep -qF "VEGAMART DEPLOYMENT CRON"; then
   check PASS "cron" "managed block present"
 else

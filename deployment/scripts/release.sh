@@ -40,6 +40,14 @@ fill_secrets() {
     warn "No generated DB password yet — leaving __DB_PASSWORD__ for you to fill."
   fi
 
+  REDIS_PASSWORD_FILE="${REDIS_PASSWORD_FILE:-${DEPLOY_DIR}/generated-redis-password.txt}"
+  if [[ -f "$REDIS_PASSWORD_FILE" ]]; then
+    REDIS_PASSWORD="$(tr -d '\r\n' < "$REDIS_PASSWORD_FILE")"
+    sed -i "s|__REDIS_PASSWORD__|${REDIS_PASSWORD}|g" "$ENV_FILE"
+  else
+    warn "No generated Redis password yet — leaving __REDIS_PASSWORD__ (run setup-redis.sh)."
+  fi
+
   local key val generated=0
   while IFS='=' read -r key val; do
     [[ "$val" == "__GENERATE__" ]] || continue
