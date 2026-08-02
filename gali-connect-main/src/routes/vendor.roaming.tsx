@@ -54,7 +54,7 @@ function RoamingVendorDashboard() {
     if (user && user.role !== "vendor") {
       toast.error("Access restricted to registered Vendors only.");
       if (user.role === "delivery") navigate({ to: "/delivery" });
-      else if (user.role === "admin") navigate({ to: "/admin" });
+      else if (user.role === "admin" || user.role === "super_admin") navigate({ to: "/admin" });
       else navigate({ to: "/" });
     }
   }, [user, navigate]);

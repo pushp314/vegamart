@@ -211,7 +211,7 @@ function Profile() {
             </Link>
           )}
 
-          {role === "admin" && (
+          {(role === "admin" || role === "super_admin") && (
             <Link
               to="/admin"
               className="flex items-center justify-between rounded-3xl border border-amber-200 bg-amber-50/70 p-4 text-amber-900 shadow-xs hover:bg-amber-100/70 transition-colors"

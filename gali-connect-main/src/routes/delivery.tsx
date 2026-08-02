@@ -34,7 +34,7 @@ function DeliveryDashboard() {
     if (user && user.role !== "delivery") {
       toast.error("Access restricted: Delivery Partner account required.");
       if (user.role === "vendor") navigate({ to: "/vendor" });
-      else if (user.role === "admin") navigate({ to: "/admin" });
+      else if (user.role === "admin" || user.role === "super_admin") navigate({ to: "/admin" });
       else navigate({ to: "/" });
     }
   }, [user, navigate]);

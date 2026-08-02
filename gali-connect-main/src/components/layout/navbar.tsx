@@ -126,7 +126,7 @@ export function Navbar() {
             </Button>
           )}
 
-          {role === "admin" && (
+          {(role === "admin" || role === "super_admin") && (
             <Button
               asChild
               variant="outline"
