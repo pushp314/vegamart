@@ -1,20 +1,25 @@
 import { Users, Store, IndianRupee, ShoppingBag, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { useTheme } from "@/lib/use-theme";
 
 interface AdminOverviewProps {
   stats: any;
 }
-
-const TOOLTIP_STYLE = {
-  backgroundColor: '#ffffff',
-  borderRadius: '12px',
-  border: '1px solid #e4e4e7',
-  color: '#18181b',
-  boxShadow: '0 8px 24px -8px rgb(0 0 0 / 0.12)',
-  padding: '10px 14px',
-};
-
 export function AdminOverview({ stats }: AdminOverviewProps) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  const AXIS_COLOR = isDark ? "#a1a1aa" : "#71717a";
+  const GRID_COLOR = isDark ? "rgba(255,255,255,0.08)" : "#e4e4e7";
+  const TOOLTIP_STYLE = {
+    backgroundColor: isDark ? "#18181b" : '#ffffff',
+    borderRadius: '12px',
+    border: isDark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+    color: isDark ? '#f4f4f5' : '#18181b',
+    boxShadow: isDark ? '0 8px 24px -8px rgb(0 0 0 / 0.5)' : '0 8px 24px -8px rgb(0 0 0 / 0.12)',
+    padding: '10px 14px',
+  };
+
   const cards = [
     {
       title: "Total Revenue",
@@ -24,6 +29,8 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
       up: true,
       accent: "bg-emerald-50 text-emerald-600 ring-emerald-100",
       glow: "bg-emerald-400/10",
+      chart: (stats.revenue_chart || []).map((p: any) => p.revenue ?? 0),
+      barFill: isDark ? "#34d399" : "#10b981",
     },
     {
       title: "Active Users",
@@ -33,6 +40,8 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
       up: true,
       accent: "bg-blue-50 text-blue-600 ring-blue-100",
       glow: "bg-blue-400/10",
+      chart: (stats.user_chart || []).map((p: any) => p.users ?? 0),
+      barFill: isDark ? "#60a5fa" : "#3b82f6",
     },
     {
       title: "Registered Vendors",
@@ -42,6 +51,8 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
       up: true,
       accent: "bg-amber-50 text-amber-600 ring-amber-100",
       glow: "bg-amber-400/10",
+      chart: (stats.vendor_chart || []).map((p: any) => p.vendors ?? 0),
+      barFill: isDark ? "#fbbf24" : "#f59e0b",
     },
     {
       title: "Total Orders",
@@ -51,6 +62,8 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
       up: true,
       accent: "bg-violet-50 text-violet-600 ring-violet-100",
       glow: "bg-violet-400/10",
+      chart: (stats.orders_chart || []).map((p: any) => p.orders ?? 0),
+      barFill: isDark ? "#a78bfa" : "#8b5cf6",
     },
   ];
 
@@ -88,6 +101,15 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
                 </span>
                 <span className="text-xs text-muted-foreground font-medium">vs last week</span>
               </div>
+              {c.chart && c.chart.length > 0 && (
+                <div className="mt-4 h-10 w-full relative z-10 opacity-90">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={c.chart.map((v: number, i: number) => ({ v, i }))} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                      <Bar dataKey="v" fill={c.barFill} radius={[3, 3, 0, 0]} barSize={6} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           );
         })}
@@ -106,13 +128,13 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} dx={-10} tickFormatter={(val) => `₹${val/1000}k`} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID_COLOR} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: AXIS_COLOR }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: AXIS_COLOR }} dx={-10} tickFormatter={(val) => `₹${val/1000}k`} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
-                  itemStyle={{ color: '#059669', fontWeight: 'bold' }}
-                  labelStyle={{ color: '#18181b', fontWeight: 600 }}
+                  itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
+                  labelStyle={{ fill: isDark ? '#f4f4f5' : '#18181b', fontWeight: 600 }}
                   formatter={(value: number) => [`₹${value}`, 'Revenue']}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
@@ -127,14 +149,14 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.user_chart || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} dx={-10} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID_COLOR} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: AXIS_COLOR }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: AXIS_COLOR }} dx={-10} />
                 <Tooltip
-                  cursor={{ fill: '#f4f4f5' }}
+                  cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : '#f4f4f5' }}
                   contentStyle={TOOLTIP_STYLE}
-                  itemStyle={{ color: '#2563eb', fontWeight: 'bold' }}
-                  labelStyle={{ color: '#18181b', fontWeight: 600 }}
+                  itemStyle={{ color: '#3b82f6', fontWeight: 'bold' }}
+                  labelStyle={{ fill: isDark ? '#f4f4f5' : '#18181b', fontWeight: 600 }}
                 />
                 <Bar dataKey="users" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={32} />
               </BarChart>

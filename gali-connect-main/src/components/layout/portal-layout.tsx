@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Bell, Search, Menu, User, LogOut, ChevronDown } from "lucide-react";
+import { Bell, Search, Menu, User, LogOut, ChevronDown, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/lib/use-theme";
 
 import {
   Sidebar,
@@ -46,6 +47,7 @@ interface PortalLayoutProps {
 
 export function PortalLayout({ children, navItems, activeItemId, portalName, userEmail, onLogout }: PortalLayoutProps) {
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <SidebarProvider>
@@ -137,8 +139,14 @@ export function PortalLayout({ children, navItems, activeItemId, portalName, use
           
           <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-xl">
             <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
+            <div className="hidden md:flex flex-col">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vegamart Portal</span>
+              <span className="font-display text-base font-bold text-foreground leading-tight">
+                {navItems.find((n) => n.id === activeItemId)?.title || portalName}
+              </span>
+            </div>
             <div className="flex-1">
-              <form className="hidden sm:flex items-center max-w-sm relative">
+              <form className="hidden sm:flex items-center max-w-sm ml-auto relative">
                 <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
@@ -148,6 +156,15 @@ export function PortalLayout({ children, navItems, activeItemId, portalName, use
               </form>
             </div>
             <div className="flex items-center gap-4 relative z-10">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent rounded-full h-10 w-10"
+              >
+                {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                <span className="sr-only">Toggle theme</span>
+              </Button>
               <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground hover:bg-accent rounded-full h-10 w-10">
                 <Bell className="h-5 w-5" />
                 <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-primary animate-pulse border border-background"></span>

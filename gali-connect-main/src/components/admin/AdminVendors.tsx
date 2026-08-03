@@ -1,4 +1,4 @@
-import { Store, CheckCircle2, Ban, Radio, Sparkles } from "lucide-react";
+import { Store, CheckCircle2, Ban, Radio, Sparkles, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 import { KYCReviewModal } from "./KYCReviewModal";
 
@@ -14,11 +14,21 @@ interface AdminVendorsProps {
 export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApproving, isRejecting }: AdminVendorsProps) {
   const [reviewVendor, setReviewVendor] = useState<any>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "shop" | "roaming">("all");
+  const [query, setQuery] = useState("");
 
   const filteredVendors = useMemo(() => {
-    if (typeFilter === "all") return vendors;
-    return vendors.filter(v => (v.profile?.vendor_type || v.vendor_type || "shop") === typeFilter);
-  }, [vendors, typeFilter]);
+    const q = query.trim().toLowerCase();
+    return vendors.filter(v => {
+      const vType = v.profile?.vendor_type || v.vendor_type || "shop";
+      if (typeFilter !== "all" && vType !== typeFilter) return false;
+      if (q) {
+        const name = (v.business_name || "").toLowerCase();
+        const email = (v.user?.email || v.city || "").toLowerCase();
+        if (!name.includes(q) && !email.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [vendors, typeFilter, query]);
 
   const shopCount = vendors.filter(v => (v.profile?.vendor_type || v.vendor_type || "shop") === "shop").length;
   const roamingCount = vendors.filter(v => (v.profile?.vendor_type || v.vendor_type) === "roaming").length;
@@ -57,20 +67,32 @@ export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApprov
       </div>
 
       {/* Vendor Type Filter Tabs */}
-      <div className="flex gap-2 p-1 bg-muted border border-border rounded-2xl w-fit">
-        {(["all", "shop", "roaming"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTypeFilter(t)}
-            className={`px-5 py-2 rounded-xl text-xs font-bold capitalize transition-all whitespace-nowrap ${
-              typeFilter === t
-                ? "bg-card text-foreground shadow-sm border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t === "all" ? "All Vendors" : t === "shop" ? "Fixed Stores" : "Roaming Carts"}
-          </button>
-        ))}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="flex gap-2 p-1 bg-muted border border-border rounded-2xl w-fit">
+          {(["all", "shop", "roaming"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-5 py-2 rounded-xl text-xs font-bold capitalize transition-all whitespace-nowrap ${
+                typeFilter === t
+                  ? "bg-card text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t === "all" ? "All Vendors" : t === "shop" ? "Fixed Stores" : "Roaming Carts"}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search vendors..."
+            className="w-full rounded-2xl bg-card border border-border pl-10 pr-4 h-11 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+          />
+        </div>
       </div>
 
       {/* Vendors Table */}
@@ -104,17 +126,17 @@ export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApprov
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${vType === "roaming" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${vType === "roaming" ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30" : "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"}`}>
                       {vType === "roaming" ? <Radio className="h-3 w-3" /> : <Store className="h-3 w-3" />}
                       {vType === "roaming" ? "Roaming Cart" : "Fixed Store"}
                     </span>
                   </td>
                   <td className="px-8 py-5">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider
-                      ${status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                        status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                        status === 'suspended' ? 'bg-violet-50 text-violet-700 border border-violet-200' :
-                        'bg-rose-50 text-rose-700 border border-rose-200'
+                      ${status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30' :
+                        status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30' :
+                        status === 'suspended' ? 'bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-400 dark:border-violet-500/30' :
+                        'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30'
                       }`}
                     >
                       {status === 'approved' && <CheckCircle2 className="h-3 w-3" />}
@@ -156,8 +178,12 @@ export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApprov
                 <tr>
                   <td colSpan={5} className="px-8 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
-                      <Store className="h-12 w-12 text-muted-foreground/40 mb-4" />
-                      <p className="text-foreground font-medium">No vendors found.</p>
+                      {query ? (
+                        <Search className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                      ) : (
+                        <Store className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                      )}
+                      <p className="text-foreground font-medium">{query ? "No vendors match your search." : "No vendors found."}</p>
                     </div>
                   </td>
                 </tr>

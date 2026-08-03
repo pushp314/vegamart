@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Store, Bike, Sparkles, UserPlus, CheckCircle2, Loader2, KeyRound, Mail, User, Phone, MapPin } from "lucide-react";
+import { Store, Bike, Sparkles, UserPlus, CheckCircle2, Loader2, KeyRound, Mail, User, Phone, MapPin, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -212,11 +212,11 @@ export function AdminCreatePartner() {
 
       {/* Creation Confirmation Banner */}
       {lastCreated && (
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 flex items-start gap-4">
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 flex items-start gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white font-black">
             <CheckCircle2 className="h-6 w-6" />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 flex-1">
             <div className="text-xs font-bold uppercase tracking-wider text-emerald-700">
               {lastCreated.type} Account Approved
             </div>
@@ -227,6 +227,13 @@ export function AdminCreatePartner() {
               <span><strong className="text-foreground">Portal URL:</strong> {lastCreated.portalURL}</span>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setLastCreated(null)}
+            className="p-2 rounded-full text-emerald-700/60 hover:text-emerald-700 hover:bg-emerald-100 transition-colors shrink-0"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
       )}
 
