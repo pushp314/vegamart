@@ -580,7 +580,7 @@ function VendorDashboard() {
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Lifetime Earnings
                 </div>
-                <div className="font-display text-xl font-bold text-emerald-400">₹{earnings.total_payout || 0}</div>
+                <div className="font-display text-xl font-bold text-emerald-600">₹{earnings.total_payout || 0}</div>
               </div>
               <div className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-1">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -690,7 +690,7 @@ function VendorDashboard() {
                     />
                     <div>
                       <div className="font-bold text-sm truncate">{p.name}</div>
-                      <div className="text-xs font-bold text-emerald-400 mt-0.5">
+                      <div className="text-xs font-bold text-emerald-600 mt-0.5">
                         ₹{p.price} <span className="text-muted-foreground font-normal text-[11px]">/ {p.unit}</span>
                       </div>
                     </div>
@@ -736,8 +736,8 @@ function VendorDashboard() {
                         <div className="text-xs text-muted-foreground">{o.customer_name || "Customer"}</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-emerald-400 text-sm">₹{o.total}</div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-50 px-2 py-0.5 rounded-full">
+                        <div className="font-bold text-emerald-600 text-sm">₹{o.total}</div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                           {o.status}
                         </span>
                       </div>
@@ -798,10 +798,10 @@ function VendorDashboard() {
                     <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                       Net Payout
                     </div>
-                    <div className="font-display text-2xl font-bold text-emerald-400">
+                    <div className="font-display text-2xl font-bold text-emerald-600">
                       ₹{earnings.total_payout || 0}
                     </div>
-                    <div className="text-[11px] text-emerald-400 font-semibold">Ready for withdrawal</div>
+                    <div className="text-[11px] text-emerald-700 font-semibold">Ready for withdrawal</div>
                   </div>
                   <div className="rounded-3xl border border-border bg-muted/50 border-border p-5 space-y-2 shadow-2xl">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
@@ -810,7 +810,7 @@ function VendorDashboard() {
                     <div className="font-display text-2xl font-bold text-amber-600">
                       ₹{earnings.pending_payout || 0}
                     </div>
-                    <div className="text-[11px] text-amber-400 font-semibold">Active orders</div>
+                    <div className="text-[11px] text-amber-700 font-semibold">Active orders</div>
                   </div>
                 </div>
 
@@ -831,7 +831,7 @@ function VendorDashboard() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold text-emerald-400">+₹{t.total}</div>
+                            <div className="font-bold text-emerald-600">+₹{t.total}</div>
                             <div className="text-[10px] text-muted-foreground">Gross Amount</div>
                           </div>
                         </div>
@@ -1058,7 +1058,7 @@ function VendorKYCForm({ vendor, initialData, onSuccess }: any) {
           <div className="font-bold text-rose-800 text-xs inline-flex items-center gap-1.5">
             <Ban className="h-4 w-4" /> Previous KYC Rejected
           </div>
-          <p className="text-xs text-rose-400">
+          <p className="text-xs text-rose-600">
             {initialData.rejection_reason || "Please upload valid documents and try again."}
           </p>
         </div>

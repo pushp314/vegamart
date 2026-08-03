@@ -26,6 +26,9 @@ export function AdminCreatePartner() {
   const [loading, setLoading] = useState(false);
   const [lastCreated, setLastCreated] = useState<any>(null);
 
+  const inputCls = "w-full rounded-2xl bg-muted/60 border border-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all";
+  const labelCls = "mb-1 text-xs font-bold text-muted-foreground";
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password || !phone) {
@@ -156,11 +159,11 @@ export function AdminCreatePartner() {
   };
 
   return (
-    <div className="space-y-6 text-white animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-3xl font-bold tracking-tight">Create Partner Account</h2>
-          <p className="text-zinc-400 text-sm mt-1">Directly onboard new vendors and delivery partners into the Vegamart system.</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Create Partner Account</h2>
+          <p className="text-muted-foreground text-sm mt-1">Directly onboard new vendors and delivery partners into the Vegamart system.</p>
         </div>
       </div>
 
@@ -171,17 +174,17 @@ export function AdminCreatePartner() {
           onClick={() => setPartnerType("vendor")}
           className={`p-5 rounded-3xl border text-left transition-all ${
             partnerType === "vendor"
-              ? "border-emerald-500 bg-emerald-950/40 ring-2 ring-emerald-500/20"
-              : "border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900"
+              ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-500/20"
+              : "border-border bg-card hover:bg-muted/50"
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-600 border border-emerald-200">
               <Store className="h-5 w-5" />
             </div>
             <div>
-              <div className="font-bold text-sm text-zinc-100">Create Vendor</div>
-              <div className="text-xs text-zinc-400">Shop Merchant or Street Cart</div>
+              <div className="font-bold text-sm text-foreground">Create Vendor</div>
+              <div className="text-xs text-muted-foreground">Shop Merchant or Street Cart</div>
             </div>
           </div>
         </button>
@@ -191,17 +194,17 @@ export function AdminCreatePartner() {
           onClick={() => setPartnerType("delivery")}
           className={`p-5 rounded-3xl border text-left transition-all ${
             partnerType === "delivery"
-              ? "border-sky-500 bg-sky-950/40 ring-2 ring-sky-500/20"
-              : "border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900"
+              ? "border-sky-300 bg-sky-50 ring-2 ring-sky-500/20"
+              : "border-border bg-card hover:bg-muted/50"
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-sky-100 text-sky-600 border border-sky-200">
               <Bike className="h-5 w-5" />
             </div>
             <div>
-              <div className="font-bold text-sm text-zinc-100">Create Delivery Boy</div>
-              <div className="text-xs text-zinc-400">Rider / Fleet Executive</div>
+              <div className="font-bold text-sm text-foreground">Create Delivery Boy</div>
+              <div className="text-xs text-muted-foreground">Rider / Fleet Executive</div>
             </div>
           </div>
         </button>
@@ -209,56 +212,56 @@ export function AdminCreatePartner() {
 
       {/* Creation Confirmation Banner */}
       {lastCreated && (
-        <div className="rounded-3xl border border-emerald-500/30 bg-emerald-950/40 p-6 flex items-start gap-4">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500 text-black font-black">
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 flex items-start gap-4">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white font-black">
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+            <div className="text-xs font-bold uppercase tracking-wider text-emerald-700">
               {lastCreated.type} Account Approved
             </div>
-            <h4 className="font-bold text-lg text-white">{lastCreated.title}</h4>
-            <div className="text-xs text-zinc-300 flex flex-wrap gap-4 pt-1 font-mono">
-              <span><strong>Login ID:</strong> {lastCreated.email}</span>
-              <span><strong>Password:</strong> {lastCreated.password}</span>
-              <span><strong>Portal URL:</strong> {lastCreated.portalURL}</span>
+            <h4 className="font-bold text-lg text-foreground">{lastCreated.title}</h4>
+            <div className="text-xs text-muted-foreground flex flex-wrap gap-4 pt-1 font-mono">
+              <span><strong className="text-foreground">Login ID:</strong> {lastCreated.email}</span>
+              <span><strong className="text-foreground">Password:</strong> {lastCreated.password}</span>
+              <span><strong className="text-foreground">Portal URL:</strong> {lastCreated.portalURL}</span>
             </div>
           </div>
         </div>
       )}
 
       {/* Form */}
-      <form onSubmit={handleCreate} className="rounded-3xl border border-zinc-800 bg-zinc-900/50 p-6 max-w-2xl space-y-5">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-800 pb-3 flex items-center gap-2">
-          <UserPlus className="h-4 w-4 text-emerald-400" />
+      <form onSubmit={handleCreate} className="rounded-3xl border border-border bg-card p-6 max-w-2xl space-y-5 shadow-soft">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-3 flex items-center gap-2">
+          <UserPlus className="h-4 w-4 text-emerald-600" />
           {partnerType === "vendor" ? "New Vendor Details" : "New Delivery Partner Details"}
         </h3>
 
         <div className="grid grid-cols-2 gap-4">
           <label className="block">
-            <div className="mb-1 text-xs font-bold text-zinc-300">Full Name *</div>
-            <div className="flex items-center rounded-2xl bg-black border border-zinc-800 h-11 px-3">
-              <User className="h-4 w-4 text-zinc-500 mr-2 shrink-0" />
+            <div className={labelCls}>Full Name *</div>
+            <div className="flex items-center rounded-2xl bg-muted/60 border border-border h-11 px-3">
+              <User className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Ramesh Singh"
                 required
-                className="w-full bg-transparent text-sm text-white outline-none"
+                className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
           </label>
 
           <label className="block">
-            <div className="mb-1 text-xs font-bold text-zinc-300">Phone Number *</div>
-            <div className="flex items-center rounded-2xl bg-black border border-zinc-800 h-11 px-3">
-              <Phone className="h-4 w-4 text-zinc-500 mr-2 shrink-0" />
+            <div className={labelCls}>Phone Number *</div>
+            <div className="flex items-center rounded-2xl bg-muted/60 border border-border h-11 px-3">
+              <Phone className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="9876543210"
                 required
-                className="w-full bg-transparent text-sm text-white outline-none"
+                className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
           </label>
@@ -266,31 +269,31 @@ export function AdminCreatePartner() {
 
         <div className="grid grid-cols-2 gap-4">
           <label className="block">
-            <div className="mb-1 text-xs font-bold text-zinc-300">Login Email *</div>
-            <div className="flex items-center rounded-2xl bg-black border border-zinc-800 h-11 px-3">
-              <Mail className="h-4 w-4 text-zinc-500 mr-2 shrink-0" />
+            <div className={labelCls}>Login Email *</div>
+            <div className="flex items-center rounded-2xl bg-muted/60 border border-border h-11 px-3">
+              <Mail className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="partner@vegamart.com"
                 required
-                className="w-full bg-transparent text-sm text-white outline-none"
+                className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
           </label>
 
           <label className="block">
-            <div className="mb-1 text-xs font-bold text-zinc-300">Assign Password *</div>
-            <div className="flex items-center rounded-2xl bg-black border border-zinc-800 h-11 px-3">
-              <KeyRound className="h-4 w-4 text-zinc-500 mr-2 shrink-0" />
+            <div className={labelCls}>Assign Password *</div>
+            <div className="flex items-center rounded-2xl bg-muted/60 border border-border h-11 px-3">
+              <KeyRound className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
               <input
                 type="text"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Set secure password"
                 required
-                className="w-full bg-transparent text-sm text-white outline-none font-mono"
+                className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground font-mono"
               />
             </div>
           </label>
@@ -298,31 +301,31 @@ export function AdminCreatePartner() {
 
         {partnerType === "vendor" ? (
           <>
-            <div className="pt-2 border-t border-zinc-800/80">
-              <div className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3">Store Configuration</div>
+            <div className="pt-2 border-t border-border/80">
+              <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 mb-3">Store Configuration</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">Business / Store Name *</div>
-                <div className="flex items-center rounded-2xl bg-black border border-zinc-800 h-11 px-3">
-                  <Store className="h-4 w-4 text-zinc-500 mr-2 shrink-0" />
+                <div className={labelCls}>Business / Store Name *</div>
+                <div className="flex items-center rounded-2xl bg-muted/60 border border-border h-11 px-3">
+                  <Store className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
                   <input
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
                     placeholder="e.g. Ramesh Sabzi Bhandar"
                     required
-                    className="w-full bg-transparent text-sm text-white outline-none"
+                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                   />
                 </div>
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">Vendor Model *</div>
+                <div className={labelCls}>Vendor Model *</div>
                 <select
                   value={vendorType}
                   onChange={(e) => setVendorType(e.target.value as any)}
-                  className="w-full rounded-2xl bg-black border border-zinc-800 h-11 px-3 text-sm font-bold text-white outline-none"
+                  className={inputCls}
                 >
                   <option value="shop">Fixed Shop / Merchant</option>
                   <option value="roaming">Roaming Street Cart</option>
@@ -332,11 +335,11 @@ export function AdminCreatePartner() {
 
             <div className="grid grid-cols-2 gap-4">
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">Category *</div>
+                <div className={labelCls}>Category *</div>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-2xl bg-black border border-zinc-800 h-11 px-3 text-sm font-bold text-white outline-none"
+                  className={inputCls}
                 >
                   <option value="vegetables">🥦 Vegetables & Sabzi</option>
                   <option value="fruits">🍎 Fresh Fruits</option>
@@ -348,55 +351,55 @@ export function AdminCreatePartner() {
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">City</div>
+                <div className={labelCls}>City</div>
                 <input
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-2xl bg-black border border-zinc-800 h-11 px-3 text-sm text-white outline-none"
+                  className={inputCls}
                 />
               </label>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">Street Address *</div>
-                <div className="flex items-center rounded-2xl bg-black border border-zinc-800 h-11 px-3">
-                  <MapPin className="h-4 w-4 text-zinc-500 mr-2 shrink-0" />
+                <div className={labelCls}>Street Address *</div>
+                <div className="flex items-center rounded-2xl bg-muted/60 border border-border h-11 px-3">
+                  <MapPin className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
                   <input
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="Shop No., Market Area"
                     required
-                    className="w-full bg-transparent text-sm text-white outline-none"
+                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                   />
                 </div>
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">Pincode *</div>
+                <div className={labelCls}>Pincode *</div>
                 <input
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value)}
                   placeholder="560038"
                   required
-                  className="w-full rounded-2xl bg-black border border-zinc-800 h-11 px-3 text-sm text-white outline-none"
+                  className={inputCls}
                 />
               </label>
             </div>
           </>
         ) : (
           <>
-            <div className="pt-2 border-t border-zinc-800/80">
-              <div className="text-xs font-bold uppercase tracking-wider text-sky-400 mb-3">Fleet Configuration</div>
+            <div className="pt-2 border-t border-border/80">
+              <div className="text-xs font-bold uppercase tracking-wider text-sky-600 mb-3">Fleet Configuration</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">Vehicle Type *</div>
+                <div className={labelCls}>Vehicle Type *</div>
                 <select
                   value={vehicleType}
                   onChange={(e) => setVehicleType(e.target.value)}
-                  className="w-full rounded-2xl bg-black border border-zinc-800 h-11 px-3 text-sm font-bold text-white outline-none"
+                  className={inputCls}
                 >
                   <option value="Bike">🏍️ Motorbike / Scooter</option>
                   <option value="EV Scooter">⚡ EV Scooter</option>
@@ -405,11 +408,11 @@ export function AdminCreatePartner() {
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-bold text-zinc-300">Operating City</div>
+                <div className={labelCls}>Operating City</div>
                 <input
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-2xl bg-black border border-zinc-800 h-11 px-3 text-sm text-white outline-none"
+                  className={inputCls}
                 />
               </label>
             </div>
@@ -421,8 +424,8 @@ export function AdminCreatePartner() {
           disabled={loading}
           className={`w-full rounded-2xl h-12 font-bold text-sm flex items-center justify-center gap-2 transition-transform active:scale-[0.98] ${
             partnerType === "vendor"
-              ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20"
-              : "bg-sky-500 hover:bg-sky-400 text-black shadow-lg shadow-sky-500/20"
+              ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+              : "bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-500/20"
           }`}
         >
           {loading ? (
