@@ -60,6 +60,16 @@ export const createOrderAliasSchema = z.object({
   payment_method: z.enum(["upi", "card", "cod"]).default("upi"),
   delivery_slot: z.string().trim().max(60).optional(),
   idempotency_key: z.string().trim().min(8).max(120).optional(),
+  items: z
+    .array(
+      z.object({
+        product_id: z.string().uuid("product_id must be a valid UUID."),
+        quantity: z.coerce.number().int().min(1).max(50),
+      })
+    )
+    .min(1)
+    .max(100)
+    .optional(),
 });
 
 export type CreateOrderAliasBody = z.infer<typeof createOrderAliasSchema>;

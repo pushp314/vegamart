@@ -66,6 +66,14 @@ export const integrationService = {
   // ---------------------------------------------------------------------------
   async createOrder(userId: string, input: CreateOrderAliasBody, req: Request) {
     const method = input.payment_method === "cod" ? "COD" : "RAZORPAY";
+
+    if (input.items && input.items.length > 0) {
+      await cartService.clear(userId, req);
+      for (const item of input.items) {
+        await cartService.addItem(userId, { product_id: item.product_id, quantity: item.quantity }, req);
+      }
+    }
+
     const result = await checkoutService.placeOrder(
       userId,
       {

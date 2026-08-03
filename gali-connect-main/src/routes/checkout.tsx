@@ -123,6 +123,10 @@ function Checkout() {
     }
   });
 
+  const verifyMutation = useMutation({
+    mutationFn: (data: any) => api.post<any>("/payments/verify", data),
+  });
+
   const createOrderMutation = useMutation({
     mutationFn: (data: any) => api.post<any>("/checkout/create-order", data),
     onSuccess: async (res) => {
@@ -137,15 +141,28 @@ function Checkout() {
          
          const options = {
             key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
-            amount: Math.round(total * 100), // convert to paise
+            amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
             currency: "INR",
             name: "Vegamart",
             description: `Order ${order.order_number}`,
             order_id: order.razorpay_order_id, 
             handler: function (response: any) {
-               // In a real app we'd verify this via backend webhook or explicit route
-               // For now, we trust the frontend success callback
-               handlePaymentSuccess(response.razorpay_payment_id, order?.id);
+               // Verify the payment with the backend before treating it as successful
+               verifyMutation.mutate(
+                 {
+                    razorpay_order_id: order.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                 },
+                 {
+                    onSuccess: async () => {
+                       await handlePaymentSuccess(response.razorpay_payment_id, order?.id);
+                    },
+                    onError: () => {
+                       toast.error("Payment verification failed. Please contact support.");
+                    },
+                 }
+               );
             },
             prefill: {
                name: user?.name || "Customer",
@@ -184,7 +201,8 @@ function Checkout() {
     createOrderMutation.mutate({
        address_id: selectedAddress.id,
        payment_method: payment,
-       delivery_slot: SLOTS[slot].label
+       delivery_slot: SLOTS[slot].label,
+       items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity }))
     });
   };
 
