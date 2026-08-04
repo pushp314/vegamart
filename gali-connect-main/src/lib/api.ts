@@ -161,7 +161,10 @@ class ApiClient {
       "/auth/google/callback",
     ];
 
-    return !!authStorage.getRefreshToken() && !refreshSkipped.some((authPath) => path.startsWith(authPath));
+    return (
+      !!authStorage.getRefreshToken() &&
+      !refreshSkipped.some((authPath) => path.startsWith(authPath))
+    );
   }
 
   private async refreshSession() {
@@ -185,6 +188,7 @@ class ApiClient {
     }
 
     authStorage.clearSession();
+    window.dispatchEvent(new CustomEvent(AUTH_SESSION_EVENT, { detail: null }));
     return false;
   }
 

@@ -128,7 +128,8 @@ function Signup() {
         </button>
 
         <div className="my-4 flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="h-px flex-1 bg-border" /> or sign up with email <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-border" /> or sign up with email{" "}
+          <span className="h-px flex-1 bg-border" />
         </div>
 
         {/* Account Type Selector */}

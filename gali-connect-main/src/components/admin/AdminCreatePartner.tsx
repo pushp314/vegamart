@@ -1,5 +1,18 @@
 import { useState } from "react";
-import { Store, Bike, Sparkles, UserPlus, CheckCircle2, Loader2, KeyRound, Mail, User, Phone, MapPin, X } from "lucide-react";
+import {
+  Store,
+  Bike,
+  Sparkles,
+  UserPlus,
+  CheckCircle2,
+  Loader2,
+  KeyRound,
+  Mail,
+  User,
+  Phone,
+  MapPin,
+  X,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -26,7 +39,8 @@ export function AdminCreatePartner() {
   const [loading, setLoading] = useState(false);
   const [lastCreated, setLastCreated] = useState<any>(null);
 
-  const inputCls = "w-full rounded-2xl bg-muted/60 border border-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all";
+  const inputCls =
+    "w-full rounded-2xl bg-muted/60 border border-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all";
   const labelCls = "mb-1 text-xs font-bold text-muted-foreground";
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -54,7 +68,9 @@ export function AdminCreatePartner() {
       }
 
       const tempToken = authRes.data.access_token;
-      const apiBase = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === "localhost" ? "http://localhost:8080/api/v1" : "/api/v1");
+      const apiBase =
+        import.meta.env.VITE_API_BASE_URL ||
+        (window.location.hostname === "localhost" ? "http://localhost:8080/api/v1" : "/api/v1");
 
       if (partnerType === "vendor") {
         if (!businessName || !address || !pincode) {
@@ -162,8 +178,12 @@ export function AdminCreatePartner() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Create Partner Account</h2>
-          <p className="text-muted-foreground text-sm mt-1">Directly onboard new vendors and delivery partners into the Vegamart system.</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+            Create Partner Account
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Directly onboard new vendors and delivery partners into the Vegamart system.
+          </p>
         </div>
       </div>
 
@@ -222,9 +242,15 @@ export function AdminCreatePartner() {
             </div>
             <h4 className="font-bold text-lg text-foreground">{lastCreated.title}</h4>
             <div className="text-xs text-muted-foreground flex flex-wrap gap-4 pt-1 font-mono">
-              <span><strong className="text-foreground">Login ID:</strong> {lastCreated.email}</span>
-              <span><strong className="text-foreground">Password:</strong> {lastCreated.password}</span>
-              <span><strong className="text-foreground">Portal URL:</strong> {lastCreated.portalURL}</span>
+              <span>
+                <strong className="text-foreground">Login ID:</strong> {lastCreated.email}
+              </span>
+              <span>
+                <strong className="text-foreground">Password:</strong> {lastCreated.password}
+              </span>
+              <span>
+                <strong className="text-foreground">Portal URL:</strong> {lastCreated.portalURL}
+              </span>
             </div>
           </div>
           <button
@@ -238,7 +264,10 @@ export function AdminCreatePartner() {
       )}
 
       {/* Form */}
-      <form onSubmit={handleCreate} className="rounded-3xl border border-border bg-card p-6 max-w-2xl space-y-5 shadow-soft">
+      <form
+        onSubmit={handleCreate}
+        className="rounded-3xl border border-border bg-card p-6 max-w-2xl space-y-5 shadow-soft"
+      >
         <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-3 flex items-center gap-2">
           <UserPlus className="h-4 w-4 text-emerald-600" />
           {partnerType === "vendor" ? "New Vendor Details" : "New Delivery Partner Details"}
@@ -309,7 +338,9 @@ export function AdminCreatePartner() {
         {partnerType === "vendor" ? (
           <>
             <div className="pt-2 border-t border-border/80">
-              <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 mb-3">Store Configuration</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 mb-3">
+                Store Configuration
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -397,7 +428,9 @@ export function AdminCreatePartner() {
         ) : (
           <>
             <div className="pt-2 border-t border-border/80">
-              <div className="text-xs font-bold uppercase tracking-wider text-sky-600 mb-3">Fleet Configuration</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-sky-600 mb-3">
+                Fleet Configuration
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -440,7 +473,8 @@ export function AdminCreatePartner() {
           ) : (
             <>
               <UserPlus className="h-5 w-5" />
-              Create & Approve {partnerType === "vendor" ? "Vendor Account" : "Delivery Partner Account"}
+              Create & Approve{" "}
+              {partnerType === "vendor" ? "Vendor Account" : "Delivery Partner Account"}
             </>
           )}
         </button>

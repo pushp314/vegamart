@@ -1,5 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { Navigation, ShoppingBag, Store, Map as MapIcon, Apple, Carrot, IceCream, Bell, Send, X, Loader2 } from "lucide-react";
+import {
+  Navigation,
+  ShoppingBag,
+  Store,
+  Map as MapIcon,
+  Apple,
+  Carrot,
+  IceCream,
+  Bell,
+  Send,
+  X,
+  Loader2,
+} from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -44,15 +56,17 @@ export function StreetVendorMap() {
         const payload = JSON.parse(event.data);
         if (payload.type === "roaming_vendor_location" && payload.data?.vendor_id) {
           const { vendor_id, lat, lng } = payload.data;
-          setVendors(prev => prev.map(v => {
-            if (v.id === vendor_id) {
-              if (markersRef.current[v.id]) {
-                markersRef.current[v.id].setPosition({ lat, lng });
+          setVendors((prev) =>
+            prev.map((v) => {
+              if (v.id === vendor_id) {
+                if (markersRef.current[v.id]) {
+                  markersRef.current[v.id].setPosition({ lat, lng });
+                }
+                return { ...v, lat, lng, isMoving: true };
               }
-              return { ...v, lat, lng, isMoving: true };
-            }
-            return v;
-          }));
+              return v;
+            }),
+          );
         }
       } catch (err) {
         console.error("WS roaming parse error:", err);
@@ -110,33 +124,33 @@ export function StreetVendorMap() {
           setLocationError("Could not get exact location. Showing default area.");
           console.error("Location error:", err);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
     }
   }, [googleMap]);
   const { data: realVendorsData } = useQuery({
-    queryKey: ['live-vendors'],
-    queryFn: () => api.get<any[]>('/vendors?is_open=true'),
+    queryKey: ["live-vendors"],
+    queryFn: () => api.get<any[]>("/vendors?is_open=true"),
     refetchInterval: 5000,
   });
 
   useEffect(() => {
     const liveVendors = (realVendorsData?.data || [])
-      .filter((v: any) => v.latitude && v.longitude && v.vendor_type === 'roaming')
-        .map((v: any) => ({
-          id: v.id,
-          name: v.business_name,
-          category: v.category?.toLowerCase() || 'vegetables',
-          lat: v.latitude,
-          lng: v.longitude,
-          distance: "Nearby",
-          isMoving: true,
-          eta: "Live tracking",
-        }));
+      .filter((v: any) => v.latitude && v.longitude && v.vendor_type === "roaming")
+      .map((v: any) => ({
+        id: v.id,
+        name: v.business_name,
+        category: v.category?.toLowerCase() || "vegetables",
+        lat: v.latitude,
+        lng: v.longitude,
+        distance: "Nearby",
+        isMoving: true,
+        eta: "Live tracking",
+      }));
 
-      if (liveVendors.length > 0) {
-        setVendors(liveVendors);
-      }
+    if (liveVendors.length > 0) {
+      setVendors(liveVendors);
+    }
   }, [realVendorsData]);
 
   // Load Google Maps JavaScript API
@@ -227,11 +241,15 @@ export function StreetVendorMap() {
   }, [vendors, googleMap]);
 
   const getIcon = (category: string) => {
-    switch(category) {
-      case 'vegetables': return <Carrot className="h-5 w-5 text-orange-500" />;
-      case 'fruits': return <Apple className="h-5 w-5 text-red-500" />;
-      case 'ice_cream': return <IceCream className="h-5 w-5 text-pink-500" />;
-      default: return <Store className="h-5 w-5 text-emerald-500" />;
+    switch (category) {
+      case "vegetables":
+        return <Carrot className="h-5 w-5 text-orange-500" />;
+      case "fruits":
+        return <Apple className="h-5 w-5 text-red-500" />;
+      case "ice_cream":
+        return <IceCream className="h-5 w-5 text-pink-500" />;
+      default:
+        return <Store className="h-5 w-5 text-emerald-500" />;
     }
   };
 
@@ -246,8 +264,14 @@ export function StreetVendorMap() {
             </div>
             <div>
               <h3 className="font-bold font-display text-lg drop-shadow-md">Live Radar</h3>
-              <p className="text-xs text-white/90 font-medium drop-shadow-md">Finding street vendors near you...</p>
-              {locationError && <p className="text-[10px] text-amber-300 font-medium drop-shadow-md mt-0.5">{locationError}</p>}
+              <p className="text-xs text-white/90 font-medium drop-shadow-md">
+                Finding street vendors near you...
+              </p>
+              {locationError && (
+                <p className="text-[10px] text-amber-300 font-medium drop-shadow-md mt-0.5">
+                  {locationError}
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -303,13 +327,25 @@ export function StreetVendorMap() {
                 const getCategoryStyle = (cat: string) => {
                   switch (cat) {
                     case "vegetables":
-                      return { bg: "bg-emerald-600", border: "border-emerald-300", tag: "🥦 Veg Cart" };
+                      return {
+                        bg: "bg-emerald-600",
+                        border: "border-emerald-300",
+                        tag: "🥦 Veg Cart",
+                      };
                     case "fruits":
                       return { bg: "bg-rose-600", border: "border-rose-300", tag: "🍎 Fruit Cart" };
                     case "ice_cream":
-                      return { bg: "bg-purple-600", border: "border-purple-300", tag: "🍦 Ice Cream" };
+                      return {
+                        bg: "bg-purple-600",
+                        border: "border-purple-300",
+                        tag: "🍦 Ice Cream",
+                      };
                     default:
-                      return { bg: "bg-amber-600", border: "border-amber-300", tag: "🛒 Street Cart" };
+                      return {
+                        bg: "bg-amber-600",
+                        border: "border-amber-300",
+                        tag: "🛒 Street Cart",
+                      };
                   }
                 };
 
@@ -324,16 +360,24 @@ export function StreetVendorMap() {
                       left: `calc(50% + ${offsetX}px)`,
                       top: `calc(50% + ${offsetY}px)`,
                     }}
-                    className={`absolute z-30 pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 group transition-all duration-300 ${isSelected ? 'scale-125 z-40' : 'hover:scale-110'}`}
+                    className={`absolute z-30 pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 group transition-all duration-300 ${isSelected ? "scale-125 z-40" : "hover:scale-110"}`}
                   >
-                    <div className={`relative flex items-center gap-2 px-3.5 py-2 rounded-2xl shadow-2xl backdrop-blur-md border ${catStyle.bg} text-white ${catStyle.border} ${isSelected ? 'ring-4 ring-white/60 font-black scale-105' : 'font-bold'}`}>
+                    <div
+                      className={`relative flex items-center gap-2 px-3.5 py-2 rounded-2xl shadow-2xl backdrop-blur-md border ${catStyle.bg} text-white ${catStyle.border} ${isSelected ? "ring-4 ring-white/60 font-black scale-105" : "font-bold"}`}
+                    >
                       <span className="relative flex h-2.5 w-2.5 shrink-0">
-                        {vendor.isMoving && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>}
+                        {vendor.isMoving && (
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        )}
                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
                       </span>
                       <div className="text-left leading-none">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-white/90 mb-0.5">{catStyle.tag}</div>
-                        <div className="text-xs font-extrabold whitespace-nowrap">{vendor.name}</div>
+                        <div className="text-[10px] font-black uppercase tracking-wider text-white/90 mb-0.5">
+                          {catStyle.tag}
+                        </div>
+                        <div className="text-xs font-extrabold whitespace-nowrap">
+                          {vendor.name}
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -348,8 +392,8 @@ export function StreetVendorMap() {
       {/* Vendor Details Bottom Sheet */}
       <div className="absolute bottom-0 inset-x-0 z-20 p-4 pointer-events-none">
         <div className="flex gap-3 overflow-x-auto pb-2 snap-x pointer-events-auto hide-scrollbar">
-          {vendors.map(vendor => (
-            <div 
+          {vendors.map((vendor) => (
+            <div
               key={vendor.id}
               onClick={() => {
                 setActiveVendor(vendor.id);
@@ -357,7 +401,7 @@ export function StreetVendorMap() {
                   googleMap.panTo({ lat: vendor.lat, lng: vendor.lng });
                 }
               }}
-              className={`min-w-[280px] snap-center shrink-0 rounded-2xl bg-white/95 backdrop-blur-xl border p-4 shadow-xl transition-all cursor-pointer ${activeVendor === vendor.id ? 'border-emerald-500 ring-4 ring-emerald-500/10 scale-100' : 'border-zinc-200 scale-95 opacity-90'}`}
+              className={`min-w-[280px] snap-center shrink-0 rounded-2xl bg-white/95 backdrop-blur-xl border p-4 shadow-xl transition-all cursor-pointer ${activeVendor === vendor.id ? "border-emerald-500 ring-4 ring-emerald-500/10 scale-100" : "border-zinc-200 scale-95 opacity-90"}`}
             >
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
@@ -368,19 +412,25 @@ export function StreetVendorMap() {
                     <h4 className="font-bold text-sm text-zinc-900">{vendor.name}</h4>
                     <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
                       <span className="relative flex h-2 w-2">
-                        {vendor.isMoving && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                        {vendor.isMoving && (
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        )}
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                       </span>
-                      {vendor.isMoving ? 'Moving nearby' : 'Stationary'}
+                      {vendor.isMoving ? "Moving nearby" : "Stationary"}
                     </div>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between mt-4 text-xs">
                 <div className="flex items-center gap-3 text-zinc-600 font-medium">
-                  <span className="flex items-center gap-1"><MapIcon className="h-3.5 w-3.5" /> {vendor.distance}</span>
-                  <span className="flex items-center gap-1"><Navigation className="h-3.5 w-3.5" /> {vendor.eta}</span>
+                  <span className="flex items-center gap-1">
+                    <MapIcon className="h-3.5 w-3.5" /> {vendor.distance}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Navigation className="h-3.5 w-3.5" /> {vendor.eta}
+                  </span>
                 </div>
               </div>
 
@@ -396,7 +446,11 @@ export function StreetVendorMap() {
                   >
                     <Bell className="h-4 w-4 text-amber-600 animate-bounce" /> Ring Bell
                   </button>
-                  <Link to="/vendors/$vendorId" params={{ vendorId: vendor.id }} className="flex-[1.5] flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition-colors">
+                  <Link
+                    to="/vendors/$vendorId"
+                    params={{ vendorId: vendor.id }}
+                    className="flex-[1.5] flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition-colors"
+                  >
                     <ShoppingBag className="h-4 w-4" /> View Cart
                   </Link>
                 </div>
@@ -422,14 +476,20 @@ export function StreetVendorMap() {
                 <Bell className="h-6 w-6 animate-bounce" />
               </div>
               <div>
-                <h3 className="font-display font-bold text-lg leading-tight">Call Vendor to Your Street</h3>
-                <p className="text-xs text-muted-foreground">Notify <strong>{bellVendor.name}</strong> to come to your gali</p>
+                <h3 className="font-display font-bold text-lg leading-tight">
+                  Call Vendor to Your Street
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Notify <strong>{bellVendor.name}</strong> to come to your gali
+                </p>
               </div>
             </div>
 
             <form onSubmit={handleRingBellSubmit} className="space-y-3 pt-2">
               <label className="block">
-                <span className="text-xs font-semibold text-foreground">Your Street Address / Landmark *</span>
+                <span className="text-xs font-semibold text-foreground">
+                  Your Street Address / Landmark *
+                </span>
                 <input
                   type="text"
                   required
@@ -441,7 +501,9 @@ export function StreetVendorMap() {
               </label>
 
               <label className="block">
-                <span className="text-xs font-semibold text-foreground">Requested Items (Optional)</span>
+                <span className="text-xs font-semibold text-foreground">
+                  Requested Items (Optional)
+                </span>
                 <textarea
                   rows={2}
                   placeholder="e.g. 2kg Tomatoes, 1kg Spinach, Fresh Coriander"
@@ -464,7 +526,13 @@ export function StreetVendorMap() {
                   disabled={isRinging || !bellAddress.trim()}
                   className="flex-[2] py-3 rounded-2xl bg-amber-500 text-zinc-950 font-bold text-xs hover:bg-amber-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-md"
                 >
-                  {isRinging ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4" /> Ring Bell Now</>}
+                  {isRinging ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" /> Ring Bell Now
+                    </>
+                  )}
                 </button>
               </div>
             </form>

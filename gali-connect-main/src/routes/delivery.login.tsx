@@ -42,7 +42,10 @@ function DeliveryLoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-3xl border bg-card p-6 shadow-soft space-y-4"
+        >
           <label className="block">
             <div className="mb-1 text-xs font-semibold text-foreground flex items-center gap-1">
               <Mail className="h-3.5 w-3.5 text-muted-foreground" /> Email Address

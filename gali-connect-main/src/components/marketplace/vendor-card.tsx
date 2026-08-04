@@ -6,16 +6,20 @@ import { calculateDistance, formatDistance } from "@/lib/utils/distance";
 
 export function VendorCard({ vendor, index }: { vendor: Vendor; index?: number }) {
   const profile = vendor.profile || ({} as any);
-  const image = profile.logo_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
+  const image =
+    profile.logo_url ||
+    "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
   const name = vendor.business_name;
   const rating = profile.rating || 0;
   const isOpen = profile.is_open || false;
-  
+
   let tags = ["Local vendor"];
   if (profile.tags) {
-    try { tags = JSON.parse(profile.tags); } catch(e) {}
+    try {
+      tags = JSON.parse(profile.tags);
+    } catch (e) {}
   }
-  
+
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -23,7 +27,7 @@ export function VendorCard({ vendor, index }: { vendor: Vendor; index?: number }
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         () => {}, // silently fail — we'll just hide the distance
-        { maximumAge: 300000, timeout: 5000 }
+        { maximumAge: 300000, timeout: 5000 },
       );
     }
   }, []);

@@ -2,15 +2,14 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { createBroadcast, deleteBroadcast, listBroadcasts } from "../../controllers/broadcast.controller";
+import { ROLES } from "../../constants/roles";
+import { authenticate } from "../../middlewares/auth.middleware";
+import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
 
 const router = Router();
 
 const createBroadcastSchema = z.object({
-  vendor_id: z.string().uuid().nullish(),
-  vendor_name: z.string().trim().min(1).max(160),
-  vendor_type: z.enum(["roaming", "shop"]),
-  phone: z.string().trim().max(20).nullish(),
   street: z.string().trim().min(1).max(300),
   arrival_time: z.string().trim().min(1).max(120),
   produce: z.string().trim().min(1).max(300),
@@ -22,7 +21,7 @@ const broadcastIdParamsSchema = z.object({
 });
 
 router.get("/broadcasts", listBroadcasts);
-router.post("/broadcasts", validate({ body: createBroadcastSchema }), createBroadcast);
-router.delete("/broadcasts/:id", validate({ params: broadcastIdParamsSchema }), deleteBroadcast);
+router.post("/broadcasts", authenticate, requireRole(ROLES.VENDOR), validate({ body: createBroadcastSchema }), createBroadcast);
+router.delete("/broadcasts/:id", authenticate, requireRole(ROLES.VENDOR), validate({ params: broadcastIdParamsSchema }), deleteBroadcast);
 
 export default router;

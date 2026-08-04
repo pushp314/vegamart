@@ -81,11 +81,7 @@ function VendorDetail() {
     <div className="min-h-screen bg-background text-foreground pb-28 md:pb-16">
       {/* Hero Cover Banner */}
       <div className="relative h-60 sm:h-72 lg:h-80 overflow-hidden">
-        <img
-          src={coverUrl}
-          alt={vendor.business_name}
-          className="h-full w-full object-cover"
-        />
+        <img src={coverUrl} alt={vendor.business_name} className="h-full w-full object-cover" />
         {/* Dark Overlay for High Contrast Text */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
@@ -139,14 +135,17 @@ function VendorDetail() {
                 </div>
 
                 <p className="text-xs text-muted-foreground font-semibold">
-                  By <strong className="text-foreground">{ownerName}</strong> • {profile.category || (vendor as any).category || "Fresh Produce & Grocery"}
+                  By <strong className="text-foreground">{ownerName}</strong> •{" "}
+                  {profile.category || (vendor as any).category || "Fresh Produce & Grocery"}
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3 text-xs pt-1">
                   <span className="inline-flex items-center gap-1 font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
                     <Star className="h-3.5 w-3.5 fill-amber-400" />
                     {profile.rating || "4.8"}
-                    <span className="text-muted-foreground font-normal ml-0.5">({profile.review_count || 24})</span>
+                    <span className="text-muted-foreground font-normal ml-0.5">
+                      ({profile.review_count || 24})
+                    </span>
                   </span>
 
                   <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">

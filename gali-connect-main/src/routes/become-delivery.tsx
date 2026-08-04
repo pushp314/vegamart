@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Bike, CheckCircle, ShieldCheck, ArrowRight, Loader2, FileText, Smartphone } from "lucide-react";
+import {
+  Bike,
+  CheckCircle,
+  ShieldCheck,
+  ArrowRight,
+  Loader2,
+  FileText,
+  Smartphone,
+} from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useAuth } from "@/context/auth-context";
 import { useMutation } from "@tanstack/react-query";
@@ -14,15 +22,22 @@ export const Route = createFileRoute("/become-delivery")({
 
 function BecomeDeliveryPage() {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
-  
+  const { isAuthenticated, refreshSession } = useAuth();
+
   const [vehicleType, setVehicleType] = useState("bike");
   const [vehicleNumber, setVehicleNumber] = useState("");
 
   const registerMutation = useMutation({
     mutationFn: (data: any) => api.post("/delivery/register", data),
-    onSuccess: () => {
-      toast.success("Delivery partner application submitted! Redirecting to KYC...", { duration: 4000 });
+    onSuccess: async (res) => {
+      if (!res.success) {
+        toast.error(res.error?.message || "Failed to submit application");
+        return;
+      }
+      await refreshSession();
+      toast.success("Delivery partner application submitted! Redirecting to KYC...", {
+        duration: 4000,
+      });
       setTimeout(() => navigate({ to: "/delivery" }), 1500);
     },
     onError: (err: any) => {
@@ -37,7 +52,7 @@ function BecomeDeliveryPage() {
       navigate({ to: "/login" });
       return;
     }
-    
+
     registerMutation.mutate({
       vehicle_type: vehicleType,
       vehicle_number: vehicleNumber,
@@ -55,7 +70,8 @@ function BecomeDeliveryPage() {
           </div>
           <h1 className="font-display text-3xl font-bold">Become a Delivery Partner</h1>
           <p className="text-sm text-muted-foreground leading-relaxed px-4">
-            Earn money on your own schedule. Join Vegamart's hyperlocal delivery fleet and start delivering fresh groceries in your neighborhood.
+            Earn money on your own schedule. Join Vegamart's hyperlocal delivery fleet and start
+            delivering fresh groceries in your neighborhood.
           </p>
         </div>
 
@@ -65,14 +81,18 @@ function BecomeDeliveryPage() {
               <Smartphone className="h-5 w-5" />
             </div>
             <h3 className="font-bold text-sm">Flexible Hours</h3>
-            <p className="text-[11px] text-muted-foreground">Work whenever you want, seamlessly toggle your availability.</p>
+            <p className="text-[11px] text-muted-foreground">
+              Work whenever you want, seamlessly toggle your availability.
+            </p>
           </div>
           <div className="rounded-3xl border bg-card p-5 space-y-2 shadow-soft">
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-100 text-amber-600">
               <CheckCircle className="h-5 w-5" />
             </div>
             <h3 className="font-bold text-sm">Weekly Payouts</h3>
-            <p className="text-[11px] text-muted-foreground">Get your earnings deposited directly into your bank account.</p>
+            <p className="text-[11px] text-muted-foreground">
+              Get your earnings deposited directly into your bank account.
+            </p>
           </div>
         </div>
 
@@ -80,9 +100,9 @@ function BecomeDeliveryPage() {
           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
             <ShieldCheck className="w-32 h-32" />
           </div>
-          
+
           <h2 className="font-display text-xl font-bold mb-6">Application Details</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-foreground flex items-center gap-1">
@@ -117,7 +137,9 @@ function BecomeDeliveryPage() {
             <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 flex gap-3 text-emerald-800 mt-6">
               <FileText className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="text-[11px] leading-relaxed font-medium">
-                By submitting this application, you agree to Vegamart's partner terms. You will be required to submit your Driving License, PAN, and Aadhaar card on the next screen for KYC verification.
+                By submitting this application, you agree to Vegamart's partner terms. You will be
+                required to submit your Driving License, PAN, and Aadhaar card on the next screen
+                for KYC verification.
               </div>
             </div>
 

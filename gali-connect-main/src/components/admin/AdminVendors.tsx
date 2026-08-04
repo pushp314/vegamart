@@ -11,14 +11,21 @@ interface AdminVendorsProps {
   isRejecting: boolean;
 }
 
-export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApproving, isRejecting }: AdminVendorsProps) {
+export function AdminVendors({
+  vendors,
+  onApprove,
+  onReject,
+  onSuspend,
+  isApproving,
+  isRejecting,
+}: AdminVendorsProps) {
   const [reviewVendor, setReviewVendor] = useState<any>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "shop" | "roaming">("all");
   const [query, setQuery] = useState("");
 
   const filteredVendors = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return vendors.filter(v => {
+    return vendors.filter((v) => {
       const vType = v.profile?.vendor_type || v.vendor_type || "shop";
       if (typeFilter !== "all" && vType !== typeFilter) return false;
       if (q) {
@@ -30,37 +37,57 @@ export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApprov
     });
   }, [vendors, typeFilter, query]);
 
-  const shopCount = vendors.filter(v => (v.profile?.vendor_type || v.vendor_type || "shop") === "shop").length;
-  const roamingCount = vendors.filter(v => (v.profile?.vendor_type || v.vendor_type) === "roaming").length;
+  const shopCount = vendors.filter(
+    (v) => (v.profile?.vendor_type || v.vendor_type || "shop") === "shop",
+  ).length;
+  const roamingCount = vendors.filter(
+    (v) => (v.profile?.vendor_type || v.vendor_type) === "roaming",
+  ).length;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Vendor Fleet Management</h2>
-          <p className="text-muted-foreground text-sm mt-1">Review and approve fixed shop merchants and roaming street vendors.</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+            Vendor Fleet Management
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Review and approve fixed shop merchants and roaming street vendors.
+          </p>
         </div>
       </div>
 
       {/* Live Fleet Stats Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-3xl border border-border bg-card p-5 shadow-soft">
-          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Registered</div>
-          <div className="text-2xl font-black font-display text-foreground mt-1">{vendors.length}</div>
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            Total Registered
+          </div>
+          <div className="text-2xl font-black font-display text-foreground mt-1">
+            {vendors.length}
+          </div>
         </div>
 
         <div className="rounded-3xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Fixed Store Merchants</div>
-            <div className="text-2xl font-black font-display text-emerald-600 mt-1">{shopCount}</div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Fixed Store Merchants
+            </div>
+            <div className="text-2xl font-black font-display text-emerald-600 mt-1">
+              {shopCount}
+            </div>
           </div>
           <Store className="h-8 w-8 text-emerald-500/40" />
         </div>
 
         <div className="rounded-3xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Roaming Street Carts</div>
-            <div className="text-2xl font-black font-display text-amber-600 mt-1">{roamingCount}</div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Roaming Street Carts
+            </div>
+            <div className="text-2xl font-black font-display text-amber-600 mt-1">
+              {roamingCount}
+            </div>
           </div>
           <Sparkles className="h-8 w-8 text-amber-500/40" />
         </div>
@@ -113,65 +140,84 @@ export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApprov
                 const vType = v.profile?.vendor_type || v.vendor_type || "shop";
                 const status = (v.status || "").toLowerCase();
                 return (
-                <tr key={v.id} className="hover:bg-muted/50 transition-colors group">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-2xl bg-muted border border-border text-muted-foreground flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 group-hover:border-emerald-200 transition-all">
-                        {vType === "roaming" ? <Radio className="h-6 w-6" /> : <Store className="h-6 w-6" />}
+                  <tr key={v.id} className="hover:bg-muted/50 transition-colors group">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-2xl bg-muted border border-border text-muted-foreground flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 group-hover:border-emerald-200 transition-all">
+                          {vType === "roaming" ? (
+                            <Radio className="h-6 w-6" />
+                          ) : (
+                            <Store className="h-6 w-6" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-bold text-[15px] text-foreground">
+                            {v.business_name || "Unnamed Vendor"}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {v.user?.email || v.city || "—"}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-[15px] text-foreground">{v.business_name || "Unnamed Vendor"}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{v.user?.email || v.city || "—"}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${vType === "roaming" ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30" : "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"}`}>
-                      {vType === "roaming" ? <Radio className="h-3 w-3" /> : <Store className="h-3 w-3" />}
-                      {vType === "roaming" ? "Roaming Cart" : "Fixed Store"}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider
-                      ${status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30' :
-                        status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30' :
-                        status === 'suspended' ? 'bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-400 dark:border-violet-500/30' :
-                        'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30'
+                    </td>
+                    <td className="px-8 py-5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${vType === "roaming" ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30" : "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"}`}
+                      >
+                        {vType === "roaming" ? (
+                          <Radio className="h-3 w-3" />
+                        ) : (
+                          <Store className="h-3 w-3" />
+                        )}
+                        {vType === "roaming" ? "Roaming Cart" : "Fixed Store"}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider
+                      ${
+                        status === "approved"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"
+                          : status === "pending"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30"
+                            : status === "suspended"
+                              ? "bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-400 dark:border-violet-500/30"
+                              : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30"
                       }`}
-                    >
-                      {status === 'approved' && <CheckCircle2 className="h-3 w-3" />}
-                      {status === 'rejected' && <Ban className="h-3 w-3" />}
-                      {v.status || status}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                      {v.kyc?.status || "NOT SUBMITTED"}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end gap-3">
-                      {status === "pending" && (
-                        <button
-                          onClick={() => setReviewVendor(v)}
-                          className="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm transition-all active:scale-95"
-                        >
-                          Review KYC
-                        </button>
-                      )}
-                      {status === "approved" && (
-                        <button
-                          onClick={() => {
-                            if(confirm("Suspend this vendor?")) onSuspend(v.id);
-                          }}
-                          className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-rose-600 hover:bg-rose-50 hover:border-rose-200 border border-border transition-all active:scale-95"
-                        >
-                          Suspend
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                      >
+                        {status === "approved" && <CheckCircle2 className="h-3 w-3" />}
+                        {status === "rejected" && <Ban className="h-3 w-3" />}
+                        {v.status || status}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                        {v.kyc?.status || "NOT SUBMITTED"}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex justify-end gap-3">
+                        {status === "pending" && (
+                          <button
+                            onClick={() => setReviewVendor(v)}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm transition-all active:scale-95"
+                          >
+                            Review KYC
+                          </button>
+                        )}
+                        {status === "approved" && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Suspend this vendor?")) onSuspend(v.id);
+                            }}
+                            className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-rose-600 hover:bg-rose-50 hover:border-rose-200 border border-border transition-all active:scale-95"
+                          >
+                            Suspend
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
               {filteredVendors.length === 0 && (
@@ -183,7 +229,9 @@ export function AdminVendors({ vendors, onApprove, onReject, onSuspend, isApprov
                       ) : (
                         <Store className="h-12 w-12 text-muted-foreground/40 mb-4" />
                       )}
-                      <p className="text-foreground font-medium">{query ? "No vendors match your search." : "No vendors found."}</p>
+                      <p className="text-foreground font-medium">
+                        {query ? "No vendors match your search." : "No vendors found."}
+                      </p>
                     </div>
                   </td>
                 </tr>

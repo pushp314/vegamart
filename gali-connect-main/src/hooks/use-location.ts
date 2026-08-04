@@ -13,15 +13,16 @@ export interface AppLocation {
 
 export function useLocation() {
   const { isAuthenticated } = useAuth();
-  
-  const { data: addrRes, isLoading: isLoadingAddresses } = useQuery({ 
-    queryKey: ["addresses"], 
+
+  const { data: addrRes, isLoading: isLoadingAddresses } = useQuery({
+    queryKey: ["addresses"],
     queryFn: () => api.get<any>("/users/me/addresses"),
     enabled: isAuthenticated,
   });
 
   const addresses = addrRes?.data?.data || addrRes?.data || [];
-  const defaultAddress = (addresses as any[]).find((a: any) => a.is_default) || (addresses as any[])[0];
+  const defaultAddress =
+    (addresses as any[]).find((a: any) => a.is_default) || (addresses as any[])[0];
 
   const [geoLoc, setGeoLoc] = useState<AppLocation | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -49,13 +50,13 @@ export function useLocation() {
           setGeoError(error.message);
           setIsLocating(false);
         },
-        { timeout: 10000, enableHighAccuracy: true }
+        { timeout: 10000, enableHighAccuracy: true },
       );
     }
   }, [defaultAddress]);
 
   const activeAddress = defaultAddress || geoLoc;
-  
+
   let displayLocation = "Indiranagar, Bengaluru"; // Fallback
   if (activeAddress?.line1 && activeAddress?.city) {
     displayLocation = `${activeAddress.line1}, ${activeAddress.city}`;
@@ -63,11 +64,11 @@ export function useLocation() {
     displayLocation = "Locating...";
   }
 
-  return { 
-    activeAddress, 
-    displayLocation, 
+  return {
+    activeAddress,
+    displayLocation,
     isLocating,
     isLoadingAddresses,
-    geoError
+    geoError,
   };
 }

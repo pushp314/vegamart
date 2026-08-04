@@ -45,7 +45,9 @@ function RoamingVendorDashboard() {
   // Schedule Broadcast Form State
   const [bcastStreet, setBcastStreet] = useState("4th Main Rd, Jayanagar 4th Block");
   const [bcastTime, setBcastTime] = useState("Today at 5:30 PM");
-  const [bcastProduce, setBcastProduce] = useState("Fresh Farm Tomatoes, Baby Spinach, Shimla Mirch");
+  const [bcastProduce, setBcastProduce] = useState(
+    "Fresh Farm Tomatoes, Baby Spinach, Shimla Mirch",
+  );
   const [bcastNote, setBcastNote] = useState("Fresh morning harvest! ₹5 off on Palak bunches.");
   const [isPublishingBcast, setIsPublishingBcast] = useState(false);
 
@@ -94,7 +96,8 @@ function RoamingVendorDashboard() {
     queryKey: ["vendorEarnings"],
     queryFn: () => api.get<{ data: any }>("/vendors/me/earnings"),
   });
-  const earnings = earningsRes?.data?.data || earningsRes?.data || { today_earnings: 0, total_orders: 0 };
+  const earnings = earningsRes?.data?.data ||
+    earningsRes?.data || { today_earnings: 0, total_orders: 0 };
 
   // Listen for incoming Gali Bell alerts via WebSocket
   useEffect(() => {
@@ -104,7 +107,7 @@ function RoamingVendorDashboard() {
     const wsURL = baseURL.replace("http://", "ws://").replace("https://", "wss://");
     const token = authStorage.getAccessToken();
     const ws = new WebSocket(
-      `${wsURL}/api/v1/vendors/${vendor.id}/stream-alerts${token ? `?token=${encodeURIComponent(token)}` : ""}`
+      `${wsURL}/api/v1/vendors/${vendor.id}/stream-alerts${token ? `?token=${encodeURIComponent(token)}` : ""}`,
     );
 
     ws.onmessage = (event) => {
@@ -153,7 +156,7 @@ function RoamingVendorDashboard() {
   const remoteProducts = Array.isArray(productsRes?.data)
     ? productsRes.data
     : (productsRes?.data as any)?.data || [];
-  
+
   const inventory = remoteProducts.length > 0 ? remoteProducts : localInventory;
 
   // Toggle Product Stock Mutation
@@ -167,7 +170,7 @@ function RoamingVendorDashboard() {
 
   const toggleInventoryItem = (id: string, currentStatus: boolean) => {
     const updated = inventory.map((item: any) =>
-      item.id === id ? { ...item, is_active: !currentStatus } : item
+      item.id === id ? { ...item, is_active: !currentStatus } : item,
     );
     setLocalInventory(updated);
     localStorage.setItem("vegamart_cart_inventory", JSON.stringify(updated));
@@ -228,11 +231,35 @@ function RoamingVendorDashboard() {
   const seedDefaultItems = async () => {
     setIsSeeding(true);
     const defaults = [
-      { id: `seed-1-${Date.now()}`, name: "Fresh Tomatoes", price: 40, unit: "1 kg", is_active: true },
-      { id: `seed-2-${Date.now()}`, name: "Organic Spinach", price: 25, unit: "1 bunch", is_active: true },
-      { id: `seed-3-${Date.now()}`, name: "Fresh Potatoes", price: 35, unit: "1 kg", is_active: true },
+      {
+        id: `seed-1-${Date.now()}`,
+        name: "Fresh Tomatoes",
+        price: 40,
+        unit: "1 kg",
+        is_active: true,
+      },
+      {
+        id: `seed-2-${Date.now()}`,
+        name: "Organic Spinach",
+        price: 25,
+        unit: "1 bunch",
+        is_active: true,
+      },
+      {
+        id: `seed-3-${Date.now()}`,
+        name: "Fresh Potatoes",
+        price: 35,
+        unit: "1 kg",
+        is_active: true,
+      },
       { id: `seed-4-${Date.now()}`, name: "Red Onions", price: 45, unit: "1 kg", is_active: true },
-      { id: `seed-5-${Date.now()}`, name: "Robusta Bananas", price: 60, unit: "1 dozen", is_active: true },
+      {
+        id: `seed-5-${Date.now()}`,
+        name: "Robusta Bananas",
+        price: 60,
+        unit: "1 dozen",
+        is_active: true,
+      },
     ];
 
     setLocalInventory(defaults);
@@ -264,7 +291,7 @@ function RoamingVendorDashboard() {
   const startLocationBroadcast = () => {
     if (!("geolocation" in navigator)) {
       setLocationErrorMessage(
-        "GPS Geolocation is not supported by your browser. Please try another browser or mobile device."
+        "GPS Geolocation is not supported by your browser. Please try another browser or mobile device.",
       );
       setShowLocationModal(true);
       return;
@@ -281,17 +308,13 @@ function RoamingVendorDashboard() {
         setShowLocationModal(false);
 
         // Send location update to backend database
-        api
-          .put("/vendors/me/location", { lat: coords.lat, lng: coords.lng })
-          .catch(console.error);
+        api.put("/vendors/me/location", { lat: coords.lat, lng: coords.lng }).catch(console.error);
 
         // Set vendor status to OPEN
-        api
-          .put("/vendors/me/toggle-availability", { is_open: true })
-          .catch(console.error);
+        api.put("/vendors/me/toggle-availability", { is_open: true }).catch(console.error);
 
         toast.success(
-          `📡 LIVE GPS Broadcasting Active! Coordinates: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+          `📡 LIVE GPS Broadcasting Active! Coordinates: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
         );
       },
       (err) => {
@@ -302,12 +325,13 @@ function RoamingVendorDashboard() {
           msg =
             "Location Permission Denied! Please enable location access in your mobile settings or browser URL bar (Lock 🔒 icon) to share live GPS.";
         } else if (err.code === err.POSITION_UNAVAILABLE) {
-          msg = "GPS Signal Unavailable! Please check if Mobile Location / Location Services is turned ON.";
+          msg =
+            "GPS Signal Unavailable! Please check if Mobile Location / Location Services is turned ON.";
         }
         setLocationErrorMessage(msg);
         setShowLocationModal(true);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
     );
   };
 
@@ -337,7 +361,7 @@ function RoamingVendorDashboard() {
             api.put("/vendors/me/location", coords).catch(console.error);
           },
           (err) => console.error("Watch location error:", err),
-          { enableHighAccuracy: true, maximumAge: 10000 }
+          { enableHighAccuracy: true, maximumAge: 10000 },
         );
       }
     } else {
@@ -489,7 +513,8 @@ function RoamingVendorDashboard() {
               </div>
 
               <p className="text-xs text-muted-foreground mt-1">
-                Share your live cart location on the map so customers in nearby streets can track your cart in real-time.
+                Share your live cart location on the map so customers in nearby streets can track
+                your cart in real-time.
               </p>
             </div>
 
@@ -516,8 +541,8 @@ function RoamingVendorDashboard() {
                   {isLocating
                     ? "Fetching GPS..."
                     : isOnline
-                    ? "BROADCASTING ACTIVE"
-                    : "TAP TO BROADCAST LOCATION"}
+                      ? "BROADCASTING ACTIVE"
+                      : "TAP TO BROADCAST LOCATION"}
                 </span>
 
                 {isOnline && location && (
@@ -534,7 +559,8 @@ function RoamingVendorDashboard() {
                   </p>
                 ) : (
                   <p className="text-muted-foreground font-semibold">
-                    👉 Tap the button above to request mobile/web location permission & start broadcasting.
+                    👉 Tap the button above to request mobile/web location permission & start
+                    broadcasting.
                   </p>
                 )}
               </div>
@@ -558,7 +584,8 @@ function RoamingVendorDashboard() {
               </h2>
             </div>
             <p className="text-xs text-muted-foreground">
-              Broadcast your street route and expected arrival time so customers can wait for your cart.
+              Broadcast your street route and expected arrival time so customers can wait for your
+              cart.
             </p>
 
             <form onSubmit={handlePublishSchedule} className="space-y-3 pt-1">
@@ -628,9 +655,7 @@ function RoamingVendorDashboard() {
                 {isPublishingBcast ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    Publish Today's Arrival Schedule 🚀
-                  </>
+                  <>Publish Today's Arrival Schedule 🚀</>
                 )}
               </button>
             </form>
@@ -674,13 +699,16 @@ function RoamingVendorDashboard() {
 
           {/* Product Items List Grid */}
           {isProductsLoading ? (
-            <div className="py-10 text-center text-xs text-muted-foreground">Loading cart inventory...</div>
+            <div className="py-10 text-center text-xs text-muted-foreground">
+              Loading cart inventory...
+            </div>
           ) : inventory.length === 0 ? (
             <div className="py-12 text-center space-y-3">
               <Package className="h-10 w-10 text-muted-foreground mx-auto opacity-50" />
               <h3 className="font-bold text-sm text-foreground">No items on your cart yet</h3>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Click "+ Add 5 Fresh Produce Items" or "+ Add Item" above to add items to your live cart catalog.
+                Click "+ Add 5 Fresh Produce Items" or "+ Add Item" above to add items to your live
+                cart catalog.
               </p>
             </div>
           ) : (
@@ -742,10 +770,12 @@ function RoamingVendorDashboard() {
               <div className="font-bold text-foreground">📱 How to enable location:</div>
               <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
                 <li>
-                  <strong>Phone/Mobile:</strong> Open Settings ➔ Location ➔ Turn ON Location Services.
+                  <strong>Phone/Mobile:</strong> Open Settings ➔ Location ➔ Turn ON Location
+                  Services.
                 </li>
                 <li>
-                  <strong>Web Browser:</strong> Click the Lock (🔒) or Tune icon next to the URL bar ➔ Allow Location access.
+                  <strong>Web Browser:</strong> Click the Lock (🔒) or Tune icon next to the URL bar
+                  ➔ Allow Location access.
                 </li>
               </ul>
             </div>
@@ -779,9 +809,7 @@ function RoamingVendorDashboard() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs grid place-items-center p-4">
           <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-display font-black text-lg text-foreground">
-                Add Item to Cart
-              </h3>
+              <h3 className="font-display font-black text-lg text-foreground">Add Item to Cart</h3>
               <button
                 onClick={() => setShowAddProduct(false)}
                 className="grid h-8 w-8 place-items-center rounded-full bg-muted text-muted-foreground hover:text-foreground"

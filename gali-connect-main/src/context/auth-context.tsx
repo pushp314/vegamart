@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { api, authStorage } from "@/lib/api";
+import { api, authStorage, AUTH_SESSION_EVENT, type AuthSessionPayload } from "@/lib/api";
 
 export type UserRole = "customer" | "vendor" | "admin" | "super_admin" | "delivery";
 
@@ -40,10 +40,15 @@ interface AuthContextType {
     otp: string,
     newPassword: string,
   ) => Promise<{ success: boolean; message?: string }>;
-  updateProfile: (data: { name?: string; phone?: string; avatar_url?: string }) => Promise<{ success: boolean; message?: string }>;
+  updateProfile: (data: {
+    name?: string;
+    phone?: string;
+    avatar_url?: string;
+  }) => Promise<{ success: boolean; message?: string }>;
   getGoogleAuthUrl: () => Promise<string | null>;
   guestLogin: () => Promise<void>;
   googleLogin: (code: string) => Promise<{ success: boolean; message?: string }>;
+  refreshSession: () => Promise<boolean>;
   logout: () => void;
   setRole: (role: UserRole) => void;
 }
@@ -54,6 +59,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const establishSession = (session: AuthSessionPayload<User>) => {
+    authStorage.saveSession(session);
+    setAccessToken(session.access_token);
+    setUser(session.user);
+  };
 
   useEffect(() => {
     // Restore session from localStorage and validate with backend
@@ -71,8 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Token invalid or expired
             setAccessToken(null);
             setUser(null);
-            localStorage.removeItem("vegamart_access_token");
-            localStorage.removeItem("vegamart_user");
+            authStorage.clearSession();
           }
         }
       } catch (err) {
@@ -83,23 +93,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     validateSession();
+
+    // Sync React state when the API layer refreshes or clears the session
+    const onSessionEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.access_token) {
+        setAccessToken(detail.access_token);
+        if (detail.user) {
+          setUser(detail.user);
+          localStorage.setItem("vegamart_user", JSON.stringify(detail.user));
+        }
+      } else {
+        setAccessToken(null);
+        setUser(null);
+      }
+    };
+    window.addEventListener(AUTH_SESSION_EVENT, onSessionEvent);
+    return () => window.removeEventListener(AUTH_SESSION_EVENT, onSessionEvent);
   }, []);
 
   const login = async (email: string, pass: string) => {
     setIsLoading(true);
-    const res = await api.post<{ access_token: string; user: User }>("/auth/login", {
+    const res = await api.post<AuthSessionPayload<User>>("/auth/login", {
       email,
       password: pass,
     });
     setIsLoading(false);
 
     if (res.success && res.data) {
-      const token = res.data.access_token;
-      const u = res.data.user;
-      setAccessToken(token);
-      setUser(u);
-      localStorage.setItem("vegamart_access_token", token);
-      localStorage.setItem("vegamart_user", JSON.stringify(u));
+      establishSession(res.data);
       return { success: true };
     }
 
@@ -114,16 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role?: UserRole;
   }) => {
     setIsLoading(true);
-    const res = await api.post<{ access_token: string; user: User }>("/auth/register", data);
+    const res = await api.post<AuthSessionPayload<User>>("/auth/register", data);
     setIsLoading(false);
 
     if (res.success && res.data) {
-      const token = res.data.access_token;
-      const u = res.data.user;
-      setAccessToken(token);
-      setUser(u);
-      localStorage.setItem("vegamart_access_token", token);
-      localStorage.setItem("vegamart_user", JSON.stringify(u));
+      establishSession(res.data);
       return { success: true };
     }
 
@@ -133,12 +150,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const guestLogin = async () => {
     setIsLoading(true);
     try {
-      const res = await api.post<{ access_token: string; user: User }>("/auth/guest", {});
-      if (res.data) {
-        localStorage.setItem("vegamart_access_token", res.data.access_token);
-        setAccessToken(res.data.access_token);
-        setUser(res.data.user);
-        localStorage.setItem("vegamart_user", JSON.stringify(res.data.user));
+      const res = await api.post<AuthSessionPayload<User>>("/auth/guest", {});
+      if (res.success && res.data) {
+        establishSession(res.data);
       }
     } catch (err: any) {
       throw err;
@@ -153,18 +167,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const verifyOTP = async (email: string, otp: string, purpose: string) => {
-    const res = await api.post<{ access_token: string; user: User }>("/auth/login/otp/verify", {
+    const res = await api.post<AuthSessionPayload<User>>("/auth/login/otp/verify", {
       email,
       otp,
       purpose,
     });
     if (res.success && res.data) {
-      const token = res.data.access_token;
-      const u = res.data.user;
-      setAccessToken(token);
-      setUser(u);
-      localStorage.setItem("vegamart_access_token", token);
-      localStorage.setItem("vegamart_user", JSON.stringify(u));
+      establishSession(res.data);
       return { success: true };
     }
 
@@ -205,31 +214,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const googleLogin = async (code: string) => {
     setIsLoading(true);
-    const res = await api.post<{ access_token: string; user: User }>("/auth/google/callback", {
+    const res = await api.post<AuthSessionPayload<User>>("/auth/google/callback", {
       code,
     });
     setIsLoading(false);
 
     if (res.success && res.data) {
-      const token = res.data.access_token;
-      const u = res.data.user;
-      setAccessToken(token);
-      setUser(u);
-      localStorage.setItem("vegamart_access_token", token);
-      localStorage.setItem("vegamart_user", JSON.stringify(u));
+      establishSession(res.data);
       return { success: true };
     }
 
     return { success: false, message: res.error?.message || "Google login failed" };
   };
 
+  const refreshSession = async () => {
+    const refreshToken = authStorage.getRefreshToken();
+    if (!refreshToken) return false;
+
+    const res = await api.post<AuthSessionPayload<User>>("/auth/refresh", {
+      refresh_token: refreshToken,
+    });
+    if (res.success && res.data) {
+      establishSession(res.data);
+      return true;
+    }
+    authStorage.clearSession();
+    setAccessToken(null);
+    setUser(null);
+    return false;
+  };
+
   const logout = () => {
-    api.post("/auth/logout", { refresh_token: authStorage.getRefreshToken() || "" }).catch(() => {});
+    api
+      .post("/auth/logout", { refresh_token: authStorage.getRefreshToken() || "" })
+      .catch(() => {});
     setUser(null);
     setAccessToken(null);
-    localStorage.removeItem("vegamart_access_token");
-    localStorage.removeItem("vegamart_refresh_token");
-    localStorage.removeItem("vegamart_user");
+    authStorage.clearSession();
   };
 
   const setRole = (newRole: UserRole) => {
@@ -258,6 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         getGoogleAuthUrl,
         guestLogin,
         googleLogin,
+        refreshSession,
         logout,
         setRole,
       }}

@@ -1,5 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, ShoppingBag, Minus, Plus, Trash2, Ticket, X, CheckCircle2 } from "lucide-react";
+import {
+  ArrowRight,
+  ShoppingBag,
+  Minus,
+  Plus,
+  Trash2,
+  Ticket,
+  X,
+  CheckCircle2,
+} from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
 import { useState } from "react";
@@ -12,9 +21,22 @@ export const Route = createFileRoute("/cart")({
 });
 
 function Cart() {
-  const { items, updateQuantity, removeItem, subtotal, deliveryFee, tax, discount, appliedCoupon, applyCoupon, removeCoupon, total, itemCount } = useCart();
+  const {
+    items,
+    updateQuantity,
+    removeItem,
+    subtotal,
+    deliveryFee,
+    tax,
+    discount,
+    appliedCoupon,
+    applyCoupon,
+    removeCoupon,
+    total,
+    itemCount,
+  } = useCart();
   const { displayLocation } = useLocation();
-  
+
   const [promoCode, setPromoCode] = useState("");
   const [isApplying, setIsApplying] = useState(false);
 
@@ -66,15 +88,23 @@ function Cart() {
           <div>
             <ul className="space-y-3">
               {items.map((i) => {
-                const image = i.product.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                const image =
+                  i.product.images?.[0]?.url ||
+                  "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
                 return (
                   <li key={i.id} className="flex gap-3 p-3 rounded-2xl bg-card border shadow-sm">
                     <div className="h-20 w-20 md:h-24 md:w-24 shrink-0 overflow-hidden rounded-xl bg-muted">
-                      <img src={image} alt={i.product.name} className="h-full w-full object-cover" />
+                      <img
+                        src={image}
+                        alt={i.product.name}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start gap-2">
-                        <h3 className="font-semibold text-[15px] truncate flex-1">{i.product.name}</h3>
+                        <h3 className="font-semibold text-[15px] truncate flex-1">
+                          {i.product.name}
+                        </h3>
                         <button
                           aria-label={`Remove ${i.product.name}`}
                           onClick={() => removeItem(i.id)}
@@ -86,7 +116,9 @@ function Cart() {
                       <p className="text-[12px] text-muted-foreground">{i.product.unit}</p>
                       <div className="mt-2 flex items-center justify-between">
                         <div>
-                          <span className="font-bold text-[15px]">₹{i.product.price * i.quantity}</span>
+                          <span className="font-bold text-[15px]">
+                            ₹{i.product.price * i.quantity}
+                          </span>
                           {i.product.mrp > i.product.price && (
                             <span className="ml-1 text-[11px] text-muted-foreground line-through">
                               ₹{i.product.mrp * i.quantity}
@@ -127,14 +159,14 @@ function Cart() {
                 <Ticket className="h-5 w-5 text-emerald-600" />
                 <h2 className="font-display text-[17px] font-bold">Offers & Benefits</h2>
               </div>
-              
+
               {appliedCoupon ? (
                 <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl p-3">
                   <div className="flex items-center gap-2 text-emerald-700">
                     <CheckCircle2 className="h-4 w-4" />
                     <span className="font-bold text-sm">'{appliedCoupon}' applied</span>
                   </div>
-                  <button 
+                  <button
                     onClick={removeCoupon}
                     className="text-emerald-700 hover:text-emerald-900 text-xs font-semibold underline"
                   >

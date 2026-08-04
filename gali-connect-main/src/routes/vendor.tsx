@@ -57,7 +57,9 @@ function VendorDashboard() {
     }
   }, [user, navigate]);
 
-  const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "earnings">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "earnings">(
+    "overview",
+  );
 
   // Fetch Vendor Profile
   const { data: vendorRes, isLoading: vendorLoading } = useQuery({
@@ -132,7 +134,7 @@ function VendorDashboard() {
   const [prodImageFile, setProdImageFile] = useState<File | null>(null);
   const [prodImageUrl, setProdImageUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  
+
   const [suggestedImages, setSuggestedImages] = useState<string[]>([]);
   const [isSearchingImages, setIsSearchingImages] = useState(false);
 
@@ -261,7 +263,11 @@ function VendorDashboard() {
   // APPROVAL GUARD: Status Pending
   if (vendor.status === "pending") {
     if (kycLoading) {
-      return <div className="p-10 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" /></div>;
+      return (
+        <div className="p-10 text-center">
+          <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" />
+        </div>
+      );
     }
 
     if (!kyc || kyc.status === "rejected") {
@@ -269,10 +275,10 @@ function VendorDashboard() {
         <div className="min-h-screen bg-background text-foreground pb-28 md:pb-16">
           <AppHeader title="Vendor Portal" subtitle="KYC Verification" />
           <main className="mx-auto max-w-lg px-4 pt-8 space-y-6">
-            <VendorKYCForm 
-              vendor={vendor} 
-              initialData={kyc} 
-              onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vendorKYC"] })} 
+            <VendorKYCForm
+              vendor={vendor}
+              initialData={kyc}
+              onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vendorKYC"] })}
             />
           </main>
         </div>
@@ -292,15 +298,22 @@ function VendorDashboard() {
             </span>
             <h2 className="font-display text-xl font-bold">Admin Review in Progress</h2>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Your vendor KYC documents for <strong>"{vendor.business_name}"</strong> have been submitted and are currently waiting for admin approval.
+              Your vendor KYC documents for <strong>"{vendor.business_name}"</strong> have been
+              submitted and are currently waiting for admin approval.
             </p>
             <div className="rounded-2xl bg-accent/50 p-4 text-left text-xs space-y-2 border border-border">
               <div className="font-semibold text-foreground border-b pb-1">Submitted KYC</div>
-              <div><strong>Document Type:</strong> {kyc.document_type}</div>
-              <div><strong>Status:</strong> <span className="text-amber-600 font-bold uppercase">Pending Verification</span></div>
+              <div>
+                <strong>Document Type:</strong> {kyc.document_type}
+              </div>
+              <div>
+                <strong>Status:</strong>{" "}
+                <span className="text-amber-600 font-bold uppercase">Pending Verification</span>
+              </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Once approved by our platform administrator, you will be able to list products, toggle store availability, and receive live orders.
+              Once approved by our platform administrator, you will be able to list products, toggle
+              store availability, and receive live orders.
             </p>
           </div>
         </main>
@@ -321,7 +334,8 @@ function VendorDashboard() {
             Vendor Application {vendor.status === "rejected" ? "Rejected" : "Suspended"}
           </h2>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Your vendor account for <strong>"{vendor.business_name}"</strong> is currently {vendor.status}. Please contact Vegamart support for assistance.
+            Your vendor account for <strong>"{vendor.business_name}"</strong> is currently{" "}
+            {vendor.status}. Please contact Vegamart support for assistance.
           </p>
         </main>
       </div>
@@ -329,7 +343,10 @@ function VendorDashboard() {
   }
 
   // SUBSCRIPTION GUARD
-  if (vendor.status === "approved" && (!vendor.subscription_plan || vendor.subscription_plan === "none")) {
+  if (
+    vendor.status === "approved" &&
+    (!vendor.subscription_plan || vendor.subscription_plan === "none")
+  ) {
     return (
       <div className="min-h-screen bg-background text-foreground pb-28 md:pb-16">
         <AppHeader title="Choose Subscription" subtitle="Vendor Portal" />
@@ -340,10 +357,11 @@ function VendorDashboard() {
             </div>
             <h2 className="font-display text-2xl font-bold">You're Approved! 🎉</h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Your vendor application has been approved. Please select a subscription plan to unlock your dashboard and start selling.
+              Your vendor application has been approved. Please select a subscription plan to unlock
+              your dashboard and start selling.
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {/* Basic Plan */}
             <div className="rounded-3xl border border-border bg-muted/50 border-border p-6 shadow-2xl hover:shadow-md transition-shadow relative">
@@ -353,18 +371,33 @@ function VendorDashboard() {
                   <span className="text-3xl font-black">₹0</span>
                   <span className="text-sm text-muted-foreground">/month</span>
                 </div>
-                <p className="text-xs text-muted-foreground">Perfect for new vendors starting their online journey.</p>
+                <p className="text-xs text-muted-foreground">
+                  Perfect for new vendors starting their online journey.
+                </p>
                 <ul className="space-y-2 text-sm pt-4 border-t">
-                  <li className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Up to 50 active products</li>
-                  <li className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> 10% Platform Commission</li>
-                  <li className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Standard Support</li>
+                  <li className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Up to 50
+                    active products
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> 10%
+                    Platform Commission
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Standard
+                    Support
+                  </li>
                 </ul>
                 <button
                   onClick={() => updateProfileMutation.mutate({ subscription_plan: "starter" })}
                   disabled={updateProfileMutation.isPending}
                   className="w-full mt-6 rounded-2xl bg-accent/50 text-foreground font-bold py-3 hover:bg-accent/50/80 transition-colors"
                 >
-                  {updateProfileMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Start for Free"}
+                  {updateProfileMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                  ) : (
+                    "Start for Free"
+                  )}
                 </button>
               </div>
             </div>
@@ -380,19 +413,37 @@ function VendorDashboard() {
                   <span className="text-3xl font-black text-emerald-500">₹999</span>
                   <span className="text-sm text-muted-foreground">/month</span>
                 </div>
-                <p className="text-xs text-muted-foreground">For growing businesses that need more volume.</p>
+                <p className="text-xs text-muted-foreground">
+                  For growing businesses that need more volume.
+                </p>
                 <ul className="space-y-2 text-sm pt-4 border-t">
-                  <li className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Unlimited products</li>
-                  <li className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> 5% Platform Commission</li>
-                  <li className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Priority Support 24/7</li>
-                  <li className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Featured in Search</li>
+                  <li className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Unlimited
+                    products
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> 5%
+                    Platform Commission
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Priority
+                    Support 24/7
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 text-black" /> Featured
+                    in Search
+                  </li>
                 </ul>
                 <button
                   onClick={() => updateProfileMutation.mutate({ subscription_plan: "pro" })}
                   disabled={updateProfileMutation.isPending}
                   className="w-full mt-6 rounded-2xl bg-emerald-500 text-black  font-bold py-3 hover:bg-emerald-400 transition-colors shadow-md hover:shadow-lg"
                 >
-                  {updateProfileMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Upgrade to Pro"}
+                  {updateProfileMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                  ) : (
+                    "Upgrade to Pro"
+                  )}
                 </button>
               </div>
             </div>
@@ -463,21 +514,33 @@ function VendorDashboard() {
   };
 
   const navItems = [
-    { id: "overview", title: "Overview", icon: LayoutDashboard, onClick: () => setActiveTab("overview") },
+    {
+      id: "overview",
+      title: "Overview",
+      icon: LayoutDashboard,
+      onClick: () => setActiveTab("overview"),
+    },
     { id: "products", title: "Products", icon: Package, onClick: () => setActiveTab("products") },
     { id: "orders", title: "Orders", icon: ClipboardList, onClick: () => setActiveTab("orders") },
     { id: "earnings", title: "Earnings", icon: Wallet, onClick: () => setActiveTab("earnings") },
   ];
 
   return (
-    <PortalLayout navItems={navItems} activeItemId={activeTab} portalName="Vendor" userEmail={vendor.business_name}>
+    <PortalLayout
+      navItems={navItems}
+      activeItemId={activeTab}
+      portalName="Vendor"
+      userEmail={vendor.business_name}
+    >
       <div className="space-y-6">
         {/* Status Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl bg-muted/50 border-border border border-border p-5 shadow-2xl">
           <div className="flex items-center gap-3">
             <div
               className={`grid h-12 w-12 place-items-center rounded-2xl ${
-                vendor.is_open ? "bg-emerald-500/10 border border-border border-emerald-500/20 text-emerald-500" : "bg-accent/50 text-muted-foreground"
+                vendor.is_open
+                  ? "bg-emerald-500/10 border border-border border-emerald-500/20 text-emerald-500"
+                  : "bg-accent/50 text-muted-foreground"
               }`}
             >
               <Store className="h-6 w-6" />
@@ -580,7 +643,9 @@ function VendorDashboard() {
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Lifetime Earnings
                 </div>
-                <div className="font-display text-xl font-bold text-emerald-600">₹{earnings.total_payout || 0}</div>
+                <div className="font-display text-xl font-bold text-emerald-600">
+                  ₹{earnings.total_payout || 0}
+                </div>
               </div>
               <div className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-1">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -602,7 +667,9 @@ function VendorDashboard() {
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Rating
                 </div>
-                <div className="font-display text-xl font-bold text-amber-600">★ {vendor.rating || 4.8}</div>
+                <div className="font-display text-xl font-bold text-amber-600">
+                  ★ {vendor.rating || 4.8}
+                </div>
               </div>
             </div>
 
@@ -635,7 +702,10 @@ function VendorDashboard() {
                     >
                       <div className="flex items-center gap-3">
                         <img
-                          src={p.images?.[0]?.url || "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300"}
+                          src={
+                            p.images?.[0]?.url ||
+                            "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300"
+                          }
                           alt={p.name}
                           className="h-10 w-10 rounded-xl object-cover"
                         />
@@ -677,21 +747,32 @@ function VendorDashboard() {
               <div className="rounded-3xl border border-border bg-muted/50 border-border p-12 text-center space-y-3">
                 <Package className="h-10 w-10 mx-auto text-emerald-500" />
                 <h3 className="font-bold text-sm">Your store catalog is empty</h3>
-                <p className="text-xs text-muted-foreground">List your fresh products for nearby customers.</p>
+                <p className="text-xs text-muted-foreground">
+                  List your fresh products for nearby customers.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {productList.map((p) => (
-                  <div key={p.id} className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-3 shadow-2xl">
+                  <div
+                    key={p.id}
+                    className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-3 shadow-2xl"
+                  >
                     <img
-                      src={p.images?.[0]?.url || "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300"}
+                      src={
+                        p.images?.[0]?.url ||
+                        "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300"
+                      }
                       alt={p.name}
                       className="h-28 w-full rounded-2xl object-cover"
                     />
                     <div>
                       <div className="font-bold text-sm truncate">{p.name}</div>
                       <div className="text-xs font-bold text-emerald-600 mt-0.5">
-                        ₹{p.price} <span className="text-muted-foreground font-normal text-[11px]">/ {p.unit}</span>
+                        ₹{p.price}{" "}
+                        <span className="text-muted-foreground font-normal text-[11px]">
+                          / {p.unit}
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 pt-2 border-t">
@@ -724,16 +805,25 @@ function VendorDashboard() {
               <div className="rounded-3xl border border-border bg-muted/50 border-border p-12 text-center space-y-3">
                 <Bike className="h-10 w-10 mx-auto text-emerald-500" />
                 <h3 className="font-bold text-sm">No incoming orders</h3>
-                <p className="text-xs text-muted-foreground">New customer orders will appear here in real-time.</p>
+                <p className="text-xs text-muted-foreground">
+                  New customer orders will appear here in real-time.
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
                 {vendorOrders.map((o: any) => (
-                  <div key={o.id} className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-3 shadow-2xl">
+                  <div
+                    key={o.id}
+                    className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-3 shadow-2xl"
+                  >
                     <div className="flex items-center justify-between border-b pb-3">
                       <div>
-                        <div className="font-bold text-sm">Order #{o.order_number || o.id.slice(0, 8)}</div>
-                        <div className="text-xs text-muted-foreground">{o.customer_name || "Customer"}</div>
+                        <div className="font-bold text-sm">
+                          Order #{o.order_number || o.id.slice(0, 8)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {o.customer_name || "Customer"}
+                        </div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-emerald-600 text-sm">₹{o.total}</div>
@@ -746,13 +836,17 @@ function VendorDashboard() {
                       <span className="text-muted-foreground">Update Status:</span>
                       <div className="flex gap-1">
                         <button
-                          onClick={() => updateOrderStatusMutation.mutate({ orderId: o.id, status: "accepted" })}
+                          onClick={() =>
+                            updateOrderStatusMutation.mutate({ orderId: o.id, status: "accepted" })
+                          }
                           className="px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-border border-emerald-500/20 text-emerald-800 text-[11px] font-bold hover:bg-emerald-200"
                         >
                           Accept
                         </button>
                         <button
-                          onClick={() => updateOrderStatusMutation.mutate({ orderId: o.id, status: "delivered" })}
+                          onClick={() =>
+                            updateOrderStatusMutation.mutate({ orderId: o.id, status: "delivered" })
+                          }
                           className="px-2.5 py-1 rounded-xl bg-blue-100 text-blue-800 text-[11px] font-bold hover:bg-blue-200"
                         >
                           Delivered
@@ -801,7 +895,9 @@ function VendorDashboard() {
                     <div className="font-display text-2xl font-bold text-emerald-600">
                       ₹{earnings.total_payout || 0}
                     </div>
-                    <div className="text-[11px] text-emerald-700 font-semibold">Ready for withdrawal</div>
+                    <div className="text-[11px] text-emerald-700 font-semibold">
+                      Ready for withdrawal
+                    </div>
                   </div>
                   <div className="rounded-3xl border border-border bg-muted/50 border-border p-5 space-y-2 shadow-2xl">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
@@ -823,7 +919,10 @@ function VendorDashboard() {
                   ) : (
                     <div className="space-y-3">
                       {earnings.recent_transactions.map((t: any) => (
-                        <div key={t.id} className="flex items-center justify-between p-4 rounded-2xl border border-border bg-muted">
+                        <div
+                          key={t.id}
+                          className="flex items-center justify-between p-4 rounded-2xl border border-border bg-muted"
+                        >
                           <div>
                             <div className="font-bold text-sm">{t.order_number}</div>
                             <div className="text-[10px] uppercase font-semibold text-muted-foreground mt-0.5">
@@ -843,7 +942,6 @@ function VendorDashboard() {
             )}
           </div>
         )}
-
       </div>
 
       {/* Product Add/Edit Modal */}
@@ -867,7 +965,11 @@ function VendorDashboard() {
               <div className="flex items-center gap-4">
                 <div className="relative h-16 w-16 overflow-hidden rounded-2xl bg-accent border border-border shrink-0 flex items-center justify-center">
                   {prodImageFile ? (
-                    <img src={URL.createObjectURL(prodImageFile)} alt="preview" className="h-full w-full object-cover" />
+                    <img
+                      src={URL.createObjectURL(prodImageFile)}
+                      alt="preview"
+                      className="h-full w-full object-cover"
+                    />
                   ) : prodImageUrl ? (
                     <img src={prodImageUrl} alt="preview" className="h-full w-full object-cover" />
                   ) : (
@@ -875,7 +977,9 @@ function VendorDashboard() {
                   )}
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-foreground mb-1">Product Image</label>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Product Image
+                  </label>
                   <input
                     type="file"
                     accept="image/*"
@@ -906,7 +1010,9 @@ function VendorDashboard() {
                 </div>
               ) : suggestedImages.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-xs font-semibold text-muted-foreground">Suggested Images (Click to use)</div>
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    Suggested Images (Click to use)
+                  </div>
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
                     {suggestedImages.map((url, idx) => (
                       <button
@@ -918,7 +1024,11 @@ function VendorDashboard() {
                         }}
                         className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border hover:ring-2 hover:ring-emerald-500 transition-all"
                       >
-                        <img src={url} alt={`Suggestion ${idx}`} className="h-full w-full object-cover" />
+                        <img
+                          src={url}
+                          alt={`Suggestion ${idx}`}
+                          className="h-full w-full object-cover"
+                        />
                       </button>
                     ))}
                   </div>
@@ -927,7 +1037,9 @@ function VendorDashboard() {
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-foreground">Selling Price (₹) *</div>
+                  <div className="mb-1 text-xs font-semibold text-foreground">
+                    Selling Price (₹) *
+                  </div>
                   <input
                     type="number"
                     value={prodPrice}
@@ -1018,7 +1130,7 @@ function VendorKYCForm({ vendor, initialData, onSuccess }: any) {
   const [docNum, setDocNum] = useState(initialData?.document_number || "");
   const [fssai, setFssai] = useState(initialData?.fssai_license || "");
   const [gst, setGst] = useState(initialData?.gst_number || "");
-  
+
   const mutation = useMutation({
     mutationFn: (data: any) => api.post("/vendors/me/kyc", data),
     onSuccess: () => {
@@ -1027,7 +1139,7 @@ function VendorKYCForm({ vendor, initialData, onSuccess }: any) {
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to submit KYC");
-    }
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1040,7 +1152,7 @@ function VendorKYCForm({ vendor, initialData, onSuccess }: any) {
       document_type: docType,
       document_number: docNum,
       fssai_license: fssai || undefined,
-      gst_number: gst || undefined
+      gst_number: gst || undefined,
     });
   };
 
@@ -1126,7 +1238,11 @@ function VendorKYCForm({ vendor, initialData, onSuccess }: any) {
           disabled={mutation.isPending}
           className="w-full rounded-2xl bg-emerald-500 text-black px-4 py-3.5 text-sm font-bold  shadow-2xl disabled:opacity-50 mt-2 inline-flex items-center justify-center gap-2"
         >
-          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}
+          {mutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileCheck2 className="h-4 w-4" />
+          )}
           Submit for Verification
         </button>
       </form>

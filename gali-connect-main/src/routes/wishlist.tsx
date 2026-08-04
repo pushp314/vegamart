@@ -51,7 +51,10 @@ function WishlistPage() {
                   <Link to="/products/$productId" params={{ productId: p.id }} className="block">
                     <div className="relative aspect-square bg-muted">
                       <img
-                        src={p.images?.[0]?.url || "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500"}
+                        src={
+                          p.images?.[0]?.url ||
+                          "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500"
+                        }
                         alt={p.name}
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
                       />

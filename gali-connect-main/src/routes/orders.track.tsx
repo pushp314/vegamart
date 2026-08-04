@@ -34,32 +34,41 @@ function OrderTrackingPage() {
   const { user } = useAuth();
 
   // Fetch active customer orders
-  const { data: res, isLoading, refetch } = useQuery({
+  const {
+    data: res,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["activeOrders"],
     queryFn: () => api.get<any[]>("/orders"),
   });
 
   const orders = res?.data || [];
   const activeOrder = orders.find(
-    (o) => o.status === "out_for_delivery" || o.status === "processing" || o.status === "confirmed" || o.status === "pending"
-  ) || orders[0] || {
-    id: "VG-264782",
-    order_number: "VG-264782",
-    status: "out_for_delivery",
-    total_amount: 199,
-    items: [
-      { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
-      { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
-      { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
-    ],
-    address: {
-      address_line1: "B-402, Green Valley Apartments",
-      city: "Bengaluru",
-      landmark: "Near Jayanagar 4th Block",
-    },
-    vendor_name: "Raju Sabziwala 🛒",
-    created_at: new Date().toISOString(),
-  };
+    (o) =>
+      o.status === "out_for_delivery" ||
+      o.status === "processing" ||
+      o.status === "confirmed" ||
+      o.status === "pending",
+  ) ||
+    orders[0] || {
+      id: "VG-264782",
+      order_number: "VG-264782",
+      status: "out_for_delivery",
+      total_amount: 199,
+      items: [
+        { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
+        { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
+        { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
+      ],
+      address: {
+        address_line1: "B-402, Green Valley Apartments",
+        city: "Bengaluru",
+        landmark: "Near Jayanagar 4th Block",
+      },
+      vendor_name: "Raju Sabziwala 🛒",
+      created_at: new Date().toISOString(),
+    };
 
   const isDelivered = activeOrder.status === "delivered";
 
@@ -75,7 +84,11 @@ function OrderTrackingPage() {
   const steps = [
     { label: "Order Placed", desc: "Sent to vendor", done: true },
     { label: "Confirmed", desc: "Packed & ready", done: true },
-    { label: "Out for Delivery", desc: "Partner on the way", done: activeOrder.status === "out_for_delivery" || isDelivered },
+    {
+      label: "Out for Delivery",
+      desc: "Partner on the way",
+      done: activeOrder.status === "out_for_delivery" || isDelivered,
+    },
     { label: "Delivered", desc: "Enjoy your fresh produce!", done: isDelivered },
   ];
 
@@ -84,7 +97,11 @@ function OrderTrackingPage() {
       {/* Top Header */}
       <AppHeader
         title="Live Order Tracking"
-        subtitle={activeOrder ? `Order #${activeOrder.order_number || activeOrder.id.slice(0, 8)}` : "Tracking"}
+        subtitle={
+          activeOrder
+            ? `Order #${activeOrder.order_number || activeOrder.id.slice(0, 8)}`
+            : "Tracking"
+        }
       />
 
       <main className="mx-auto max-w-4xl px-4 md:px-6 py-6 space-y-6">
@@ -164,7 +181,9 @@ function OrderTrackingPage() {
                 <Phone className="h-5 w-5" />
               </a>
               <button
-                onClick={() => toast.info(`Message sent to ${riderInfo.name}: "Please leave near doorbell."`)}
+                onClick={() =>
+                  toast.info(`Message sent to ${riderInfo.name}: "Please leave near doorbell."`)
+                }
                 className="grid h-11 w-11 place-items-center rounded-2xl border bg-muted text-foreground hover:bg-card transition-colors"
                 title="Send Message"
               >
@@ -176,7 +195,9 @@ function OrderTrackingPage() {
 
         {/* Order Status Stepper Timeline */}
         <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
-          <h3 className="font-display font-black text-base text-foreground">Order Status Timeline</h3>
+          <h3 className="font-display font-black text-base text-foreground">
+            Order Status Timeline
+          </h3>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 relative">
             {steps.map((step, idx) => (
@@ -207,7 +228,9 @@ function OrderTrackingPage() {
           <div className="flex items-center justify-between border-b pb-3">
             <div>
               <h3 className="font-display font-black text-base text-foreground">Order Details</h3>
-              <p className="text-xs text-muted-foreground">Order #{activeOrder.order_number || activeOrder.id}</p>
+              <p className="text-xs text-muted-foreground">
+                Order #{activeOrder.order_number || activeOrder.id}
+              </p>
             </div>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
               Paid via UPI
@@ -220,27 +243,37 @@ function OrderTrackingPage() {
             <div>
               <div className="font-bold text-foreground">Delivery Address</div>
               <div className="text-muted-foreground mt-0.5">
-                {activeOrder.address?.address_line1 || "B-402, Green Valley Apartments"}, {activeOrder.address?.landmark || "Near Jayanagar 4th Block"}, {activeOrder.address?.city || "Bengaluru"}
+                {activeOrder.address?.address_line1 || "B-402, Green Valley Apartments"},{" "}
+                {activeOrder.address?.landmark || "Near Jayanagar 4th Block"},{" "}
+                {activeOrder.address?.city || "Bengaluru"}
               </div>
             </div>
           </div>
 
           {/* Products List */}
           <div className="space-y-2 pt-2">
-            <div className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">Items Ordered</div>
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
+              Items Ordered
+            </div>
             <div className="divide-y border rounded-2xl overflow-hidden bg-background">
-              {(activeOrder.items || [
-                { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
-                { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
-                { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
-              ]).map((item: any, idx: number) => (
+              {(
+                activeOrder.items || [
+                  { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
+                  { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
+                  { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
+                ]
+              ).map((item: any, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-3 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="grid h-6 w-6 place-items-center rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
                       {item.quantity}x
                     </span>
-                    <span className="font-bold text-foreground">{item.product_name || item.name}</span>
-                    <span className="text-muted-foreground text-[11px]">({item.unit || "unit"})</span>
+                    <span className="font-bold text-foreground">
+                      {item.product_name || item.name}
+                    </span>
+                    <span className="text-muted-foreground text-[11px]">
+                      ({item.unit || "unit"})
+                    </span>
                   </div>
                   <span className="font-bold text-foreground tabular-nums">
                     ₹{((item.price || 20) * (item.quantity || 1)).toFixed(2)}
@@ -254,7 +287,9 @@ function OrderTrackingPage() {
           <div className="pt-2 space-y-1.5 text-xs text-muted-foreground border-t">
             <div className="flex justify-between">
               <span>Item Subtotal</span>
-              <span className="tabular-nums font-semibold">₹{(activeOrder.total_amount || 199) - 20}</span>
+              <span className="tabular-nums font-semibold">
+                ₹{(activeOrder.total_amount || 199) - 20}
+              </span>
             </div>
             <div className="flex justify-between">
               <span>Delivery Fee</span>
@@ -266,7 +301,9 @@ function OrderTrackingPage() {
             </div>
             <div className="flex justify-between pt-2 border-t text-sm font-extrabold text-foreground">
               <span>Total Paid</span>
-              <span className="text-emerald-600 tabular-nums">₹{activeOrder.total_amount || 199}.00</span>
+              <span className="text-emerald-600 tabular-nums">
+                ₹{activeOrder.total_amount || 199}.00
+              </span>
             </div>
           </div>
         </div>

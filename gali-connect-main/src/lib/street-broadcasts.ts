@@ -86,7 +86,10 @@ export async function fetchRemoteBroadcasts(): Promise<StreetBroadcast[]> {
         note: b.note,
         createdAt: b.created_at || new Date().toISOString(),
       }));
-      localStorage.setItem(BROADCAST_STORAGE_KEY, JSON.stringify([...mapped, ...INITIAL_BROADCASTS]));
+      localStorage.setItem(
+        BROADCAST_STORAGE_KEY,
+        JSON.stringify([...mapped, ...INITIAL_BROADCASTS]),
+      );
       window.dispatchEvent(new Event("vegamart-broadcast-updated"));
       return mapped;
     }
@@ -97,7 +100,7 @@ export async function fetchRemoteBroadcasts(): Promise<StreetBroadcast[]> {
 }
 
 export async function addStreetBroadcast(
-  data: Omit<StreetBroadcast, "id" | "createdAt">
+  data: Omit<StreetBroadcast, "id" | "createdAt">,
 ): Promise<StreetBroadcast> {
   const current = getStreetBroadcasts();
   const newBroadcast: StreetBroadcast = {
@@ -105,7 +108,7 @@ export async function addStreetBroadcast(
     id: `bcast-${Date.now()}`,
     createdAt: new Date().toISOString(),
   };
-  
+
   const updated = [newBroadcast, ...current];
   try {
     localStorage.setItem(BROADCAST_STORAGE_KEY, JSON.stringify(updated));

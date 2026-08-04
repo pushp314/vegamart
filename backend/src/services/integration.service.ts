@@ -25,6 +25,7 @@ import { realtime } from "../realtime/realtime";
 import type {
   CreateOrderAliasBody,
   DeliveredOtpBody,
+  DeliveryApplyBody,
   DeliveryKycBody,
   DeliveryLocationBody,
   DeliveryOrderStatusBody,
@@ -337,6 +338,47 @@ export const integrationService = {
         user_id: userId,
         vehicle_type: input.vehicle_type,
         vehicle_number: input.vehicle_number,
+        license_number: input.license_number ?? "",
+        status: "PENDING",
+        is_verified: false,
+        is_available: false,
+        availability_status: "OFFLINE",
+      },
+    });
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.DELIVERY_REGISTERED, entityType: "delivery", entityId: partner.id, newValues: { vehicle_type: input.vehicle_type } },
+      req
+    );
+    return partner;
+  },
+
+  async applyDelivery(userId: string, input: DeliveryApplyBody, req: Request) {
+    const existing = await deliveryRepo.findByUserId(userId);
+    if (existing) {
+      return existing;
+    }
+
+    const userUpdates: Record<string, string> = {};
+    if (typeof input.full_name === "string" && input.full_name.trim().length > 0) {
+      userUpdates.name = input.full_name.trim();
+    }
+    if (typeof input.phone === "string" && input.phone.trim().length > 0) {
+      userUpdates.phone = input.phone.trim();
+    }
+    if (Object.keys(userUpdates).length > 0) {
+      await userRepo.update(userId, userUpdates as never);
+    }
+
+    const user = await userRepo.findById(userId, { role: true });
+    if (user?.role.slug !== ROLES.DELIVERY_PARTNER) {
+      await upgradeRole(userId, ROLES.DELIVERY_PARTNER);
+    }
+
+    const partner = await prisma.deliveryProfile.create({
+      data: {
+        user_id: userId,
+        vehicle_type: input.vehicle_type,
+        vehicle_number: input.vehicle_number && input.vehicle_number.trim() ? input.vehicle_number : "NA",
         license_number: input.license_number ?? "",
         status: "PENDING",
         is_verified: false,
@@ -920,7 +962,7 @@ export const integrationService = {
       state: typeof body.state === "string" ? body.state : "",
       country: typeof body.country === "string" ? body.country : "India",
       pincode: typeof body.pincode === "string" ? body.pincode : "",
-      is_default: Boolean(body.is_default),
+      ...(typeof body.is_default === "boolean" ? { is_default: body.is_default } : {}),
     } as never);
     return this.mapAddress(created, user?.name ?? "");
   },

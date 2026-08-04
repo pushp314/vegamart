@@ -90,7 +90,10 @@ export const ringBellSchema = z.object({
 export type RingBellBody = z.infer<typeof ringBellSchema>;
 
 export const vendorRegisterSchema = createVendorSchema.extend({
-  vendor_type: z.enum(["stationary", "roaming", "both"]).optional(),
+  vendor_type: z
+    .enum(["stationary", "roaming", "both", "shop"])
+    .optional()
+    .transform((value) => (value === "shop" ? "stationary" : value)),
   subscription_plan: z.string().trim().max(60).optional(),
 });
 
@@ -103,6 +106,22 @@ export const deliveryRegisterSchema = z.object({
 });
 
 export type DeliveryRegisterBody = z.infer<typeof deliveryRegisterSchema>;
+
+export const deliveryApplySchema = z.object({
+  full_name: z.string().trim().min(1).max(120).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9]{10,15}$/, "Phone must be 10-15 digits, optionally prefixed with +.")
+    .optional()
+    .or(z.literal("")),
+  vehicle_type: z.string().trim().min(1).max(60),
+  vehicle_number: z.string().trim().max(30).optional().or(z.literal("")),
+  license_number: z.string().trim().max(60).optional().or(z.literal("")),
+  city: z.string().trim().max(100).optional(),
+});
+
+export type DeliveryApplyBody = z.infer<typeof deliveryApplySchema>;
 
 export const vendorKycSchema = z.object({
   document_type: z.string().trim().min(1).max(120),

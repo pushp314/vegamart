@@ -8,7 +8,9 @@ interface AdminUsersProps {
 
 export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
   const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "customer" | "vendor" | "delivery" | "admin">("all");
+  const [roleFilter, setRoleFilter] = useState<
+    "all" | "customer" | "vendor" | "delivery" | "admin"
+  >("all");
 
   const roles = useMemo(() => {
     const set = new Set<string>();
@@ -35,28 +37,44 @@ export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">User Management</h2>
-          <p className="text-muted-foreground text-sm mt-1">Manage all registered customers and staff.</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+            User Management
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Manage all registered customers and staff.
+          </p>
         </div>
       </div>
 
       {/* Stats Summary */}
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-3xl border border-border bg-card p-5 shadow-soft">
-          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Users</div>
-          <div className="text-2xl font-black font-display text-foreground mt-1">{users.length}</div>
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            Total Users
+          </div>
+          <div className="text-2xl font-black font-display text-foreground mt-1">
+            {users.length}
+          </div>
         </div>
         <div className="rounded-3xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active</div>
-            <div className="text-2xl font-black font-display text-emerald-600 mt-1">{activeCount}</div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Active
+            </div>
+            <div className="text-2xl font-black font-display text-emerald-600 mt-1">
+              {activeCount}
+            </div>
           </div>
           <UserCheck className="h-8 w-8 text-emerald-500/40" />
         </div>
         <div className="rounded-3xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Disabled</div>
-            <div className="text-2xl font-black font-display text-rose-600 mt-1">{disabledCount}</div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Disabled
+            </div>
+            <div className="text-2xl font-black font-display text-rose-600 mt-1">
+              {disabledCount}
+            </div>
           </div>
           <UserX className="h-8 w-8 text-rose-500/40" />
         </div>
@@ -80,7 +98,9 @@ export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
         >
           <option value="all">All Roles</option>
           {roles.map((r) => (
-            <option key={r} value={r}>{r}</option>
+            <option key={r} value={r}>
+              {r}
+            </option>
           ))}
         </select>
       </div>
@@ -105,7 +125,9 @@ export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
                         <Users className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="font-bold text-[15px] text-foreground">{u.name || "Unknown User"}</p>
+                        <p className="font-bold text-[15px] text-foreground">
+                          {u.name || "Unknown User"}
+                        </p>
                         <p className="text-xs text-muted-foreground mt-0.5">{u.email}</p>
                       </div>
                     </div>
@@ -116,8 +138,9 @@ export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
                     </span>
                   </td>
                   <td className="px-8 py-5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider border
-                      ${u.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30'}`}
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider border
+                      ${u.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30" : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30"}`}
                     >
                       {u.is_active ? "Active" : "Disabled"}
                     </span>
@@ -126,9 +149,11 @@ export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
                     <button
                       onClick={() => onToggleStatus(u.id, !u.is_active)}
                       className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border transition-all active:scale-95
-                        ${u.is_active 
-                          ? 'bg-card border-border text-rose-600 hover:bg-rose-50 hover:border-rose-200' 
-                          : 'bg-card border-border text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200'}`}
+                        ${
+                          u.is_active
+                            ? "bg-card border-border text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+                            : "bg-card border-border text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200"
+                        }`}
                     >
                       {u.is_active ? (
                         <>

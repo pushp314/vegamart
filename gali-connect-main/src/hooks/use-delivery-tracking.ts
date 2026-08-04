@@ -57,7 +57,7 @@ export function useDeliveryTracking(orderId: string) {
     const connect = () => {
       const token = authStorage.getAccessToken();
       ws = new WebSocket(
-        `${WS_BASE_URL}/delivery/order/${orderId}/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`
+        `${WS_BASE_URL}/delivery/order/${orderId}/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`,
       );
 
       ws.onopen = () => {
@@ -68,25 +68,37 @@ export function useDeliveryTracking(orderId: string) {
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          
+
           if (payload.type === "location_update") {
-            setTrackingInfo(prev => prev ? {
-              ...prev,
-              driver_location: {
-                lat: payload.data.lat,
-                lng: payload.data.lng,
-              }
-            } : null);
+            setTrackingInfo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    driver_location: {
+                      lat: payload.data.lat,
+                      lng: payload.data.lng,
+                    },
+                  }
+                : null,
+            );
           } else if (payload.type === "order_eta_update") {
-            setTrackingInfo(prev => prev ? {
-              ...prev,
-              eta: payload.data.eta
-            } : null);
+            setTrackingInfo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    eta: payload.data.eta,
+                  }
+                : null,
+            );
           } else if (payload.type === "order_status_update") {
-            setTrackingInfo(prev => prev ? {
-              ...prev,
-              status: payload.data.status
-            } : null);
+            setTrackingInfo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: payload.data.status,
+                  }
+                : null,
+            );
           }
         } catch (e) {
           console.error("Failed to parse WS message", e);
@@ -118,6 +130,6 @@ export function useDeliveryTracking(orderId: string) {
     trackingInfo,
     isConnected,
     error,
-    refresh: fetchTrackingInfo
+    refresh: fetchTrackingInfo,
   };
 }

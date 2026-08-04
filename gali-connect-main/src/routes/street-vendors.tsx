@@ -19,7 +19,11 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { getStreetBroadcasts, fetchRemoteBroadcasts, StreetBroadcast } from "@/lib/street-broadcasts";
+import {
+  getStreetBroadcasts,
+  fetchRemoteBroadcasts,
+  StreetBroadcast,
+} from "@/lib/street-broadcasts";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/street-vendors")({
@@ -55,8 +59,8 @@ function StreetVendorsRoute() {
   const vendorList: any[] = Array.isArray(vendorsRes?.data)
     ? vendorsRes.data
     : Array.isArray((vendorsRes?.data as any)?.data)
-    ? (vendorsRes?.data as any).data
-    : [];
+      ? (vendorsRes?.data as any).data
+      : [];
 
   // Filter vendors based on category, type, and search query
   const filteredVendors = useMemo(() => {
@@ -66,15 +70,19 @@ function StreetVendorsRoute() {
       const vName = (v.business_name || v.name || "").toLowerCase();
 
       const matchesType = vendorTypeFilter === "all" || vType === vendorTypeFilter;
-      const matchesCat = selectedCategory === "all" || vCat.includes(selectedCategory.toLowerCase());
-      const matchesSearch = !searchQuery || vName.includes(searchQuery.toLowerCase()) || vCat.includes(searchQuery.toLowerCase());
+      const matchesCat =
+        selectedCategory === "all" || vCat.includes(selectedCategory.toLowerCase());
+      const matchesSearch =
+        !searchQuery ||
+        vName.includes(searchQuery.toLowerCase()) ||
+        vCat.includes(searchQuery.toLowerCase());
 
       return matchesType && matchesCat && matchesSearch;
     });
   }, [vendorList, vendorTypeFilter, selectedCategory, searchQuery]);
 
   const roamingCount = vendorList.filter(
-    (v) => (v.profile?.vendor_type || v.vendor_type) === "roaming"
+    (v) => (v.profile?.vendor_type || v.vendor_type) === "roaming",
   ).length;
 
   const categories = [
@@ -90,7 +98,6 @@ function StreetVendorsRoute() {
     <div className="min-h-screen bg-background text-foreground pb-24">
       {/* Main Container */}
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        
         {/* Top Hero Header Panel (Non-sticky, clean flow) */}
         <div className="rounded-3xl border bg-card p-5 md:p-6 shadow-soft space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -128,7 +135,10 @@ function StreetVendorsRoute() {
                   className="min-w-0 flex-1 bg-transparent px-2.5 text-xs outline-none font-medium"
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="text-xs text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
                     Clear
                   </button>
                 )}
@@ -203,7 +213,8 @@ function StreetVendorsRoute() {
                   Today's Street Arrival Schedule (Gali Schedule)
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Live announcements from roaming street carts informing you when they are coming to your street!
+                  Live announcements from roaming street carts informing you when they are coming to
+                  your street!
                 </p>
               </div>
             </div>
@@ -256,7 +267,11 @@ function StreetVendorsRoute() {
                 {/* Card CTAs */}
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50">
                   <button
-                    onClick={() => toast.success(`🔔 Reminder set for ${bcast.vendorName} arrival at ${bcast.street}!`)}
+                    onClick={() =>
+                      toast.success(
+                        `🔔 Reminder set for ${bcast.vendorName} arrival at ${bcast.street}!`,
+                      )
+                    }
                     className="flex items-center justify-center gap-1 rounded-xl border bg-muted hover:bg-card text-foreground font-bold text-[11px] h-9 transition-colors"
                   >
                     <Bell className="h-3.5 w-3.5 text-amber-500" /> Remind Me
@@ -304,8 +319,8 @@ function StreetVendorsRoute() {
                   How Hyperlocal Street Radar Works
                 </div>
                 <p className="text-emerald-800 leading-relaxed">
-                  Street vendors continuously broadcast their GPS locations as they move through your gali.
-                  Tap on any vendor cart on the map or list to view available stock!
+                  Street vendors continuously broadcast their GPS locations as they move through
+                  your gali. Tap on any vendor cart on the map or list to view available stock!
                 </p>
               </div>
             </div>
@@ -326,14 +341,17 @@ function StreetVendorsRoute() {
             {isLoading ? (
               <div className="rounded-3xl border bg-card p-8 text-center space-y-3 shadow-soft">
                 <div className="animate-spin text-emerald-500 mx-auto w-6 h-6">⏳</div>
-                <div className="text-xs font-semibold text-muted-foreground">Loading nearby street vendor fleet...</div>
+                <div className="text-xs font-semibold text-muted-foreground">
+                  Loading nearby street vendor fleet...
+                </div>
               </div>
             ) : filteredVendors.length === 0 ? (
               <div className="rounded-3xl border bg-card p-8 text-center space-y-3 shadow-soft">
                 <Store className="h-10 w-10 text-muted-foreground mx-auto opacity-50" />
                 <h3 className="font-bold text-sm text-foreground">No vendors found</h3>
                 <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                  Try clearing your search query or switching category filters to discover more local stores.
+                  Try clearing your search query or switching category filters to discover more
+                  local stores.
                 </p>
                 <button
                   onClick={() => {
@@ -393,7 +411,9 @@ function StreetVendorsRoute() {
                               {profile.rating || "4.8"}
                             </span>
                             <span>•</span>
-                            <span className="capitalize font-medium">{profile.category || vendor.category || "General"}</span>
+                            <span className="capitalize font-medium">
+                              {profile.category || vendor.category || "General"}
+                            </span>
                             <span>•</span>
                             <span className="flex items-center gap-1 text-emerald-600 font-bold">
                               <MapPin className="h-3 w-3" /> 0.3 km away

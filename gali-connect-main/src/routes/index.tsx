@@ -80,7 +80,14 @@ const CATS: Cat[] = [
     fg: "text-rose-700",
     to: "/vendors?category=Fruits",
   },
-  { id: "dairy", name: "Dairy", Icon: Milk, bg: "bg-sky-100", fg: "text-sky-700", to: "/vendors?category=Dairy" },
+  {
+    id: "dairy",
+    name: "Dairy",
+    Icon: Milk,
+    bg: "bg-sky-100",
+    fg: "text-sky-700",
+    to: "/vendors?category=Dairy",
+  },
   {
     id: "grocery",
     name: "Grocery",
@@ -97,7 +104,14 @@ const CATS: Cat[] = [
     fg: "text-orange-700",
     to: "/vendors?category=Meat",
   },
-  { id: "fish", name: "Fish", Icon: Fish, bg: "bg-cyan-100", fg: "text-cyan-700", to: "/vendors?category=Fish" },
+  {
+    id: "fish",
+    name: "Fish",
+    Icon: Fish,
+    bg: "bg-cyan-100",
+    fg: "text-cyan-700",
+    to: "/vendors?category=Fish",
+  },
   {
     id: "eggs",
     name: "Eggs",
@@ -139,8 +153,6 @@ const CATS: Cat[] = [
     to: "/vendors?category=Electronics",
   },
 ];
-
-
 
 function Home() {
   const { activeAddress, displayLocation } = useLocation();
@@ -280,7 +292,9 @@ function LiveBanner() {
     queryFn: () => api.get<any[]>("/banners"),
   });
   const banners = res?.data || [];
-  const activeBanner = banners.find(b => b.type === "LiveNow") || { title: "7 vendors moving near you" };
+  const activeBanner = banners.find((b) => b.type === "LiveNow") || {
+    title: "7 vendors moving near you",
+  };
 
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">
@@ -295,9 +309,7 @@ function LiveBanner() {
           <div className="flex items-center gap-1.5 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide text-white/85">
             <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" /> Live now
           </div>
-          <div className="mt-0.5 font-semibold text-[15px] md:text-lg">
-            {activeBanner.title}
-          </div>
+          <div className="mt-0.5 font-semibold text-[15px] md:text-lg">{activeBanner.title}</div>
         </div>
         <ArrowRight className="h-5 w-5" />
       </Link>
@@ -316,7 +328,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
       return api.get<any[]>(url);
     },
   });
-  
+
   const list = res?.data?.slice(0, 6) || [];
 
   return (
@@ -329,7 +341,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
           See map →
         </Link>
       </div>
-      
+
       {isLoading ? (
         <div className="px-4 mt-5">Loading live vendors...</div>
       ) : list.length === 0 ? (
@@ -338,11 +350,15 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
         <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar px-4 md:px-0 pb-1 md:pb-0 snap-x snap-mandatory">
           {list.map((v) => {
             const profile = v.profile || {};
-            const imageUrl = profile.logo_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
+            const imageUrl =
+              profile.logo_url ||
+              "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
             // Safely handle tags
             let tags = ["Local vendor"];
             if (profile.tags) {
-              try { tags = JSON.parse(profile.tags); } catch (e) { }
+              try {
+                tags = JSON.parse(profile.tags);
+              } catch (e) {}
             }
             const distance = v.distance_km ? v.distance_km.toFixed(1) : "1.2";
             const eta = v.eta_min ? v.eta_min.toString() : "15";
@@ -375,12 +391,11 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                         </span>
                       )}
                     </div>
-                    <p className="text-[12px] text-muted-foreground truncate">
-                      {tags[0]}
-                    </p>
+                    <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
                     <div className="mt-1.5 flex items-center gap-2 text-[11.5px]">
                       <span className="inline-flex items-center gap-0.5 font-semibold">
-                        <Star className="h-3 w-3 fill-primary text-primary" /> {profile.rating || "0.0"}
+                        <Star className="h-3 w-3 fill-primary text-primary" />{" "}
+                        {profile.rating || "0.0"}
                       </span>
                       <span className="inline-flex items-center gap-0.5 text-muted-foreground">
                         <MapPin className="h-3 w-3" /> {distance} km
@@ -403,7 +418,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
 function RecentlyViewed() {
   const { user } = useAuth();
   const { addToCart } = useCart();
-  
+
   const { data: res, isLoading } = useQuery({
     queryKey: ["recently_viewed"],
     queryFn: () => api.get<any[]>("/users/me/recently-viewed"),
@@ -419,15 +434,17 @@ function RecentlyViewed() {
       <h2 className="px-4 md:px-0 font-display text-[22px] md:text-3xl font-bold tracking-tight">
         Recently Viewed
       </h2>
-      
+
       {isLoading ? (
         <div className="px-4 mt-5">Loading...</div>
       ) : (
         <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar px-4 md:px-0 pb-1 md:pb-0 snap-x snap-mandatory">
           {list.map((p) => {
             const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
-            const imageUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
-            
+            const imageUrl =
+              p.images?.[0]?.url ||
+              "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+
             return (
               <Link
                 key={p.id}
@@ -494,7 +511,7 @@ function Trending() {
       <h2 className="px-4 md:px-0 font-display text-[22px] md:text-3xl font-bold tracking-tight">
         Trending in your gali
       </h2>
-      
+
       {isLoading ? (
         <div className="px-4 mt-5">Loading trending products...</div>
       ) : list.length === 0 ? (
@@ -503,9 +520,11 @@ function Trending() {
         <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar px-4 md:px-0 pb-1 md:pb-0 snap-x snap-mandatory">
           {list.map((p) => {
             const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
-            const imageUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+            const imageUrl =
+              p.images?.[0]?.url ||
+              "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
             const wishlisted = isWishlisted(p.id);
-            
+
             return (
               <Link
                 key={p.id}
@@ -542,7 +561,9 @@ function Trending() {
                   >
                     <Heart
                       className={`h-4 w-4 transition-colors ${
-                        wishlisted ? "fill-rose-500 text-rose-500" : "text-muted-foreground hover:text-rose-500"
+                        wishlisted
+                          ? "fill-rose-500 text-rose-500"
+                          : "text-muted-foreground hover:text-rose-500"
                       }`}
                     />
                   </button>
@@ -635,8 +656,6 @@ function Offers() {
   );
 }
 
-
-
 function BrandFooter() {
   return (
     <section className="px-4 md:px-0 pt-8 md:pt-12">
@@ -656,7 +675,7 @@ function BrandFooter() {
 function Recommended() {
   const { user } = useAuth();
   const { addToCart } = useCart();
-  
+
   const { data: res, isLoading } = useQuery({
     queryKey: ["recommended_products"],
     queryFn: () => api.get<any[]>("/users/me/recommended"),
@@ -672,15 +691,17 @@ function Recommended() {
       <h2 className="px-4 md:px-0 font-display text-[22px] md:text-3xl font-bold tracking-tight">
         Recommended For You
       </h2>
-      
+
       {isLoading ? (
         <div className="px-4 mt-5">Loading...</div>
       ) : (
         <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar px-4 md:px-0 pb-1 md:pb-0 snap-x snap-mandatory">
           {list.map((p) => {
             const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
-            const imageUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
-            
+            const imageUrl =
+              p.images?.[0]?.url ||
+              "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+
             return (
               <Link
                 key={p.id}

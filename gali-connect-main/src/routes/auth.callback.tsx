@@ -21,7 +21,7 @@ function AuthCallback() {
   useEffect(() => {
     if (isProcessingAuth) return;
     isProcessingAuth = true;
-    
+
     const handleGoogleAuth = async () => {
       if (search?.error) {
         setStatus("error");
@@ -70,7 +70,9 @@ function AuthCallback() {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
             <h2 className="font-display text-lg font-bold">Authenticating with Google</h2>
-            <p className="text-xs text-muted-foreground">Please wait while we verify your Google credentials...</p>
+            <p className="text-xs text-muted-foreground">
+              Please wait while we verify your Google credentials...
+            </p>
           </>
         )}
 
@@ -80,7 +82,9 @@ function AuthCallback() {
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <h2 className="font-display text-lg font-bold">Success!</h2>
-            <p className="text-xs text-muted-foreground">Welcome to Vegamart. Redirecting to home...</p>
+            <p className="text-xs text-muted-foreground">
+              Welcome to Vegamart. Redirecting to home...
+            </p>
           </>
         )}
 
@@ -89,7 +93,9 @@ function AuthCallback() {
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-rose-100 text-rose-600">
               <AlertCircle className="h-8 w-8" />
             </div>
-            <h2 className="font-display text-lg font-bold text-destructive">Authentication Error</h2>
+            <h2 className="font-display text-lg font-bold text-destructive">
+              Authentication Error
+            </h2>
             <p className="text-xs text-muted-foreground leading-relaxed">{errorMsg}</p>
             <button
               onClick={() => navigate({ to: "/login" })}

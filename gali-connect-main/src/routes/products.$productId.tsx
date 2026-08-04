@@ -81,9 +81,9 @@ function ProductDetail() {
     queryFn: () => api.get<Vendor>(`/vendors/${product.vendor_id}`),
     enabled: !!product.vendor_id && !product.vendor,
   });
-  
+
   const vendor = product.vendor || vendorRes?.data;
-  
+
   const { data: relatedRes } = useQuery({
     queryKey: ["products", { category_id: product.category_id }],
     queryFn: () => api.get<Product[]>(`/products?category_id=${product.category_id}`),
@@ -151,7 +151,9 @@ function ProductDetail() {
                 aria-pressed={wishlisted}
                 className="grid h-10 w-10 place-items-center rounded-full bg-white/95 backdrop-blur shadow hover:scale-105 transition-transform"
               >
-                <Heart className={`h-5 w-5 transition-colors ${wishlisted ? "fill-rose-500 text-rose-500" : "text-zinc-600"}`} />
+                <Heart
+                  className={`h-5 w-5 transition-colors ${wishlisted ? "fill-rose-500 text-rose-500" : "text-zinc-600"}`}
+                />
               </button>
             </div>
           </div>
@@ -290,11 +292,7 @@ function ProductDetail() {
               <button className="ml-auto text-[12px] font-semibold text-primary">Change</button>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <Fact
-                icon={<Clock className="h-4 w-4" />}
-                label="ETA"
-                value="15 min"
-              />
+              <Fact icon={<Clock className="h-4 w-4" />} label="ETA" value="15 min" />
               <Fact icon={<Truck className="h-4 w-4" />} label="Delivery" value="Free ₹199+" />
               <Fact
                 icon={<ShieldCheck className="h-4 w-4" />}
@@ -321,7 +319,9 @@ function ProductDetail() {
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                 {related.map((p) => {
                   const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
-                  const imageUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                  const imageUrl =
+                    p.images?.[0]?.url ||
+                    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
                   return (
                     <Link
                       key={p.id}
@@ -393,7 +393,9 @@ function ProductDetail() {
               }
             }}
             className={`inline-flex items-center gap-2 rounded-full border px-5 text-sm font-bold h-12 transition-all ${
-              wishlisted ? "bg-rose-50 border-rose-200 text-rose-600" : "bg-card hover:bg-muted text-foreground"
+              wishlisted
+                ? "bg-rose-50 border-rose-200 text-rose-600"
+                : "bg-card hover:bg-muted text-foreground"
             }`}
           >
             <Heart className={`h-4 w-4 ${wishlisted ? "fill-rose-500 text-rose-500" : ""}`} />

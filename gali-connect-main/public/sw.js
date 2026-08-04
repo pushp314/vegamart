@@ -1,12 +1,18 @@
 const CACHE_NAME = "vegamart-v1";
-const PRECACHE_URLS = ["/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png", "/offline"];
+const PRECACHE_URLS = [
+  "/manifest.webmanifest",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/apple-touch-icon.png",
+  "/offline",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -14,8 +20,10 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim())
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -34,15 +42,22 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() =>
-          caches.match(request).then((cached) => cached || caches.match("/offline") || caches.match("/"))
-        )
+          caches
+            .match(request)
+            .then((cached) => cached || caches.match("/offline") || caches.match("/")),
+        ),
     );
     return;
   }
 
   if (url.origin !== self.location.origin) return;
 
-  if (request.destination === "image" || request.destination === "font" || request.destination === "script" || request.destination === "style") {
+  if (
+    request.destination === "image" ||
+    request.destination === "font" ||
+    request.destination === "script" ||
+    request.destination === "style"
+  ) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
@@ -53,8 +68,8 @@ self.addEventListener("fetch", (event) => {
               caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
             }
             return response;
-          })
-      )
+          }),
+      ),
     );
     return;
   }
@@ -69,7 +84,7 @@ self.addEventListener("fetch", (event) => {
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return response;
-        })
-    )
+        }),
+    ),
   );
 });

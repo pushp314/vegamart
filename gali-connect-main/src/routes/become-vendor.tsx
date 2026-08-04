@@ -1,14 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import {
-  Store,
-  MapPin,
-  Phone,
-  CheckCircle2,
-  ArrowRight,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { Store, MapPin, Phone, CheckCircle2, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
@@ -21,8 +13,8 @@ export const Route = createFileRoute("/become-vendor")({
 
 function BecomeVendorPage() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, login } = useAuth();
-  
+  const { user, isAuthenticated, register } = useAuth();
+
   // If user is already a vendor, redirect to vendor dashboard
   if (user?.role === "vendor") {
     navigate({ to: "/vendor" });
@@ -61,23 +53,18 @@ function BecomeVendorPage() {
     try {
       // Step 1: Create user account if not authenticated
       if (!isAuthenticated) {
-        const authRes = await api.post<any>("/auth/register", {
+        const authRes = await register({
           name: authName,
           email: authEmail,
           password: authPassword,
           role: "vendor",
         });
 
-        if (!authRes.success || !authRes.data?.access_token) {
+        if (!authRes.success) {
           setSubmitting(false);
-          toast.error(authRes.error?.message || "Failed to create user account");
+          toast.error(authRes.message || "Failed to create user account");
           return;
         }
-
-        // Manually log the user in context by saving token
-        localStorage.setItem("vegamart_access_token", authRes.data.access_token);
-        localStorage.setItem("vegamart_refresh_token", authRes.data.refresh_token);
-        await login(authEmail, authPassword); // Wait for auth context to update securely
       }
 
       // Step 2: Register as a vendor
@@ -118,27 +105,32 @@ function BecomeVendorPage() {
             </div>
             <h2 className="font-display text-2xl font-bold">Application Submitted!</h2>
             <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Your store profile is created! You can now add products and manage your store for free.
-              Select a subscription plan when you are ready to publish your shop live on Vegamart.
+              Your store profile is created! You can now add products and manage your store for
+              free. Select a subscription plan when you are ready to publish your shop live on
+              Vegamart.
             </p>
             <div className="pt-2">
               <button
-                onClick={() => navigate({ to: vendorType === "roaming" ? "/vendor/roaming" : "/vendor" })}
+                onClick={() =>
+                  navigate({ to: vendorType === "roaming" ? "/vendor/roaming" : "/vendor" })
+                }
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-xs px-6 py-3 shadow-md hover:bg-primary/90"
               >
-                Go to {vendorType === "roaming" ? "Street Vendor Portal" : "Merchant Dashboard"} <ArrowRight className="h-4 w-4" />
+                Go to {vendorType === "roaming" ? "Street Vendor Portal" : "Merchant Dashboard"}{" "}
+                <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
         ) : (
-          <form
-            className="w-full space-y-3.5 overflow-hidden"
-            onSubmit={handleSubmit}
-          >
+          <form className="w-full space-y-3.5 overflow-hidden" onSubmit={handleSubmit}>
             <div className="flex items-center justify-between pb-2.5 border-b border-border">
               <div>
-                <h1 className="font-display text-xl font-black text-foreground">Quick Vendor Registration</h1>
-                <p className="text-xs font-medium text-muted-foreground">Register your store for free • Go live anytime on Vegamart</p>
+                <h1 className="font-display text-xl font-black text-foreground">
+                  Quick Vendor Registration
+                </h1>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Register your store for free • Go live anytime on Vegamart
+                </p>
               </div>
               <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
                 <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Free Signup
@@ -150,7 +142,9 @@ function BecomeVendorPage() {
               <div className="space-y-5">
                 {!isAuthenticated && (
                   <div className="space-y-4 pb-4 border-b border-border">
-                    <div className="text-xs font-black uppercase tracking-wider text-emerald-600">1. Account Details</div>
+                    <div className="text-xs font-black uppercase tracking-wider text-emerald-600">
+                      1. Account Details
+                    </div>
                     <label className="block">
                       <div className="mb-1.5 text-xs font-bold text-foreground">Full Name *</div>
                       <input
@@ -163,7 +157,9 @@ function BecomeVendorPage() {
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       <label className="block">
-                        <div className="mb-1.5 text-xs font-bold text-foreground">Email Address *</div>
+                        <div className="mb-1.5 text-xs font-bold text-foreground">
+                          Email Address *
+                        </div>
                         <input
                           type="email"
                           value={authEmail}
@@ -206,10 +202,14 @@ function BecomeVendorPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <Store className={`h-5 w-5 ${vendorType === "shop" ? "text-emerald-600" : "text-muted-foreground"}`} />
+                        <Store
+                          className={`h-5 w-5 ${vendorType === "shop" ? "text-emerald-600" : "text-muted-foreground"}`}
+                        />
                         <span className="font-extrabold text-sm text-foreground">Fixed Shop</span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 leading-normal">Physical grocery, bakery, or store</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-normal">
+                        Physical grocery, bakery, or store
+                      </p>
                     </button>
 
                     <button
@@ -222,16 +222,22 @@ function BecomeVendorPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <Sparkles className={`h-5 w-5 ${vendorType === "roaming" ? "text-emerald-600" : "text-muted-foreground"}`} />
+                        <Sparkles
+                          className={`h-5 w-5 ${vendorType === "roaming" ? "text-emerald-600" : "text-muted-foreground"}`}
+                        />
                         <span className="font-extrabold text-sm text-foreground">Street Cart</span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 leading-normal">Roaming push-cart seller</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-normal">
+                        Roaming push-cart seller
+                      </p>
                     </button>
                   </div>
                 </div>
 
                 <label className="block">
-                  <div className="mb-1.5 text-xs font-bold text-foreground">Business / Store Name *</div>
+                  <div className="mb-1.5 text-xs font-bold text-foreground">
+                    Business / Store Name *
+                  </div>
                   <div className="flex items-center rounded-2xl bg-muted border border-border h-12 px-4 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
                     <Store className="h-4 w-4 text-muted-foreground shrink-0" />
                     <input
@@ -247,7 +253,9 @@ function BecomeVendorPage() {
 
               {/* Right Column: Category & Location */}
               <div className="space-y-5">
-                <div className="text-xs font-black uppercase tracking-wider text-emerald-600">Location & Category</div>
+                <div className="text-xs font-black uppercase tracking-wider text-emerald-600">
+                  Location & Category
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
@@ -269,7 +277,9 @@ function BecomeVendorPage() {
                   <label className="block">
                     <div className="mb-1.5 text-xs font-bold text-foreground">Phone Number *</div>
                     <div className="flex items-center rounded-2xl bg-muted border border-border h-12 px-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
-                      <span className="text-xs font-bold text-muted-foreground mr-2 pr-2 border-r">+91</span>
+                      <span className="text-xs font-bold text-muted-foreground mr-2 pr-2 border-r">
+                        +91
+                      </span>
                       <input
                         inputMode="numeric"
                         maxLength={10}

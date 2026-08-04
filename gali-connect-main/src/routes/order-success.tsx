@@ -25,7 +25,8 @@ function OrderSuccess() {
   const order = orderRes?.data?.data || orderRes?.data;
 
   const orderNumber = order?.order_number || orderId || "—";
-  const vendorName = order?.vendor?.business_name || order?.vendor?.profile?.owner_name || "Your Vendor";
+  const vendorName =
+    order?.vendor?.business_name || order?.vendor?.profile?.owner_name || "Your Vendor";
   const deliveryAddress = order?.address
     ? `${order.address.line1}${order.address.landmark ? `, ${order.address.landmark}` : ""}, ${order.address.city}`
     : "Your delivery address";
@@ -77,9 +78,7 @@ function OrderSuccess() {
           </div>
           <div className="flex items-center gap-2 p-3.5 bg-emerald-50/60">
             <MapPin className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-foreground font-semibold">
-              {deliveryAddress}
-            </span>
+            <span className="text-foreground font-semibold">{deliveryAddress}</span>
           </div>
         </div>
 

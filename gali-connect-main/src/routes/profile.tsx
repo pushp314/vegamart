@@ -84,7 +84,11 @@ function Profile() {
       }
     }
 
-    const res = await updateProfile({ name, phone: phone || undefined, avatar_url: finalAvatarUrl });
+    const res = await updateProfile({
+      name,
+      phone: phone || undefined,
+      avatar_url: finalAvatarUrl,
+    });
     setSaving(false);
 
     if (res.success) {
@@ -384,15 +388,25 @@ function Profile() {
               <div className="flex items-center gap-4">
                 <div className="relative h-16 w-16 overflow-hidden rounded-full bg-accent border border-border shrink-0 flex items-center justify-center">
                   {avatarFile ? (
-                    <img src={URL.createObjectURL(avatarFile)} alt="preview" className="h-full w-full object-cover" />
+                    <img
+                      src={URL.createObjectURL(avatarFile)}
+                      alt="preview"
+                      className="h-full w-full object-cover"
+                    />
                   ) : avatarPreviewUrl ? (
-                    <img src={avatarPreviewUrl} alt="preview" className="h-full w-full object-cover" />
+                    <img
+                      src={avatarPreviewUrl}
+                      alt="preview"
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <UserIcon className="h-6 w-6 text-muted-foreground" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-foreground mb-1">Profile Picture</label>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Profile Picture
+                  </label>
                   <input
                     type="file"
                     accept="image/*"

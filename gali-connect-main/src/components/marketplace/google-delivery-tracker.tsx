@@ -1,5 +1,15 @@
 import { useEffect, useState, useRef } from "react";
-import { Bike, Phone, MessageSquare, MapPin, Store, Navigation, ShieldCheck, Clock, RefreshCw } from "lucide-react";
+import {
+  Bike,
+  Phone,
+  MessageSquare,
+  MapPin,
+  Store,
+  Navigation,
+  ShieldCheck,
+  Clock,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useDeliveryTracking } from "@/hooks/use-delivery-tracking";
@@ -48,7 +58,7 @@ export function GoogleDeliveryTracker({
   const displayRiderName = trackingInfo?.driver_info?.name || riderName;
   const displayRiderPhone = trackingInfo?.driver_info?.phone || riderPhone;
   const displayRiderVehicle = trackingInfo?.driver_info?.vehicle_number || riderVehicle;
-  
+
   const vCoords = trackingInfo?.pickup_location || vendorCoords;
   const dCoords = trackingInfo?.dropoff_location || destCoords;
 
@@ -160,37 +170,37 @@ export function GoogleDeliveryTracker({
   // Smooth Animate Driver Position
   useEffect(() => {
     if (!riderMarkerRef.current || !routePathRef.current || !(window as any).google) return;
-    
-    const startPos = { 
-      lat: riderMarkerRef.current.getPosition().lat(), 
-      lng: riderMarkerRef.current.getPosition().lng() 
+
+    const startPos = {
+      lat: riderMarkerRef.current.getPosition().lat(),
+      lng: riderMarkerRef.current.getPosition().lng(),
     };
     const endPos = driverPos;
-    
+
     let startTime: number | null = null;
     const duration = 1500; // 1.5 second smooth glide
-    
+
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const elapsed = timestamp - startTime;
       const t = Math.min(1, elapsed / duration);
-      
+
       // Easing function (easeOutCubic)
       const easeT = 1 - Math.pow(1 - t, 3);
-      
+
       const currentLat = startPos.lat + (endPos.lat - startPos.lat) * easeT;
       const currentLng = startPos.lng + (endPos.lng - startPos.lng) * easeT;
-      
+
       const newPos = { lat: currentLat, lng: currentLng };
       riderMarkerRef.current.setPosition(newPos);
-      
+
       routePathRef.current.setPath([vCoords, newPos, dCoords]);
-      
+
       if (t < 1) {
         animationFrameRef.current = requestAnimationFrame(animate);
       }
     };
-    
+
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     animationFrameRef.current = requestAnimationFrame(animate);
 
@@ -214,9 +224,13 @@ export function GoogleDeliveryTracker({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-display text-sm font-bold">Live Order Tracking</span>
-              <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${wsConnected ? 'text-emerald-200 bg-emerald-800/80' : 'text-amber-200 bg-amber-800/80'}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${wsConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400 animate-pulse'}`} />
-                {wsConnected ? 'Live GPS' : 'Connecting…'}
+              <span
+                className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${wsConnected ? "text-emerald-200 bg-emerald-800/80" : "text-amber-200 bg-amber-800/80"}`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${wsConnected ? "bg-emerald-400 animate-ping" : "bg-amber-400 animate-pulse"}`}
+                />
+                {wsConnected ? "Live GPS" : "Connecting…"}
               </span>
             </div>
             <div className="text-xs text-emerald-200 mt-0.5">

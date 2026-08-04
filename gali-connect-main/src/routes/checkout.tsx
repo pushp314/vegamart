@@ -43,7 +43,18 @@ const PAYMENTS = [
 function Checkout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { items, subtotal, deliveryFee, tax, discount, total, clearCart, appliedCoupon, applyCoupon, removeCoupon } = useCart();
+  const {
+    items,
+    subtotal,
+    deliveryFee,
+    tax,
+    discount,
+    total,
+    clearCart,
+    appliedCoupon,
+    applyCoupon,
+    removeCoupon,
+  } = useCart();
 
   const [payment, setPayment] = useState("upi");
   const [slot, setSlot] = useState(0);
@@ -69,22 +80,141 @@ function Checkout() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { data: addrRes, isLoading: loadingAddr } = useQuery({
     queryKey: ["addresses"],
-    queryFn: () => api.get<{ data: any[] }>("/addresses"),
-    enabled: !!user
+    queryFn: () => api.get<AddressData[]>("/users/me/addresses"),
+    enabled: !!user,
   });
-  
-  const addresses = (addrRes?.data as unknown as any[]) || [];
+
+  const addresses = addrRes?.data || [];
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
 
   useEffect(() => {
     if (addresses.length > 0 && !selectedAddressId) {
-       setSelectedAddressId(addresses[0].id);
+      setSelectedAddressId(addresses[0]?.id ?? "");
     }
   }, [addresses, selectedAddressId]);
 
   const selectedAddress = addresses.find((a: any) => a.id === selectedAddressId) || addresses[0];
 
-  // Auth Guard: Require Login to Checkout
+  const createAddressMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await api.post<any>("/users/me/addresses", data);
+      if (!res.success) {
+        throw new Error(res.error?.message || "Failed to save address");
+      }
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["addresses"] });
+    },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (data: any) => api.post<any>("/payments/verify", data),
+  });
+
+  const createOrderMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await api.post<any>("/orders", data);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || "Failed to place order");
+      }
+      return res.data;
+    },
+    onSuccess: async (res) => {
+      const order = res;
+      if (payment === "upi" || payment === "card") {
+        setCreatedOrder(order);
+        const resScript = await loadRazorpayScript();
+        if (!resScript) {
+          toast.error("Razorpay SDK failed to load. Are you online?");
+          return;
+        }
+
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+          amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
+          currency: "INR",
+          name: "Vegamart",
+          description: `Order ${order.order_number}`,
+          order_id: order.razorpay_order_id,
+          handler: function (response: any) {
+            // Verify the payment with the backend before treating it as successful
+            verifyMutation.mutate(
+              {
+                razorpay_order_id: order.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              },
+              {
+                onSuccess: async () => {
+                  await handlePaymentSuccess(response.razorpay_payment_id, order?.id);
+                },
+                onError: () => {
+                  toast.error("Payment verification failed. Please contact support.");
+                },
+              },
+            );
+          },
+          prefill: {
+            name: user?.name || "Customer",
+            email: user?.email || "",
+            contact: selectedAddress?.phone || "9999999999",
+          },
+          theme: {
+            color: "#10b981",
+          },
+        };
+
+        const paymentObject = new (window as any).Razorpay(options);
+        paymentObject.open();
+      } else {
+        clearCart();
+        toast.success("Order placed successfully via COD!");
+        navigate({ to: "/order-success", search: { orderId: order?.id || "" } });
+      }
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Failed to place order");
+    },
+  });
+
+  const handlePlaceOrder = () => {
+    if (items.length === 0) {
+      toast.error("Your cart is empty!");
+      return;
+    }
+    if (!selectedAddress || !selectedAddress.id) {
+      toast.error("Please add and select a valid delivery address.");
+      return;
+    }
+
+    createOrderMutation.mutate({
+      address_id: selectedAddress.id,
+      payment_method: payment,
+      coupon_code: appliedCoupon || undefined,
+      delivery_slot: SLOTS[slot].label,
+      items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+    });
+  };
+
+  const handlePaymentSuccess = (paymentId: string, orderId?: string) => {
+    clearCart();
+    toast.success("Payment successful!");
+    navigate({ to: "/order-success", search: { orderId: orderId || createdOrder?.id || "" } });
+  };
+
+  const handleSaveAddress = (data: AddressData) => {
+    createAddressMutation.mutate(data, {
+      onSuccess: (res: any) => {
+        const addrId = res?.id;
+        if (addrId) {
+          setSelectedAddressId(addrId);
+        }
+      },
+    });
+  };
+
+  // Keep hooks unconditional; this guard intentionally follows all hooks.
   if (!authLoading && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -110,119 +240,6 @@ function Checkout() {
     );
   }
 
-  const createAddressMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await api.post<any>("/addresses", data);
-      if (!res.success) {
-        throw new Error(res.error?.message || "Failed to save address");
-      }
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["addresses"] });
-    }
-  });
-
-  const verifyMutation = useMutation({
-    mutationFn: (data: any) => api.post<any>("/payments/verify", data),
-  });
-
-  const createOrderMutation = useMutation({
-    mutationFn: (data: any) => api.post<any>("/checkout", data),
-    onSuccess: async (res) => {
-      const order = res.data;
-      if (payment === "upi" || payment === "card") {
-         setCreatedOrder(order);
-         const resScript = await loadRazorpayScript();
-         if (!resScript) {
-            toast.error("Razorpay SDK failed to load. Are you online?");
-            return;
-         }
-         
-         const options = {
-            key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
-            amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
-            currency: "INR",
-            name: "Vegamart",
-            description: `Order ${order.order_number}`,
-            order_id: order.razorpay_order_id, 
-            handler: function (response: any) {
-               // Verify the payment with the backend before treating it as successful
-               verifyMutation.mutate(
-                 {
-                    razorpay_order_id: order.razorpay_order_id,
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature: response.razorpay_signature,
-                 },
-                 {
-                    onSuccess: async () => {
-                       await handlePaymentSuccess(response.razorpay_payment_id, order?.id);
-                    },
-                    onError: () => {
-                       toast.error("Payment verification failed. Please contact support.");
-                    },
-                 }
-               );
-            },
-            prefill: {
-               name: user?.name || "Customer",
-               email: user?.email || "",
-               contact: selectedAddress?.phone || "9999999999"
-            },
-            theme: {
-               color: "#10b981"
-            }
-         };
-         
-         const paymentObject = new (window as any).Razorpay(options);
-         paymentObject.open();
-
-      } else {
-         clearCart();
-         toast.success("Order placed successfully via COD!");
-         navigate({ to: "/order-success", search: { orderId: order?.id || "" } });
-      }
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to place order");
-    }
-  });
-
-  const handlePlaceOrder = () => {
-    if (items.length === 0) {
-      toast.error("Your cart is empty!");
-      return;
-    }
-    if (!selectedAddress || !selectedAddress.id) {
-      toast.error("Please add and select a valid delivery address.");
-      return;
-    }
-    
-    createOrderMutation.mutate({
-       address_id: selectedAddress.id,
-       payment_method: payment,
-       delivery_slot: SLOTS[slot].label,
-       items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity }))
-    });
-  };
-
-  const handlePaymentSuccess = (paymentId: string, orderId?: string) => {
-    clearCart();
-    toast.success("Payment successful!");
-    navigate({ to: "/order-success", search: { orderId: orderId || createdOrder?.id || "" } });
-  };
-
-  const handleSaveAddress = (data: AddressData) => {
-    createAddressMutation.mutate(data, {
-      onSuccess: (res: any) => {
-        const addrId = res?.id;
-        if (addrId) {
-          setSelectedAddressId(addrId);
-        }
-      }
-    });
-  };
-
   return (
     <div className="min-h-screen bg-background pb-32 md:pb-16">
       <AppHeader title="Checkout" subtitle="Confirm your order" />
@@ -233,7 +250,9 @@ function Checkout() {
             {/* Address Selection */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
               {loadingAddr ? (
-                <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Loading addresses...</div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading addresses...
+                </div>
               ) : selectedAddress ? (
                 <>
                   <div className="flex items-center justify-between">
@@ -269,7 +288,12 @@ function Checkout() {
               ) : (
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-bold">No saved addresses</div>
-                  <button onClick={() => setAddressModalOpen(true)} className="text-primary text-xs font-bold hover:underline">Add New</button>
+                  <button
+                    onClick={() => setAddressModalOpen(true)}
+                    className="text-primary text-xs font-bold hover:underline"
+                  >
+                    Add New
+                  </button>
                 </div>
               )}
             </section>
@@ -351,7 +375,7 @@ function Checkout() {
                 <Tag className="h-5 w-5 text-emerald-600" />
                 <h2 className="font-display text-base font-bold">Offers & Benefits</h2>
               </div>
-              
+
               {!appliedCoupon ? (
                 <>
                   <div className="flex gap-2 mb-4">
@@ -375,9 +399,11 @@ function Checkout() {
                       Apply
                     </button>
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Available Offers</div>
+                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                      Available Offers
+                    </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
                       {AVAILABLE_OFFERS.map((offer) => (
                         <button
@@ -389,8 +415,12 @@ function Checkout() {
                           }}
                           className="shrink-0 flex flex-col items-start gap-1 rounded-2xl border border-dashed border-emerald-500/50 bg-emerald-50/50 p-3 text-left transition-colors hover:bg-emerald-50 w-32"
                         >
-                          <div className="font-bold text-emerald-700 text-[11px] bg-emerald-100 px-1.5 py-0.5 rounded-md">{offer.code}</div>
-                          <div className="text-[10.5px] font-medium text-emerald-900 leading-tight">{offer.desc}</div>
+                          <div className="font-bold text-emerald-700 text-[11px] bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                            {offer.code}
+                          </div>
+                          <div className="text-[10.5px] font-medium text-emerald-900 leading-tight">
+                            {offer.desc}
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -401,8 +431,12 @@ function Checkout() {
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                     <div>
-                      <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">{appliedCoupon} Applied</div>
-                      <div className="text-[10px] font-medium text-emerald-600 mt-0.5">You saved ₹{discount.toFixed(2)} on this order</div>
+                      <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+                        {appliedCoupon} Applied
+                      </div>
+                      <div className="text-[10px] font-medium text-emerald-600 mt-0.5">
+                        You saved ₹{discount.toFixed(2)} on this order
+                      </div>
                     </div>
                   </div>
                   <button
@@ -512,7 +546,6 @@ function Checkout() {
         onClose={() => setAddressModalOpen(false)}
         onSave={(data) => createAddressMutation.mutateAsync(data)}
       />
-
     </div>
   );
 }

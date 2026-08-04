@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   acceptDelivery,
   addRecentlyViewed,
+  applyDelivery,
   approveDeliveryAlias,
   approveVendorAlias,
   createCmsBannerAlias,
@@ -60,6 +61,7 @@ import {
   createCmsFaqSchema,
   createCmsOfferSchema,
   deliveredOtpSchema,
+  deliveryApplySchema,
   deliveryKycSchema,
   deliveryLocationSchema,
   deliveryOrderStatusSchema,
@@ -142,6 +144,7 @@ router.post(
 // Delivery partner module
 // ---------------------------------------------------------------------------
 router.post("/delivery/register", authenticate, validate({ body: deliveryRegisterSchema }), registerDelivery);
+router.post("/delivery/apply", authenticate, validate({ body: deliveryApplySchema }), applyDelivery);
 router.get("/delivery/me", authenticate, requireRole(ROLES.DELIVERY_PARTNER), getDeliveryMe);
 router.get("/delivery/requests", authenticate, requireRole(ROLES.DELIVERY_PARTNER), listDeliveryRequests);
 router.get("/delivery/my-deliveries", authenticate, requireRole(ROLES.DELIVERY_PARTNER), listMyDeliveries);

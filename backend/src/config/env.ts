@@ -192,6 +192,9 @@ export function loadEnvForTest(): Env {
     JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "test_access_secret_at_least_32_chars_long",
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test_refresh_secret_at_least_32_chars_long",
     API_VERSION: process.env.API_VERSION || "v1",
+    GOOGLE_CLIENT_ID: "",
+    GOOGLE_CLIENT_SECRET: "",
+    GOOGLE_REDIRECT_URI: "",
   };
   
   const parsed = envSchema.safeParse(testEnv);

@@ -11,8 +11,13 @@ export function ProductCard({ product }: { product: Product }) {
   const { isWishlisted, toggleWishlist } = useWishlist();
   const wishlisted = isWishlisted(product.id);
 
-  const discount = product.mrp > product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0;
-  const image = product.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+  const discount =
+    product.mrp > product.price
+      ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+      : 0;
+  const image =
+    product.images?.[0]?.url ||
+    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
 
   return (
     <Link
@@ -51,7 +56,9 @@ export function ProductCard({ product }: { product: Product }) {
         >
           <Heart
             className={`h-4 w-4 transition-colors ${
-              wishlisted ? "fill-rose-500 text-rose-500" : "text-muted-foreground hover:text-rose-500"
+              wishlisted
+                ? "fill-rose-500 text-rose-500"
+                : "text-muted-foreground hover:text-rose-500"
             }`}
           />
         </button>
@@ -60,7 +67,8 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="mt-3">
         <h4 className="text-sm font-semibold truncate">{product.name}</h4>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Star className="h-3 w-3 fill-warning text-warning" /> {product.rating || "0.0"} • {product.unit}
+          <Star className="h-3 w-3 fill-warning text-warning" /> {product.rating || "0.0"} •{" "}
+          {product.unit}
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <div>

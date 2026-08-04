@@ -1,12 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  Bike,
-  Phone,
-  MessageSquare,
-  MapPin,
-  RefreshCw,
-  CheckCircle2,
-} from "lucide-react";
+import { Bike, Phone, MessageSquare, MapPin, RefreshCw, CheckCircle2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { GoogleDeliveryTracker } from "@/components/marketplace/google-delivery-tracker";
 import { useQuery } from "@tanstack/react-query";
@@ -21,28 +14,33 @@ function OrderIdTrackingPage() {
   const { orderId } = Route.useParams();
   const navigate = useNavigate();
 
-  const { data: orderRes, isLoading, refetch } = useQuery({
+  const {
+    data: orderRes,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["orderDetail", orderId],
     queryFn: () => api.get<{ data: any }>(`/orders/${orderId}`),
   });
 
-  const order = orderRes?.data?.data || orderRes?.data || {
-    id: orderId,
-    order_number: orderId,
-    status: "out_for_delivery",
-    total_amount: 199,
-    items: [
-      { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
-      { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
-      { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
-    ],
-    address: {
-      address_line1: "B-402, Green Valley Apartments",
-      city: "Bengaluru",
-      landmark: "Near Jayanagar 4th Block",
-    },
-    vendor_name: "Raju Sabziwala 🛒",
-  };
+  const order = orderRes?.data?.data ||
+    orderRes?.data || {
+      id: orderId,
+      order_number: orderId,
+      status: "out_for_delivery",
+      total_amount: 199,
+      items: [
+        { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
+        { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
+        { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
+      ],
+      address: {
+        address_line1: "B-402, Green Valley Apartments",
+        city: "Bengaluru",
+        landmark: "Near Jayanagar 4th Block",
+      },
+      vendor_name: "Raju Sabziwala 🛒",
+    };
 
   const isDelivered = order.status === "delivered";
 
@@ -57,16 +55,17 @@ function OrderIdTrackingPage() {
   const steps = [
     { label: "Order Placed", desc: "Sent to vendor", done: true },
     { label: "Confirmed", desc: "Packed & ready", done: true },
-    { label: "Out for Delivery", desc: "Partner on the way", done: order.status === "out_for_delivery" || isDelivered },
+    {
+      label: "Out for Delivery",
+      desc: "Partner on the way",
+      done: order.status === "out_for_delivery" || isDelivered,
+    },
     { label: "Delivered", desc: "Enjoy your fresh produce!", done: isDelivered },
   ];
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24">
-      <AppHeader
-        title="Live Order Tracking"
-        subtitle={`Order #${order.order_number || orderId}`}
-      />
+      <AppHeader title="Live Order Tracking" subtitle={`Order #${order.order_number || orderId}`} />
 
       <main className="mx-auto max-w-4xl px-4 md:px-6 py-6 space-y-6">
         {/* Status Banner */}
@@ -84,7 +83,9 @@ function OrderIdTrackingPage() {
                 {isDelivered ? "Order Delivered! 🎉" : "Delivery Partner is on the way!"}
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {isDelivered ? "Order handed over safely." : "Live tracking active • Estimated arrival in ~8 to 12 minutes"}
+                {isDelivered
+                  ? "Order handed over safely."
+                  : "Live tracking active • Estimated arrival in ~8 to 12 minutes"}
               </p>
             </div>
           </div>
@@ -168,7 +169,9 @@ function OrderIdTrackingPage() {
 
         {/* Status Timeline */}
         <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
-          <h3 className="font-display font-black text-base text-foreground">Order Status Timeline</h3>
+          <h3 className="font-display font-black text-base text-foreground">
+            Order Status Timeline
+          </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {steps.map((step, idx) => (
               <div
@@ -198,7 +201,9 @@ function OrderIdTrackingPage() {
           <div className="flex items-center justify-between border-b pb-3">
             <div>
               <h3 className="font-display font-black text-base text-foreground">Order Details</h3>
-              <p className="text-xs text-muted-foreground">Order #{order.order_number || orderId}</p>
+              <p className="text-xs text-muted-foreground">
+                Order #{order.order_number || orderId}
+              </p>
             </div>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
               Paid via UPI
@@ -211,27 +216,37 @@ function OrderIdTrackingPage() {
             <div>
               <div className="font-bold text-foreground">Delivery Address</div>
               <div className="text-muted-foreground mt-0.5">
-                {order.address?.address_line1 || "B-402, Green Valley Apartments"}, {order.address?.landmark || "Near Jayanagar 4th Block"}, {order.address?.city || "Bengaluru"}
+                {order.address?.address_line1 || "B-402, Green Valley Apartments"},{" "}
+                {order.address?.landmark || "Near Jayanagar 4th Block"},{" "}
+                {order.address?.city || "Bengaluru"}
               </div>
             </div>
           </div>
 
           {/* Products List */}
           <div className="space-y-2 pt-2">
-            <div className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">Items Ordered</div>
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
+              Items Ordered
+            </div>
             <div className="divide-y border rounded-2xl overflow-hidden bg-background">
-              {(order.items || [
-                { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
-                { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
-                { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
-              ]).map((item: any, idx: number) => (
+              {(
+                order.items || [
+                  { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
+                  { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
+                  { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
+                ]
+              ).map((item: any, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-3 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="grid h-6 w-6 place-items-center rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
                       {item.quantity}x
                     </span>
-                    <span className="font-bold text-foreground">{item.product_name || item.name}</span>
-                    <span className="text-muted-foreground text-[11px]">({item.unit || "unit"})</span>
+                    <span className="font-bold text-foreground">
+                      {item.product_name || item.name}
+                    </span>
+                    <span className="text-muted-foreground text-[11px]">
+                      ({item.unit || "unit"})
+                    </span>
                   </div>
                   <span className="font-bold text-foreground tabular-nums">
                     ₹{((item.price || 20) * (item.quantity || 1)).toFixed(2)}
@@ -245,7 +260,9 @@ function OrderIdTrackingPage() {
           <div className="pt-2 space-y-1.5 text-xs text-muted-foreground border-t">
             <div className="flex justify-between">
               <span>Item Subtotal</span>
-              <span className="tabular-nums font-semibold">₹{(order.total_amount || 199) - 20}</span>
+              <span className="tabular-nums font-semibold">
+                ₹{(order.total_amount || 199) - 20}
+              </span>
             </div>
             <div className="flex justify-between">
               <span>Delivery Fee</span>

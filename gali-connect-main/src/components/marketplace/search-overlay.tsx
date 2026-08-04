@@ -87,9 +87,18 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const navigate = useNavigate();
   const { recent, push, clear, remove } = useRecent();
 
-  const { data: pRes } = useQuery({ queryKey: ["products"], queryFn: () => api.get<Product[]>("/products") });
-  const { data: vRes } = useQuery({ queryKey: ["vendors"], queryFn: () => api.get<Vendor[]>("/vendors") });
-  const { data: cRes } = useQuery({ queryKey: ["categories"], queryFn: () => api.get<Category[]>("/categories") });
+  const { data: pRes } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => api.get<Product[]>("/products"),
+  });
+  const { data: vRes } = useQuery({
+    queryKey: ["vendors"],
+    queryFn: () => api.get<Vendor[]>("/vendors"),
+  });
+  const { data: cRes } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api.get<Category[]>("/categories"),
+  });
 
   const products = pRes?.data || [];
   const vendors = vRes?.data || [];
@@ -239,9 +248,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
               </button>
             </div>
             {debounced && !hasResults && (
-               <div className="absolute -bottom-5 left-0 right-0 flex justify-center">
-                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-               </div>
+              <div className="absolute -bottom-5 left-0 right-0 flex justify-center">
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+              </div>
             )}
           </div>
         </div>
@@ -386,7 +395,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                 <div className="mb-2 px-1 text-sm font-semibold">Products</div>
                 <ol className="rounded-2xl bg-card border divide-y overflow-hidden">
                   {productSug.map((p) => {
-                    const imgUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                    const imgUrl =
+                      p.images?.[0]?.url ||
+                      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
                     return (
                       <li key={p.id}>
                         <Link
@@ -444,9 +455,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                           <div className="text-sm font-semibold truncate">
                             <Highlight text={v.business_name} q={debounced} />
                           </div>
-                          <div className="text-[12px] text-muted-foreground truncate">
-                            Vendor
-                          </div>
+                          <div className="text-[12px] text-muted-foreground truncate">Vendor</div>
                         </div>
                         <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition" />
                       </Link>
@@ -462,7 +471,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-100 text-primary">
                     <Search className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-3 text-sm font-bold text-foreground">No direct matches for "{q}"</h3>
+                  <h3 className="mt-3 text-sm font-bold text-foreground">
+                    No direct matches for "{q}"
+                  </h3>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Check out popular items available in your gali below!
                   </p>
@@ -476,7 +487,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {products.slice(0, 6).map((p) => {
-                      const imgUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                      const imgUrl =
+                        p.images?.[0]?.url ||
+                        "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
                       return (
                         <Link
                           key={p.id}
@@ -490,11 +503,19 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                           className="group flex flex-col justify-between rounded-2xl bg-card border p-3 hover:border-emerald-500/50 hover:shadow-soft transition-all"
                         >
                           <div className="aspect-square w-full rounded-xl overflow-hidden bg-muted mb-2">
-                            <img src={imgUrl} alt={p.name} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <img
+                              src={imgUrl}
+                              alt={p.name}
+                              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
                           </div>
                           <div>
-                            <div className="text-xs font-bold truncate text-foreground">{p.name}</div>
-                            <div className="text-[11px] font-semibold text-emerald-600 mt-0.5">₹{p.price}</div>
+                            <div className="text-xs font-bold truncate text-foreground">
+                              {p.name}
+                            </div>
+                            <div className="text-[11px] font-semibold text-emerald-600 mt-0.5">
+                              ₹{p.price}
+                            </div>
                           </div>
                         </Link>
                       );

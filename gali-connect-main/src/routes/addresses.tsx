@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { MapPin, Plus, Edit2, Trash2, CheckCircle2, Home, Briefcase, Building, Loader2 } from "lucide-react";
+import {
+  MapPin,
+  Plus,
+  Edit2,
+  Trash2,
+  CheckCircle2,
+  Home,
+  Briefcase,
+  Building,
+  Loader2,
+} from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { AddressModal, AddressData } from "@/components/marketplace/address-modal";
 import { toast } from "sonner";
@@ -29,10 +39,11 @@ function AddressesPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: AddressData) => {
-      const res = data.id && !data.id.startsWith("addr_")
-        ? await api.put(`/users/me/addresses/${data.id}`, data)
-        : await api.post("/users/me/addresses", data);
-      
+      const res =
+        data.id && !data.id.startsWith("addr_")
+          ? await api.put(`/users/me/addresses/${data.id}`, data)
+          : await api.post("/users/me/addresses", data);
+
       if (!res.success) {
         throw new Error(res.error?.message || "Failed to save address");
       }

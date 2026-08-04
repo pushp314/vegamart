@@ -59,8 +59,6 @@ function Login() {
     }
   };
 
-
-
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-5">
       <div className="w-full max-w-md bg-card border rounded-3xl p-6 sm:p-8 shadow-soft">
@@ -117,7 +115,8 @@ function Login() {
         </button>
 
         <div className="my-4 flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="h-px flex-1 bg-border" /> or continue with <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-border" /> or continue with{" "}
+          <span className="h-px flex-1 bg-border" />
         </div>
 
         <form className="mt-5 space-y-4" onSubmit={handleEmailLogin}>

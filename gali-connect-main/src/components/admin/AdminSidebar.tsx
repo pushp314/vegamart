@@ -1,7 +1,18 @@
-import { LayoutDashboard, Users, Store, Bike, Settings, RotateCcw, Package, LogOut, UserPlus } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  Store,
+  Bike,
+  Settings,
+  RotateCcw,
+  Package,
+  LogOut,
+  UserPlus,
+} from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
-export type AdminTab = "overview" | "create_partner" | "vendors" | "users" | "delivery" | "cms" | "refunds";
+export type AdminTab =
+  "overview" | "create_partner" | "vendors" | "users" | "delivery" | "cms" | "refunds";
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -10,7 +21,7 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
   const { logout } = useAuth();
-  
+
   const navItems: { id: string; label: string; icon: any; disabled?: boolean }[] = [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "create_partner", label: "➕ Create Partner", icon: UserPlus },
@@ -35,15 +46,15 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
-          
+
           return (
             <button
               key={item.id}
               onClick={() => !item.disabled && onTabChange(item.id as AdminTab)}
               disabled={item.disabled}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                isActive 
-                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" 
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                   : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
               } ${item.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
@@ -55,7 +66,7 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
       </nav>
 
       <div className="p-4 border-t mt-auto">
-        <button 
+        <button
           onClick={logout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
         >

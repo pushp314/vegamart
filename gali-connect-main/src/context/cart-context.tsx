@@ -102,33 +102,33 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const applyCoupon = async (code: string) => {
     try {
-      const res = await api.get<any>(`/coupons/validate?code=${code}&amount=${subtotal}`);
-      if (!res.success || (!res.data && !res.data?.data)) {
+      const res = await api.post<any>("/coupons/validate", { code });
+      if (!res.success || !res.data) {
         throw new Error(res.error?.message || "Invalid or expired coupon code");
       }
-      const coupon = res.data?.data || res.data;
+      const coupon = res.data;
       if (!coupon) throw new Error("Invalid or expired coupon code");
-      
+
       setAppliedCoupon(code);
-      
+
       let calculatedDiscount = 0;
-      if (coupon.type === "fixed") {
+      if (coupon.type === "FIXED") {
         calculatedDiscount = coupon.value;
-      } else if (coupon.type === "percentage") {
+      } else if (coupon.type === "PERCENTAGE") {
         calculatedDiscount = (subtotal * coupon.value) / 100;
         if (coupon.max_discount && calculatedDiscount > coupon.max_discount) {
           calculatedDiscount = coupon.max_discount;
         }
       }
-      
+
       setCouponDiscount(calculatedDiscount);
       return { success: true, message: `Coupon applied: ₹${calculatedDiscount.toFixed(2)} off!` };
     } catch (err: any) {
       setAppliedCoupon(null);
       setCouponDiscount(0);
-      return { 
-        success: false, 
-        message: err?.message || err.response?.data?.message || "Invalid or expired coupon code" 
+      return {
+        success: false,
+        message: err?.message || err.response?.data?.message || "Invalid or expired coupon code",
       };
     }
   };

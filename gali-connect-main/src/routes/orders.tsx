@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, Clock, MapPin, Phone, MessageCircle, Package, ShoppingBag, Bike, ChevronDown, ChevronUp, RotateCcw, RotateCw } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  MapPin,
+  Phone,
+  MessageCircle,
+  Package,
+  ShoppingBag,
+  Bike,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  RotateCw,
+} from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +40,7 @@ function Orders() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to reorder");
-    }
+    },
   });
 
   const returnMutation = useMutation({
@@ -38,7 +51,7 @@ function Orders() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to request return");
-    }
+    },
   });
 
   const { data: res, isLoading } = useQuery({
@@ -62,7 +75,9 @@ function Orders() {
       <PullToRefresh onRefresh={refresh}>
         <main className="mx-auto max-w-4xl px-4 md:px-6 pt-4 md:pt-8 pb-28 md:pb-16">
           {isLoading ? (
-            <div className="mt-10 text-center text-sm text-muted-foreground">Loading your orders...</div>
+            <div className="mt-10 text-center text-sm text-muted-foreground">
+              Loading your orders...
+            </div>
           ) : orders.length === 0 ? (
             <div className="mt-16 text-center">
               <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-emerald-50 text-primary">
@@ -82,13 +97,16 @@ function Orders() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-base">Order #{o.order_number || o.id.slice(0, 8)}</h3>
+                          <h3 className="font-bold text-base">
+                            Order #{o.order_number || o.id.slice(0, 8)}
+                          </h3>
                           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
                             {o.status || "Pending"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Total Amount: <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
+                          Total Amount:{" "}
+                          <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
                         </p>
                       </div>
 
@@ -98,7 +116,11 @@ function Orders() {
                       >
                         <Bike className="h-4 w-4" />
                         {isExpanded ? "Hide Map" : "Trace Delivery"}
-                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        {isExpanded ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
                       </button>
                     </div>
 

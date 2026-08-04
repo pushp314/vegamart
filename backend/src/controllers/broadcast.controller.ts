@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 
 import prisma from "../database/prisma";
-import { ApiError } from "../utils/ApiError";
+import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { sendCreated, sendNoContent, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { HttpStatus } from "../utils/httpStatus";
@@ -28,26 +28,18 @@ export const listBroadcasts = asyncHandler(async (_req: Request, res: Response) 
  * @swagger
  * /broadcasts:
  *   post:
- *     summary: Create a street vendor broadcast (public)
+ *     summary: Create a street vendor broadcast (vendor only)
  *     tags: [Broadcasts]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [vendor_name, vendor_type, street, arrival_time, produce]
+ *             required: [street, arrival_time, produce]
  *             properties:
- *               vendor_id:
- *                 type: string
- *                 format: uuid
- *               vendor_name:
- *                 type: string
- *               vendor_type:
- *                 type: string
- *                 enum: [roaming, shop]
- *               phone:
- *                 type: string
  *               street:
  *                 type: string
  *               arrival_time:
@@ -62,31 +54,26 @@ export const listBroadcasts = asyncHandler(async (_req: Request, res: Response) 
  */
 export const createBroadcast = asyncHandler(async (req: Request, res: Response) => {
   const data = req.body as {
-    vendor_id?: string | null;
-    vendor_name: string;
-    vendor_type: "roaming" | "shop";
-    phone?: string | null;
     street: string;
     arrival_time: string;
     produce: string;
     note?: string | null;
   };
 
-  let vendorId: string | null = null;
-  if (data.vendor_id) {
-    const vendor = await prisma.vendorProfile.findUnique({
-      where: { id: data.vendor_id },
-      select: { id: true },
-    });
-    if (vendor) vendorId = vendor.id;
+  const vendor = await prisma.vendorProfile.findUnique({
+    where: { user_id: req.user!.id },
+    select: { id: true, business_name: true, phone: true, roaming: true, deleted_at: true },
+  });
+  if (!vendor || vendor.deleted_at) {
+    throw new NotFoundError("Vendor profile not found.");
   }
 
   const broadcast = await prisma.broadcast.create({
     data: {
-      vendor_id: vendorId,
-      vendor_name: data.vendor_name,
-      vendor_type: data.vendor_type === "shop" ? "SHOP" : "ROAMING",
-      phone: data.phone ?? null,
+      vendor_id: vendor.id,
+      vendor_name: vendor.business_name,
+      vendor_type: vendor.roaming ? "ROAMING" : "SHOP",
+      phone: vendor.phone ?? null,
       street: data.street,
       arrival_time: data.arrival_time,
       produce: data.produce,
@@ -101,8 +88,10 @@ export const createBroadcast = asyncHandler(async (req: Request, res: Response) 
  * @swagger
  * /broadcasts/{id}:
  *   delete:
- *     summary: Delete a street vendor broadcast (public)
+ *     summary: Delete a street vendor broadcast (owner vendor only)
  *     tags: [Broadcasts]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -120,10 +109,18 @@ export const deleteBroadcast = asyncHandler(async (req: Request, res: Response) 
 
   const existing = await prisma.broadcast.findFirst({
     where: { id, deleted_at: null },
-    select: { id: true },
+    select: { id: true, vendor_id: true },
   });
   if (!existing) {
     throw new ApiError(HttpStatus.NOT_FOUND, "Broadcast not found.", { code: "NOT_FOUND" });
+  }
+
+  const vendor = await prisma.vendorProfile.findUnique({
+    where: { user_id: req.user!.id },
+    select: { id: true },
+  });
+  if (!vendor || existing.vendor_id !== vendor.id) {
+    throw new ForbiddenError("You do not own this broadcast.");
   }
 
   await prisma.broadcast.update({

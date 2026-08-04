@@ -58,7 +58,9 @@ function VendorLogin() {
 
         <form className="mt-6 space-y-4" onSubmit={handleVendorLogin}>
           <label className="block">
-            <div className="mb-1.5 text-xs font-semibold text-foreground">Registered Vendor Email</div>
+            <div className="mb-1.5 text-xs font-semibold text-foreground">
+              Registered Vendor Email
+            </div>
             <div className="flex items-center rounded-2xl bg-muted border h-11 px-3">
               <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
               <input

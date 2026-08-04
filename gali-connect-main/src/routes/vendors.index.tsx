@@ -49,7 +49,7 @@ function VendorsPage() {
       return api.get<Vendor[]>(url);
     },
   });
-  
+
   const { data: catsRes } = useQuery({
     queryKey: ["categories"],
     queryFn: () => api.get<Category[]>("/categories"),
@@ -64,12 +64,14 @@ function VendorsPage() {
       const profile = v.profile;
       const catMatch = activeCat === "all" || profile?.category === activeCat;
       if (!catMatch) return false;
-      
+
       if (!q) return true;
-      
+
       let tags: string[] = [];
-      try { tags = JSON.parse(profile?.tags || "[]"); } catch(e) {}
-      
+      try {
+        tags = JSON.parse(profile?.tags || "[]");
+      } catch (e) {}
+
       return (
         v.business_name.toLowerCase().includes(q) ||
         (profile?.address || "").toLowerCase().includes(q) ||
@@ -78,7 +80,7 @@ function VendorsPage() {
     });
   }, [activeCat, query, vendors]);
 
-  const liveVendorsCount = vendors.filter(v => v.profile?.is_open).length;
+  const liveVendorsCount = vendors.filter((v) => v.profile?.is_open).length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -98,9 +100,7 @@ function VendorsPage() {
               <div className="text-[10.5px] font-semibold uppercase tracking-wide text-white/85">
                 Live now
               </div>
-              <div className="font-semibold">
-                {liveVendorsCount} vendors moving near you
-              </div>
+              <div className="font-semibold">{liveVendorsCount} vendors moving near you</div>
             </div>
           </div>
 
@@ -138,15 +138,22 @@ function VendorsPage() {
 
           {/* List */}
           {loadingVendors ? (
-            <div className="mt-10 text-center text-sm text-muted-foreground">Loading vendors...</div>
+            <div className="mt-10 text-center text-sm text-muted-foreground">
+              Loading vendors...
+            </div>
           ) : (
             <ul className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {filtered.map((v) => {
                 const profile = v.profile || ({} as any);
-                const imageUrl = profile.logo_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
+                const imageUrl =
+                  profile.logo_url ||
+                  "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
                 const isOpen = profile.is_open || false;
                 let tags = ["Local vendor"];
-                try { tags = JSON.parse(profile.tags || "[]"); if(tags.length === 0) tags=["Local vendor"] } catch(e) {}
+                try {
+                  tags = JSON.parse(profile.tags || "[]");
+                  if (tags.length === 0) tags = ["Local vendor"];
+                } catch (e) {}
 
                 return (
                   <li key={v.id}>
@@ -177,19 +184,19 @@ function VendorsPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-[12px] text-muted-foreground truncate">
-                          {tags[0]}
-                        </p>
+                        <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
                         <div className="mt-2 flex items-center gap-3 text-[11px]">
                           <span className="inline-flex items-center gap-1 font-bold">
                             <Star className="h-3 w-3 fill-primary text-primary" />
                             {profile?.rating || "0.0"}
                           </span>
                           <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                            <MapPin className="h-3 w-3" /> {v.distance_km ? v.distance_km.toFixed(1) : "1.2"} km
+                            <MapPin className="h-3 w-3" />{" "}
+                            {v.distance_km ? v.distance_km.toFixed(1) : "1.2"} km
                           </span>
                           <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                            <Clock className="h-3 w-3" /> {v.eta_min ? v.eta_min.toString() : "15"} min
+                            <Clock className="h-3 w-3" /> {v.eta_min ? v.eta_min.toString() : "15"}{" "}
+                            min
                           </span>
                         </div>
                       </div>

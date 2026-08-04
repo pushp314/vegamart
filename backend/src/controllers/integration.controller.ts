@@ -12,6 +12,7 @@ import { buildPaginationMeta } from "../utils/pagination";
 import type {
   CreateOrderAliasBody,
   DeliveredOtpBody,
+  DeliveryApplyBody,
   DeliveryKycBody,
   DeliveryLocationBody,
   DeliveryOrderStatusBody,
@@ -204,6 +205,11 @@ export const ringBell = asyncHandler(async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const registerDelivery = asyncHandler(async (req: Request, res: Response) => {
   const data = await integrationService.registerDelivery(req.user!.id, req.body as DeliveryRegisterBody, req);
+  return sendCreated(res, data, "Delivery partner application submitted.");
+});
+
+export const applyDelivery = asyncHandler(async (req: Request, res: Response) => {
+  const data = await integrationService.applyDelivery(req.user!.id, req.body as DeliveryApplyBody, req);
   return sendCreated(res, data, "Delivery partner application submitted.");
 });
 

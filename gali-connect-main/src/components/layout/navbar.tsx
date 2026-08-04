@@ -71,7 +71,10 @@ export function Navbar() {
 
         <nav className="ml-auto flex items-center gap-1">
           <Button asChild variant="ghost" size="sm">
-            <Link to="/street-vendors" className="text-emerald-700 font-bold flex items-center gap-1">
+            <Link
+              to="/street-vendors"
+              className="text-emerald-700 font-bold flex items-center gap-1"
+            >
               <Sparkles className="h-3.5 w-3.5" /> Street Radar
             </Link>
           </Button>
@@ -96,7 +99,8 @@ export function Navbar() {
                 className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold"
               >
                 <Link to="/vendor/roaming">
-                  <Sparkles className="h-4 w-4 mr-1 text-amber-600 animate-pulse" /> Street Cart Portal
+                  <Sparkles className="h-4 w-4 mr-1 text-amber-600 animate-pulse" /> Street Cart
+                  Portal
                 </Link>
               </Button>
             </div>
@@ -170,10 +174,10 @@ export function Navbar() {
           <Button asChild variant="ghost" size="icon" aria-label="Account">
             <Link to="/profile">
               {user?.avatar_url ? (
-                <img 
-                  src={user.avatar_url} 
-                  alt="" 
-                  className="h-6 w-6 rounded-full object-cover" 
+                <img
+                  src={user.avatar_url}
+                  alt=""
+                  className="h-6 w-6 rounded-full object-cover"
                   onError={(e) => {
                     e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || "User")}&background=10b981&color=fff`;
                   }}

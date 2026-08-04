@@ -3,7 +3,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, Search } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 
-
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
@@ -20,7 +19,7 @@ function FAQPage() {
     queryKey: ["faqs"],
     queryFn: () => api.get<any[]>("/faqs"),
   });
-  
+
   const faqs = res?.data || [];
 
   const filtered = faqs.filter(
@@ -55,10 +54,7 @@ function FAQPage() {
             filtered.map((item: any, index: number) => {
               const isOpen = openIndex === index;
               return (
-                <div
-                  key={index}
-                  className="border-b last:border-0 border-border overflow-hidden"
-                >
+                <div key={index} className="border-b last:border-0 border-border overflow-hidden">
                   <button
                     onClick={() => setOpenIndex(isOpen ? null : index)}
                     className="w-full flex items-center justify-between p-5 text-left bg-transparent hover:bg-muted/50 transition-colors"

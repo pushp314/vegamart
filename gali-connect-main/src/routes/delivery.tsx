@@ -14,7 +14,7 @@ import {
   Ban,
   Radio,
   CheckCircle2,
-  Wallet
+  Wallet,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -68,11 +68,14 @@ function DeliveryDashboard() {
 
   const requests = requestsRes?.data || [];
   const myDeliveries = myDeliveriesRes?.data || [];
-  
+
   const completedOrders = myDeliveries.filter((o: any) => o.status === "delivered");
   const activeOrders = myDeliveries.filter((o: any) => o.status !== "delivered");
 
-  const totalEarnings = completedOrders.reduce((sum: number, o: any) => sum + (o.delivery_fee || 0), 0);
+  const totalEarnings = completedOrders.reduce(
+    (sum: number, o: any) => sum + (o.delivery_fee || 0),
+    0,
+  );
 
   // Accept Delivery Mutation
   const acceptMutation = useMutation({
@@ -90,7 +93,7 @@ function DeliveryDashboard() {
 
   // Update Status Mutation
   const updateStatusMutation = useMutation({
-    mutationFn: ({ orderId, status }: { orderId: string, status: string }) => 
+    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
       api.put(`/delivery/orders/${orderId}/status`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
@@ -102,16 +105,18 @@ function DeliveryDashboard() {
   useEffect(() => {
     let watchId: number;
     if (isOnline && partner && partner.status === "approved") {
-      if ('geolocation' in navigator) {
+      if ("geolocation" in navigator) {
         watchId = navigator.geolocation.watchPosition(
           (pos) => {
-            api.put('/delivery/location', {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude
-            }).catch(err => console.error("Failed to update location", err));
+            api
+              .put("/delivery/location", {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+              })
+              .catch((err) => console.error("Failed to update location", err));
           },
           (err) => console.error("Geolocation error:", err),
-          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 },
         );
       }
     }
@@ -141,7 +146,11 @@ function DeliveryDashboard() {
   }
 
   if (partnerLoading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+      </div>
+    );
   }
 
   if (!partner) {
@@ -168,10 +177,10 @@ function DeliveryDashboard() {
     if (!partner.kyc || partner.kyc.status === "rejected") {
       return (
         <div className="min-h-screen bg-background text-foreground p-6 pb-28">
-          <DeliveryKYCForm 
-            partner={partner} 
-            initialData={partner.kyc} 
-            onSuccess={() => queryClient.invalidateQueries({ queryKey: ["deliveryProfile"] })} 
+          <DeliveryKYCForm
+            partner={partner}
+            initialData={partner.kyc}
+            onSuccess={() => queryClient.invalidateQueries({ queryKey: ["deliveryProfile"] })}
           />
         </div>
       );
@@ -195,7 +204,9 @@ function DeliveryDashboard() {
         <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-rose-50 text-rose-600 mb-6 border border-rose-200">
           <Ban className="h-10 w-10" />
         </div>
-        <h2 className="font-display text-2xl font-bold text-rose-600 mb-3">Account {partner.status}</h2>
+        <h2 className="font-display text-2xl font-bold text-rose-600 mb-3">
+          Account {partner.status}
+        </h2>
         <p className="text-muted-foreground max-w-xs mb-8">
           Your account is currently disabled. Please contact fleet support.
         </p>
@@ -206,7 +217,6 @@ function DeliveryDashboard() {
   // ACTIVE RIDER DASHBOARD
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-emerald-500/20 pb-24">
-      
       {/* Top Status Bar */}
       <div className="flex items-center justify-between px-6 py-4 bg-card/90 backdrop-blur-md sticky top-0 z-40 border-b border-border">
         <div className="flex items-center gap-3">
@@ -215,25 +225,26 @@ function DeliveryDashboard() {
           </div>
           <div>
             <div className="font-bold text-sm leading-tight">{partner.full_name}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Rider ID: {partner.id.substring(0,6)}</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+              Rider ID: {partner.id.substring(0, 6)}
+            </div>
           </div>
         </div>
-        
-        <button 
+
+        <button
           onClick={() => setIsOnline(!isOnline)}
           className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs transition-all ${
-            isOnline 
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-soft' 
-              : 'bg-muted text-muted-foreground border border-border'
+            isOnline
+              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-soft"
+              : "bg-muted text-muted-foreground border border-border"
           }`}
         >
           <Power className="h-4 w-4" />
-          {isOnline ? 'ONLINE' : 'OFFLINE'}
+          {isOnline ? "ONLINE" : "OFFLINE"}
         </button>
       </div>
 
       <main className="p-4 space-y-6">
-        
         {/* RADAR TAB */}
         {activeTab === "requests" && (
           <div className="space-y-4">
@@ -243,7 +254,9 @@ function DeliveryDashboard() {
                   <Power className="h-12 w-12 text-muted-foreground/50" />
                 </div>
                 <h3 className="text-xl font-bold mb-2">You are Offline</h3>
-                <p className="text-muted-foreground text-sm max-w-xs">Go online to receive delivery requests from nearby vendors.</p>
+                <p className="text-muted-foreground text-sm max-w-xs">
+                  Go online to receive delivery requests from nearby vendors.
+                </p>
               </div>
             ) : requests.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center relative">
@@ -255,37 +268,56 @@ function DeliveryDashboard() {
                   <Radio className="h-8 w-8 text-emerald-600" />
                 </div>
                 <h3 className="text-xl font-bold mb-2 relative z-10">Scanning for Orders</h3>
-                <p className="text-muted-foreground text-sm max-w-xs relative z-10">Stay in your zone. New orders will appear here instantly.</p>
+                <p className="text-muted-foreground text-sm max-w-xs relative z-10">
+                  Stay in your zone. New orders will appear here instantly.
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
                 {requests.map((r: any) => (
-                  <div key={r.id} className="bg-card rounded-3xl p-5 border border-border shadow-soft relative overflow-hidden">
+                  <div
+                    key={r.id}
+                    className="bg-card rounded-3xl p-5 border border-border shadow-soft relative overflow-hidden"
+                  >
                     <div className="absolute top-0 right-0 p-4 bg-emerald-50 rounded-bl-3xl border-l border-b border-emerald-100">
                       <div className="text-xl font-black text-emerald-600">₹{r.delivery_fee}</div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 mb-6">
                       <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                      <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">New Request</span>
+                      <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">
+                        New Request
+                      </span>
                     </div>
 
                     <div className="space-y-4 mb-6">
                       <div className="flex gap-4">
-                        <div className="mt-1"><Store className="h-5 w-5 text-muted-foreground" /></div>
+                        <div className="mt-1">
+                          <Store className="h-5 w-5 text-muted-foreground" />
+                        </div>
                         <div>
-                          <div className="text-xs text-muted-foreground font-bold uppercase mb-1">Pickup From</div>
-                          <div className="font-bold text-lg">{r.vendor?.business_name || "Vendor"}</div>
+                          <div className="text-xs text-muted-foreground font-bold uppercase mb-1">
+                            Pickup From
+                          </div>
+                          <div className="font-bold text-lg">
+                            {r.vendor?.business_name || "Vendor"}
+                          </div>
                           <div className="text-sm text-muted-foreground">{r.vendor?.address}</div>
                         </div>
                       </div>
-                      
+
                       <div className="flex gap-4">
-                        <div className="mt-1"><MapPin className="h-5 w-5 text-rose-600" /></div>
+                        <div className="mt-1">
+                          <MapPin className="h-5 w-5 text-rose-600" />
+                        </div>
                         <div>
-                          <div className="text-xs text-muted-foreground font-bold uppercase mb-1">Dropoff At</div>
+                          <div className="text-xs text-muted-foreground font-bold uppercase mb-1">
+                            Dropoff At
+                          </div>
                           <div className="font-bold text-lg">{r.user?.name || "Customer"}</div>
-                          <div className="text-sm text-muted-foreground">{r.address?.street_address}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {r.address?.street_address}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -295,7 +327,11 @@ function DeliveryDashboard() {
                       disabled={acceptMutation.isPending}
                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
                     >
-                      {acceptMutation.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : "Accept Delivery"}
+                      {acceptMutation.isPending ? (
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      ) : (
+                        "Accept Delivery"
+                      )}
                     </button>
                   </div>
                 ))}
@@ -313,46 +349,67 @@ function DeliveryDashboard() {
                   <Package className="h-8 w-8 text-muted-foreground/50" />
                 </div>
                 <h3 className="text-xl font-bold mb-2">No Active Orders</h3>
-                <p className="text-muted-foreground text-sm max-w-xs">Accept a request from the Radar to start delivering.</p>
+                <p className="text-muted-foreground text-sm max-w-xs">
+                  Accept a request from the Radar to start delivering.
+                </p>
               </div>
             ) : (
               <div className="space-y-6">
                 {activeOrders.map((o: any) => (
-                  <div key={o.id} className="bg-card rounded-3xl border border-border shadow-soft overflow-hidden">
+                  <div
+                    key={o.id}
+                    className="bg-card rounded-3xl border border-border shadow-soft overflow-hidden"
+                  >
                     <div className="p-4 bg-muted/50 flex justify-between items-center border-b border-border">
-                      <div className="font-bold text-xs text-muted-foreground">Order #{o.id.substring(0,8)}</div>
+                      <div className="font-bold text-xs text-muted-foreground">
+                        Order #{o.id.substring(0, 8)}
+                      </div>
                       <div className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black uppercase tracking-wider">
-                        {o.status.replace(/_/g, ' ')}
+                        {o.status.replace(/_/g, " ")}
                       </div>
                     </div>
 
                     <div className="p-5 space-y-6">
                       <div className="flex items-start gap-4 relative">
                         <div className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-border" />
-                        <div className="z-10 bg-card p-1"><Store className="h-4 w-4 text-emerald-600" /></div>
+                        <div className="z-10 bg-card p-1">
+                          <Store className="h-4 w-4 text-emerald-600" />
+                        </div>
                         <div>
-                          <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">Pickup</div>
+                          <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">
+                            Pickup
+                          </div>
                           <div className="font-bold">{o.vendor?.business_name}</div>
                           <div className="text-xs text-muted-foreground">{o.vendor?.address}</div>
                         </div>
                       </div>
 
                       <div className="flex items-start gap-4">
-                        <div className="z-10 bg-card p-1"><MapPin className="h-4 w-4 text-rose-600" /></div>
+                        <div className="z-10 bg-card p-1">
+                          <MapPin className="h-4 w-4 text-rose-600" />
+                        </div>
                         <div>
-                          <div className="text-[10px] text-rose-600 font-bold uppercase mb-1">Dropoff</div>
+                          <div className="text-[10px] text-rose-600 font-bold uppercase mb-1">
+                            Dropoff
+                          </div>
                           <div className="font-bold">{o.user?.name}</div>
-                          <div className="text-xs text-muted-foreground">{o.address?.street_address}</div>
-                          <div className="mt-2 text-emerald-600 font-black text-sm">Collect: ₹{o.total_amount}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {o.address?.street_address}
+                          </div>
+                          <div className="mt-2 text-emerald-600 font-black text-sm">
+                            Collect: ₹{o.total_amount}
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     <div className="p-3 bg-muted/50 border-t border-border flex gap-2">
                       <button
-                        onClick={() => updateStatusMutation.mutate({ orderId: o.id, status: "out_for_delivery" })}
+                        onClick={() =>
+                          updateStatusMutation.mutate({ orderId: o.id, status: "out_for_delivery" })
+                        }
                         disabled={o.status === "out_for_delivery"}
-                        className={`flex-1 py-3 rounded-xl font-bold text-sm transition-colors ${o.status === "out_for_delivery" ? 'bg-muted text-muted-foreground' : 'bg-blue-600 text-white hover:bg-blue-500'}`}
+                        className={`flex-1 py-3 rounded-xl font-bold text-sm transition-colors ${o.status === "out_for_delivery" ? "bg-muted text-muted-foreground" : "bg-blue-600 text-white hover:bg-blue-500"}`}
                       >
                         Picked Up
                       </button>
@@ -360,10 +417,15 @@ function DeliveryDashboard() {
                         onClick={() => {
                           const otp = window.prompt("Enter 4-digit Delivery OTP from Customer:");
                           if (otp && otp.length === 4) {
-                            api.put(`/delivery/order/${o.id}/delivered`, { otp }).then(() => {
-                               toast.success("Order marked as delivered!");
-                               queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
-                            }).catch((err) => toast.error(err?.message || "Failed to mark delivered"));
+                            api
+                              .put(`/delivery/order/${o.id}/delivered`, { otp })
+                              .then(() => {
+                                toast.success("Order marked as delivered!");
+                                queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+                              })
+                              .catch((err) =>
+                                toast.error(err?.message || "Failed to mark delivered"),
+                              );
                           } else if (otp) {
                             toast.error("Invalid OTP format");
                           }
@@ -387,32 +449,47 @@ function DeliveryDashboard() {
               <div className="absolute right-0 top-0 opacity-10">
                 <Wallet className="h-32 w-32 -mt-4 -mr-4 text-emerald-600" />
               </div>
-              <div className="text-emerald-700 font-bold text-xs uppercase tracking-widest mb-2">Today's Earnings</div>
+              <div className="text-emerald-700 font-bold text-xs uppercase tracking-widest mb-2">
+                Today's Earnings
+              </div>
               <div className="font-black text-5xl text-emerald-900 mb-6">₹{totalEarnings}</div>
-              
+
               <div className="grid grid-cols-2 gap-4 border-t border-emerald-200/60 pt-4">
                 <div>
-                  <div className="text-[10px] text-emerald-700 uppercase font-bold mb-1">Completed</div>
+                  <div className="text-[10px] text-emerald-700 uppercase font-bold mb-1">
+                    Completed
+                  </div>
                   <div className="font-bold text-xl text-foreground">{completedOrders.length}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-emerald-700 uppercase font-bold mb-1">Rating</div>
+                  <div className="text-[10px] text-emerald-700 uppercase font-bold mb-1">
+                    Rating
+                  </div>
                   <div className="font-bold text-xl text-amber-600">★ 4.9</div>
                 </div>
               </div>
             </div>
 
             <div className="bg-card rounded-3xl p-5 border border-border shadow-soft">
-              <h3 className="font-bold mb-4 text-sm uppercase tracking-wider text-muted-foreground">Recent Deliveries</h3>
+              <h3 className="font-bold mb-4 text-sm uppercase tracking-wider text-muted-foreground">
+                Recent Deliveries
+              </h3>
               {completedOrders.length === 0 ? (
-                <div className="text-muted-foreground/70 text-sm italic">No deliveries completed today.</div>
+                <div className="text-muted-foreground/70 text-sm italic">
+                  No deliveries completed today.
+                </div>
               ) : (
                 <div className="space-y-3">
                   {completedOrders.map((o: any) => (
-                    <div key={o.id} className="flex justify-between items-center py-2 border-b border-border last:border-0">
+                    <div
+                      key={o.id}
+                      className="flex justify-between items-center py-2 border-b border-border last:border-0"
+                    >
                       <div>
-                        <div className="font-bold text-sm">Order #{o.id.substring(0,6)}</div>
-                        <div className="text-xs text-muted-foreground">{o.vendor?.business_name}</div>
+                        <div className="font-bold text-sm">Order #{o.id.substring(0, 6)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {o.vendor?.business_name}
+                        </div>
                       </div>
                       <div className="font-black text-emerald-600">+₹{o.delivery_fee}</div>
                     </div>
@@ -427,15 +504,15 @@ function DeliveryDashboard() {
       {/* BOTTOM NAVIGATION */}
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border pb-safe">
         <div className="flex justify-around items-center h-20 px-4">
-          <button 
+          <button
             onClick={() => setActiveTab("requests")}
             className={`flex flex-col items-center gap-1.5 w-20 transition-colors ${activeTab === "requests" ? "text-emerald-600" : "text-muted-foreground"}`}
           >
             <Radio className={`h-6 w-6 ${activeTab === "requests" ? "animate-pulse" : ""}`} />
             <span className="text-[10px] font-bold uppercase tracking-wider">Radar</span>
           </button>
-          
-          <button 
+
+          <button
             onClick={() => setActiveTab("active")}
             className="relative -top-4 bg-emerald-600 text-white h-16 w-16 rounded-full flex flex-col items-center justify-center gap-1 shadow-soft border-4 border-background"
           >
@@ -446,8 +523,8 @@ function DeliveryDashboard() {
               </span>
             )}
           </button>
-          
-          <button 
+
+          <button
             onClick={() => setActiveTab("earnings")}
             className={`flex flex-col items-center gap-1.5 w-20 transition-colors ${activeTab === "earnings" ? "text-emerald-600" : "text-muted-foreground"}`}
           >
@@ -461,11 +538,19 @@ function DeliveryDashboard() {
 }
 
 // KYC FORM (Light Mode)
-function DeliveryKYCForm({ partner, initialData, onSuccess }: { partner: any, initialData: any, onSuccess: () => void }) {
+function DeliveryKYCForm({
+  partner,
+  initialData,
+  onSuccess,
+}: {
+  partner: any;
+  initialData: any;
+  onSuccess: () => void;
+}) {
   const [aadhaar, setAadhaar] = useState(initialData?.aadhaar_number || "");
   const [pan, setPan] = useState(initialData?.pan_number || "");
   const [drivingLicense, setDrivingLicense] = useState(initialData?.driving_license || "");
-  
+
   const submitKYCMutation = useMutation({
     mutationFn: (data: any) => api.post("/delivery/me/kyc", data),
     onSuccess: () => {
@@ -510,7 +595,9 @@ function DeliveryKYCForm({ partner, initialData, onSuccess }: { partner: any, in
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <label className="block">
-          <div className="mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Driving License</div>
+          <div className="mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Driving License
+          </div>
           <input
             type="text"
             value={drivingLicense}
@@ -522,11 +609,13 @@ function DeliveryKYCForm({ partner, initialData, onSuccess }: { partner: any, in
         </label>
 
         <label className="block">
-          <div className="mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Aadhaar Number</div>
+          <div className="mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Aadhaar Number
+          </div>
           <input
             type="text"
             value={aadhaar}
-            onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, ''))}
+            onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, ""))}
             placeholder="1234 5678 9012"
             maxLength={12}
             required
@@ -535,7 +624,9 @@ function DeliveryKYCForm({ partner, initialData, onSuccess }: { partner: any, in
         </label>
 
         <label className="block">
-          <div className="mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">PAN Number</div>
+          <div className="mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            PAN Number
+          </div>
           <input
             type="text"
             value={pan}
@@ -552,7 +643,11 @@ function DeliveryKYCForm({ partner, initialData, onSuccess }: { partner: any, in
           disabled={submitKYCMutation.isPending}
           className="w-full rounded-2xl bg-emerald-600 text-white font-black text-lg h-14 mt-4 flex items-center justify-center hover:bg-emerald-500 active:scale-[0.98] transition-transform disabled:opacity-60"
         >
-          {submitKYCMutation.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : "Submit Documents"}
+          {submitKYCMutation.isPending ? (
+            <Loader2 className="h-6 w-6 animate-spin" />
+          ) : (
+            "Submit Documents"
+          )}
         </button>
       </form>
     </div>

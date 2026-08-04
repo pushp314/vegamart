@@ -133,7 +133,9 @@ function NotificationsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="font-display text-sm font-bold truncate">{n.title}</h4>
-                        <span className="text-[10px] text-muted-foreground shrink-0">{n.time || n.created_at}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {n.time || n.created_at}
+                        </span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                         {n.message}

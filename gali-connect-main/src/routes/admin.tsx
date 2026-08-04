@@ -38,18 +38,11 @@ function AdminDashboard() {
     }
   }, [authLoading, isAuthenticated, isAdmin, navigate]);
 
-  if (authLoading || !isAuthenticated || !isAdmin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   // Dashboard Stats
   const { data: statsRes, isLoading: statsLoading } = useQuery({
     queryKey: ["adminDashboardStats"],
     queryFn: () => api.get<{ data: any }>("/admin/dashboard"),
+    enabled: isAuthenticated && isAdmin,
   });
   const stats = statsRes?.data?.data || statsRes?.data || {};
 
@@ -57,22 +50,37 @@ function AdminDashboard() {
   const { data: vendorsRes } = useQuery({
     queryKey: ["adminVendors"],
     queryFn: () => api.get<any>("/admin/vendors"),
+    enabled: isAuthenticated && isAdmin,
   });
-  const vendorList: any[] = Array.isArray(vendorsRes?.data) ? vendorsRes.data : Array.isArray((vendorsRes?.data as any)?.data) ? (vendorsRes?.data as any).data : [];
+  const vendorList: any[] = Array.isArray(vendorsRes?.data)
+    ? vendorsRes.data
+    : Array.isArray((vendorsRes?.data as any)?.data)
+      ? (vendorsRes?.data as any).data
+      : [];
 
   // Admin Users List
   const { data: usersRes } = useQuery({
     queryKey: ["adminUsers"],
     queryFn: () => api.get<any>("/admin/users"),
+    enabled: isAuthenticated && isAdmin,
   });
-  const userList: any[] = Array.isArray(usersRes?.data) ? usersRes.data : Array.isArray((usersRes?.data as any)?.data) ? (usersRes?.data as any).data : [];
+  const userList: any[] = Array.isArray(usersRes?.data)
+    ? usersRes.data
+    : Array.isArray((usersRes?.data as any)?.data)
+      ? (usersRes?.data as any).data
+      : [];
 
   // Admin Delivery Fleet
   const { data: deliveryRes } = useQuery({
     queryKey: ["adminDelivery"],
     queryFn: () => api.get<any>("/admin/delivery-partners"),
+    enabled: isAuthenticated && isAdmin,
   });
-  const deliveryList: any[] = Array.isArray(deliveryRes?.data) ? deliveryRes.data : Array.isArray((deliveryRes?.data as any)?.data) ? (deliveryRes?.data as any).data : [];
+  const deliveryList: any[] = Array.isArray(deliveryRes?.data)
+    ? deliveryRes.data
+    : Array.isArray((deliveryRes?.data as any)?.data)
+      ? (deliveryRes?.data as any).data
+      : [];
 
   // Mutations
   const approveVendorMutation = useMutation({
@@ -85,7 +93,8 @@ function AdminDashboard() {
   });
 
   const rejectVendorMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.post(`/admin/vendors/${id}/review`, { decision: "reject", reason }),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.post(`/admin/vendors/${id}/review`, { decision: "reject", reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
       toast.success("Vendor rejected");
@@ -118,7 +127,8 @@ function AdminDashboard() {
   });
 
   const approveDeliveryMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/admin/delivery-partners/${id}/review`, { decision: "approve" }),
+    mutationFn: (id: string) =>
+      api.post(`/admin/delivery-partners/${id}/review`, { decision: "approve" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminDelivery"] });
       toast.success("Delivery partner approved");
@@ -127,7 +137,8 @@ function AdminDashboard() {
   });
 
   const rejectDeliveryMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/admin/delivery-partners/${id}/review`, { decision: "reject" }),
+    mutationFn: (id: string) =>
+      api.post(`/admin/delivery-partners/${id}/review`, { decision: "reject" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminDelivery"] });
       toast.success("Delivery partner rejected");
@@ -136,22 +147,50 @@ function AdminDashboard() {
   });
 
   const navItems = [
-    { id: "overview", title: "Dashboard", icon: LayoutDashboard, onClick: () => setActiveTab("overview") },
-    { id: "create_partner", title: "Create Partner", icon: UserPlus, onClick: () => setActiveTab("create_partner") },
+    {
+      id: "overview",
+      title: "Dashboard",
+      icon: LayoutDashboard,
+      onClick: () => setActiveTab("overview"),
+    },
+    {
+      id: "create_partner",
+      title: "Create Partner",
+      icon: UserPlus,
+      onClick: () => setActiveTab("create_partner"),
+    },
     { id: "vendors", title: "Vendors", icon: Store, onClick: () => setActiveTab("vendors") },
     { id: "users", title: "Users", icon: Users, onClick: () => setActiveTab("users") },
-    { id: "delivery", title: "Delivery Fleet", icon: Bike, onClick: () => setActiveTab("delivery") },
+    {
+      id: "delivery",
+      title: "Delivery Fleet",
+      icon: Bike,
+      onClick: () => setActiveTab("delivery"),
+    },
     { id: "cms", title: "CMS", icon: FileText, onClick: () => setActiveTab("cms") },
     { id: "refunds", title: "Refunds", icon: Banknote, onClick: () => setActiveTab("refunds") },
   ];
 
+  if (authLoading || !isAuthenticated || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
-    <PortalLayout navItems={navItems} activeItemId={activeTab} portalName="Admin" userEmail={user?.email}>
+    <PortalLayout
+      navItems={navItems}
+      activeItemId={activeTab}
+      portalName="Admin"
+      userEmail={user?.email}
+    >
       {activeTab === "overview" && <AdminOverview stats={stats} />}
       {activeTab === "create_partner" && <AdminCreatePartner />}
       {activeTab === "vendors" && (
-        <AdminVendors 
-          vendors={vendorList} 
+        <AdminVendors
+          vendors={vendorList}
           onApprove={(id) => approveVendorMutation.mutate(id)}
           onReject={(id, reason) => rejectVendorMutation.mutate({ id, reason })}
           onSuspend={(id) => suspendVendorMutation.mutate(id)}
@@ -160,13 +199,13 @@ function AdminDashboard() {
         />
       )}
       {activeTab === "users" && (
-        <AdminUsers 
+        <AdminUsers
           users={userList}
           onToggleStatus={(id, is_active) => toggleUserStatusMutation.mutate({ id, is_active })}
         />
       )}
       {activeTab === "delivery" && (
-        <AdminDelivery 
+        <AdminDelivery
           deliveryList={deliveryList}
           onApprove={(id) => approveDeliveryMutation.mutate(id)}
           onReject={(id) => rejectDeliveryMutation.mutate(id)}
