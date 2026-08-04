@@ -142,12 +142,59 @@ const envSchema = z
         });
       }
     }
+    // In test environment, ensure required fields have defaults
+    if (env.NODE_ENV === "test") {
+      if (!env.DATABASE_URL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["DATABASE_URL"],
+          message: "DATABASE_URL is required in test environment",
+        });
+      }
+      if (!env.JWT_ACCESS_SECRET) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["JWT_ACCESS_SECRET"],
+          message: "JWT_ACCESS_SECRET is required in test environment",
+        });
+      }
+      if (!env.JWT_REFRESH_SECRET) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["JWT_REFRESH_SECRET"],
+          message: "JWT_REFRESH_SECRET is required in test environment",
+        });
+      }
+    }
   });
 
 export type Env = z.infer<typeof envSchema>;
 
 export function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
+      .join("\n");
+    throw new Error(
+      `❌ Invalid environment variables — cannot start server.\n${issues}`
+    );
+  }
+  return parsed.data;
+}
+
+export function loadEnvForTest(): Env {
+  // For tests, provide defaults for required fields
+  const testEnv = {
+    ...process.env,
+    NODE_ENV: "test",
+    DATABASE_URL: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/gali_connect_test?schema=public",
+    JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "test_access_secret_at_least_32_chars_long",
+    JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test_refresh_secret_at_least_32_chars_long",
+    API_VERSION: process.env.API_VERSION || "v1",
+  };
+  
+  const parsed = envSchema.safeParse(testEnv);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)

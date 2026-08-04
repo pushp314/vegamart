@@ -40,6 +40,10 @@ export function signAccessToken(claims: AccessTokenClaims): string {
     audience: env.JWT_AUDIENCE,
   };
 
+  if (!env.JWT_ACCESS_SECRET) {
+    throw new Error("JWT_ACCESS_SECRET is not configured");
+  }
+
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, options);
 }
 
@@ -49,12 +53,20 @@ export function verifyAccessToken(token: string): JwtAccessPayload {
     audience: env.JWT_AUDIENCE,
   };
 
+  if (!env.JWT_ACCESS_SECRET) {
+    throw new Error("JWT_ACCESS_SECRET is not configured");
+  }
+
   try {
     const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET, options);
-    if (typeof decoded === "string" || (decoded as JwtAccessPayload).type !== ACCESS_TOKEN_TYPE) {
+    if (typeof decoded === "string") {
       throw new ApiError(HttpStatus.UNAUTHORIZED, "Invalid token type.", { code: "INVALID_TOKEN" });
     }
-    return decoded as JwtAccessPayload;
+    const payload = decoded as JwtAccessPayload;
+    if (payload.type !== ACCESS_TOKEN_TYPE) {
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "Invalid token type.", { code: "INVALID_TOKEN" });
+    }
+    return payload;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;

@@ -67,9 +67,9 @@ function Checkout() {
   };
 
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { data: addrRes, isLoading: loadingAddr } = useQuery({ 
-    queryKey: ["addresses"], 
-    queryFn: () => api.get<{ data: any[] }>("/users/me/addresses"),
+  const { data: addrRes, isLoading: loadingAddr } = useQuery({
+    queryKey: ["addresses"],
+    queryFn: () => api.get<{ data: any[] }>("/addresses"),
     enabled: !!user
   });
   
@@ -112,7 +112,7 @@ function Checkout() {
 
   const createAddressMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await api.post<any>("/users/me/addresses", data);
+      const res = await api.post<any>("/addresses", data);
       if (!res.success) {
         throw new Error(res.error?.message || "Failed to save address");
       }
@@ -128,7 +128,7 @@ function Checkout() {
   });
 
   const createOrderMutation = useMutation({
-    mutationFn: (data: any) => api.post<any>("/checkout/create-order", data),
+    mutationFn: (data: any) => api.post<any>("/checkout", data),
     onSuccess: async (res) => {
       const order = res.data;
       if (payment === "upi" || payment === "card") {

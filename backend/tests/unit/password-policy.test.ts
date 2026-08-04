@@ -1,6 +1,3 @@
-import { checkPasswordExpiry, enforcePasswordPolicy } from "../../src/utils/password-policy";
-import { ValidationError } from "../../src/utils/ApiError";
-
 jest.mock("../../src/utils/password", () => ({
   hashPassword: jest.fn(),
   verifyPassword: jest.fn(),
@@ -16,8 +13,11 @@ jest.mock("../../src/config", () => ({
     PASSWORD_HISTORY_LIMIT: 2,
     PASSWORD_EXPIRY_DAYS: 90,
   },
+  isTest: true,
 }));
 
+import { checkPasswordExpiry, enforcePasswordPolicy } from "../../src/utils/password-policy";
+import { ValidationError } from "../../src/utils/ApiError";
 import { verifyPassword } from "../../src/utils/password";
 
 const mockedVerify = verifyPassword as jest.Mock;

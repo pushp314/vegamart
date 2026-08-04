@@ -70,13 +70,13 @@ function AdminDashboard() {
   // Admin Delivery Fleet
   const { data: deliveryRes } = useQuery({
     queryKey: ["adminDelivery"],
-    queryFn: () => api.get<any>("/admin/delivery"),
+    queryFn: () => api.get<any>("/admin/delivery-partners"),
   });
   const deliveryList: any[] = Array.isArray(deliveryRes?.data) ? deliveryRes.data : Array.isArray((deliveryRes?.data as any)?.data) ? (deliveryRes?.data as any).data : [];
 
   // Mutations
   const approveVendorMutation = useMutation({
-    mutationFn: (id: string) => api.put(`/admin/vendors/${id}/approve`),
+    mutationFn: (id: string) => api.post(`/admin/vendors/${id}/review`, { decision: "approve" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
       toast.success("Vendor approved successfully!");
@@ -85,7 +85,7 @@ function AdminDashboard() {
   });
 
   const rejectVendorMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.put(`/admin/vendors/${id}/reject`, { reason }),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.post(`/admin/vendors/${id}/review`, { decision: "reject", reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
       toast.success("Vendor rejected");
@@ -94,7 +94,7 @@ function AdminDashboard() {
   });
 
   const suspendVendorMutation = useMutation({
-    mutationFn: (id: string) => api.put(`/admin/vendors/${id}/suspend`),
+    mutationFn: (id: string) => api.post(`/admin/vendors/${id}/suspend`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
       toast.success("Vendor suspended");
@@ -103,7 +103,13 @@ function AdminDashboard() {
   });
 
   const toggleUserStatusMutation = useMutation({
-    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => api.put(`/admin/users/${id}/status`, { is_active }),
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => {
+      if (is_active) {
+        return api.post(`/admin/users/${id}/activate`, {});
+      } else {
+        return api.post(`/admin/users/${id}/suspend`, {});
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
       toast.success("User status updated");
@@ -112,7 +118,7 @@ function AdminDashboard() {
   });
 
   const approveDeliveryMutation = useMutation({
-    mutationFn: (id: string) => api.put(`/admin/delivery/${id}/approve`),
+    mutationFn: (id: string) => api.post(`/admin/delivery-partners/${id}/review`, { decision: "approve" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminDelivery"] });
       toast.success("Delivery partner approved");
@@ -121,7 +127,7 @@ function AdminDashboard() {
   });
 
   const rejectDeliveryMutation = useMutation({
-    mutationFn: (id: string) => api.put(`/admin/delivery/${id}/reject`),
+    mutationFn: (id: string) => api.post(`/admin/delivery-partners/${id}/review`, { decision: "reject" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminDelivery"] });
       toast.success("Delivery partner rejected");

@@ -73,6 +73,7 @@ describe("security middleware", () => {
     it("allows an IP under the threshold", () => {
       const req = mockReq({ ip: "10.1.1.1" });
       const next = jest.fn();
+      // ABUSE_MAX is 300, so 5 requests should be allowed
       for (let i = 0; i < 5; i += 1) {
         ipAbuseGuard(req, mockRes(), next);
       }
@@ -83,7 +84,8 @@ describe("security middleware", () => {
       const req = mockReq({ ip: "10.2.2.2" });
       const res = mockRes();
       const next = jest.fn();
-      for (let i = 0; i < 60; i += 1) {
+      // ABUSE_MAX is 300, so we need to exceed that
+      for (let i = 0; i < 301; i += 1) {
         ipAbuseGuard(req, mockRes(), next);
       }
       ipAbuseGuard(req, res, next);
@@ -97,7 +99,8 @@ describe("security middleware", () => {
       jest.useFakeTimers();
       const req = mockReq({ ip: "10.3.3.3" });
       const next = jest.fn();
-      for (let i = 0; i < 61; i += 1) {
+      // ABUSE_MAX is 300, so we need to exceed that
+      for (let i = 0; i < 301; i += 1) {
         ipAbuseGuard(req, mockRes(), next);
       }
       // The abuse window is 60s; advance past it so entries are purged.
