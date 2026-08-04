@@ -57,10 +57,10 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
         pincode,
         is_default: isDefault,
       });
-      // The parent mutation onSuccess will handle the success toast and closing the modal.
-      // But if the parent doesn't close it, we should ensure the state is reset.
+      // Parent mutation onSuccess handles the success toast and closing the modal.
     } catch (err) {
-      // The parent mutation onError will handle the error toast.
+      // Parent mutation onError handles the error toast.
+    } finally {
       setSaving(false);
     }
   };

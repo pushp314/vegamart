@@ -103,8 +103,13 @@ function Checkout() {
       }
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["addresses"] });
+      setAddressModalOpen(false);
+      const addrId = res?.id;
+      if (addrId) {
+        setSelectedAddressId(addrId);
+      }
     },
   });
 
@@ -201,17 +206,6 @@ function Checkout() {
     clearCart();
     toast.success("Payment successful!");
     navigate({ to: "/order-success", search: { orderId: orderId || createdOrder?.id || "" } });
-  };
-
-  const handleSaveAddress = (data: AddressData) => {
-    createAddressMutation.mutate(data, {
-      onSuccess: (res: any) => {
-        const addrId = res?.id;
-        if (addrId) {
-          setSelectedAddressId(addrId);
-        }
-      },
-    });
   };
 
   // Keep hooks unconditional; this guard intentionally follows all hooks.

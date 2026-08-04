@@ -17,7 +17,7 @@ import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { generateDeliveryOtp, generateInvoiceNumber, generateOrderNumber } from "../utils/order";
-import type { CheckoutPreviewBody, PlaceOrderBody } from "../validators/checkout.validators";
+import type { CheckoutPreviewBody, CreateOrderFromCartBody, PlaceOrderBody } from "../validators/checkout.validators";
 
 interface VendorGroup {
   vendor_id: string;
@@ -159,6 +159,24 @@ export const checkoutService = {
       coupon: couponInfo,
       currency: DEFAULT_CURRENCY,
     };
+  },
+
+  async createOrderFromCart(userId: string, input: CreateOrderFromCartBody, req: Request) {
+    const cart = await cartRepo.getOrCreate(userId);
+    await cartRepo.clear(cart.id);
+    for (const item of input.items) {
+      await cartService.addItem(userId, { product_id: item.product_id, quantity: item.quantity }, req);
+    }
+    return this.placeOrder(
+      userId,
+      {
+        address_id: input.address_id,
+        coupon_code: input.coupon_code,
+        payment_method: input.payment_method,
+        idempotency_key: input.idempotency_key,
+      },
+      req
+    );
   },
 
   async placeOrder(userId: string, input: PlaceOrderBody, req: Request) {
