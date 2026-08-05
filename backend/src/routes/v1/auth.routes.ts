@@ -45,7 +45,7 @@ router.post("/auth/refresh", validate({ body: refreshSchema }), refresh);
 router.post("/auth/logout", logout);
 router.post("/auth/logout-all", authenticate, logoutFromAllDevices);
 router.post("/auth/verify-email", validate({ body: verifyEmailSchema }), verifyEmail);
-router.post("/auth/resend-verification", validate({ body: resendVerificationSchema }), resendVerification);
+router.post("/auth/resend-verification", authenticate, authLimiter, otpLimiter, validate({ body: resendVerificationSchema }), resendVerification);
 router.post("/auth/forgot-password", authLimiter, otpLimiter, validate({ body: forgotPasswordSchema }), forgotPassword);
 router.post("/auth/reset-password", authLimiter, otpLimiter, validate({ body: resetPasswordSchema }), resetPassword);
 router.post("/auth/change-password", authenticate, validate({ body: changePasswordSchema }), changePassword);

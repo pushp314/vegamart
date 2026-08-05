@@ -59,7 +59,6 @@ function Checkout() {
   const [payment, setPayment] = useState("upi");
   const [slot, setSlot] = useState(0);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [createdOrder, setCreatedOrder] = useState<any>(null);
   const [couponInput, setCouponInput] = useState("");
 
   const AVAILABLE_OFFERS = [
@@ -126,56 +125,60 @@ function Checkout() {
       return res.data;
     },
     onSuccess: async (res) => {
-      const order = res;
+      const orders: any[] = res?.orders ?? [];
+      const firstOrder = orders[0]?.order ?? null;
       if (payment === "upi" || payment === "card") {
-        setCreatedOrder(order);
-        const resScript = await loadRazorpayScript();
-        if (!resScript) {
+        const scriptLoaded = await loadRazorpayScript();
+        if (!scriptLoaded) {
           toast.error("Razorpay SDK failed to load. Are you online?");
           return;
         }
-
-        const options = {
-          key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
-          amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
-          currency: "INR",
-          name: "Vegamart",
-          description: `Order ${order.order_number}`,
-          order_id: order.razorpay_order_id,
-          handler: function (response: any) {
-            // Verify the payment with the backend before treating it as successful
-            verifyMutation.mutate(
-              {
-                razorpay_order_id: order.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              },
-              {
-                onSuccess: async () => {
-                  await handlePaymentSuccess(response.razorpay_payment_id, order?.id);
-                },
-                onError: () => {
+        const RazorpayCtor = (window as any).Razorpay;
+        for (const entry of orders) {
+          const order = entry?.order;
+          const pay = entry?.payment;
+          if (!order || !pay?.razorpay_order_id) continue;
+          await new Promise<void>((resolve) => {
+            const options = {
+              key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+              amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
+              currency: "INR",
+              name: "Vegamart",
+              description: `Order ${order.order_number}`,
+              order_id: pay.razorpay_order_id,
+              handler: async (response: any) => {
+                try {
+                  await verifyMutation.mutateAsync({
+                    razorpay_order_id: pay.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                  });
+                } catch {
                   toast.error("Payment verification failed. Please contact support.");
-                },
+                }
+                resolve();
               },
-            );
-          },
-          prefill: {
-            name: user?.name || "Customer",
-            email: user?.email || "",
-            contact: selectedAddress?.phone || "9999999999",
-          },
-          theme: {
-            color: "#10b981",
-          },
-        };
-
-        const paymentObject = new (window as any).Razorpay(options);
-        paymentObject.open();
+              modal: { ondismiss: () => resolve() },
+              prefill: {
+                name: user?.name || "Customer",
+                email: user?.email || "",
+                contact: selectedAddress?.phone || "9999999999",
+              },
+              theme: {
+                color: "#10b981",
+              },
+            };
+            const paymentObject = new RazorpayCtor(options);
+            paymentObject.open();
+          });
+        }
+        clearCart();
+        toast.success("Payment successful!");
+        navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
       } else {
         clearCart();
         toast.success("Order placed successfully via COD!");
-        navigate({ to: "/order-success", search: { orderId: order?.id || "" } });
+        navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
       }
     },
     onError: (err: unknown) => {
@@ -200,12 +203,6 @@ function Checkout() {
       delivery_slot: SLOTS[slot].label,
       items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
     });
-  };
-
-  const handlePaymentSuccess = (paymentId: string, orderId?: string) => {
-    clearCart();
-    toast.success("Payment successful!");
-    navigate({ to: "/order-success", search: { orderId: orderId || createdOrder?.id || "" } });
   };
 
   // Keep hooks unconditional; this guard intentionally follows all hooks.

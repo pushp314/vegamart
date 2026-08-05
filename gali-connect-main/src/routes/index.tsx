@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   MapPin,
@@ -466,12 +465,28 @@ function RecentlyViewed() {
         <div className="px-4 mt-5">Loading...</div>
       ) : (
         <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar px-4 md:px-0 pb-1 md:pb-0 snap-x snap-mandatory">
-          {list.map((p) => {
+          {list.map((entry) => {
+            const p = entry?.product ?? entry;
             const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
             const imageUrl =
               p.image ||
               p.images?.[0]?.url ||
               "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+            const cartProduct = {
+              id: p.id,
+              name: p.name,
+              slug: p.slug || p.name,
+              price: Number(p.price),
+              mrp: Number(p.mrp ?? p.price ?? 0),
+              unit: p.unit || "",
+              vendor_id: p.vendor_id,
+              category_id: p.category_id || "",
+              rating: p.rating || 0,
+              review_count: p.review_count || 0,
+              is_active: true,
+              is_featured: false,
+              images: p.image ? [{ url: p.image }] : [],
+            };
 
             return (
               <Link
@@ -507,7 +522,7 @@ function RecentlyViewed() {
                       aria-label={`Add ${p.name}`}
                       onClick={(e) => {
                         e.preventDefault();
-                        addToCart(p, 1);
+                        addToCart(cartProduct as any, 1);
                         toast.success(`Added ${p.name} to cart`);
                       }}
                       className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm"

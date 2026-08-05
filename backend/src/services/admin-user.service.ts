@@ -10,6 +10,7 @@ import { hashPassword } from "../utils/password";
 import { enforcePasswordPolicy } from "../utils/password-policy";
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
+import { ROLES } from "../constants/roles";
 
 function sanitizeUser(user: Record<string, unknown>): Record<string, unknown> {
   const { password_hash: _passwordHash, ...safe } = user;
@@ -162,6 +163,15 @@ export const adminUserService = {
     const role = await findRoleBySlug(roleSlug);
     if (!role) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Unknown role.", { code: "UNKNOWN_ROLE" });
+    }
+    const privilegedRoles: ReadonlySet<string> = new Set([ROLES.ADMIN, ROLES.SUPER_ADMIN]);
+    if (privilegedRoles.has(roleSlug)) {
+      const admin = await userRepo.findById(adminUserId, { role: true });
+      if (admin?.role?.slug !== ROLES.SUPER_ADMIN) {
+        throw new ApiError(HttpStatus.FORBIDDEN, "Only a super admin can grant admin roles.", {
+          code: "INSUFFICIENT_PERMISSION",
+        });
+      }
     }
     const updated = await userRepo.changeRole(targetUserId, role.id);
     await sessionRepo.revokeAllForUser(targetUserId);

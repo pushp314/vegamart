@@ -159,14 +159,15 @@ export const deleteCoupon = asyncHandler(async (req: Request, res: Response) => 
  *         description: Coupon validated with the computed discount.
  */
 export const validateCoupon = asyncHandler(async (req: Request, res: Response) => {
-  const { code } = req.body as { code: string };
-  const cart = await cartService.getMyCart(req.user!.id);
-  const { coupon, discount } = await couponService.validateForCart(code, cart, req.user!.id);
+  const { code, items } = req.body as { code: string; items?: Array<{ product_id: string; quantity: number }> };
+  const result = items
+    ? await couponService.validateForItems(code, items, req.user!.id)
+    : await couponService.validateForCart(code, await cartService.getMyCart(req.user!.id), req.user!.id);
   return sendSuccess(res, {
-    code: coupon.code,
-    coupon_id: coupon.id,
-    type: coupon.type,
-    discount,
+    code: result.coupon.code,
+    coupon_id: result.coupon.id,
+    type: result.coupon.type,
+    discount: result.discount,
     valid: true,
   });
 });

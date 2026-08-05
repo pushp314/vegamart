@@ -214,8 +214,8 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
  */
 export const resendVerification = asyncHandler(async (req: Request, res: Response) => {
   const { email } = req.body as { email: string };
-  const token = await authService.sendEmailVerification(req.user?.id ?? "", email, req);
-  return sendSuccess(res, { sent: true, token });
+  await authService.sendEmailVerification(req.user!.id, email, req);
+  return sendSuccess(res, { sent: true });
 });
 
 /**

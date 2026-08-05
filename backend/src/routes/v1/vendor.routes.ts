@@ -5,6 +5,7 @@ import {
   getMyDashboard,
   getMyDailyLocation,
   getMyLocation,
+  getMyReviews,
   getMyVendor,
   getVendorById,
   getVendorBySlug,
@@ -74,6 +75,7 @@ router.put(
 );
 router.put("/vendors/me/hours", authenticate, validate({ body: vendorHoursSchema }), updateVendorHours);
 router.get("/vendors/me/dashboard", authenticate, requireRole(ROLES.VENDOR), getMyDashboard);
+router.get("/vendors/me/reviews", authenticate, requireRole(ROLES.VENDOR), getMyReviews);
 
 // Daily Location (Location Broadcast) — must precede /vendors/:vendor_id
 router.get("/vendors/me/daily-location", authenticate, requireRole(ROLES.VENDOR), getMyDailyLocation);
@@ -94,12 +96,14 @@ router.get("/vendors/:vendor_id/daily-location", validate({ params: vendorIdPara
 // Admin routes
 router.post(
   "/vendors/:vendor_id/review",
+  authenticate,
   requirePermission(PERMISSIONS.VENDORS_APPROVE),
   validate({ params: vendorIdParamsSchema, body: vendorReviewSchema }),
   reviewVendor
 );
 router.post(
   "/vendors/:vendor_id/suspend",
+  authenticate,
   requirePermission(PERMISSIONS.VENDORS_UPDATE),
   validate({ params: vendorIdParamsSchema }),
   suspendVendor

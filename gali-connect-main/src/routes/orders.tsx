@@ -35,13 +35,16 @@ function statusLabel(status: string): string {
     {
       pending: "Pending",
       confirmed: "Confirmed",
-      processing: "Processing",
-      prepared: "Prepared",
+      preparing: "Preparing",
       packed: "Packed",
+      ready_for_pickup: "Ready for Pickup",
+      picked_up: "Picked Up",
       out_for_delivery: "Out for Delivery",
       delivered: "Delivered",
       cancelled: "Cancelled",
       refunded: "Refunded",
+      returned: "Returned",
+      failed: "Failed",
     }[status] || status
   );
 }
@@ -112,9 +115,7 @@ function Orders() {
               {orders.map((o: any) => {
                 const isExpanded = expandedTracking === o.id;
                 const statusLower = String(o.status || "pending").toLowerCase();
-                const canCancel = ["pending", "confirmed", "processing", "prepared"].includes(
-                  statusLower,
-                );
+                const canCancel = ["pending", "confirmed"].includes(statusLower);
                 const handleReorder = () => {
                   const products: any[] = (o.items || [])
                     .map((item: any) => ({

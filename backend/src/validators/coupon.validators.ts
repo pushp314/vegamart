@@ -51,6 +51,16 @@ export const listCouponsQuerySchema = z.object({
 
 export const validateCouponSchema = z.object({
   code: z.string().trim().min(1, "code is required.").max(50),
+  items: z
+    .array(
+      z.object({
+        product_id: z.string().uuid("Invalid product id."),
+        quantity: z.coerce.number().int().min(1, "quantity must be at least 1."),
+      })
+    )
+    .min(1)
+    .max(100)
+    .optional(),
 });
 
 export type CreateCouponBody = z.infer<typeof createCouponSchema>;

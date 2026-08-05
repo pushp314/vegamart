@@ -113,7 +113,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const applyCoupon = async (code: string) => {
     try {
-      const res = await api.post<any>("/coupons/validate", { code });
+      const res = await api.post<any>("/coupons/validate", {
+        code,
+        items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+      });
       if (!res.success || !res.data) {
         throw new Error(res.error?.message || "Invalid or expired coupon code");
       }
@@ -122,15 +125,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       setAppliedCoupon(code);
 
-      let calculatedDiscount = 0;
-      if (coupon.type === "FIXED") {
-        calculatedDiscount = coupon.value;
-      } else if (coupon.type === "PERCENTAGE") {
-        calculatedDiscount = (subtotal * coupon.value) / 100;
-        if (coupon.max_discount && calculatedDiscount > coupon.max_discount) {
-          calculatedDiscount = coupon.max_discount;
-        }
-      }
+      const calculatedDiscount =
+        coupon.discount != null && Number.isFinite(Number(coupon.discount)) ? Number(coupon.discount) : 0;
 
       setCouponDiscount(calculatedDiscount);
       return { success: true, message: `Coupon applied: ₹${calculatedDiscount.toFixed(2)} off!` };

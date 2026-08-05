@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, TrendingUp, ShoppingCart, Package, Star } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 export function VendorAnalytics() {
   const { data: dashboardRes, isLoading } = useQuery({
@@ -23,15 +23,11 @@ export function VendorAnalytics() {
   const stats = dashboard.stats ?? {};
   const topProducts = dashboard.top_products ?? [];
 
-  // Generate mock weekly data from available stats
-  const weeklyData = [
-    { day: "Mon", revenue: Math.round((stats.weekly_revenue ?? 0) * 0.12) },
-    { day: "Tue", revenue: Math.round((stats.weekly_revenue ?? 0) * 0.15) },
-    { day: "Wed", revenue: Math.round((stats.weekly_revenue ?? 0) * 0.18) },
-    { day: "Thu", revenue: Math.round((stats.weekly_revenue ?? 0) * 0.14) },
-    { day: "Fri", revenue: Math.round((stats.weekly_revenue ?? 0) * 0.2) },
-    { day: "Sat", revenue: Math.round((stats.weekly_revenue ?? 0) * 0.12) },
-    { day: "Sun", revenue: Math.round((stats.weekly_revenue ?? 0) * 0.09) },
+  const revenueComparison = [
+    { label: "Today", revenue: stats.today_revenue ?? 0 },
+    { label: "Weekly", revenue: stats.weekly_revenue ?? 0 },
+    { label: "Monthly", revenue: stats.monthly_revenue ?? 0 },
+    { label: "Total", revenue: stats.total_revenue ?? 0 },
   ];
 
   return (
@@ -82,18 +78,18 @@ export function VendorAnalytics() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Weekly Revenue Trend</CardTitle>
+            <CardTitle className="text-sm">Revenue Comparison</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyData}>
+                <BarChart data={revenueComparison}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" />
+                  <XAxis dataKey="label" />
                   <YAxis />
                   <Tooltip />
-                  <Area type="monotone" dataKey="revenue" stroke="#10b981" fill="#10b98140" />
-                </AreaChart>
+                  <Bar dataKey="revenue" fill="#10b981" />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

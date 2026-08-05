@@ -122,7 +122,7 @@ export const getMyVendor = asyncHandler(async (req: Request, res: Response) => {
   const vendor = await vendorService.getMyVendor(req.user!.id);
   const planRow = await getByKey(`vendor_subscription:${vendor.id}`);
   const plan = planRow?.value as { plan?: string } | null;
-  return sendSuccess(res, { ...vendor, subscription_plan: plan?.plan ?? null });
+  return sendSuccess(res, { ...vendor, status: vendor.status.toLowerCase(), subscription_plan: plan?.plan ?? null });
 });
 
 /**
@@ -159,7 +159,7 @@ export const getMyVendor = asyncHandler(async (req: Request, res: Response) => {
  */
 export const createVendor = asyncHandler(async (req: Request, res: Response) => {
   const vendor = await vendorService.create(req.user!.id, req.body as CreateVendorBody, req);
-  return sendCreated(res, vendor);
+  return sendCreated(res, { ...vendor, status: vendor.status.toLowerCase() });
 });
 
 /**
@@ -182,7 +182,7 @@ export const createVendor = asyncHandler(async (req: Request, res: Response) => 
  */
 export const updateMyVendor = asyncHandler(async (req: Request, res: Response) => {
   const vendor = await vendorService.update(req.user!.id, req.body as UpdateVendorBody, req);
-  return sendSuccess(res, vendor);
+  return sendSuccess(res, { ...vendor, status: vendor.status.toLowerCase() });
 });
 
 /**
@@ -468,6 +468,11 @@ export const suspendVendor = asyncHandler(async (req: Request, res: Response) =>
  */
 export const getMyDashboard = asyncHandler(async (req: Request, res: Response) => {
   const data = await vendorService.getMyDashboard(req.user!.id);
+  return sendSuccess(res, data);
+});
+
+export const getMyReviews = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.getMyReviews(req.user!.id);
   return sendSuccess(res, data);
 });
 

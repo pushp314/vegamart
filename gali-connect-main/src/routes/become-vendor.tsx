@@ -13,7 +13,7 @@ export const Route = createFileRoute("/become-vendor")({
 
 function BecomeVendorPage() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, register } = useAuth();
+  const { user, isAuthenticated, register, refreshSession } = useAuth();
 
   // If user is already a vendor, redirect to vendor dashboard
   useEffect(() => {
@@ -86,6 +86,7 @@ function BecomeVendorPage() {
       setSubmitting(false);
 
       if (res.success) {
+        await refreshSession();
         setSubmitted(true);
         toast.success("Vendor application submitted successfully!");
       } else {

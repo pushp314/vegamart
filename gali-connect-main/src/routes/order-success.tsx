@@ -30,7 +30,7 @@ function OrderSuccess() {
   const deliveryAddress = order?.address
     ? `${order.address.line1}${order.address.landmark ? `, ${order.address.landmark}` : ""}, ${order.address.city}`
     : "Your delivery address";
-  const orderStatus = order?.status || "preparing";
+  const orderStatus = String(order?.status || "preparing").toLowerCase();
 
   return (
     <div className="min-h-screen bg-background grid place-items-center px-4 py-10">

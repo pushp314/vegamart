@@ -355,6 +355,11 @@ export const authService = {
       throw new UnauthorizedError("User no longer exists.");
     }
 
+    if (user.status === UserStatus.SUSPENDED || user.status === UserStatus.BANNED || user.status === UserStatus.INACTIVE) {
+      await revokeRefreshToken(record.id);
+      throw new UnauthorizedError("Your account is no longer active.");
+    }
+
     await revokeRefreshToken(record.id);
 
     const refresh = createRefreshToken();

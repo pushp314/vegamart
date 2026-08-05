@@ -714,6 +714,51 @@ export const vendorService = {
     };
   },
 
+  async getMyReviews(userId: string) {
+    const vendor = await this.getMyVendor(userId);
+    const rows = await prisma.review.findMany({
+      where: { product: { vendor_id: vendor.id }, deleted_at: null },
+      orderBy: { created_at: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        rating: true,
+        title: true,
+        comment: true,
+        is_verified: true,
+        created_at: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            images: { orderBy: { sort_order: "asc" }, take: 1, select: { url: true } },
+          },
+        },
+        user: { select: { id: true, name: true, avatar_url: true } },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      title: r.title,
+      comment: r.comment,
+      is_verified: r.is_verified,
+      created_at: r.created_at,
+      product: {
+        id: r.product.id,
+        name: r.product.name,
+        slug: r.product.slug,
+        image: r.product.images[0]?.url ?? null,
+      },
+      user: {
+        id: r.user.id,
+        name: r.user.name,
+        avatar_url: r.user.avatar_url,
+      },
+    }));
+  },
+
   async getNearbyWithDailyLocation(
     lat: number,
     lng: number,

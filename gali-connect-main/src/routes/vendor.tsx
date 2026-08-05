@@ -17,7 +17,6 @@ import {
   FileCheck2,
   MapPin,
   Star,
-  Tag,
   BarChart3,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
@@ -39,7 +38,6 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import { DailyLocationForm } from "@/components/vendor/daily-location-form";
 import { VendorReviews } from "@/components/vendor/VendorReviews";
-import { VendorCoupons } from "@/components/vendor/VendorCoupons";
 import { VendorAnalytics } from "@/components/vendor/VendorAnalytics";
 
 export const Route = createFileRoute("/vendor")({
@@ -591,7 +589,6 @@ function VendorDashboard() {
     { id: "orders", title: "Orders", icon: ClipboardList, onClick: () => setActiveTab("orders") },
     { id: "earnings", title: "Earnings", icon: Wallet, onClick: () => setActiveTab("earnings") },
     { id: "reviews", title: "Reviews", icon: Star, onClick: () => setActiveTab("reviews") },
-    { id: "coupons", title: "Coupons", icon: Tag, onClick: () => setActiveTab("coupons") },
     {
       id: "analytics",
       title: "Analytics",
@@ -1025,9 +1022,6 @@ function VendorDashboard() {
 
         {/* REVIEWS TAB */}
         {activeTab === "reviews" && <VendorReviews />}
-
-        {/* COUPONS TAB */}
-        {activeTab === "coupons" && <VendorCoupons />}
 
         {/* ANALYTICS TAB */}
         {activeTab === "analytics" && <VendorAnalytics />}

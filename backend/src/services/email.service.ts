@@ -20,19 +20,19 @@ export const emailService = {
 
   sendVerifyEmailToken(email: string, token: string): Promise<boolean> {
     const tpl = verifyEmailTemplate(token);
-    log.info(`[email] Verification token generated for ${email}: ${token}`);
+    log.info(`[email] Verification token sent to ${email}`);
     return sendEmail({ to: email, ...tpl });
   },
 
   sendPasswordResetOtp(email: string, otp: string, expiresInMinutes: number): Promise<boolean> {
     const tpl = passwordResetTemplate(otp, expiresInMinutes);
-    log.info(`[email] Password reset OTP generated for ${email}: ${otp}`);
+    log.info(`[email] Password reset OTP sent to ${email}`);
     return sendEmail({ to: email, ...tpl });
   },
 
   sendOtp(email: string, otp: string, purposeLabel: string, expiresInMinutes: number): Promise<boolean> {
     const tpl = otpTemplate(otp, purposeLabel, expiresInMinutes);
-    log.info(`[email] OTP (${purposeLabel}) generated for ${email}: ${otp}`);
+    log.info(`[email] OTP (${purposeLabel}) sent to ${email}`);
     return sendEmail({ to: email, ...tpl });
   },
 

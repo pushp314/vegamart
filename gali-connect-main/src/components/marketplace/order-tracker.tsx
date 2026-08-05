@@ -1,20 +1,39 @@
 import type React from "react";
 import { CheckCircle2, Clock, ChefHat, Bike, Home } from "lucide-react";
 
-export type OrderStatus =
-  "pending" | "accepted" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "cancelled";
+export type OrderStatus = string;
 
 const STAGES: {
-  status: OrderStatus;
+  status: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
   { status: "pending", label: "Order Placed", icon: Clock },
-  { status: "accepted", label: "Confirmed by Vendor", icon: CheckCircle2 },
+  { status: "confirmed", label: "Confirmed by Vendor", icon: CheckCircle2 },
   { status: "preparing", label: "Packing / Preparing", icon: ChefHat },
   { status: "out_for_delivery", label: "Out for Delivery", icon: Bike },
   { status: "delivered", label: "Delivered", icon: Home },
 ];
+
+function statusRank(status: string): number {
+  switch (String(status).toLowerCase()) {
+    case "pending":
+      return 0;
+    case "confirmed":
+      return 1;
+    case "preparing":
+    case "packed":
+    case "ready_for_pickup":
+      return 2;
+    case "picked_up":
+    case "out_for_delivery":
+      return 3;
+    case "delivered":
+      return 4;
+    default:
+      return -1;
+  }
+}
 
 export function OrderTracker({
   status = "out_for_delivery",
@@ -23,10 +42,7 @@ export function OrderTracker({
   status?: OrderStatus;
   eta?: string;
 }) {
-  const currentIndex = Math.max(
-    0,
-    STAGES.findIndex((s) => s.status === status),
-  );
+  const currentIndex = Math.max(0, statusRank(status));
 
   return (
     <div className="rounded-3xl bg-card border p-5 shadow-soft space-y-4">

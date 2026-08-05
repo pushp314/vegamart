@@ -3,6 +3,8 @@ import type { IncomingMessage } from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import log from "../config/logger";
 import { verifyAccessToken } from "../services/token.service";
+import prisma from "../database/prisma";
+import type { JwtAccessPayload } from "../types";
 
 const WS_PATH = "/api/v1";
 
@@ -21,7 +23,39 @@ function tokenFromQuery(req: IncomingMessage): string | null {
   return new URLSearchParams(url.slice(queryIndex + 1)).get("token");
 }
 
-function authenticateWs(req: IncomingMessage, room: string): boolean {
+async function canJoinOrderRoom(payload: JwtAccessPayload, orderId: string): Promise<boolean> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { user_id: true, delivery_partner_id: true },
+  });
+  if (!order) return false;
+  if (order.user_id === payload.sub) return true;
+  if (payload.role === "delivery" && order.delivery_partner_id) {
+    const partner = await prisma.deliveryProfile.findFirst({
+      where: { user_id: payload.sub },
+      select: { id: true },
+    });
+    if (partner && order.delivery_partner_id === partner.id) return true;
+  }
+  if (payload.role === "vendor") {
+    const item = await prisma.orderItem.findFirst({
+      where: { order_id: orderId, product: { vendor: { user_id: payload.sub } } },
+      select: { id: true },
+    });
+    if (item) return true;
+  }
+  return false;
+}
+
+async function canJoinVendorRoom(payload: JwtAccessPayload, vendorId: string): Promise<boolean> {
+  const vendor = await prisma.vendorProfile.findFirst({
+    where: { id: vendorId, user_id: payload.sub },
+    select: { id: true },
+  });
+  return Boolean(vendor);
+}
+
+async function authenticateWs(req: IncomingMessage, room: string): Promise<boolean> {
   // Public broadcast room — anyone may listen to the roaming vendor map.
   if (room === "roaming") return true;
   // Vendor alerts and delivery order streams expose user-specific data.
@@ -29,12 +63,19 @@ function authenticateWs(req: IncomingMessage, room: string): boolean {
   if (!requiresAuth) return true;
   const token = tokenFromQuery(req);
   if (!token) return false;
+  let payload: JwtAccessPayload;
   try {
-    verifyAccessToken(token);
-    return true;
+    payload = verifyAccessToken(token);
   } catch {
     return false;
   }
+  if (room.startsWith("order:")) {
+    return canJoinOrderRoom(payload, room.slice("order:".length));
+  }
+  if (room.startsWith("vendor:")) {
+    return canJoinVendorRoom(payload, room.slice("vendor:".length));
+  }
+  return false;
 }
 
 function broadcast(room: string, type: string, data: unknown): void {
@@ -75,14 +116,15 @@ export function initRealtime(httpServer: http.Server): WebSocketServer {
 
   const wss = new WebSocketServer({ noServer: true });
 
-  httpServer.on("upgrade", (req, socket, head) => {
+  httpServer.on("upgrade", async (req, socket, head) => {
     const parsed = parseUrl(req);
     if (!parsed) {
       socket.destroy();
       return;
     }
     const room = resolveRoom(parsed.segments);
-    if (room && !authenticateWs(req, room)) {
+    const allowed = await authenticateWs(req, room ?? "");
+    if (room && !allowed) {
       socket.write(
         "HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nWWW-Authenticate: Bearer\r\n\r\n"
       );

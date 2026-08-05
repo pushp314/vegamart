@@ -4,6 +4,7 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import * as couponRepo from "../repositories/coupon.repository";
 import type { CartRow } from "../repositories/cart.repository";
+import prisma from "../database/prisma";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import type { CreateCouponBody, UpdateCouponBody } from "../validators/coupon.validators";
@@ -112,6 +113,58 @@ export const couponService = {
     return coupon;
   },
 
+  async validateForItems(
+    code: string,
+    items: Array<{ product_id: string; quantity: number }>,
+    userId: string
+  ): Promise<{ coupon: couponRepo.CouponRow; discount: number }> {
+    const ids = [...new Set(items.map((i) => i.product_id))];
+    const products = await prisma.product.findMany({
+      where: { id: { in: ids }, deleted_at: null },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        unit: true,
+        price: true,
+        mrp: true,
+        is_active: true,
+        is_available: true,
+        vendor_id: true,
+        category_id: true,
+      },
+    });
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const now = new Date();
+    const cart: CartRow = {
+      id: "",
+      user_id: userId,
+      created_at: now,
+      updated_at: now,
+      items: items.flatMap((i) => {
+        const product = byId.get(i.product_id);
+        if (!product) {
+          return [];
+        }
+        return [
+          {
+            id: "",
+            product_id: product.id,
+            quantity: Math.max(1, i.quantity),
+            price_snapshot: product.price,
+            created_at: now,
+            updated_at: now,
+            product: {
+              ...product,
+              images: [],
+            },
+          },
+        ];
+      }),
+    };
+    return this.validate(code, cart, userId);
+  },
+
   async validate(code: string, cart: CartRow, userId: string): Promise<{ coupon: couponRepo.CouponRow; discount: number }> {
     const coupon = await couponRepo.findByCode(code.toUpperCase());
     const now = new Date();
@@ -167,6 +220,7 @@ export const couponService = {
       subtotal += price * item.quantity;
       vendorIds.add(item.product.vendor_id);
       productIds.add(item.product.id);
+      categoryIds.add(item.product.category_id);
     }
     return { subtotal, vendorIds: [...vendorIds], productIds: [...productIds], categoryIds: [...categoryIds] };
   },

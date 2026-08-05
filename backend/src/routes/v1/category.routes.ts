@@ -9,6 +9,7 @@ import {
   updateCategory,
 } from "../../controllers/category.controller";
 import { requirePermission } from "../../middlewares/rbac.middleware";
+import { authenticate } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate";
 import { PERMISSIONS } from "../../constants/roles";
 import {
@@ -25,18 +26,21 @@ router.get("/categories/by-slug/:slug", getCategoryBySlug);
 router.get("/categories/:category_id", validate({ params: categoryIdParamsSchema }), getCategory);
 router.post(
   "/categories",
+  authenticate,
   requirePermission(PERMISSIONS.CATEGORIES_CREATE),
   validate({ body: createCategorySchema }),
   createCategory
 );
 router.patch(
   "/categories/:category_id",
+  authenticate,
   requirePermission(PERMISSIONS.CATEGORIES_UPDATE),
   validate({ params: categoryIdParamsSchema, body: updateCategorySchema }),
   updateCategory
 );
 router.delete(
   "/categories/:category_id",
+  authenticate,
   requirePermission(PERMISSIONS.CATEGORIES_DELETE),
   validate({ params: categoryIdParamsSchema }),
   deleteCategory
