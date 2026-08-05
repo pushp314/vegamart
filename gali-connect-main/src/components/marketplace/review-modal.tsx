@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { X, Star, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface ReviewModalProps {
   open: boolean;
   onClose: () => void;
+  targetId: string;
   targetName: string;
   targetType: "product" | "vendor";
   onSuccess?: () => void;
@@ -13,10 +17,13 @@ interface ReviewModalProps {
 export function ReviewModal({
   open,
   onClose,
+  targetId,
   targetName,
   targetType,
   onSuccess,
 }: ReviewModalProps) {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [rating, setRating] = useState<number>(5);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [comment, setComment] = useState<string>("");
@@ -24,20 +31,40 @@ export function ReviewModal({
 
   if (!open) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rating) {
       toast.error("Please select a star rating");
       return;
     }
 
+    if (!isAuthenticated) {
+      toast.info("Please sign in to submit a review.");
+      navigate({ to: "/login", search: { redirect: window.location.pathname } });
+      return;
+    }
+
+    if (targetType !== "product" || !targetId) {
+      toast.error("Reviews are only available for products right now.");
+      return;
+    }
+
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      toast.success(`Thank you! Review for ${targetName} submitted successfully.`);
+    const res = await api.post(`/products/${targetId}/reviews`, {
+      rating,
+      comment: comment.trim() || undefined,
+    });
+    setSubmitting(false);
+
+    if (res.success) {
+      setRating(5);
+      setComment("");
+      toast.success(res.message || `Thank you! Review for ${targetName} submitted successfully.`);
       if (onSuccess) onSuccess();
       onClose();
-    }, 500);
+    } else {
+      toast.error(res.error?.message || "Failed to submit review. Please try again.");
+    }
   };
 
   return (

@@ -124,6 +124,35 @@ function DeliveryDashboard() {
     },
   });
 
+  // Availability toggle — persisted to backend
+  const availabilityMutation = useMutation({
+    mutationFn: (available: boolean) =>
+      api.put("/delivery/me/availability", { is_available: available }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deliveryProfile"] });
+    },
+  });
+
+  // Sync local ONLINE/OFFLINE state with the server value once profile loads
+  useEffect(() => {
+    if (partner) {
+      setIsOnline(Boolean(partner.is_available));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partner?.id]);
+
+  const handleToggleOnline = () => {
+    const prev = isOnline;
+    const next = !isOnline;
+    setIsOnline(next);
+    availabilityMutation.mutate(next, {
+      onError: () => {
+        setIsOnline(prev);
+        toast.error("Failed to update availability. Please try again.");
+      },
+    });
+  };
+
   // Geolocation broadcasting when online
   useEffect(() => {
     let watchId: number;
@@ -242,7 +271,11 @@ function DeliveryDashboard() {
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-emerald-500/20 pb-24">
       {/* Top Status Bar */}
       <div className="flex items-center justify-between px-6 py-4 bg-card/90 backdrop-blur-md sticky top-0 z-40 border-b border-border">
-        <div className="flex items-center gap-3">
+        <button
+          onClick={() => setActiveTab("profile")}
+          className="flex items-center gap-3 text-left"
+          aria-label="Open rider profile"
+        >
           <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center border border-border">
             <Bike className="h-5 w-5 text-emerald-600" />
           </div>
@@ -252,15 +285,16 @@ function DeliveryDashboard() {
               Rider ID: {partner.id.substring(0, 6)}
             </div>
           </div>
-        </div>
+        </button>
 
         <button
-          onClick={() => setIsOnline(!isOnline)}
+          onClick={handleToggleOnline}
+          disabled={availabilityMutation.isPending}
           className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs transition-all ${
             isOnline
               ? "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-soft"
               : "bg-muted text-muted-foreground border border-border"
-          }`}
+          } disabled:opacity-50`}
         >
           <Power className="h-4 w-4" />
           {isOnline ? "ONLINE" : "OFFLINE"}
@@ -537,9 +571,13 @@ function DeliveryDashboard() {
 
           <button
             onClick={() => setActiveTab("active")}
-            className="relative -top-4 bg-emerald-600 text-white h-16 w-16 rounded-full flex flex-col items-center justify-center gap-1 shadow-soft border-4 border-background"
+            className="relative -top-4 bg-emerald-600 text-white h-16 w-16 rounded-full flex flex-col items-center justify-center gap-0.5 shadow-soft border-4 border-background"
+            aria-label="Active deliveries"
           >
-            <Navigation className="h-6 w-6" />
+            <Navigation className="h-5 w-5" />
+            <span className="text-[8px] font-black uppercase tracking-wider leading-none">
+              Active
+            </span>
             {activeOrders.length > 0 && (
               <span className="absolute -top-1 -right-1 bg-rose-600 text-white h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-background shadow-lg">
                 {activeOrders.length}

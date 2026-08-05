@@ -18,7 +18,7 @@ const STAGES: {
 
 export function OrderTracker({
   status = "out_for_delivery",
-  eta = "12–15 min",
+  eta,
 }: {
   status?: OrderStatus;
   eta?: string;
@@ -40,7 +40,11 @@ export function OrderTracker({
               ? "Delivered 🎉"
               : status === "cancelled"
                 ? "Order Cancelled"
-                : `Arriving in ${eta}`}
+                : eta
+                  ? `Arriving in ${eta}`
+                  : status === "out_for_delivery"
+                    ? "Rider on the way"
+                    : "Order in progress"}
           </h3>
         </div>
         <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-primary animate-pulse">

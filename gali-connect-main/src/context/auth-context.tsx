@@ -20,20 +20,23 @@ interface AuthContextType {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>;
+  login: (
+    email: string,
+    pass: string,
+  ) => Promise<{ success: boolean; message?: string; role?: UserRole }>;
   register: (data: {
     name: string;
     email: string;
     phone?: string;
     password: string;
     role?: UserRole;
-  }) => Promise<{ success: boolean; message?: string }>;
+  }) => Promise<{ success: boolean; message?: string; role?: UserRole }>;
   sendOTP: (email: string, purpose: string) => Promise<{ success: boolean; message?: string }>;
   verifyOTP: (
     email: string,
     otp: string,
     purpose: string,
-  ) => Promise<{ success: boolean; message?: string }>;
+  ) => Promise<{ success: boolean; message?: string; role?: UserRole }>;
   forgotPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (
     email: string,
@@ -47,7 +50,7 @@ interface AuthContextType {
   }) => Promise<{ success: boolean; message?: string }>;
   getGoogleAuthUrl: () => Promise<string | null>;
   guestLogin: () => Promise<void>;
-  googleLogin: (code: string) => Promise<{ success: boolean; message?: string }>;
+  googleLogin: (code: string) => Promise<{ success: boolean; message?: string; role?: UserRole }>;
   refreshSession: () => Promise<boolean>;
   logout: () => void;
   setRole: (role: UserRole) => void;
@@ -122,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (res.success && res.data) {
       establishSession(res.data);
-      return { success: true };
+      return { success: true, role: res.data.user?.role };
     }
 
     return { success: false, message: res.error?.message || "Invalid credentials" };
@@ -141,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (res.success && res.data) {
       establishSession(res.data);
-      return { success: true };
+      return { success: true, role: res.data.user?.role };
     }
 
     return { success: false, message: res.error?.message || "Registration failed" };
@@ -174,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     if (res.success && res.data) {
       establishSession(res.data);
-      return { success: true };
+      return { success: true, role: res.data.user?.role };
     }
 
     return { success: false, message: res.error?.message || "Invalid OTP" };
@@ -221,7 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (res.success && res.data) {
       establishSession(res.data);
-      return { success: true };
+      return { success: true, role: res.data.user?.role };
     }
 
     return { success: false, message: res.error?.message || "Google login failed" };

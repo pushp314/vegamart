@@ -89,7 +89,7 @@ function RoamingVendorDashboard() {
   });
   const rawCategories = categoriesRes?.data?.data || categoriesRes?.data || [];
   const categoriesList = Array.isArray(rawCategories) ? rawCategories : [];
-  const defaultCategoryId = categoriesList[0]?.id || "00000000-0000-0000-0000-000000000001";
+  const defaultCategoryId = categoriesList[0]?.id || "";
 
   // Fetch Vendor Earnings
   const { data: earningsRes } = useQuery({
@@ -174,7 +174,10 @@ function RoamingVendorDashboard() {
     );
     setLocalInventory(updated);
     localStorage.setItem("vegamart_cart_inventory", JSON.stringify(updated));
-    toggleStockMutation.mutate({ id, inStock: !currentStatus });
+    const isLocalOnly = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isLocalOnly) {
+      toggleStockMutation.mutate({ id, inStock: !currentStatus });
+    }
   };
 
   // Add New Product State & Submit
@@ -207,10 +210,9 @@ function RoamingVendorDashboard() {
     setNewProdPrice("");
     toast.success(`Added ${newItem.name} to cart inventory!`);
 
-    if (vendor?.id) {
+    if (vendor?.id && defaultCategoryId) {
       try {
         await api.post("/products", {
-          vendor_id: vendor.id,
           category_id: defaultCategoryId,
           name: newItem.name,
           price: newItem.price,
@@ -266,11 +268,10 @@ function RoamingVendorDashboard() {
     localStorage.setItem("vegamart_cart_inventory", JSON.stringify(defaults));
     toast.success("Added 5 fresh cart items to your inventory!");
 
-    if (vendor?.id) {
+    if (vendor?.id && defaultCategoryId) {
       try {
         for (const item of defaults) {
           await api.post("/products", {
-            vendor_id: vendor.id,
             category_id: defaultCategoryId,
             name: item.name,
             price: item.price,

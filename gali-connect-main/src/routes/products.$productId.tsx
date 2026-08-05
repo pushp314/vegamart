@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import {
   Heart,
@@ -12,6 +12,7 @@ import {
   MapPin,
   ArrowLeft,
   ArrowRight,
+  MessageSquare,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -21,6 +22,7 @@ import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useLocation } from "@/hooks/use-location";
+import { ReviewModal } from "@/components/marketplace/review-modal";
 
 export const Route = createFileRoute("/products/$productId")({
   loader: async ({ params }) => {
@@ -66,6 +68,7 @@ const WEIGHT_VARIANTS = [
 
 function ProductDetail() {
   const { product } = Route.useLoaderData();
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
   const { displayLocation } = useLocation();
@@ -93,6 +96,7 @@ function ProductDetail() {
   const [variant, setVariant] = useState(WEIGHT_VARIANTS[2].id);
   const [qty, setQty] = useState(1);
   const [imageIdx, setImageIdx] = useState(0);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const { isWishlisted, toggleWishlist } = useWishlist();
   const wishlisted = isWishlisted(product.id);
@@ -118,6 +122,27 @@ function ProductDetail() {
     toast.success(`Added ${qty} × ${product.name} (${activeVariant.label}) to cart`);
   };
 
+  const handleBuyNow = () => {
+    addToCart(product, qty, activeVariant.label);
+    navigate({ to: "/checkout" });
+  };
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/products/${product.id}`;
+    const data = { title: product.name, text: `Check out ${product.name} on Vegamart`, url };
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard");
+      }
+    } catch (err) {
+      // User cancelled native share sheet — ignore
+      void err;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-32 lg:pb-16">
       <div className="lg:mx-auto lg:max-w-6xl lg:px-6 lg:pt-8 lg:grid lg:grid-cols-2 lg:gap-8">
@@ -134,6 +159,7 @@ function ProductDetail() {
             <div className="flex gap-2">
               <button
                 aria-label="Share"
+                onClick={handleShare}
                 className="grid h-10 w-10 place-items-center rounded-full bg-white/95 backdrop-blur shadow"
               >
                 <Share2 className="h-5 w-5" />
@@ -201,6 +227,12 @@ function ProductDetail() {
                   ({reviewCount.toLocaleString("en-IN")})
                 </span>
               </span>
+              <button
+                onClick={() => setReviewOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full border bg-card text-[10.5px] font-semibold px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+              >
+                <MessageSquare className="h-3 w-3" /> Rate this product
+              </button>
             </div>
             <h1 className="mt-2 font-display text-2xl font-bold leading-tight">{product.name}</h1>
             {vendor && (
@@ -289,7 +321,12 @@ function ProductDetail() {
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="h-4 w-4 text-primary" />
               <span className="font-semibold">Delivering to {displayLocation}</span>
-              <button className="ml-auto text-[12px] font-semibold text-primary">Change</button>
+              <Link
+                to="/addresses"
+                className="ml-auto text-[12px] font-semibold text-primary"
+              >
+                Change
+              </Link>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
               <Fact icon={<Clock className="h-4 w-4" />} label="ETA" value="15 min" />
@@ -407,12 +444,12 @@ function ProductDetail() {
           >
             Add to cart
           </button>
-          <Link
-            to="/checkout"
+          <button
+            onClick={handleBuyNow}
             className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground font-semibold text-sm h-12 px-6"
           >
             Buy now <ArrowRight className="h-4 w-4" />
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -437,15 +474,24 @@ function ProductDetail() {
             >
               Add
             </button>
-            <Link
-              to="/checkout"
+            <button
+              onClick={handleBuyNow}
               className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground font-semibold text-[13px] h-11 px-4"
             >
               Buy now <ArrowRight className="h-4 w-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </div>
+
+      <ReviewModal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        targetId={product.id}
+        targetName={product.name}
+        targetType="product"
+        onSuccess={() => setReviewOpen(false)}
+      />
     </div>
   );
 }

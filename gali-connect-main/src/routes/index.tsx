@@ -190,7 +190,10 @@ function Header({ displayLocation }: { displayLocation: string }) {
       <div className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
         V
       </div>
-      <Link to="/addresses" className="flex-1 min-w-0 text-left tap-highlight-none">
+      <Link
+        to="/addresses"
+        className="flex-1 min-w-0 text-left tap-highlight-none"
+      >
         <div className="flex items-center gap-1 text-[11px] font-semibold text-primary">
           <MapPin className="h-3 w-3" /> Deliver to <ChevronDown className="h-3 w-3" />
         </div>
@@ -198,6 +201,14 @@ function Header({ displayLocation }: { displayLocation: string }) {
       </Link>
       <button
         aria-label="Offers"
+        onClick={() => {
+          const el = document.getElementById("offers-section");
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          } else {
+            toast.info("No active offers right now");
+          }
+        }}
         className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-50 text-primary"
       >
         <Gift className="h-5 w-5" />
@@ -641,7 +652,7 @@ function Offers() {
   }
 
   return (
-    <section className="pt-6 md:pt-10">
+    <section id="offers-section" className="pt-6 md:pt-10">
       <h2 className="px-4 md:px-0 font-display text-[22px] md:text-3xl font-bold tracking-tight">
         Offers for you
       </h2>
@@ -654,8 +665,9 @@ function Offers() {
                 ? "bg-amber-500 text-amber-950"
                 : "bg-rose-500 text-white";
           return (
-            <div
+            <Link
               key={o.id}
+              to="/vendors"
               className={`snap-start shrink-0 md:shrink w-[72%] md:w-auto rounded-2xl md:rounded-3xl p-4 md:p-6 ${tone} shadow-sm`}
             >
               <div className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider opacity-80">
@@ -665,7 +677,7 @@ function Offers() {
                 {o.title}
               </div>
               <div className="mt-1 md:mt-2 text-[12.5px] md:text-sm opacity-90">{o.sub}</div>
-            </div>
+            </Link>
           );
         })}
       </div>

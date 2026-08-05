@@ -1,4 +1,5 @@
-import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   MapPin,
   Search,
@@ -27,6 +28,19 @@ export function Navbar() {
   const { wishlist } = useWishlist();
   const { user, role } = useAuth();
   const { displayLocation } = useLocation();
+  const navigate = useNavigate();
+
+  // Support the advertised ⌘K / Ctrl+K shortcut for search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        navigate({ to: "/search" });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navigate]);
 
   return (
     <header className="sticky top-0 z-40 hidden md:block w-full bg-background/85 backdrop-blur border-b">

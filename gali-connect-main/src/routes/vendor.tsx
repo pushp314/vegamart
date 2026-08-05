@@ -22,8 +22,17 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PortalLayout } from "@/components/layout/portal-layout";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { LayoutDashboard, Store as StoreIcon, ClipboardList, Wallet } from "lucide-react";
-import type { Product } from "@/types";
+import type { Category, Product } from "@/types";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -92,14 +101,23 @@ function VendorDashboard() {
     }
   }, [vendor, navigate]);
 
-  // Fetch Vendor Products
+  // Fetch Vendor Products (include inactive so the vendor sees their full catalog)
   const { data: productsRes, isLoading: prodsLoading } = useQuery({
     queryKey: ["vendorProducts", vendor?.id],
-    queryFn: () => api.get<Product[]>(`/products?vendor_id=${vendor?.id}`),
+    queryFn: () => api.get<Product[]>("/products/me?include_inactive=true"),
     enabled: !!vendor?.id && vendor?.status === "approved",
   });
 
   const productList: Product[] = productsRes?.data || [];
+
+  // Fetch Categories
+  const { data: categoriesRes } = useQuery({
+    queryKey: ["vendorCategories"],
+    queryFn: () => api.get<Category[]>("/categories"),
+    enabled: !!vendor?.id && vendor?.status === "approved",
+  });
+
+  const categoriesList: Category[] = categoriesRes?.data || [];
 
   // Fetch Vendor Orders
   const { data: ordersRes, isLoading: ordersLoading } = useQuery({
@@ -140,13 +158,15 @@ function VendorDashboard() {
   // Product Add/Edit Modal
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [prodName, setProdName] = useState("");
   const [prodPrice, setProdPrice] = useState("");
   const [prodMrp, setProdMrp] = useState("");
   const [prodUnit, setProdUnit] = useState("1 kg");
-  const [prodCategory, setProdCategory] = useState("Vegetables");
+  const [prodCategoryId, setProdCategoryId] = useState("");
   const [prodImageFile, setProdImageFile] = useState<File | null>(null);
   const [prodImageUrl, setProdImageUrl] = useState("");
+  const [prodImageChanged, setProdImageChanged] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   const [suggestedImages, setSuggestedImages] = useState<string[]>([]);
@@ -182,23 +202,21 @@ function VendorDashboard() {
   }, [prodName, productModalOpen]);
 
   const saveProductMutation = useMutation({
-    mutationFn: (data: any) =>
-      editingProduct
-        ? api.patch(`/products/${editingProduct.id}`, data)
-        : api.post("/products", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
-      toast.success(editingProduct ? "Product updated!" : "Product listed successfully!");
-      setProductModalOpen(false);
-    },
-    onError: (err: any) => {
-      toast.error(err?.message || "Failed to save product");
+    mutationFn: async (data: any) => {
+      const res = editingProduct
+        ? await api.patch<Product>(`/products/${editingProduct.id}`, data)
+        : await api.post<Product>("/products", data);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || "Failed to save product");
+      }
+      return res.data as Product;
     },
   });
 
   const deleteProductMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/products/${id}`),
     onSuccess: () => {
+      setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
       toast.success("Product removed from catalog");
     },
@@ -474,9 +492,10 @@ function VendorDashboard() {
     setProdPrice("");
     setProdMrp("");
     setProdUnit("1 kg");
-    setProdCategory("Vegetables");
+    setProdCategoryId(categoriesList[0]?.id || "");
     setProdImageFile(null);
     setProdImageUrl("");
+    setProdImageChanged(false);
     setProductModalOpen(true);
   };
 
@@ -486,10 +505,10 @@ function VendorDashboard() {
     setProdPrice(p.price.toString());
     setProdMrp(p.mrp.toString());
     setProdUnit(p.unit);
-    // @ts-ignore
-    setProdCategory(p.category || "Vegetables");
+    setProdCategoryId(p.category_id);
     setProdImageFile(null);
     setProdImageUrl(p.images?.[0]?.url || "");
+    setProdImageChanged(false);
     setProductModalOpen(true);
   };
 
@@ -499,32 +518,66 @@ function VendorDashboard() {
       toast.error("Please fill in required product details");
       return;
     }
-
-    let finalImageUrl = prodImageUrl;
-    if (prodImageFile) {
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append("file", prodImageFile);
-      const uploadRes = await api.post<{ url: string; key: string }>("/uploads", formData);
-      setIsUploading(false);
-      if (uploadRes.success && uploadRes.data?.url) {
-        finalImageUrl = uploadRes.data.url;
-      } else {
-        toast.error("Image upload failed");
-        return;
-      }
+    if (!prodCategoryId) {
+      toast.error("Please select a category");
+      return;
     }
 
-    saveProductMutation.mutate({
-      business_name: prodName,
-      name: prodName,
-      price: parseFloat(prodPrice),
-      mrp: parseFloat(prodMrp || prodPrice),
-      unit: prodUnit,
-      category: prodCategory,
-      vendor_id: vendor.id,
-      images: finalImageUrl ? [finalImageUrl] : undefined,
-    });
+    const price = parseFloat(prodPrice);
+    const mrp = parseFloat(prodMrp || prodPrice);
+    if (Number.isNaN(price) || price < 0 || Number.isNaN(mrp) || mrp < 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
+
+    // 1. Upload image (if a new file was picked)
+    let attachImageUrl: string | null = null;
+    if (prodImageFile) {
+      setIsUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", prodImageFile);
+        formData.append("folder", "products");
+        const uploadRes = await api.post<{ url: string; key: string }>("/uploads", formData);
+        if (uploadRes.success && uploadRes.data?.url) {
+          attachImageUrl = uploadRes.data.url;
+        } else {
+          toast.error(uploadRes.error?.message || "Image upload failed");
+          return;
+        }
+      } finally {
+        setIsUploading(false);
+      }
+    } else if (prodImageChanged && prodImageUrl) {
+      attachImageUrl = prodImageUrl;
+    }
+
+    // 2. Create or update the product
+    try {
+      const saved = await saveProductMutation.mutateAsync({
+        name: prodName.trim(),
+        price,
+        mrp,
+        unit: prodUnit.trim(),
+        category_id: prodCategoryId,
+      });
+
+      // 3. Attach the image to the product (single-image form, so replace old ones on edit)
+      if (attachImageUrl && saved?.id) {
+        if (editingProduct && editingProduct.images?.length) {
+          for (const img of editingProduct.images) {
+            await api.delete(`/products/${editingProduct.id}/images/${img.id}`);
+          }
+        }
+        await api.post(`/products/${saved.id}/images`, { images: [{ url: attachImageUrl }] });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
+      toast.success(editingProduct ? "Product updated!" : "Product listed successfully!");
+      setProductModalOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save product");
+    }
   };
 
   const navItems = [
@@ -828,7 +881,7 @@ function VendorDashboard() {
                         <Edit2 className="h-3.5 w-3.5" /> Edit
                       </button>
                       <button
-                        onClick={() => deleteProductMutation.mutate(p.id)}
+                        onClick={() => setDeleteTarget(p)}
                         className="p-1.5 rounded-xl border border-border text-destructive hover:bg-rose-500/10"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1105,6 +1158,7 @@ function VendorDashboard() {
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setProdImageFile(e.target.files[0]);
+                        setProdImageChanged(true);
                       }
                     }}
                     className="w-full text-xs text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
@@ -1140,6 +1194,7 @@ function VendorDashboard() {
                         onClick={() => {
                           setProdImageUrl(url);
                           setProdImageFile(null); // Clear local file if any
+                          setProdImageChanged(true);
                         }}
                         className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border hover:ring-2 hover:ring-emerald-500 transition-all"
                       >
@@ -1192,16 +1247,18 @@ function VendorDashboard() {
                 <label className="block">
                   <div className="mb-1 text-xs font-semibold text-foreground">Category</div>
                   <select
-                    value={prodCategory}
-                    onChange={(e) => setProdCategory(e.target.value)}
+                    value={prodCategoryId}
+                    onChange={(e) => setProdCategoryId(e.target.value)}
                     className="w-full rounded-2xl bg-accent/50 border border-border h-11 px-3 text-sm outline-none font-semibold text-foreground"
                   >
-                    <option value="Vegetables">Vegetables</option>
-                    <option value="Fruits">Fruits</option>
-                    <option value="Dairy">Dairy</option>
-                    <option value="Bakery">Bakery</option>
-                    <option value="Grocery">Grocery</option>
-                    <option value="Chai & Snacks">Chai & Snacks</option>
+                    <option value="" disabled>
+                      Select category
+                    </option>
+                    {categoriesList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
@@ -1230,6 +1287,35 @@ function VendorDashboard() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Product?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove "{deleteTarget?.name}" from your catalog? This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose className="inline-flex items-center justify-center rounded-2xl border border-border bg-accent/50 px-4 py-2.5 text-xs font-semibold text-muted-foreground">
+              Cancel
+            </DialogClose>
+            <button
+              onClick={() => deleteTarget && deleteProductMutation.mutate(deleteTarget.id)}
+              disabled={deleteProductMutation.isPending}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-destructive px-4 py-2.5 text-xs font-semibold text-white"
+            >
+              {deleteProductMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Delete Product"
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PortalLayout>
   );
 }

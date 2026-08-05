@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { homePathForRole, getSafeRedirect } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth/callback")({
@@ -42,7 +43,7 @@ function AuthCallback() {
           setStatus("success");
           toast.success("Signed in with Google successfully!");
           setTimeout(() => {
-            navigate({ to: "/" });
+            navigate({ to: getSafeRedirect() || homePathForRole(res.role) });
           }, 800);
         } else {
           setStatus("error");

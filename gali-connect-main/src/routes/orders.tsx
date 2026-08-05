@@ -15,6 +15,15 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { GoogleDeliveryTracker } from "@/components/marketplace/google-delivery-tracker";
 import { useCart } from "@/context/cart-context";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({ meta: [{ title: "Your orders — Vegamart" }] }),
@@ -40,6 +49,7 @@ function statusLabel(status: string): string {
 function Orders() {
   const refresh = () => new Promise<void>((res) => setTimeout(res, 700));
   const [expandedTracking, setExpandedTracking] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<any | null>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { addToCart, clearCart } = useCart();
@@ -49,12 +59,19 @@ function Orders() {
       api.post(`/orders/${id}/cancel`, { reason: "Customer requested cancellation" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setCancelTarget(null);
       toast.success("Order cancelled successfully!");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to cancel order");
     },
   });
+
+  const handleCancel = () => {
+    if (cancelTarget) {
+      cancelMutation.mutate(cancelTarget.id);
+    }
+  };
 
   const { data: res, isLoading } = useQuery({
     queryKey: ["orders"],
@@ -155,8 +172,7 @@ function Orders() {
                       <div className="pt-2">
                         <GoogleDeliveryTracker
                           orderId={o.id}
-                          status={o.status || "out_for_delivery"}
-                          eta="10–12 mins"
+                          status={statusLower}
                         />
                       </div>
                     )}
@@ -164,9 +180,8 @@ function Orders() {
                     <div className="pt-3 border-t flex items-center justify-end gap-2">
                       {canCancel && (
                         <button
-                          onClick={() => cancelMutation.mutate(o.id)}
-                          disabled={cancelMutation.isPending}
-                          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-2xl border bg-card hover:bg-muted text-foreground transition-colors disabled:opacity-50"
+                          onClick={() => setCancelTarget(o)}
+                          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-2xl border bg-card hover:bg-muted text-foreground transition-colors"
                         >
                           <XCircle className="h-3.5 w-3.5" /> Cancel Order
                         </button>
@@ -185,6 +200,40 @@ function Orders() {
           )}
         </main>
       </PullToRefresh>
+
+      {/* Cancel Order Confirmation */}
+      <Dialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel this order?</DialogTitle>
+            <DialogDescription>
+              {cancelTarget ? (
+                <>
+                  Order #{cancelTarget.order_number || cancelTarget.id} will be cancelled. This
+                  action can't be undone. You won't be charged for cancelled orders.
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <DialogClose className="rounded-2xl border bg-card px-4 py-2 text-xs font-bold hover:bg-muted transition-colors">
+              Keep Order
+            </DialogClose>
+            <button
+              onClick={handleCancel}
+              disabled={cancelMutation.isPending}
+              className="flex items-center gap-1.5 rounded-2xl bg-destructive text-destructive-foreground px-4 py-2 text-xs font-bold hover:bg-destructive/90 transition-colors disabled:opacity-50"
+            >
+              {cancelMutation.isPending ? (
+                <RotateCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5" />
+              )}
+              {cancelMutation.isPending ? "Cancelling…" : "Yes, Cancel Order"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

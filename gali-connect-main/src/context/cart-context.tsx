@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import type { Product } from "@/types";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
+
+export const MAX_ITEM_QTY = 20;
 
 export interface CartItem {
   id: string;
@@ -65,6 +68,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const prevVendorId = prev[0]?.product?.vendor_id || (prev[0]?.product as any)?.vendorId;
       // Hyperlocal Single-Vendor Rule: If adding item from a different vendor, reset cart
       if (prev.length > 0 && prevVendorId && pVendorId && prevVendorId !== pVendorId) {
+        toast.warning("Cart cleared — items must be from a single vendor");
         return [{ id: `c_${Date.now()}`, product, quantity, selectedVariant: variantLabel }];
       }
 
@@ -74,6 +78,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       if (existingIndex > -1) {
         const next = [...prev];
+        const existing = next[existingIndex];
+        if (existing.quantity + quantity > MAX_ITEM_QTY) {
+          toast.warning(`Maximum ${MAX_ITEM_QTY} units per item`);
+          next[existingIndex] = { ...existing, quantity: MAX_ITEM_QTY };
+          return next;
+        }
         next[existingIndex].quantity += quantity;
         return next;
       }
@@ -87,7 +97,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       removeItem(id);
       return;
     }
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, quantity: qty } : item)));
+    const capped = Math.min(MAX_ITEM_QTY, qty);
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, quantity: capped } : item)));
   };
 
   const removeItem = (id: string) => {

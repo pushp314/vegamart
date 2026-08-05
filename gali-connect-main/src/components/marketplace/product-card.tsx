@@ -20,11 +20,14 @@ export function ProductCard({ product }: { product: Product }) {
     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
 
   return (
-    <Link
-      to="/products/$productId"
-      params={{ productId: product.id }}
-      className="group relative block overflow-hidden rounded-2xl border bg-card p-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-glow"
-    >
+    <div className="group relative overflow-hidden rounded-2xl border bg-card p-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-glow">
+      <Link
+        to="/products/$productId"
+        params={{ productId: product.id }}
+        className="absolute inset-0 z-0 rounded-2xl"
+        aria-label={product.name}
+      />
+
       <div className="relative aspect-square overflow-hidden rounded-xl bg-muted">
         <img
           src={image}
@@ -42,7 +45,6 @@ export function ProductCard({ product }: { product: Product }) {
         <button
           type="button"
           onClick={(e) => {
-            e.preventDefault();
             e.stopPropagation();
             toggleWishlist(product);
             if (wishlisted) {
@@ -52,7 +54,7 @@ export function ProductCard({ product }: { product: Product }) {
             }
           }}
           aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
-          className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-background/80 backdrop-blur-xs shadow-sm border border-border/50 hover:bg-background transition-colors"
+          className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-background/80 backdrop-blur-xs shadow-sm border border-border/50 hover:bg-background transition-colors"
         >
           <Heart
             className={`h-4 w-4 transition-colors ${
@@ -64,7 +66,7 @@ export function ProductCard({ product }: { product: Product }) {
         </button>
       </div>
 
-      <div className="mt-3">
+      <div className="relative mt-3">
         <h4 className="text-sm font-semibold truncate">{product.name}</h4>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
           <Star className="h-3 w-3 fill-warning text-warning" /> {product.rating || "0.0"} •{" "}
@@ -81,9 +83,9 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
           <Button
             size="sm"
-            className="h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3"
+            className="relative z-10 h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3"
             onClick={(e) => {
-              e.preventDefault();
+              e.stopPropagation();
               addToCart(product, 1);
               toast.success(`Added ${product.name} to cart`);
             }}
@@ -92,6 +94,6 @@ export function ProductCard({ product }: { product: Product }) {
           </Button>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }

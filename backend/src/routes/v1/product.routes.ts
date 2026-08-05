@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   addProductImages,
   createProduct,
+  createProductReview,
   deleteProduct,
   getProduct,
   listMyProducts,
@@ -17,6 +18,7 @@ import { validate } from "../../middlewares/validate";
 import { ROLES } from "../../constants/roles";
 import {
   createProductSchema,
+  createReviewSchema,
   listProductsQuerySchema,
   productIdParamsSchema,
   productImagesSchema,
@@ -51,6 +53,14 @@ router.put(
   authenticate,
   validate({ params: productIdParamsSchema, body: setPrimaryImageSchema }),
   setPrimaryProductImage
+);
+
+router.post(
+  "/products/:product_id/reviews",
+  authenticate,
+  requireRole(ROLES.CUSTOMER),
+  validate({ params: productIdParamsSchema, body: createReviewSchema }),
+  createProductReview
 );
 
 export default router;

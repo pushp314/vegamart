@@ -247,7 +247,7 @@ function Checkout() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading addresses...
                 </div>
-              ) : selectedAddress ? (
+              ) : addresses.length > 0 ? (
                 <>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -256,10 +256,10 @@ function Checkout() {
                       </span>
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                          Delivery Address ({selectedAddress.label})
+                          Delivery Address
                         </div>
                         <div className="font-display text-sm font-bold text-foreground">
-                          {selectedAddress.full_name}
+                          {selectedAddress?.label || "Select an address"}
                         </div>
                       </div>
                     </div>
@@ -267,17 +267,52 @@ function Checkout() {
                       onClick={() => setAddressModalOpen(true)}
                       className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                     >
-                      <MapPin className="h-3.5 w-3.5" /> Change
+                      <MapPin className="h-3.5 w-3.5" /> Add New
                     </button>
                   </div>
 
-                  <p className="mt-3 text-xs text-muted-foreground leading-relaxed pl-11">
-                    {selectedAddress.line1}, {selectedAddress.line2 && `${selectedAddress.line2}, `}
-                    {selectedAddress.city} — <strong>{selectedAddress.pincode}</strong>
-                  </p>
-                  <p className="text-xs font-semibold text-foreground pl-11 mt-1">
-                    {selectedAddress.phone}
-                  </p>
+                  <div className="mt-4 space-y-2">
+                    {addresses.map((a: any) => {
+                      const active = a.id === selectedAddressId;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => setSelectedAddressId(a.id)}
+                          className={`w-full flex items-start gap-3 rounded-2xl border p-3 text-left transition-all ${
+                            active
+                              ? "border-primary bg-emerald-50/60"
+                              : "border-border bg-card hover:border-primary/40"
+                          }`}
+                        >
+                          <span
+                            className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
+                              active ? "border-primary bg-primary" : "border-border"
+                            }`}
+                          >
+                            {active && <span className="h-2 w-2 rounded-full bg-white" />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-foreground">{a.label}</span>
+                              {a.is_default && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
+                                  DEFAULT
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                              {a.full_name} · {a.line1}
+                              {a.line2 ? `, ${a.line2}` : ""}, {a.city} — {a.pincode}
+                            </p>
+                            <p className="text-[11px] font-semibold text-foreground mt-0.5">
+                              {a.phone}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </>
               ) : (
                 <div className="flex items-center justify-between">

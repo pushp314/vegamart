@@ -165,7 +165,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
     push(t);
     onClose();
     setQ("");
-    navigate({ to: "/vendors" });
+    navigate({ to: "/vendors", search: { q: t } });
   };
 
   const startVoice = () => {
@@ -372,6 +372,13 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
         {/* Suggestions */}
         {!listening && debounced && (
           <div className="space-y-5">
+            <button
+              onClick={() => submit(q)}
+              className="w-full flex items-center justify-between rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-soft hover:opacity-95 transition-opacity"
+            >
+              <span>See all results for "{q}"</span>
+              <ArrowUpRight className="h-4 w-4" />
+            </button>
             {categorySug.length > 0 && (
               <section>
                 <div className="mb-2 px-1 text-sm font-semibold">Categories</div>

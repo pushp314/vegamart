@@ -58,12 +58,11 @@ function OrderSuccess() {
             vendorName={vendorName}
             deliveryAddress={deliveryAddress}
             status={orderStatus}
-            eta="12–15 min"
           />
         )}
 
         {/* Live Order Tracker */}
-        <OrderTracker status={orderStatus} eta="12–15 min" />
+        <OrderTracker status={orderStatus} />
 
         <div className="rounded-3xl bg-card border shadow-soft overflow-hidden text-left divide-y text-xs">
           <div className="flex items-center justify-between p-3.5">
@@ -85,6 +84,7 @@ function OrderSuccess() {
         <div className="flex flex-col gap-2.5 sm:flex-row pt-2">
           <Link
             to="/orders/track"
+            search={{ orderId: orderId || "" }}
             className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-white font-extrabold text-xs h-12 shadow-md hover:bg-emerald-700 transition-colors"
           >
             <Bike className="h-4 w-4" /> Track Order Live 🛵

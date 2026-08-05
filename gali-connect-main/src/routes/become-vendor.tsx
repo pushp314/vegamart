@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Store, MapPin, Phone, CheckCircle2, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
@@ -16,9 +16,11 @@ function BecomeVendorPage() {
   const { user, isAuthenticated, register } = useAuth();
 
   // If user is already a vendor, redirect to vendor dashboard
-  if (user?.role === "vendor") {
-    navigate({ to: "/vendor" });
-  }
+  useEffect(() => {
+    if (user?.role === "vendor") {
+      navigate({ to: "/vendor" });
+    }
+  }, [user?.role, navigate]);
 
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -96,8 +98,8 @@ function BecomeVendorPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] bg-background flex flex-col justify-center overflow-hidden">
-      <main className="w-full max-w-5xl mx-auto px-6 max-h-[80vh] overflow-hidden flex flex-col justify-center">
+    <div className="min-h-screen bg-background py-8">
+      <main className="w-full max-w-5xl mx-auto px-4 sm:px-6">
         {submitted ? (
           <div className="rounded-3xl border bg-card p-8 text-center space-y-4 shadow-soft max-w-md mx-auto">
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-primary">
@@ -122,7 +124,7 @@ function BecomeVendorPage() {
             </div>
           </div>
         ) : (
-          <form className="w-full space-y-3.5 overflow-hidden" onSubmit={handleSubmit}>
+          <form className="w-full space-y-3.5" onSubmit={handleSubmit}>
             <div className="flex items-center justify-between pb-2.5 border-b border-border">
               <div>
                 <h1 className="font-display text-xl font-black text-foreground">

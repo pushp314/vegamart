@@ -7,6 +7,7 @@ import { buildPaginationMeta } from "../utils/pagination";
 import { HttpStatus } from "../utils/httpStatus";
 import type {
   CreateProductBody,
+  CreateReviewBody,
   UpdateProductBody,
 } from "../validators/product.validators";
 
@@ -311,4 +312,40 @@ export const setPrimaryProductImage = asyncHandler(async (req: Request, res: Res
   const { image_id } = req.body as { image_id: string };
   await productService.setPrimaryImage(req.user!.id, req.params.product_id as string, image_id, req);
   return sendSuccess(res, { primary_image_id: image_id });
+});
+
+/**
+ * @swagger
+ * /products/{product_id}/reviews:
+ *   post:
+ *     summary: Submit a review for a product
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Products]
+ *     parameters:
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [rating]
+ *             properties:
+ *               rating: { type: integer, minimum: 1, maximum: 5 }
+ *               title: { type: string }
+ *               comment: { type: string }
+ *               order_id: { type: string, format: uuid }
+ *     responses:
+ *       201:
+ *         description: Review created.
+ */
+export const createProductReview = asyncHandler(async (req: Request, res: Response) => {
+  const { product_id } = req.params as { product_id: string };
+  const body = req.body as CreateReviewBody;
+  const review = await productService.createReview(req.user!.id, product_id, body, req);
+  return sendCreated(res, review, "Review submitted successfully.");
 });

@@ -61,5 +61,13 @@ export const vendorProductsQuerySchema = z.object({
   include_inactive: z.enum(["true", "false"]).optional(),
 });
 
+export const createReviewSchema = z.object({
+  rating: z.coerce.number().int().min(1, "Rating must be between 1 and 5.").max(5, "Rating must be between 1 and 5."),
+  title: z.string().trim().max(140).optional().nullable(),
+  comment: z.string().trim().max(5000).optional().nullable(),
+  order_id: z.string().uuid("order_id must be a valid UUID.").optional().nullable(),
+});
+
 export type CreateProductBody = z.infer<typeof createProductSchema>;
 export type UpdateProductBody = z.infer<typeof updateProductSchema>;
+export type CreateReviewBody = z.infer<typeof createReviewSchema>;

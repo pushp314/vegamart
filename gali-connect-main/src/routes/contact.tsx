@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail, Phone, MapPin, Send, Loader2, MessageSquare } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
+import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/contact")({
@@ -10,26 +12,38 @@ export const Route = createFileRoute("/contact")({
 });
 
 function ContactPage() {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !message) {
       toast.error("Please fill in all fields");
       return;
     }
 
+    if (!isAuthenticated) {
+      toast.info("Please sign in to contact support.");
+      navigate({ to: "/login", search: { redirect: "/contact" } });
+      return;
+    }
+
     setSending(true);
-    setTimeout(() => {
-      setSending(false);
+    const res = await api.post("/contact", { name, email, message });
+    setSending(false);
+
+    if (res.success) {
       setName("");
       setEmail("");
       setMessage("");
-      toast.success("Thank you! Your message has been sent to Vegamart Support.");
-    }, 600);
+      toast.success(res.message || "Thank you! Your message has been sent to Vegamart Support.");
+    } else {
+      toast.error(res.error?.message || "Failed to send your message. Please try again.");
+    }
   };
 
   return (

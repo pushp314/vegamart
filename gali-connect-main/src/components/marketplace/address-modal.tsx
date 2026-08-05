@@ -25,12 +25,12 @@ interface AddressModalProps {
 export function AddressModal({ open, onClose, onSave, initialData }: AddressModalProps) {
   const [label, setLabel] = useState(initialData?.label || "Home");
   const [fullName, setFullName] = useState(initialData?.full_name || "");
-  const [phone, setPhone] = useState(initialData?.phone || "9876543210");
-  const [line1, setLine1] = useState(initialData?.line1 || "Flat 402, Green Valley Apartments");
-  const [line2, setLine2] = useState(initialData?.line2 || "12th Main Road");
-  const [city, setCity] = useState(initialData?.city || "Indiranagar, Bengaluru");
-  const [state, setState] = useState(initialData?.state || "Karnataka");
-  const [pincode, setPincode] = useState(initialData?.pincode || "560038");
+  const [phone, setPhone] = useState(initialData?.phone || "");
+  const [line1, setLine1] = useState(initialData?.line1 || "");
+  const [line2, setLine2] = useState(initialData?.line2 || "");
+  const [city, setCity] = useState(initialData?.city || "");
+  const [state, setState] = useState(initialData?.state || "");
+  const [pincode, setPincode] = useState(initialData?.pincode || "");
   const [isDefault, setIsDefault] = useState(initialData?.is_default || false);
   const [saving, setSaving] = useState(false);
 

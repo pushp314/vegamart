@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Sparkles, Lock, Mail, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { homePathForRole, getSafeRedirect } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
@@ -34,7 +35,7 @@ function Login() {
     try {
       await guestLogin();
       toast.success("Welcome, Guest!");
-      navigate({ to: "/" });
+      navigate({ to: getSafeRedirect() || "/" });
     } catch (err) {
       toast.error("Guest login error");
     }
@@ -53,7 +54,7 @@ function Login() {
 
     if (res.success) {
       toast.success("Welcome back to Vegamart!");
-      navigate({ to: "/" });
+      navigate({ to: getSafeRedirect() || homePathForRole(res.role) });
     } else {
       toast.error(res.message || "Failed to sign in");
     }

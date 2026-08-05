@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles, Instagram, Twitter, Facebook, Youtube } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export function Footer() {
   return (
@@ -20,18 +20,6 @@ export function Footer() {
               Bringing India's beloved street vendors, sabziwalas, bakeries, and local shops
               directly to your doorstep. Fresh, fast, and fair.
             </p>
-            <div className="flex gap-3 pt-2">
-              {[Instagram, Twitter, Facebook, Youtube].map((Icon, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  aria-label="Social Link"
-                  className="grid h-9 w-9 place-items-center rounded-full border hover:bg-muted transition-colors"
-                >
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                </a>
-              ))}
-            </div>
           </div>
 
           <div>

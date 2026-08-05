@@ -1,9 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { Search, X, Star, MapPin, Clock, Radio } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type DailyLocationData, getNearbyDailyLocations } from "@/lib/api";
 import type { Vendor, Category } from "@/types";
 import { useAuth } from "@/context/auth-context";
@@ -16,13 +16,17 @@ export const Route = createFileRoute("/vendors/")({
       { name: "description", content: "Browse verified local vendors and shops moving near you." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+    q: typeof search.q === "string" ? search.q : undefined,
+  }),
   component: VendorsPage,
 });
 
 function VendorsPage() {
   const { isAuthenticated } = useAuth();
   const [activeCat, setActiveCat] = useState<string>("all");
-  const [query, setQuery] = useState("");
+  const { q: urlQ } = useSearch({ from: "/vendors/" });
+  const [query, setQuery] = useState<string>(urlQ || "");
 
   // Initialize activeCat from URL if present
   useMemo(() => {
@@ -36,6 +40,20 @@ function VendorsPage() {
   }, []);
 
   const refresh = () => new Promise<void>((res) => setTimeout(res, 700));
+
+  const queryClient = useQueryClient();
+  const realRefresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["vendors"] }),
+      queryClient.invalidateQueries({ queryKey: ["nearbyDailyLocations"] }),
+    ]);
+  };
+
+  useEffect(() => {
+    if (urlQ !== undefined && urlQ !== query) {
+      setQuery(urlQ);
+    }
+  }, [urlQ]);
 
   const { activeAddress, displayLocation } = useLocation();
 
@@ -110,7 +128,7 @@ function VendorsPage() {
         subtitle={`${filtered.length} shops near ${displayLocation}`}
         back={false}
       />
-      <PullToRefresh onRefresh={refresh}>
+      <PullToRefresh onRefresh={realRefresh}>
         <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 pb-28 md:pb-16">
           {/* Live banner */}
           <div className="rounded-2xl bg-emerald-700 text-white p-4 flex items-center gap-3">
@@ -262,7 +280,16 @@ function VendorsPage() {
 
           {!loadingVendors && filtered.length === 0 && (
             <div className="mt-10 text-center text-sm text-muted-foreground">
-              No vendors match. Try clearing search or filters.
+              <p>No vendors match your search or filters.</p>
+              <button
+                onClick={() => {
+                  setQuery("");
+                  setActiveCat("all");
+                }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground"
+              >
+                <X className="h-3.5 w-3.5" /> Clear search & filters
+              </button>
             </div>
           )}
         </main>

@@ -107,4 +107,41 @@ describe("Phase 3 marketplace routes (validation & authorization)", () => {
       .send({ decision: "approve" });
     expect(res.status).toBe(401);
   });
+
+  it("contact form requires auth", async () => {
+    const res = await request(app)
+      .post("/api/v1/contact")
+      .send({ name: "Test", email: "test@example.com", message: "Hello" });
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("contact form validates the message field", async () => {
+    const guest = await request(app).post("/api/v1/auth/guest");
+    const token = guest.body.data.access_token as string;
+    const res = await request(app)
+      .post("/api/v1/contact")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Test", email: "test@example.com" });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("product review requires auth", async () => {
+    const res = await request(app)
+      .post("/api/v1/products/11111111-1111-1111-1111-111111111111/reviews")
+      .send({ rating: 5 });
+    expect(res.status).toBe(401);
+  });
+
+  it("product review requires a valid rating", async () => {
+    const guest = await request(app).post("/api/v1/auth/guest");
+    const token = guest.body.data.access_token as string;
+    const res = await request(app)
+      .post("/api/v1/products/11111111-1111-1111-1111-111111111111/reviews")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ rating: 9 });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
 });

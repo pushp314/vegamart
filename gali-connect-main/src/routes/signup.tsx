@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Sparkles, User, Mail, Phone, Lock, Loader2, Store } from "lucide-react";
 import { useAuth, UserRole } from "@/context/auth-context";
+import { getSafeRedirect } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/signup")({
@@ -73,7 +74,10 @@ function Signup() {
 
     if (res.success) {
       toast.success(`Welcome to Vegamart, ${name}!`);
-      if (role === "vendor") {
+      const redirect = getSafeRedirect();
+      if (redirect) {
+        navigate({ to: redirect });
+      } else if (role === "vendor" || res.role === "vendor") {
         navigate({ to: "/become-vendor" });
       } else {
         navigate({ to: "/" });

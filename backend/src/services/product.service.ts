@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { VendorStatus } from "@prisma/client";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
@@ -6,10 +7,15 @@ import { vendorService } from "./vendor.service";
 import * as productRepo from "../repositories/product.repository";
 import { existsById as categoryExists } from "../repositories/category.repository";
 import { cacheService } from "../database/cache";
-import { ApiError, ForbiddenError } from "../utils/ApiError";
+import prisma from "../database/prisma";
+import { ApiError, ConflictError, ForbiddenError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { uniqueSlug } from "../utils/slug";
-import type { CreateProductBody, UpdateProductBody } from "../validators/product.validators";
+import type {
+  CreateProductBody,
+  CreateReviewBody,
+  UpdateProductBody,
+} from "../validators/product.validators";
 
 function listCacheKey(query: Record<string, unknown>): string {
   const stable = Object.keys(query)
@@ -27,6 +33,11 @@ export const productService = {
       throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
     }
     const vendor = await vendorService.getMyVendor(userId);
+    if (vendor.status !== VendorStatus.APPROVED) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved before managing products.", {
+        code: "VENDOR_NOT_APPROVED",
+      });
+    }
     if (product.vendor_id !== vendor.id) {
       throw new ForbiddenError("You do not own this product.");
     }
@@ -35,6 +46,11 @@ export const productService = {
 
   async create(userId: string, input: CreateProductBody, req: Request): Promise<productRepo.ProductRow> {
     const vendor = await vendorService.getMyVendor(userId);
+    if (vendor.status !== VendorStatus.APPROVED) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved before listing products.", {
+        code: "VENDOR_NOT_APPROVED",
+      });
+    }
 
     if (!(await categoryExists(input.category_id))) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Category does not exist.", { code: "INVALID_CATEGORY" });
@@ -280,5 +296,56 @@ export const productService = {
       { userId, action: AUDIT_ACTIONS.IMAGE_REMOVED, entityType: "product", entityId: productId, newValues: { primary_image_id: imageId } },
       req
     );
+  },
+
+  async createReview(userId: string, productId: string, input: CreateReviewBody, req: Request) {
+    const product = await productRepo.findById(productId);
+    if (!product) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
+    }
+
+    const existing = await prisma.review.findFirst({
+      where: { user_id: userId, product_id: productId, deleted_at: null },
+    });
+    if (existing) {
+      throw new ConflictError("You have already reviewed this product.");
+    }
+
+    const review = await prisma.$transaction(async (tx) => {
+      const created = await tx.review.create({
+        data: {
+          user_id: userId,
+          product_id: productId,
+          order_id: input.order_id ?? null,
+          rating: input.rating,
+          title: input.title?.trim() || null,
+          comment: input.comment?.trim() || null,
+        },
+      });
+
+      const agg = await tx.review.aggregate({
+        where: { product_id: productId, deleted_at: null },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          rating: agg._avg.rating ?? 0,
+          review_count: agg._count.rating,
+        },
+      });
+
+      return created;
+    });
+
+    await cacheService.invalidateEntity("product", productId);
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.REVIEW_CREATED, entityType: "product", entityId: productId, newValues: { rating: input.rating } },
+      req
+    );
+
+    return review;
   },
 };

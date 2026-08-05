@@ -51,6 +51,7 @@ export const AUDIT_ACTIONS = {
   PRODUCT_CREATED: "product.created",
   PRODUCT_UPDATED: "product.updated",
   PRODUCT_DELETED: "product.deleted",
+  REVIEW_CREATED: "review.created",
   INVENTORY_UPDATED: "inventory.updated",
   IMAGE_ADDED: "image.added",
   IMAGE_REMOVED: "image.removed",
