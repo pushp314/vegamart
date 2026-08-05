@@ -162,7 +162,7 @@ function RoamingVendorDashboard() {
   // Toggle Product Stock Mutation
   const toggleStockMutation = useMutation({
     mutationFn: ({ id, inStock }: { id: string; inStock: boolean }) =>
-      api.put(`/products/${id}`, { is_active: inStock }),
+      api.patch(`/products/${id}`, { is_active: inStock }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendorProducts", vendor?.id] });
     },

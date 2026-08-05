@@ -743,18 +743,38 @@ export const integrationService = {
   // Browse: banners / offers / faqs / trending / recently-viewed / recommended
   // ---------------------------------------------------------------------------
   async listBanners() {
-    return prisma.cmsBanner.findMany({
+    const rows = await prisma.cmsBanner.findMany({
       where: { is_active: true },
       orderBy: [{ sort_order: "asc" }, { created_at: "desc" }],
     });
+    return rows.map((b) => ({
+      id: b.id,
+      title: b.title,
+      subtitle: b.subtitle,
+      image_url: b.image_url,
+      link: b.link,
+      type: b.position,
+      position: b.position,
+    }));
   },
 
   async listOffers() {
     const now = new Date();
-    return prisma.cmsOffer.findMany({
+    const rows = await prisma.cmsOffer.findMany({
       where: { is_active: true, OR: [{ valid_until: null }, { valid_until: { gte: now } }] },
       orderBy: [{ sort_order: "asc" }, { created_at: "desc" }],
     });
+    const tones = ["green", "amber", "rose"];
+    return rows.map((o, i) => ({
+      id: o.id,
+      title: o.title,
+      tag: o.discount ?? o.coupon_code ?? "OFFER",
+      sub: o.description ?? o.discount ?? "",
+      tone: tones[i % tones.length],
+      image_url: o.image_url,
+      coupon_code: o.coupon_code,
+      valid_until: o.valid_until,
+    }));
   },
 
   async listFaqs() {

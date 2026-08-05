@@ -44,33 +44,64 @@ function OrderTrackingPage() {
   });
 
   const orders = res?.data || [];
-  const activeOrder = orders.find(
-    (o) =>
-      o.status === "out_for_delivery" ||
-      o.status === "processing" ||
-      o.status === "confirmed" ||
-      o.status === "pending",
-  ) ||
-    orders[0] || {
-      id: "VG-264782",
-      order_number: "VG-264782",
-      status: "out_for_delivery",
-      total_amount: 199,
-      items: [
-        { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
-        { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
-        { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
-      ],
-      address: {
-        address_line1: "B-402, Green Valley Apartments",
-        city: "Bengaluru",
-        landmark: "Near Jayanagar 4th Block",
-      },
-      vendor_name: "Raju Sabziwala 🛒",
-      created_at: new Date().toISOString(),
-    };
+
+  const ACTIVE_STATUSES = ["out_for_delivery", "processing", "confirmed", "pending", "prepared", "packed"];
+  const rawActive =
+    orders.find((o) => ACTIVE_STATUSES.includes(String(o.status || "").toLowerCase())) || orders[0];
+
+  const activeOrder = rawActive
+    ? {
+        id: rawActive.id,
+        order_number: rawActive.order_number || rawActive.invoice_number || rawActive.id,
+        status: String(rawActive.status || "pending").toLowerCase(),
+        total_amount: Number(rawActive.total ?? rawActive.total_amount ?? 0),
+        items: rawActive.items || [],
+        address: rawActive.address || {},
+        vendor_name: rawActive.vendor?.business_name || "",
+        payment_method: rawActive.payment_method || rawActive.payment?.method || "COD",
+        items_subtotal: Number(rawActive.items_subtotal ?? 0),
+        delivery_fee: Number(rawActive.delivery_fee ?? 0),
+        tax: Number(rawActive.tax ?? 0),
+        discount: Number(rawActive.discount ?? 0),
+        created_at: rawActive.created_at,
+      }
+    : {
+        id: "VG-264782",
+        order_number: "VG-264782",
+        status: "pending",
+        total_amount: 199,
+        payment_method: "UPI",
+        items_subtotal: 179,
+        delivery_fee: 0,
+        tax: 20,
+        discount: 0,
+        items: [
+          { product_name: "Fresh Farm Tomatoes", quantity: 1, unit: "1 kg", price: 30 },
+          { product_name: "Baby Spinach", quantity: 1, unit: "250 g", price: 25 },
+          { product_name: "Masala Chai", quantity: 2, unit: "1 cup", price: 15 },
+        ],
+        address: {
+          address_line1: "B-402, Green Valley Apartments",
+          city: "Bengaluru",
+          landmark: "Near Jayanagar 4th Block",
+        },
+        vendor_name: "Raju Sabziwala 🛒",
+        created_at: new Date().toISOString(),
+      };
 
   const isDelivered = activeOrder.status === "delivered";
+  const isOutForDelivery = activeOrder.status === "out_for_delivery";
+  const statusLabel =
+    ({
+      pending: "Placed",
+      confirmed: "Confirmed",
+      processing: "Processing",
+      prepared: "Prepared",
+      packed: "Packed",
+      out_for_delivery: "Out for Delivery",
+      delivered: "Delivered",
+      cancelled: "Cancelled",
+    }[activeOrder.status] || activeOrder.status);
 
   // Mock Rider Info
   const riderInfo = {
@@ -118,13 +149,19 @@ function OrderTrackingPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-display font-black text-lg md:text-xl text-foreground">
-                  {isDelivered ? "Order Delivered! 🎉" : "Delivery Partner is on the way!"}
+                  {isDelivered
+                    ? "Order Delivered! 🎉"
+                    : isOutForDelivery
+                      ? "Delivery Partner is on the way!"
+                      : `Order ${statusLabel}`}
                 </h2>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isDelivered
                   ? "Your order has been handed over safely."
-                  : "Live tracking active • Estimated arrival in ~8 to 12 minutes"}
+                  : isOutForDelivery
+                    ? "Live tracking active • Estimated arrival in ~8 to 12 minutes"
+                    : "We'll notify you as soon as your order is on its way."}
               </p>
             </div>
           </div>
@@ -153,8 +190,9 @@ function OrderTrackingPage() {
         </div>
 
         {/* Delivery Partner Contact Card */}
-        <div className="rounded-3xl border bg-card p-5 shadow-soft space-y-4">
-          <div className="flex items-center justify-between gap-3">
+        {isOutForDelivery && (
+          <div className="rounded-3xl border bg-card p-5 shadow-soft space-y-4">
+            <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-800 font-extrabold text-base">
                 👤
@@ -190,8 +228,9 @@ function OrderTrackingPage() {
                 <MessageSquare className="h-5 w-5" />
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Order Status Stepper Timeline */}
         <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
@@ -233,7 +272,9 @@ function OrderTrackingPage() {
               </p>
             </div>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
-              Paid via UPI
+              {activeOrder.payment_method === "cod"
+                ? "Cash on Delivery"
+                : `Paid via ${activeOrder.payment_method === "upi" ? "UPI" : "Card / UPI"}`}
             </span>
           </div>
 
@@ -241,11 +282,17 @@ function OrderTrackingPage() {
           <div className="flex items-start gap-3 bg-muted/50 p-3.5 rounded-2xl text-xs">
             <MapPin className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
             <div>
-              <div className="font-bold text-foreground">Delivery Address</div>
+              <div className="font-bold text-foreground">
+                Delivery Address {activeOrder.address?.label ? `(${activeOrder.address.label})` : ""}
+              </div>
               <div className="text-muted-foreground mt-0.5">
-                {activeOrder.address?.address_line1 || "B-402, Green Valley Apartments"},{" "}
-                {activeOrder.address?.landmark || "Near Jayanagar 4th Block"},{" "}
-                {activeOrder.address?.city || "Bengaluru"}
+                {activeOrder.address?.full_address ||
+                  [activeOrder.address?.address_line1, activeOrder.address?.landmark]
+                    .filter(Boolean)
+                    .join(", ") ||
+                  "B-402, Green Valley Apartments"}
+                {activeOrder.address?.city ? `, ${activeOrder.address.city}` : ""}
+                {activeOrder.address?.pincode ? ` — ${activeOrder.address.pincode}` : ""}
               </div>
             </div>
           </div>
@@ -276,7 +323,7 @@ function OrderTrackingPage() {
                     </span>
                   </div>
                   <span className="font-bold text-foreground tabular-nums">
-                    ₹{((item.price || 20) * (item.quantity || 1)).toFixed(2)}
+                    ₹{((item.unit_price || item.price || 20) * (item.quantity || 1)).toFixed(2)}
                   </span>
                 </div>
               ))}
@@ -288,21 +335,35 @@ function OrderTrackingPage() {
             <div className="flex justify-between">
               <span>Item Subtotal</span>
               <span className="tabular-nums font-semibold">
-                ₹{(activeOrder.total_amount || 199) - 20}
+                ₹{activeOrder.items_subtotal.toFixed(2)}
+              </span>
+            </div>
+            {activeOrder.discount > 0 && (
+              <div className="flex justify-between">
+                <span>Discount</span>
+                <span className="text-emerald-600 font-bold">
+                  −₹{activeOrder.discount.toFixed(2)}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span>Delivery Fee</span>
+              <span className="text-emerald-600 font-bold">
+                {activeOrder.delivery_fee > 0
+                  ? `₹${activeOrder.delivery_fee.toFixed(2)}`
+                  : "FREE"}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Delivery Fee</span>
-              <span className="text-emerald-600 font-bold">FREE</span>
-            </div>
-            <div className="flex justify-between">
               <span>Taxes & Platform Fee</span>
-              <span className="tabular-nums font-semibold">₹20.00</span>
+              <span className="tabular-nums font-semibold">
+                ₹{activeOrder.tax.toFixed(2)}
+              </span>
             </div>
             <div className="flex justify-between pt-2 border-t text-sm font-extrabold text-foreground">
               <span>Total Paid</span>
               <span className="text-emerald-600 tabular-nums">
-                ₹{activeOrder.total_amount || 199}.00
+                ₹{activeOrder.total_amount.toFixed(2)}
               </span>
             </div>
           </div>

@@ -4,7 +4,7 @@ import { Search, X, Star, MapPin, Clock, Radio } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, type DailyLocationData, getNearbyDailyLocations } from "@/lib/api";
 import type { Vendor, Category } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useLocation } from "@/hooks/use-location";
@@ -55,22 +55,43 @@ function VendorsPage() {
     queryFn: () => api.get<Category[]>("/categories"),
   });
 
+  // Fetch nearby daily locations when customer has coordinates
+  const { data: dailyLocationsRes } = useQuery({
+    queryKey: ["nearbyDailyLocations", activeAddress?.latitude, activeAddress?.longitude],
+    queryFn: () => getNearbyDailyLocations(activeAddress!.latitude!, activeAddress!.longitude!, 10),
+    enabled: !!activeAddress?.latitude && !!activeAddress?.longitude,
+  });
+
+  const dailyLocations: (DailyLocationData & { distance_km: number; business_name: string })[] =
+    (dailyLocationsRes?.data as any) || [];
+
   const vendors = vendorsRes?.data || [];
   const categories = catsRes?.data || [];
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const activeCatName = categories.find(
+      (c: any) => c.id === activeCat || c.slug === activeCat || c.name === activeCat,
+    )?.name;
+    const targetCat = activeCatName || activeCat;
     return vendors.filter((v) => {
-      const profile = v.profile;
-      const catMatch = activeCat === "all" || profile?.category === activeCat;
+      const profile: any = v.profile || v;
+      const catMatch = targetCat === "all" || profile?.category === targetCat;
       if (!catMatch) return false;
 
       if (!q) return true;
 
       let tags: string[] = [];
-      try {
-        tags = JSON.parse(profile?.tags || "[]");
-      } catch (e) {}
+      if (Array.isArray(profile?.tags)) {
+        tags = profile.tags;
+      } else if (typeof profile?.tags === "string" && profile.tags.trim()) {
+        try {
+          const parsed = JSON.parse(profile.tags);
+          tags = Array.isArray(parsed) ? parsed : profile.tags.split(",");
+        } catch (e) {
+          tags = profile.tags.split(",");
+        }
+      }
 
       return (
         v.business_name.toLowerCase().includes(q) ||
@@ -78,9 +99,9 @@ function VendorsPage() {
         tags.some((t) => t.toLowerCase().includes(q))
       );
     });
-  }, [activeCat, query, vendors]);
+  }, [activeCat, query, vendors, categories]);
 
-  const liveVendorsCount = vendors.filter((v) => v.profile?.is_open).length;
+  const liveVendorsCount = vendors.filter((v: any) => v.profile?.is_open || v.is_open).length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,8 +150,8 @@ function VendorsPage() {
             <Chip active={activeCat === "all"} onClick={() => setActiveCat("all")}>
               All
             </Chip>
-            {categories.map((c) => (
-              <Chip key={c.id} active={activeCat === c.id} onClick={() => setActiveCat(c.id)}>
+            {categories.map((c: any) => (
+              <Chip key={c.id} active={activeCat === c.name} onClick={() => setActiveCat(c.name)}>
                 {c.name}
               </Chip>
             ))}
@@ -144,16 +165,32 @@ function VendorsPage() {
           ) : (
             <ul className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {filtered.map((v) => {
-                const profile = v.profile || ({} as any);
+                const profile: any = v.profile || v;
                 const imageUrl =
                   profile.logo_url ||
                   "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
                 const isOpen = profile.is_open || false;
                 let tags = ["Local vendor"];
-                try {
-                  tags = JSON.parse(profile.tags || "[]");
-                  if (tags.length === 0) tags = ["Local vendor"];
-                } catch (e) {}
+                if (Array.isArray(profile.tags)) {
+                  tags = profile.tags.length > 0 ? profile.tags : ["Local vendor"];
+                } else if (typeof profile.tags === "string" && profile.tags.trim()) {
+                  try {
+                    const parsed = JSON.parse(profile.tags);
+                    if (Array.isArray(parsed) && parsed.length > 0) tags = parsed;
+                    else tags = [];
+                  } catch (e) {}
+                  if (tags.length === 0) {
+                    tags = profile.tags
+                      .split(",")
+                      .map((t: string) => t.trim())
+                      .filter(Boolean);
+                  }
+                }
+                const hasDistance = typeof v.distance_km === "number";
+                const hasEta = typeof v.eta_min === "number";
+
+                // Check if this vendor has an active daily location
+                const dailyLoc = dailyLocations.find((dl) => dl.vendor_id === v.id && dl.is_active);
 
                 return (
                   <li key={v.id}>
@@ -185,19 +222,35 @@ function VendorsPage() {
                           )}
                         </div>
                         <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
+                        {dailyLoc && (
+                          <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
+                            <MapPin className="h-3 w-3" />
+                            {dailyLoc.area}
+                            {dailyLoc.distance_km !== undefined && (
+                              <span className="text-muted-foreground font-normal">
+                                ·{" "}
+                                {dailyLoc.distance_km < 1
+                                  ? `${Math.round(dailyLoc.distance_km * 1000)}m`
+                                  : `${dailyLoc.distance_km.toFixed(1)} km`}
+                              </span>
+                            )}
+                          </p>
+                        )}
                         <div className="mt-2 flex items-center gap-3 text-[11px]">
                           <span className="inline-flex items-center gap-1 font-bold">
                             <Star className="h-3 w-3 fill-primary text-primary" />
                             {profile?.rating || "0.0"}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                            <MapPin className="h-3 w-3" />{" "}
-                            {v.distance_km ? v.distance_km.toFixed(1) : "1.2"} km
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                            <Clock className="h-3 w-3" /> {v.eta_min ? v.eta_min.toString() : "15"}{" "}
-                            min
-                          </span>
+                          {hasDistance && (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
+                              <MapPin className="h-3 w-3" /> {v.distance_km!.toFixed(1)} km
+                            </span>
+                          )}
+                          {hasEta && (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
+                              <Clock className="h-3 w-3" /> {v.eta_min} min
+                            </span>
+                          )}
                         </div>
                       </div>
                     </Link>

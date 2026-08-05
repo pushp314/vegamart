@@ -96,6 +96,29 @@ export const nearbyVendorsQuerySchema = z.object({
   is_open: z.enum(["true", "false"]).optional(),
 });
 
+export const upsertDailyLocationSchema = z.object({
+  area: z.string().trim().min(1, "Area is required.").max(200),
+  landmark: z.string().trim().max(200).optional().nullable(),
+  address: z.string().trim().min(1, "Address is required.").max(400),
+  latitude: z.coerce.number().min(-90, "Invalid latitude.").max(90, "Invalid latitude."),
+  longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
+  start_time: z
+    .string()
+    .trim()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM (24h) format.")
+    .optional()
+    .nullable(),
+  end_time: z
+    .string()
+    .trim()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM (24h) format.")
+    .optional()
+    .nullable(),
+  notes: z.string().trim().max(500).optional().nullable(),
+  is_active: z.boolean().optional().default(true),
+});
+
 export type CreateVendorBody = z.infer<typeof createVendorSchema>;
 export type UpdateVendorBody = z.infer<typeof updateVendorSchema>;
 export type VendorLocationBody = z.infer<typeof vendorLocationUpdateSchema>;
+export type UpsertDailyLocationBody = z.infer<typeof upsertDailyLocationSchema>;

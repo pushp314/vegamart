@@ -9,6 +9,7 @@ import type {
   CreateVendorBody,
   UpdateVendorBody,
   VendorLocationBody,
+  UpsertDailyLocationBody,
 } from "../validators/vendor.validators";
 
 /**
@@ -446,4 +447,165 @@ export const reviewVendor = asyncHandler(async (req: Request, res: Response) => 
 export const suspendVendor = asyncHandler(async (req: Request, res: Response) => {
   const vendor = await vendorService.suspend(req.user!.id, req.params.vendor_id as string, req);
   return sendSuccess(res, vendor);
+});
+
+// ---------------------------------------------------------------------------
+// Vendor Dashboard
+// ---------------------------------------------------------------------------
+
+/**
+ * @swagger
+ * /vendors/me/dashboard:
+ *   get:
+ *     summary: Get the authenticated vendor's dashboard data
+ *     description: Returns today's stats, revenue, recent orders, and top products.
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     responses:
+ *       200:
+ *         description: Vendor dashboard data.
+ */
+export const getMyDashboard = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.getMyDashboard(req.user!.id);
+  return sendSuccess(res, data);
+});
+
+// ---------------------------------------------------------------------------
+// Daily Location (Location Broadcast)
+// ---------------------------------------------------------------------------
+
+/**
+ * @swagger
+ * /vendors/me/daily-location:
+ *   get:
+ *     summary: Get the authenticated vendor's today's broadcast location
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     responses:
+ *       200:
+ *         description: Today's daily location (or null if not set).
+ */
+export const getMyDailyLocation = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.getMyDailyLocation(req.user!.id);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /vendors/me/daily-location:
+ *   put:
+ *     summary: Create or update the vendor's today's broadcast location
+ *     description: Only roaming vendors can broadcast a daily location. One active broadcast per vendor per day.
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [area, address, latitude, longitude]
+ *             properties:
+ *               area: { type: string, description: "Area or neighborhood" }
+ *               landmark: { type: string, nullable: true }
+ *               address: { type: string, description: "Full address text" }
+ *               latitude: { type: number, minimum: -90, maximum: 90 }
+ *               longitude: { type: number, minimum: -180, maximum: 180 }
+ *               start_time: { type: string, description: "HH:MM (24h)", nullable: true }
+ *               end_time: { type: string, description: "HH:MM (24h)", nullable: true }
+ *               notes: { type: string, nullable: true }
+ *               is_active: { type: boolean, default: true }
+ *     responses:
+ *       200:
+ *         description: Daily location upserted.
+ */
+export const upsertDailyLocation = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.upsertDailyLocation(req.user!.id, req.body as UpsertDailyLocationBody, req);
+  return sendSuccess(res, data, { message: "Daily location updated." });
+});
+
+/**
+ * @swagger
+ * /vendors/me/daily-location:
+ *   delete:
+ *     summary: Remove the vendor's today's broadcast location
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendors]
+ *     responses:
+ *       204:
+ *         description: Daily location removed.
+ */
+export const removeDailyLocation = asyncHandler(async (req: Request, res: Response) => {
+  await vendorService.removeDailyLocation(req.user!.id);
+  res.status(204).send();
+});
+
+/**
+ * @swagger
+ * /vendors/{vendor_id}/daily-location:
+ *   get:
+ *     summary: Get a vendor's today's broadcast location (public)
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor's daily location (or null).
+ *       404:
+ *         $ref: "#/components/responses/NotFound"
+ */
+export const getVendorDailyLocation = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.getVendorDailyLocation(req.params.vendor_id as string);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /vendors/nearby/daily:
+ *   get:
+ *     summary: Find roaming vendors with active daily locations nearby
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: query
+ *         name: lat
+ *         required: true
+ *         schema: { type: number }
+ *       - in: query
+ *         name: lng
+ *         required: true
+ *         schema: { type: number }
+ *       - in: query
+ *         name: radius
+ *         schema: { type: number, default: 5 }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: is_open
+ *         schema: { type: string, enum: ["true", "false"] }
+ *     responses:
+ *       200:
+ *         description: Nearby vendors with daily locations.
+ */
+export const nearbyDailyLocations = asyncHandler(async (req: Request, res: Response) => {
+  const query = req.query as { lat?: string; lng?: string; radius?: string; category?: string; is_open?: string; page?: string; per_page?: string };
+  const lat = Number(query.lat);
+  const lng = Number(query.lng);
+  const radius = query.radius ? Number(query.radius) : 5;
+  const result = await vendorService.getNearbyWithDailyLocation(lat, lng, radius, {
+    category: query.category,
+    is_open: query.is_open === "true",
+    page: query.page ? Number(query.page) : undefined,
+    per_page: query.per_page ? Number(query.per_page) : undefined,
+  });
+  return sendSuccess(res, result.items, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.per_page }, result.total),
+  });
 });

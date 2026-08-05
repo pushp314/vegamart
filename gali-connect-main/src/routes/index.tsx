@@ -70,7 +70,7 @@ const CATS: Cat[] = [
     Icon: Carrot,
     bg: "bg-emerald-100",
     fg: "text-emerald-700",
-    to: "/vendors?category=Vegetables",
+    to: "/vendors?category=Fruits%20%26%20Vegetables",
   },
   {
     id: "fruits",
@@ -78,7 +78,7 @@ const CATS: Cat[] = [
     Icon: Apple,
     bg: "bg-rose-100",
     fg: "text-rose-700",
-    to: "/vendors?category=Fruits",
+    to: "/vendors?category=Fruits%20%26%20Vegetables",
   },
   {
     id: "dairy",
@@ -86,7 +86,7 @@ const CATS: Cat[] = [
     Icon: Milk,
     bg: "bg-sky-100",
     fg: "text-sky-700",
-    to: "/vendors?category=Dairy",
+    to: "/vendors?category=Dairy%20%26%20Eggs",
   },
   {
     id: "grocery",
@@ -94,7 +94,7 @@ const CATS: Cat[] = [
     Icon: ShoppingBasket,
     bg: "bg-amber-100",
     fg: "text-amber-700",
-    to: "/vendors?category=Grocery",
+    to: "/vendors",
   },
   {
     id: "meat",
@@ -102,7 +102,7 @@ const CATS: Cat[] = [
     Icon: Drumstick,
     bg: "bg-orange-100",
     fg: "text-orange-700",
-    to: "/vendors?category=Meat",
+    to: "/vendors",
   },
   {
     id: "fish",
@@ -110,7 +110,7 @@ const CATS: Cat[] = [
     Icon: Fish,
     bg: "bg-cyan-100",
     fg: "text-cyan-700",
-    to: "/vendors?category=Fish",
+    to: "/vendors",
   },
   {
     id: "eggs",
@@ -118,7 +118,7 @@ const CATS: Cat[] = [
     Icon: Egg,
     bg: "bg-yellow-100",
     fg: "text-yellow-700",
-    to: "/vendors?category=Eggs",
+    to: "/vendors?category=Dairy%20%26%20Eggs",
   },
   {
     id: "bakery",
@@ -126,7 +126,7 @@ const CATS: Cat[] = [
     Icon: Croissant,
     bg: "bg-amber-100",
     fg: "text-amber-700",
-    to: "/vendors?category=Bakery",
+    to: "/vendors?category=Bakery%20%26%20Snacks",
   },
   {
     id: "chai",
@@ -134,7 +134,7 @@ const CATS: Cat[] = [
     Icon: Coffee,
     bg: "bg-orange-100",
     fg: "text-orange-700",
-    to: "/vendors?category=Chai & Snacks",
+    to: "/vendors",
   },
   {
     id: "hardware",
@@ -142,7 +142,7 @@ const CATS: Cat[] = [
     Icon: Wrench,
     bg: "bg-slate-200",
     fg: "text-slate-700",
-    to: "/vendors?category=Hardware",
+    to: "/vendors",
   },
   {
     id: "electronics",
@@ -150,7 +150,7 @@ const CATS: Cat[] = [
     Icon: Plug,
     bg: "bg-violet-100",
     fg: "text-violet-700",
-    to: "/vendors?category=Electronics",
+    to: "/vendors",
   },
 ];
 
@@ -349,19 +349,31 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
       ) : (
         <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar px-4 md:px-0 pb-1 md:pb-0 snap-x snap-mandatory">
           {list.map((v) => {
-            const profile = v.profile || {};
             const imageUrl =
-              profile.logo_url ||
+              v.logo_url ||
+              v.banner_url ||
               "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
-            // Safely handle tags
             let tags = ["Local vendor"];
-            if (profile.tags) {
+            const rawTags = v.tags;
+            if (Array.isArray(rawTags) && rawTags.length > 0) {
+              tags = rawTags;
+            } else if (typeof rawTags === "string" && rawTags.trim()) {
               try {
-                tags = JSON.parse(profile.tags);
+                const parsed = JSON.parse(rawTags);
+                if (Array.isArray(parsed) && parsed.length > 0) tags = parsed;
+                else tags = [];
               } catch (e) {}
+              if (tags.length === 0) {
+                tags = rawTags
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter(Boolean);
+              }
             }
-            const distance = v.distance_km ? v.distance_km.toFixed(1) : "1.2";
-            const eta = v.eta_min ? v.eta_min.toString() : "15";
+            const hasDistance = typeof v.distance_km === "number";
+            const hasEta = typeof v.eta_min === "number";
+            const distance = hasDistance ? v.distance_km.toFixed(1) : null;
+            const eta = hasEta ? v.eta_min.toString() : null;
 
             return (
               <Link
@@ -395,14 +407,18 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                     <div className="mt-1.5 flex items-center gap-2 text-[11.5px]">
                       <span className="inline-flex items-center gap-0.5 font-semibold">
                         <Star className="h-3 w-3 fill-primary text-primary" />{" "}
-                        {profile.rating || "0.0"}
+                        {v.rating || "0.0"}
                       </span>
-                      <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                        <MapPin className="h-3 w-3" /> {distance} km
-                      </span>
-                      <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                        <Clock className="h-3 w-3" /> {eta} min
-                      </span>
+                      {hasDistance && (
+                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                          <MapPin className="h-3 w-3" /> {distance} km
+                        </span>
+                      )}
+                      {hasEta && (
+                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                          <Clock className="h-3 w-3" /> {eta} min
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -442,6 +458,7 @@ function RecentlyViewed() {
           {list.map((p) => {
             const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
             const imageUrl =
+              p.image ||
               p.images?.[0]?.url ||
               "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
 
@@ -699,6 +716,7 @@ function Recommended() {
           {list.map((p) => {
             const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
             const imageUrl =
+              p.image ||
               p.images?.[0]?.url ||
               "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
 

@@ -14,11 +14,14 @@ import { ApiError, ConflictError, ForbiddenError } from "../utils/ApiError";
 import { boundingBox, haversineDistanceKm } from "../utils/geo";
 import { HttpStatus } from "../utils/httpStatus";
 import { uniqueSlug } from "../utils/slug";
+import prisma from "../database/prisma";
 import type {
   CreateVendorBody,
   UpdateVendorBody,
   VendorLocationBody,
+  UpsertDailyLocationBody,
 } from "../validators/vendor.validators";
+import * as dailyLocationRepo from "../repositories/vendor-daily-location.repository";
 
 export interface NearbyVendor {
   vendor: Omit<vendorRepo.VendorRow, "latitude" | "longitude">;
@@ -439,5 +442,311 @@ export const vendorService = {
       req
     );
     return updated;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Daily Location (Location Broadcast)
+  // ---------------------------------------------------------------------------
+
+  async getMyDailyLocation(userId: string) {
+    const vendor = await this.getMyVendor(userId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const location = await dailyLocationRepo.findByVendorAndDate(vendor.id, today);
+    return {
+      vendor: {
+        id: vendor.id,
+        business_name: vendor.business_name,
+        slug: vendor.slug,
+        roaming: vendor.roaming,
+      },
+      location,
+    };
+  },
+
+  async upsertDailyLocation(
+    userId: string,
+    input: UpsertDailyLocationBody,
+    req: Request,
+  ) {
+    const vendor = await this.getMyVendor(userId);
+
+    if (vendor.status !== VendorStatus.APPROVED) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved to broadcast location.", {
+        code: "VENDOR_NOT_APPROVED",
+      });
+    }
+
+    if (!vendor.roaming) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Only roaming vendors can set a daily broadcast location.", {
+        code: "NOT_ROAMING_VENDOR",
+      });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const location = await dailyLocationRepo.upsert(vendor.id, today, {
+      area: input.area,
+      landmark: input.landmark ?? null,
+      address: input.address,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      start_time: input.start_time ?? null,
+      end_time: input.end_time ?? null,
+      notes: input.notes ?? null,
+      is_active: input.is_active ?? true,
+    });
+
+    await cacheService.invalidateNamespace("vendor");
+
+    if (location.is_active) {
+      realtime.publishRoamingVendor(vendor.id, location.latitude, location.longitude);
+    }
+
+    await auditService.record(
+      {
+        userId,
+        action: AUDIT_ACTIONS.VENDOR_LOCATION_UPDATED,
+        entityType: "vendor_daily_location",
+        entityId: location.id,
+        newValues: { area: location.area, latitude: location.latitude, longitude: location.longitude },
+      },
+      req,
+    );
+
+    return location;
+  },
+
+  async removeDailyLocation(userId: string) {
+    const vendor = await this.getMyVendor(userId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    await dailyLocationRepo.deleteByVendorAndDate(vendor.id, today);
+    await cacheService.invalidateNamespace("vendor");
+  },
+
+  async getVendorDailyLocation(vendorId: string) {
+    const vendor = await this.getById(vendorId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const location = await dailyLocationRepo.findByVendorAndDate(vendor.id, today);
+    return {
+      vendor: {
+        id: vendor.id,
+        business_name: vendor.business_name,
+        slug: vendor.slug,
+        category: vendor.category,
+        logo_url: vendor.logo_url,
+        rating: vendor.rating,
+        review_count: vendor.review_count,
+        is_verified: vendor.is_verified,
+        roaming: vendor.roaming,
+      },
+      location,
+    };
+  },
+
+  // ---------------------------------------------------------------------------
+  // Vendor Dashboard
+  // ---------------------------------------------------------------------------
+
+  async getMyDashboard(userId: string) {
+    const vendor = await this.getMyVendor(userId);
+
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      todayOrders,
+      totalOrders,
+      todayRevenueAgg,
+      totalRevenueAgg,
+      pendingOrders,
+      activeOrders,
+      totalProducts,
+      lowStockProducts,
+      weeklyRevenueAgg,
+      monthlyRevenueAgg,
+      recentOrders,
+      topProducts,
+    ] = await Promise.all([
+      prisma.order.count({
+        where: { vendor_id: vendor.id, created_at: { gte: startOfDay }, deleted_at: null },
+      }),
+      prisma.order.count({
+        where: { vendor_id: vendor.id, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+      }),
+      prisma.order.aggregate({
+        where: {
+          vendor_id: vendor.id,
+          created_at: { gte: startOfDay },
+          deleted_at: null,
+          status: { notIn: ["CANCELLED", "FAILED"] },
+        },
+        _sum: { total: true },
+      }),
+      prisma.order.aggregate({
+        where: {
+          vendor_id: vendor.id,
+          deleted_at: null,
+          status: { notIn: ["CANCELLED", "FAILED"] },
+        },
+        _sum: { total: true },
+      }),
+      prisma.order.count({
+        where: { vendor_id: vendor.id, status: "PENDING", deleted_at: null },
+      }),
+      prisma.order.count({
+        where: {
+          vendor_id: vendor.id,
+          status: { in: ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP"] },
+          deleted_at: null,
+        },
+      }),
+      prisma.product.count({
+        where: { vendor_id: vendor.id, deleted_at: null },
+      }),
+      prisma.product.count({
+        where: {
+          vendor_id: vendor.id,
+          deleted_at: null,
+          is_active: true,
+          inventory: { some: { quantity: { lte: 5 } } },
+        },
+      }),
+      prisma.order.aggregate({
+        where: {
+          vendor_id: vendor.id,
+          created_at: { gte: startOfWeek },
+          deleted_at: null,
+          status: { notIn: ["CANCELLED", "FAILED"] },
+        },
+        _sum: { total: true },
+      }),
+      prisma.order.aggregate({
+        where: {
+          vendor_id: vendor.id,
+          created_at: { gte: startOfMonth },
+          deleted_at: null,
+          status: { notIn: ["CANCELLED", "FAILED"] },
+        },
+        _sum: { total: true },
+      }),
+      prisma.order.findMany({
+        where: { vendor_id: vendor.id, deleted_at: null },
+        orderBy: { created_at: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          order_number: true,
+          status: true,
+          total: true,
+          created_at: true,
+          customer: { select: { name: true } },
+        },
+      }),
+      prisma.orderItem.groupBy({
+        by: ["product_id"],
+        where: {
+          order: { vendor_id: vendor.id, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+        },
+        _sum: { quantity: true },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 5,
+      }),
+    ]);
+
+    const topProductIds = topProducts.map((tp) => tp.product_id);
+    const topProductDetails = topProductIds.length
+      ? await prisma.product.findMany({
+          where: { id: { in: topProductIds } },
+          select: { id: true, name: true, price: true },
+        })
+      : [];
+
+    const topProductsWithStats = topProducts.map((tp) => {
+      const product = topProductDetails.find((p) => p.id === tp.product_id);
+      return {
+        product_id: tp.product_id,
+        name: product?.name ?? "Unknown",
+        price: product?.price,
+        order_count: tp._count.id,
+        total_quantity: tp._sum.quantity ?? 0,
+      };
+    });
+
+    return {
+      vendor: {
+        id: vendor.id,
+        business_name: vendor.business_name,
+        rating: vendor.rating,
+        review_count: vendor.review_count,
+        is_open: vendor.is_open,
+      },
+      stats: {
+        today_orders: todayOrders,
+        total_orders: totalOrders,
+        today_revenue: Number(todayRevenueAgg._sum?.total ?? 0),
+        total_revenue: Number(totalRevenueAgg._sum?.total ?? 0),
+        weekly_revenue: Number(weeklyRevenueAgg._sum?.total ?? 0),
+        monthly_revenue: Number(monthlyRevenueAgg._sum?.total ?? 0),
+        pending_orders: pendingOrders,
+        active_orders: activeOrders,
+        total_products: totalProducts,
+        low_stock_products: lowStockProducts,
+      },
+      recent_orders: recentOrders.map((o) => ({
+        id: o.id,
+        order_number: o.order_number,
+        status: o.status,
+        total: Number(o.total),
+        customer_name: o.customer?.name ?? "Customer",
+        created_at: o.created_at,
+      })),
+      top_products: topProductsWithStats,
+    };
+  },
+
+  async getNearbyWithDailyLocation(
+    lat: number,
+    lng: number,
+    radiusKm: number,
+    options: { category?: string; is_open?: boolean; page?: number; per_page?: number } = {},
+  ) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const radius = radiusKm || 5;
+    const page = Math.max(1, options.page ?? 1);
+    const perPage = Math.min(100, Math.max(1, options.per_page ?? 20));
+
+    const key = `nearby_daily:${lat.toFixed(3)}:${lng.toFixed(3)}:${radius}:${options.category ?? ""}:${options.is_open ? "open" : "any"}:${page}:${perPage}`;
+
+    const compute = () =>
+      dailyLocationRepo.findNearby(lat, lng, radius, today, {
+        category: options.category,
+        is_open: options.is_open,
+        page,
+        per_page: perPage,
+      });
+
+    const cached = await cacheService.remember<{ items: dailyLocationRepo.NearbyDailyLocationResult[]; total: number }>(
+      "vendor",
+      key,
+      compute,
+    );
+
+    return {
+      items: cached?.items ?? [],
+      total: cached?.total ?? 0,
+      page,
+      per_page: perPage,
+    };
   },
 };

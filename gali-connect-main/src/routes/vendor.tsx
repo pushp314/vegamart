@@ -15,6 +15,10 @@ import {
   Ban,
   UploadCloud,
   FileCheck2,
+  MapPin,
+  Star,
+  Tag,
+  BarChart3,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PortalLayout } from "@/components/layout/portal-layout";
@@ -24,6 +28,10 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { DailyLocationForm } from "@/components/vendor/daily-location-form";
+import { VendorReviews } from "@/components/vendor/VendorReviews";
+import { VendorCoupons } from "@/components/vendor/VendorCoupons";
+import { VendorAnalytics } from "@/components/vendor/VendorAnalytics";
 
 export const Route = createFileRoute("/vendor")({
   head: () => ({ meta: [{ title: "Vendor Portal — Vegamart" }] }),
@@ -41,7 +49,15 @@ function VendorParentLayout() {
   return <VendorDashboard />;
 }
 
-type VendorTab = "overview" | "products" | "orders" | "earnings";
+type VendorTab =
+  | "overview"
+  | "products"
+  | "orders"
+  | "earnings"
+  | "location"
+  | "reviews"
+  | "coupons"
+  | "analytics";
 
 function VendorDashboard() {
   const queryClient = useQueryClient();
@@ -57,9 +73,7 @@ function VendorDashboard() {
     }
   }, [user, navigate]);
 
-  const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "earnings">(
-    "overview",
-  );
+  const [activeTab, setActiveTab] = useState<VendorTab>("overview");
 
   // Fetch Vendor Profile
   const { data: vendorRes, isLoading: vendorLoading } = useQuery({
@@ -170,7 +184,7 @@ function VendorDashboard() {
   const saveProductMutation = useMutation({
     mutationFn: (data: any) =>
       editingProduct
-        ? api.put(`/products/${editingProduct.id}`, data)
+        ? api.patch(`/products/${editingProduct.id}`, data)
         : api.post("/products", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
@@ -523,6 +537,24 @@ function VendorDashboard() {
     { id: "products", title: "Products", icon: Package, onClick: () => setActiveTab("products") },
     { id: "orders", title: "Orders", icon: ClipboardList, onClick: () => setActiveTab("orders") },
     { id: "earnings", title: "Earnings", icon: Wallet, onClick: () => setActiveTab("earnings") },
+    { id: "reviews", title: "Reviews", icon: Star, onClick: () => setActiveTab("reviews") },
+    { id: "coupons", title: "Coupons", icon: Tag, onClick: () => setActiveTab("coupons") },
+    {
+      id: "analytics",
+      title: "Analytics",
+      icon: BarChart3,
+      onClick: () => setActiveTab("analytics"),
+    },
+    ...(vendor?.roaming
+      ? [
+          {
+            id: "location",
+            title: "Location",
+            icon: MapPin,
+            onClick: () => setActiveTab("location" as VendorTab),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -633,6 +665,19 @@ function VendorDashboard() {
           >
             Earnings
           </button>
+          {vendor?.roaming && (
+            <button
+              onClick={() => setActiveTab("location")}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === "location"
+                  ? "bg-emerald-500 text-black  shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              }`}
+            >
+              <MapPin className="inline h-3 w-3 mr-1" />
+              Location
+            </button>
+          )}
         </div>
 
         {/* OVERVIEW TAB */}
@@ -811,54 +856,128 @@ function VendorDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {vendorOrders.map((o: any) => (
-                  <div
-                    key={o.id}
-                    className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-3 shadow-2xl"
-                  >
-                    <div className="flex items-center justify-between border-b pb-3">
-                      <div>
-                        <div className="font-bold text-sm">
-                          Order #{o.order_number || o.id.slice(0, 8)}
+                {vendorOrders.map((o: any) => {
+                  const getNextStatuses = (currentStatus: string) => {
+                    const statusFlow: Record<
+                      string,
+                      { status: string; label: string; color: string }[]
+                    > = {
+                      PENDING: [
+                        {
+                          status: "accepted",
+                          label: "Accept",
+                          color: "bg-emerald-500/10 text-emerald-800 hover:bg-emerald-200",
+                        },
+                      ],
+                      CONFIRMED: [
+                        {
+                          status: "preparing",
+                          label: "Start Preparing",
+                          color: "bg-blue-100 text-blue-800 hover:bg-blue-200",
+                        },
+                      ],
+                      PREPARING: [
+                        {
+                          status: "packed",
+                          label: "Mark Packed",
+                          color: "bg-indigo-100 text-indigo-800 hover:bg-indigo-200",
+                        },
+                      ],
+                      PACKED: [
+                        {
+                          status: "ready_for_pickup",
+                          label: "Ready for Pickup",
+                          color: "bg-cyan-100 text-cyan-800 hover:bg-cyan-200",
+                        },
+                      ],
+                      READY_FOR_PICKUP: [
+                        {
+                          status: "out_for_delivery",
+                          label: "Out for Delivery",
+                          color: "bg-orange-100 text-orange-800 hover:bg-orange-200",
+                        },
+                      ],
+                      OUT_FOR_DELIVERY: [
+                        {
+                          status: "delivered",
+                          label: "Delivered",
+                          color: "bg-green-100 text-green-800 hover:bg-green-200",
+                        },
+                      ],
+                    };
+                    return statusFlow[currentStatus] || [];
+                  };
+                  const nextStatuses = getNextStatuses(o.status);
+
+                  return (
+                    <div
+                      key={o.id}
+                      className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-3 shadow-2xl"
+                    >
+                      <div className="flex items-center justify-between border-b pb-3">
+                        <div>
+                          <div className="font-bold text-sm">
+                            Order #{o.order_number || o.id.slice(0, 8)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {o.customer_name || "Customer"}
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {o.customer_name || "Customer"}
+                        <div className="text-right">
+                          <div className="font-bold text-emerald-600 text-sm">₹{o.total}</div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            {o.status}
+                          </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-emerald-600 text-sm">₹{o.total}</div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                          {o.status}
-                        </span>
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <span className="text-muted-foreground">Update Status:</span>
+                        <div className="flex gap-1 flex-wrap justify-end">
+                          {nextStatuses.length > 0 ? (
+                            nextStatuses.map((ns) => (
+                              <button
+                                key={ns.status}
+                                onClick={() =>
+                                  updateOrderStatusMutation.mutate({
+                                    orderId: o.id,
+                                    status: ns.status,
+                                  })
+                                }
+                                className={`px-2.5 py-1 rounded-xl border border-border text-[11px] font-bold ${ns.color}`}
+                              >
+                                {ns.label}
+                              </button>
+                            ))
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground italic">
+                              {o.status === "DELIVERED" ? "Completed" : "Awaiting delivery partner"}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs pt-1">
-                      <span className="text-muted-foreground">Update Status:</span>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() =>
-                            updateOrderStatusMutation.mutate({ orderId: o.id, status: "accepted" })
-                          }
-                          className="px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-border border-emerald-500/20 text-emerald-800 text-[11px] font-bold hover:bg-emerald-200"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() =>
-                            updateOrderStatusMutation.mutate({ orderId: o.id, status: "delivered" })
-                          }
-                          className="px-2.5 py-1 rounded-xl bg-blue-100 text-blue-800 text-[11px] font-bold hover:bg-blue-200"
-                        >
-                          Delivered
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         )}
+
+        {/* LOCATION TAB */}
+        {activeTab === "location" && vendor?.roaming && (
+          <div className="max-w-lg">
+            <DailyLocationForm vendorProfile={vendor} />
+          </div>
+        )}
+
+        {/* REVIEWS TAB */}
+        {activeTab === "reviews" && <VendorReviews />}
+
+        {/* COUPONS TAB */}
+        {activeTab === "coupons" && <VendorCoupons />}
+
+        {/* ANALYTICS TAB */}
+        {activeTab === "analytics" && <VendorAnalytics />}
 
         {/* EARNINGS TAB */}
         {activeTab === "earnings" && (

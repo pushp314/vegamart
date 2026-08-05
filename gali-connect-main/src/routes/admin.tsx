@@ -9,7 +9,7 @@ import { useAuth } from "@/context/auth-context";
 // Components
 import { AdminTab } from "@/components/admin/AdminSidebar";
 import { PortalLayout } from "@/components/layout/portal-layout";
-import { LayoutDashboard, Users, Store, Bike, FileText, Banknote } from "lucide-react";
+import { LayoutDashboard, Users, Store, Bike, FileText, Banknote, ShoppingCart, Bell, FileBarChart, ClipboardList, Settings } from "lucide-react";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { AdminVendors } from "@/components/admin/AdminVendors";
 import { AdminUsers } from "@/components/admin/AdminUsers";
@@ -17,6 +17,12 @@ import { AdminDelivery } from "@/components/admin/AdminDelivery";
 import { AdminCMS } from "@/components/admin/AdminCMS";
 import { AdminRefunds } from "@/components/admin/AdminRefunds";
 import { AdminCreatePartner } from "@/components/admin/AdminCreatePartner";
+import { AdminOrders } from "@/components/admin/AdminOrders";
+import { AdminProducts } from "@/components/admin/AdminProducts";
+import { AdminReports } from "@/components/admin/AdminReports";
+import { AdminNotifications } from "@/components/admin/AdminNotifications";
+import { AdminAuditLogs } from "@/components/admin/AdminAuditLogs";
+import { AdminSettings } from "@/components/admin/AdminSettings";
 import { UserPlus } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -154,6 +160,12 @@ function AdminDashboard() {
       onClick: () => setActiveTab("overview"),
     },
     {
+      id: "orders",
+      title: "Orders",
+      icon: ShoppingCart,
+      onClick: () => setActiveTab("orders"),
+    },
+    {
       id: "create_partner",
       title: "Create Partner",
       icon: UserPlus,
@@ -167,8 +179,13 @@ function AdminDashboard() {
       icon: Bike,
       onClick: () => setActiveTab("delivery"),
     },
-    { id: "cms", title: "CMS", icon: FileText, onClick: () => setActiveTab("cms") },
+    { id: "products", title: "Products", icon: FileText, onClick: () => setActiveTab("products") },
+    { id: "cms", title: "CMS", icon: ClipboardList, onClick: () => setActiveTab("cms") },
+    { id: "reports", title: "Reports", icon: FileBarChart, onClick: () => setActiveTab("reports") },
+    { id: "notifications", title: "Notifications", icon: Bell, onClick: () => setActiveTab("notifications") },
+    { id: "audit_logs", title: "Audit Logs", icon: FileText, onClick: () => setActiveTab("audit_logs") },
     { id: "refunds", title: "Refunds", icon: Banknote, onClick: () => setActiveTab("refunds") },
+    { id: "settings", title: "Settings", icon: Settings, onClick: () => setActiveTab("settings") },
   ];
 
   if (authLoading || !isAuthenticated || !isAdmin) {
@@ -187,6 +204,7 @@ function AdminDashboard() {
       userEmail={user?.email}
     >
       {activeTab === "overview" && <AdminOverview stats={stats} />}
+      {activeTab === "orders" && <AdminOrders />}
       {activeTab === "create_partner" && <AdminCreatePartner />}
       {activeTab === "vendors" && (
         <AdminVendors
@@ -213,8 +231,13 @@ function AdminDashboard() {
           isRejecting={rejectDeliveryMutation.isPending}
         />
       )}
+      {activeTab === "products" && <AdminProducts />}
       {activeTab === "cms" && <AdminCMS />}
+      {activeTab === "reports" && <AdminReports />}
+      {activeTab === "notifications" && <AdminNotifications />}
+      {activeTab === "audit_logs" && <AdminAuditLogs />}
       {activeTab === "refunds" && <AdminRefunds />}
+      {activeTab === "settings" && <AdminSettings />}
     </PortalLayout>
   );
 }

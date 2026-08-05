@@ -8,11 +8,13 @@ import {
   getAuditLog,
   getDashboard,
   getDeliveryPartner,
+  getOrder,
   getUser,
   getVendorAdmin,
   getVendorEarnings,
   listAuditLogs,
   listDeliveryPartners,
+  listOrders,
   listUsers,
   listVendorsAdmin,
   resetUserPassword,
@@ -24,6 +26,7 @@ import {
   suspendDeliveryPartner,
   suspendUser,
   suspendVendorAdmin,
+  updateOrderStatus,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -54,6 +57,8 @@ import { validate } from "../../middlewares/validate";
 import { apiLimiter } from "../../middlewares/rate-limit.middleware";
 import { ROLES } from "../../constants/roles";
 import {
+  adminOrderIdParamsSchema,
+  adminOrderQuerySchema,
   adminPaginationQuerySchema,
   analyticsQuerySchema,
   announcementIdParamsSchema,
@@ -154,5 +159,10 @@ router.patch("/announcements/:announcement_id", validate({ params: announcementI
 router.post("/announcements/:announcement_id/publish", validate({ params: announcementIdParamsSchema }), publishAnnouncement);
 router.post("/announcements/:announcement_id/unpublish", validate({ params: announcementIdParamsSchema }), unpublishAnnouncement);
 router.delete("/announcements/:announcement_id", validate({ params: announcementIdParamsSchema }), deleteAnnouncement);
+
+// Order management
+router.get("/orders", validate({ query: adminOrderQuerySchema }), listOrders);
+router.get("/orders/:order_id", validate({ params: adminOrderIdParamsSchema }), getOrder);
+router.patch("/orders/:order_id/status", validate({ params: adminOrderIdParamsSchema }), updateOrderStatus);
 
 export default router;

@@ -236,3 +236,63 @@ export const getNearbyVendors = (lat: number, lng: number, radiusKm = 5) =>
 
 export const updateVendorLocation = (lat: number, lng: number) =>
   api.put("/vendors/me/location", { lat, lng });
+
+// ── Vendor Daily Location APIs ────────────────────────────────────────────
+export interface DailyLocationData {
+  id: string;
+  vendor_id: string;
+  broadcast_date: string;
+  area: string;
+  landmark: string | null;
+  address: string;
+  latitude: number;
+  longitude: number;
+  start_time: string | null;
+  end_time: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertDailyLocationPayload {
+  area: string;
+  landmark?: string | null;
+  address: string;
+  latitude: number;
+  longitude: number;
+  start_time?: string | null;
+  end_time?: string | null;
+  notes?: string | null;
+  is_active?: boolean;
+}
+
+export const getMyDailyLocation = () =>
+  api.get<{
+    vendor: { id: string; business_name: string; slug: string; roaming: boolean };
+    location: DailyLocationData | null;
+  }>("/vendors/me/daily-location");
+
+export const upsertDailyLocation = (data: UpsertDailyLocationPayload) =>
+  api.put<DailyLocationData>("/vendors/me/daily-location", data);
+
+export const removeDailyLocation = () => api.delete("/vendors/me/daily-location");
+
+export const getVendorDailyLocation = (vendorId: string) =>
+  api.get<{
+    vendor: {
+      id: string;
+      business_name: string;
+      slug: string;
+      category: string | null;
+      logo_url: string | null;
+      rating: number;
+      review_count: number;
+      is_verified: boolean;
+      roaming: boolean;
+    };
+    location: DailyLocationData | null;
+  }>(`/vendors/${vendorId}/daily-location`);
+
+export const getNearbyDailyLocations = (lat: number, lng: number, radiusKm = 5) =>
+  api.get(`/vendors/nearby/daily?lat=${lat}&lng=${lng}&radius=${radiusKm}`);

@@ -102,16 +102,16 @@ function OrderIdTrackingPage() {
         </div>
 
         {/* Delivery OTP Banner */}
-        {!isDelivered && order.delivery_otp && (
+        {!isDelivered && order.otp_code && (
           <div className="rounded-3xl border border-rose-500/30 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-rose-500/5 p-5 shadow-soft flex items-center justify-between gap-4">
             <div>
               <h3 className="font-display font-black text-sm text-rose-600">Secure Delivery OTP</h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                Please share this 4-digit code with the delivery partner to receive your order.
+                Please share this 6-digit code with the delivery partner to receive your order.
               </p>
             </div>
             <div className="bg-rose-500 text-white font-black text-3xl tracking-[0.25em] px-6 py-3 rounded-2xl shadow-inner border border-rose-600">
-              {order.delivery_otp}
+              {order.otp_code}
             </div>
           </div>
         )}

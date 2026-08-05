@@ -5,6 +5,7 @@ import { adminUserService } from "../services/admin-user.service";
 import { adminVendorService } from "../services/admin-vendor.service";
 import { adminDeliveryService } from "../services/admin-delivery.service";
 import { auditLogService } from "../services/audit-log.service";
+import { adminOrderService } from "../services/admin-order.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
@@ -595,5 +596,108 @@ export const listAuditLogs = asyncHandler(async (req: Request, res: Response) =>
  */
 export const getAuditLog = asyncHandler(async (req: Request, res: Response) => {
   const data = await auditLogService.getById(req.params.audit_log_id as string);
+  return sendSuccess(res, data);
+});
+
+// ---------------------------------------------------------------------------
+// Order management
+// ---------------------------------------------------------------------------
+
+/**
+ * @swagger
+ * /admin/orders:
+ *   get:
+ *     summary: List all orders with filters
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: per_page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: q
+ *         schema: { type: string }
+ *       - in: query
+ *         name: status
+ *         schema: { type: string }
+ *       - in: query
+ *         name: payment_status
+ *         schema: { type: string }
+ *       - in: query
+ *         name: vendor_id
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Paginated order list.
+ */
+export const listOrders = asyncHandler(async (req: Request, res: Response) => {
+  const result = await adminOrderService.list(req.query as never);
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /admin/orders/{order_id}:
+ *   get:
+ *     summary: Get order details for admin
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: order_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Order details.
+ */
+export const getOrder = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminOrderService.getById(req.params.order_id as string);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/orders/{order_id}/status:
+ *   patch:
+ *     summary: Update order status (admin override)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: order_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status: { type: string }
+ *               reason: { type: string }
+ *     responses:
+ *       200:
+ *         description: Order status updated.
+ */
+export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
+  const { status, reason } = req.body as { status: string; reason?: string };
+  const data = await adminOrderService.updateStatus(
+    req.user!.id,
+    req.params.order_id as string,
+    status,
+    reason ?? null,
+    req
+  );
   return sendSuccess(res, data);
 });

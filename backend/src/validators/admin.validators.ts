@@ -158,3 +158,19 @@ export const updateAnnouncementSchema = z.object({
   is_active: z.boolean().optional(),
   scheduled_at: z.string().datetime().optional().nullable(),
 });
+
+export const adminOrderQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  q: z.string().trim().max(160).optional(),
+  status: z.string().trim().max(40).optional(),
+  payment_status: z.string().trim().max(40).optional(),
+  payment_method: z.string().trim().max(20).optional(),
+  vendor_id: z.string().uuid().optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+});
+
+export const adminOrderIdParamsSchema = z.object({
+  order_id: z.string().uuid("order_id must be a valid UUID."),
+});

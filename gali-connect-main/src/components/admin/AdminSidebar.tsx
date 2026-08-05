@@ -8,11 +8,27 @@ import {
   Package,
   LogOut,
   UserPlus,
+  ShoppingCart,
+  Bell,
+  FileBarChart,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
 export type AdminTab =
-  "overview" | "create_partner" | "vendors" | "users" | "delivery" | "cms" | "refunds";
+  | "overview"
+  | "create_partner"
+  | "vendors"
+  | "users"
+  | "delivery"
+  | "cms"
+  | "refunds"
+  | "orders"
+  | "products"
+  | "reports"
+  | "notifications"
+  | "audit_logs"
+  | "settings";
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -24,13 +40,18 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
 
   const navItems: { id: string; label: string; icon: any; disabled?: boolean }[] = [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-    { id: "create_partner", label: "➕ Create Partner", icon: UserPlus },
+    { id: "orders", label: "Orders", icon: ShoppingCart },
+    { id: "create_partner", label: "Create Partner", icon: UserPlus },
     { id: "vendors", label: "Vendors", icon: Store },
     { id: "users", label: "Users", icon: Users },
     { id: "delivery", label: "Delivery Fleet", icon: Bike },
-    { id: "cms", label: "CMS & Marketing", icon: Package },
+    { id: "products", label: "Products", icon: Package },
+    { id: "cms", label: "CMS & Marketing", icon: ClipboardList },
+    { id: "reports", label: "Reports", icon: FileBarChart },
+    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "audit_logs", label: "Audit Logs", icon: RotateCcw },
     { id: "refunds", label: "Refunds", icon: RotateCcw },
-    { id: "settings", label: "Settings", icon: Settings, disabled: true },
+    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   return (

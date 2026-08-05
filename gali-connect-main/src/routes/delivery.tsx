@@ -15,11 +15,20 @@ import {
   Radio,
   CheckCircle2,
   Wallet,
+  Clock,
+  User,
+  Settings,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { DeliveryHistory } from "@/components/delivery/DeliveryHistory";
+import { DeliveryProfile } from "@/components/delivery/DeliveryProfile";
+import { DeliverySettings } from "@/components/delivery/DeliverySettings";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/delivery")({
   component: DeliveryDashboard,
@@ -38,8 +47,13 @@ function DeliveryDashboard() {
       else navigate({ to: "/" });
     }
   }, [user, navigate]);
-  const [activeTab, setActiveTab] = useState<"requests" | "active" | "earnings">("requests");
+  const [activeTab, setActiveTab] = useState<
+    "requests" | "active" | "earnings" | "history" | "profile" | "settings"
+  >("requests");
   const [isOnline, setIsOnline] = useState(false);
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [otpValue, setOtpValue] = useState("");
 
   // Fetch Delivery Profile
   const { data: profileRes, isLoading: partnerLoading } = useQuery({
@@ -65,6 +79,15 @@ function DeliveryDashboard() {
     queryFn: () => api.get<any[]>("/delivery/my-deliveries"),
     enabled: !!partner && partner.status === "approved",
   });
+
+  // Fetch Delivery Stats
+  const { data: statsRes } = useQuery({
+    queryKey: ["deliveryStats"],
+    queryFn: () => api.get<any>("/delivery/me/stats"),
+    enabled: !!partner && partner.status === "approved",
+  });
+
+  const deliveryStats = statsRes?.data?.data ?? statsRes?.data ?? {};
 
   const requests = requestsRes?.data || [];
   const myDeliveries = myDeliveriesRes?.data || [];
@@ -415,20 +438,9 @@ function DeliveryDashboard() {
                       </button>
                       <button
                         onClick={() => {
-                          const otp = window.prompt("Enter 4-digit Delivery OTP from Customer:");
-                          if (otp && otp.length === 4) {
-                            api
-                              .put(`/delivery/order/${o.id}/delivered`, { otp })
-                              .then(() => {
-                                toast.success("Order marked as delivered!");
-                                queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
-                              })
-                              .catch((err) =>
-                                toast.error(err?.message || "Failed to mark delivered"),
-                              );
-                          } else if (otp) {
-                            toast.error("Invalid OTP format");
-                          }
+                          setSelectedOrderId(o.id);
+                          setOtpValue("");
+                          setOtpModalOpen(true);
                         }}
                         className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
                       >
@@ -465,7 +477,9 @@ function DeliveryDashboard() {
                   <div className="text-[10px] text-emerald-700 uppercase font-bold mb-1">
                     Rating
                   </div>
-                  <div className="font-bold text-xl text-amber-600">★ 4.9</div>
+                  <div className="font-bold text-xl text-amber-600">
+                    ★ {deliveryStats.partner?.rating ?? 0}
+                  </div>
                 </div>
               </div>
             </div>
@@ -499,6 +513,15 @@ function DeliveryDashboard() {
             </div>
           </div>
         )}
+
+        {/* HISTORY TAB */}
+        {activeTab === "history" && <DeliveryHistory />}
+
+        {/* PROFILE TAB */}
+        {activeTab === "profile" && <DeliveryProfile partner={partner} />}
+
+        {/* SETTINGS TAB */}
+        {activeTab === "settings" && <DeliverySettings />}
       </main>
 
       {/* BOTTOM NAVIGATION */}
@@ -531,8 +554,81 @@ function DeliveryDashboard() {
             <Wallet className="h-6 w-6" />
             <span className="text-[10px] font-bold uppercase tracking-wider">Wallet</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`flex flex-col items-center gap-1.5 w-20 transition-colors ${activeTab === "history" ? "text-emerald-600" : "text-muted-foreground"}`}
+          >
+            <Clock className="h-6 w-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">History</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("settings")}
+            className={`flex flex-col items-center gap-1.5 w-20 transition-colors ${activeTab === "settings" ? "text-emerald-600" : "text-muted-foreground"}`}
+          >
+            <Settings className="h-6 w-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Settings</span>
+          </button>
         </div>
       </div>
+
+      {/* OTP MODAL */}
+      <Dialog open={otpModalOpen} onOpenChange={setOtpModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enter Delivery OTP</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Ask the customer for the 6-digit OTP to confirm delivery.
+            </p>
+            <Input
+              type="text"
+              placeholder="Enter 6-digit OTP"
+              value={otpValue}
+              onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="text-center text-lg tracking-[0.3em]"
+              maxLength={6}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOtpModalOpen(false);
+                  setSelectedOrderId(null);
+                  setOtpValue("");
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (otpValue.length === 6 && selectedOrderId) {
+                    api
+                      .put(`/delivery/order/${selectedOrderId}/delivered`, { otp: otpValue })
+                      .then(() => {
+                        toast.success("Order marked as delivered!");
+                        queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+                        setOtpModalOpen(false);
+                        setSelectedOrderId(null);
+                        setOtpValue("");
+                      })
+                      .catch((err) => toast.error(err?.message || "Failed to mark delivered"));
+                  } else {
+                    toast.error("Please enter a valid 6-digit OTP");
+                  }
+                }}
+                disabled={otpValue.length !== 6}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500"
+              >
+                Confirm Delivery
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

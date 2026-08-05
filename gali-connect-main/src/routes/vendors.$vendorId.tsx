@@ -13,10 +13,11 @@ import {
   Radio,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { ProductCard } from "@/components/marketplace/product-card";
+import { VendorLocationCard } from "@/components/vendor/vendor-location-card";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/vendors/$vendorId")({
@@ -26,10 +27,11 @@ export const Route = createFileRoute("/vendors/$vendorId")({
     return { vendor: res.data };
   },
   head: ({ loaderData }) => {
-    const vendor = loaderData?.vendor;
+    const vendor = loaderData?.vendor as any;
     const name = vendor?.business_name || "Vendor";
-    const address = vendor?.profile?.address || "";
+    const address = vendor?.address || vendor?.profile?.address || "";
     const cover =
+      vendor?.banner_url ||
       vendor?.profile?.banner_url ||
       "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
     return {
@@ -47,7 +49,7 @@ export const Route = createFileRoute("/vendors/$vendorId")({
 
 function VendorDetail() {
   const { vendor } = Route.useLoaderData();
-  const profile = vendor.profile || ({} as any);
+  const profile: any = vendor.profile || (vendor as any);
   const { addToCart } = useCart();
 
   const { data: productsRes, isLoading } = useQuery({
@@ -66,7 +68,17 @@ function VendorDetail() {
 
   const ownerName = profile.owner_name || vendor.business_name || "Verified Merchant";
   const phone = profile.phone || (vendor as any).phone || "+919876543210";
-  const isRoaming = (profile.vendor_type || (vendor as any).vendor_type) === "roaming";
+  const isRoaming =
+    profile.vendor_type === "roaming" || profile.roaming === true || profile.roaming === "true";
+
+  // Fetch daily location for this vendor (must be after isRoaming declaration)
+  const { data: dailyLocRes } = useQuery({
+    queryKey: ["vendorDailyLocation", vendor.id],
+    queryFn: () => getVendorDailyLocation(vendor.id),
+    enabled: isRoaming,
+  });
+
+  const dailyLocation: DailyLocationData | null = dailyLocRes?.data?.location ?? null;
 
   const handleShare = () => {
     if (navigator.clipboard) {
@@ -136,7 +148,7 @@ function VendorDetail() {
 
                 <p className="text-xs text-muted-foreground font-semibold">
                   By <strong className="text-foreground">{ownerName}</strong> •{" "}
-                  {profile.category || (vendor as any).category || "Fresh Produce & Grocery"}
+                  {profile.category || "Fresh Produce & Grocery"}
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3 text-xs pt-1">
@@ -144,7 +156,7 @@ function VendorDetail() {
                     <Star className="h-3.5 w-3.5 fill-amber-400" />
                     {profile.rating || "4.8"}
                     <span className="text-muted-foreground font-normal ml-0.5">
-                      ({profile.review_count || 24})
+                      ({profile.review_count ?? 0})
                     </span>
                   </span>
 
@@ -184,6 +196,22 @@ function VendorDetail() {
             </div>
           )}
         </section>
+
+        {/* Today's Location (for roaming vendors with active daily location) */}
+        {isRoaming && dailyLocation && dailyLocation.is_active && (
+          <VendorLocationCard
+            location={dailyLocation}
+            vendor={{
+              business_name: vendor.business_name,
+              category: profile.category,
+              logo_url: profile.logo_url,
+              rating: profile.rating,
+              review_count: profile.review_count,
+              is_verified: vendor.is_verified,
+              roaming: true,
+            }}
+          />
+        )}
 
         {/* Available Products Catalog */}
         <div className="space-y-4">
