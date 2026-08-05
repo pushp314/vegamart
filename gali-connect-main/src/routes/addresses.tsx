@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   MapPin,
   Plus,
@@ -10,6 +10,8 @@ import {
   Briefcase,
   Building,
   Loader2,
+  User,
+  ArrowRight,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { AddressModal, AddressData } from "@/components/marketplace/address-modal";
@@ -28,11 +30,11 @@ function AddressesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAddr, setEditingAddr] = useState<AddressData | null>(null);
 
-  const { user } = useAuth();
+  const { user, isAuthenticated, isGuest, isLoading: authLoading } = useAuth();
   const { data: addrRes, isLoading } = useQuery({
     queryKey: ["addresses"],
     queryFn: () => api.get<{ data: any[] }>("/users/me/addresses"),
-    enabled: !!user,
+    enabled: !!user && !isGuest,
   });
 
   const addresses: AddressData[] = (addrRes?.data as unknown as AddressData[]) || [];
@@ -92,6 +94,31 @@ function AddressesPage() {
   const handleSetDefault = (id: string) => {
     setDefaultMutation.mutate(id);
   };
+
+  if (!authLoading && (!isAuthenticated || isGuest)) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
+        <AppHeader title="Saved Addresses" subtitle="Login Required" />
+        <main className="flex-1 max-w-md w-full mx-auto px-6 py-16 text-center flex flex-col justify-center items-center">
+          <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-soft">
+            <User className="h-10 w-10" />
+          </div>
+          <h2 className="mt-6 font-display text-2xl font-bold">Login Required</h2>
+          <p className="mt-2 text-xs text-muted-foreground leading-relaxed max-w-xs">
+            Please log in to your account to view and manage your saved addresses.
+          </p>
+          <div className="mt-6 w-full space-y-3">
+            <Link
+              to="/login"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90"
+            >
+              Log In to Continue <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-28 md:pb-16">

@@ -37,7 +37,7 @@ export async function revenueReport(range: DateRange, period: ReportPeriod): Pro
         COALESCE(AVG(o."total"), 0) AS avg_order_value
       FROM orders o
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY ${bucketFor(period)}
       ORDER BY period_start ASC
@@ -87,7 +87,7 @@ export async function vendorReport(range: DateRange): Promise<VendorReportRow[]>
       LEFT JOIN orders o
         ON o."vendor_id" = v."id"
         AND o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       LEFT JOIN products p ON p."vendor_id" = v."id" AND p."deleted_at" IS NULL
       WHERE v."deleted_at" IS NULL
@@ -141,7 +141,7 @@ export async function productReport(range: DateRange, limit = 100): Promise<Prod
       LEFT JOIN products p ON p."id" = oi."product_id"
       LEFT JOIN categories c ON c."id" = p."category_id"
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY oi."product_id", oi."product_name", c."name", o."vendor_id"
       ORDER BY revenue DESC
@@ -203,7 +203,7 @@ export async function customReport(range: DateRange, groupBy: CustomGroupBy): Pr
       FROM orders o
       LEFT JOIN addresses a ON a."id" = o."address_id"
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY group_key
       ORDER BY revenue DESC

@@ -7,7 +7,7 @@ export const adminPaginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   q: z.string().trim().max(160).optional(),
-});
+}).strict();
 
 export const reportDateQuerySchema = z.object({
   from: z.string().datetime().optional(),
@@ -15,7 +15,7 @@ export const reportDateQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(3650).optional(),
   period: z.enum(["daily", "weekly", "monthly"]).optional(),
   format: z.enum(["csv", "xlsx", "pdf"]).optional(),
-});
+}).strict();
 
 export const reportOrdersQuerySchema = z.object({
   from: z.string().datetime().optional(),
@@ -28,7 +28,7 @@ export const reportOrdersQuerySchema = z.object({
   payment_method: z.string().trim().max(20).optional(),
   q: z.string().trim().max(160).optional(),
   format: z.enum(["csv", "xlsx", "pdf"]).optional(),
-});
+}).strict();
 
 export const customReportQuerySchema = z.object({
   from: z.string().datetime().optional(),
@@ -38,60 +38,60 @@ export const customReportQuerySchema = z.object({
     .enum(["status", "payment_method", "payment_status", "city", "day", "week", "month"])
     .default("status"),
   format: z.enum(["csv", "xlsx", "pdf"]).optional(),
-});
+}).strict();
 
 export const analyticsQuerySchema = z.object({
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   days: z.coerce.number().int().min(1).max(3650).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-});
+}).strict();
 
 export const growthQuerySchema = z.object({
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
-});
+}).strict();
 
 export const userIdParamsSchema = z.object({
   user_id: z.string().uuid("user_id must be a valid UUID."),
-});
+}).strict();
 
 export const suspendUserSchema = z.object({
   reason: z.string().trim().max(1000).optional().nullable(),
-});
+}).strict();
 
 export const resetPasswordSchema = z.object({
   password: z
     .string()
     .min(PASSWORD_RULES.MIN_LENGTH, `Password must be at least ${PASSWORD_RULES.MIN_LENGTH} characters.`)
     .max(PASSWORD_RULES.MAX_LENGTH),
-});
+}).strict();
 
 export const changeRoleSchema = z.object({
   role: z.enum(["customer", "vendor", "delivery", "admin", "super_admin"]),
-});
+}).strict();
 
 export const vendorIdParamsSchema = z.object({
   vendor_id: z.string().uuid("vendor_id must be a valid UUID."),
-});
+}).strict();
 
 export const vendorDecisionSchema = z.object({
   decision: z.enum(["approve", "reject"]),
   reason: z.string().trim().max(1000).optional().nullable(),
-});
+}).strict();
 
 export const deliveryIdParamsSchema = z.object({
   delivery_id: z.string().uuid("delivery_id must be a valid UUID."),
-});
+}).strict();
 
 export const deliveryDecisionSchema = z.object({
   decision: z.enum(["approve", "reject"]),
   reason: z.string().trim().max(1000).optional().nullable(),
-});
+}).strict();
 
 export const suspendVendorSchema = z.object({
   reason: z.string().trim().max(1000).optional().nullable(),
-});
+}).strict();
 
 export const auditLogQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -103,11 +103,11 @@ export const auditLogQuerySchema = z.object({
   user_id: z.string().uuid().optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
-});
+}).strict();
 
 export const auditLogIdParamsSchema = z.object({
   audit_log_id: z.string().uuid("audit_log_id must be a valid UUID."),
-});
+}).strict();
 
 export const settingsUpdateSchema = z
   .object({
@@ -137,11 +137,11 @@ export const announcementQuerySchema = z.object({
   audience: z.enum(["all", "customer", "vendor", "delivery"]).optional(),
   is_active: z.enum(["true", "false"]).optional(),
   published: z.enum(["true", "false"]).optional(),
-});
+}).strict();
 
 export const announcementIdParamsSchema = z.object({
   announcement_id: z.string().uuid("announcement_id must be a valid UUID."),
-});
+}).strict();
 
 export const createAnnouncementSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -150,7 +150,7 @@ export const createAnnouncementSchema = z.object({
   is_active: z.boolean().optional(),
   scheduled_at: z.string().datetime().optional().nullable(),
   publish: z.boolean().optional(),
-});
+}).strict();
 
 export const updateAnnouncementSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
@@ -158,7 +158,7 @@ export const updateAnnouncementSchema = z.object({
   audience: z.enum(["all", "customer", "vendor", "delivery"]).optional(),
   is_active: z.boolean().optional(),
   scheduled_at: z.string().datetime().optional().nullable(),
-});
+}).strict();
 
 export const adminOrderQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -170,11 +170,11 @@ export const adminOrderQuerySchema = z.object({
   vendor_id: z.string().uuid().optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
-});
+}).strict();
 
 export const adminOrderIdParamsSchema = z.object({
   order_id: z.string().uuid("order_id must be a valid UUID."),
-});
+}).strict();
 
 export const adminProductsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -182,18 +182,18 @@ export const adminProductsQuerySchema = z.object({
   q: z.string().trim().max(160).optional(),
   is_active: z.enum(["true", "false"]).optional(),
   is_featured: z.enum(["true", "false"]).optional(),
-});
+}).strict();
 
 export const heroSlideIdParamsSchema = z.object({
   slide_id: z.string().uuid("slide_id must be a valid UUID."),
-});
+}).strict();
 
 export const heroSlideQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   q: z.string().trim().max(160).optional(),
   is_active: z.enum(["true", "false"]).optional(),
-});
+}).strict();
 
 export const createHeroSlideSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -204,7 +204,7 @@ export const createHeroSlideSchema = z.object({
   link_text: z.string().trim().max(100).optional(),
   is_active: z.boolean().optional(),
   sort_order: z.coerce.number().int().optional(),
-});
+}).strict();
 
 export const updateHeroSlideSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
@@ -215,4 +215,21 @@ export const updateHeroSlideSchema = z.object({
   link_text: z.string().trim().max(100).optional(),
   is_active: z.boolean().optional(),
   sort_order: z.coerce.number().int().optional(),
-});
+}).strict();
+
+export const updateVendorMembershipSchema = z.object({
+  commission_rate: z.number().min(0).max(100).optional(),
+  membership_tier: z.string().trim().max(50).optional(),
+  membership_expires_at: z.string().datetime().optional().nullable(),
+}).strict();
+export type UpdateVendorMembershipBody = z.infer<typeof updateVendorMembershipSchema>;
+
+
+export const ticketIdParamsSchema = z.object({
+  ticket_id: z.string().uuid("Invalid ticket ID format"),
+}).strict();
+
+export const updateTicketStatusSchema = z.object({
+  status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED", "ESCALATED"]),
+  resolved_at: z.string().datetime().optional(),
+}).strict();

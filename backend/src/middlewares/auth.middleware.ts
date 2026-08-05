@@ -62,6 +62,13 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
   }
 }
 
+export function blockGuest(req: Request, _res: Response, next: NextFunction): void {
+  if (req.user?.id === GUEST_USER_ID) {
+    return next(new UnauthorizedError("Please sign in to your account to continue."));
+  }
+  next();
+}
+
 export function optionalAuthenticate(req: Request, _res: Response, next: NextFunction): void {
   const token = extractBearerToken(req);
   if (!token) {

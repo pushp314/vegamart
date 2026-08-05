@@ -1,6 +1,10 @@
 import { Store, CheckCircle2, Ban, Radio, Sparkles, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 import { KYCReviewModal } from "./KYCReviewModal";
+import { VendorMembershipModal } from "./VendorMembershipModal";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 interface AdminVendorsProps {
   vendors: any[];
@@ -22,6 +26,22 @@ export function AdminVendors({
   const [reviewVendor, setReviewVendor] = useState<any>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "shop" | "roaming">("all");
   const [query, setQuery] = useState("");
+  const [editingSettingsVendor, setEditingSettingsVendor] = useState<any>(null);
+
+  const queryClient = useQueryClient();
+
+  const updateMembershipMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      api.patch(`/admin/vendors/${id}/membership`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
+      toast.success("Vendor membership updated successfully");
+      setEditingSettingsVendor(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update vendor membership");
+    },
+  });
 
   const filteredVendors = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -206,14 +226,22 @@ export function AdminVendors({
                           </button>
                         )}
                         {status === "approved" && (
-                          <button
-                            onClick={() => {
-                              if (confirm("Suspend this vendor?")) onSuspend(v.id);
-                            }}
-                            className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-rose-600 hover:bg-rose-50 hover:border-rose-200 border border-border transition-all active:scale-95"
-                          >
-                            Suspend
-                          </button>
+                          <>
+                            <button
+                              onClick={() => setEditingSettingsVendor(v)}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 border border-border transition-all active:scale-95"
+                            >
+                              Settings
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm("Suspend this vendor?")) onSuspend(v.id);
+                              }}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-rose-600 hover:bg-rose-50 hover:border-rose-200 border border-border transition-all active:scale-95"
+                            >
+                              Suspend
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -255,6 +283,15 @@ export function AdminVendors({
           }}
           isApproving={isApproving}
           isRejecting={isRejecting}
+        />
+      )}
+
+      {editingSettingsVendor && (
+        <VendorMembershipModal
+          vendor={editingSettingsVendor}
+          onClose={() => setEditingSettingsVendor(null)}
+          onSave={(id, data) => updateMembershipMutation.mutate({ id, data })}
+          isSaving={updateMembershipMutation.isPending}
         />
       )}
     </div>

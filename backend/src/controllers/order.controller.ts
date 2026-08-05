@@ -4,7 +4,7 @@ import { orderService } from "../services/order.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
-import type { CancelOrderBody, TransitionOrderStatusBody } from "../validators/order.validators";
+import type { CancelOrderBody, RequestRefundBody, TransitionOrderStatusBody } from "../validators/order.validators";
 
 /**
  * @swagger
@@ -85,6 +85,40 @@ export const getOrderTimeline = asyncHandler(async (req: Request, res: Response)
   await orderService.getOrderForUser(req.user!.id, req.params.order_id as string);
   const events = await orderService.getTimeline(req.params.order_id as string);
   return sendSuccess(res, events);
+});
+
+/**
+ * @swagger
+ * /orders/{order_id}/refund:
+ *   post:
+ *     summary: Request a refund for a delivered order
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Orders]
+ *     parameters:
+ *       - in: path
+ *         name: order_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason: { type: string }
+ *     responses:
+ *       200:
+ *         description: Order marked as REFUNDED.
+ *       400:
+ *         $ref: "#/components/responses/BadRequest"
+ */
+export const requestRefund = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as RequestRefundBody;
+  const result = await orderService.requestRefund(req.user!.id, req.params.order_id as string, body.reason, req);
+  return sendSuccess(res, result);
 });
 
 /**

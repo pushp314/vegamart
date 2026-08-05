@@ -4,8 +4,8 @@ const folderEnum = z.enum(["products", "vendors", "profiles", "categories", "doc
 
 export const uploadFolderSchema = z.object({
   folder: folderEnum,
-});
+}).strict();
 
 export const deleteFileSchema = z.object({
   key: z.string().min(1, "key is required.").max(500),
-});
+}).strict();

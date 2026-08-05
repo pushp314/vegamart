@@ -29,7 +29,7 @@ export async function toXlsx(
   sheetName = "Report"
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Gali Connect";
+  workbook.creator = "VegaMart";
   const sheet = workbook.addWorksheet(sheetName.slice(0, 31));
 
   sheet.columns = columns.map((c) => ({ header: c.header, key: c.key, width: Math.max(12, c.header.length + 6) }));

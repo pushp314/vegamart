@@ -14,27 +14,19 @@ describe("createProductSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts a valid payload and strips unknown fields", () => {
+  it("rejects unknown fields in strict mode", () => {
     const result = createProductSchema.safeParse({
-      name: "Fresh Tomatoes",
+      name: "Fresh Potatoes",
       category_id: VALID_UUID,
       price: 40,
       mrp: 50,
       unit: "1 kg",
-      category: "Vegetables",
-      business_name: "Not A Field",
-      vendor_id: VALID_UUID,
-      images: ["https://example.com/x.jpg"],
+      category: "Vegetables", // Unknown field
     });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.category_id).toBe(VALID_UUID);
-      expect(result.data).not.toHaveProperty("category");
-      expect(result.data).not.toHaveProperty("business_name");
-      expect(result.data).not.toHaveProperty("vendor_id");
-      expect(result.data).not.toHaveProperty("images");
-    }
+    expect(result.success).toBe(false);
   });
+
+
 
   it("rejects an invalid category_id uuid", () => {
     const result = createProductSchema.safeParse({

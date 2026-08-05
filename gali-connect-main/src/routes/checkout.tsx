@@ -76,7 +76,7 @@ function Checkout() {
     });
   };
 
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isGuest, isLoading: authLoading } = useAuth();
   const { data: addrRes, isLoading: loadingAddr } = useQuery({
     queryKey: ["addresses"],
     queryFn: () => api.get<AddressData[]>("/users/me/addresses"),
@@ -206,7 +206,7 @@ function Checkout() {
   };
 
   // Keep hooks unconditional; this guard intentionally follows all hooks.
-  if (!authLoading && !isAuthenticated) {
+  if (!authLoading && (!isAuthenticated || isGuest)) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <AppHeader title="Checkout" subtitle="Login Required" />

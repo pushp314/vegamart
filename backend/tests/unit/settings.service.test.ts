@@ -29,7 +29,7 @@ describe("settings service", () => {
 
     const settings = await settingsService.getAllSettings();
 
-    expect(settings["platform.name"]).toBe("Gali Connect");
+    expect(settings["platform.name"]).toBe("VegaMart");
     expect(settings["platform.tax_rate_percent"]).toBe(5);
     expect(settings["platform.maintenance_mode"]).toBe(false);
   });
@@ -51,7 +51,7 @@ describe("settings service", () => {
     const settings = await settingsService.getAllSettings();
 
     expect(settings["platform.tax_rate_percent"]).toBe(18);
-    expect(settings["platform.name"]).toBe("Gali Connect");
+    expect(settings["platform.name"]).toBe("VegaMart");
   });
 
   it("rejects unknown setting keys", async () => {

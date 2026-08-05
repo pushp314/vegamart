@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const addressIdParamsSchema = z.object({
   address_id: z.string().uuid("address_id must be a valid UUID."),
-});
+}).strict();
 
 export const createAddressSchema = z.object({
   label: z.string().trim().min(1, "label is required.").max(60),
@@ -16,7 +16,7 @@ export const createAddressSchema = z.object({
   longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
   phone: z.string().trim().max(20).optional().nullable(),
   is_default: z.boolean().optional(),
-});
+}).strict();
 
 export const updateAddressSchema = createAddressSchema.partial();
 

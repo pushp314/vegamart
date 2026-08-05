@@ -1,5 +1,7 @@
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
+import { Prisma, TicketStatus } from "@prisma/client";
 
+import { prisma } from "../database/prisma";
 import { dashboardService } from "../services/dashboard.service";
 import { adminUserService } from "../services/admin-user.service";
 import { adminVendorService } from "../services/admin-vendor.service";
@@ -431,6 +433,16 @@ export const getVendorEarnings = asyncHandler(async (req: Request, res: Response
   return sendSuccess(res, data);
 });
 
+export const updateVendorMembership = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminVendorService.updateMembership(
+    req.params.vendor_id as string,
+    req.body as { commission_rate?: number; membership_tier?: string; membership_expires_at?: string },
+    req.user!.id,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
 /**
  * @swagger
  * /admin/delivery-partners:
@@ -737,3 +749,69 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
   );
   return sendSuccess(res, data);
 });
+
+
+export const listSupportTickets = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const perPage = parseInt(req.query.per_page as string) || 20;
+    const status = req.query.status as string;
+
+    const where: Prisma.SupportTicketWhereInput = {};
+    if (status) {
+      where.status = status as TicketStatus;
+    }
+
+    const [total, tickets] = await Promise.all([
+      prisma.supportTicket.count({ where }),
+      prisma.supportTicket.findMany({
+        where,
+        skip: (page - 1) * perPage,
+        take: perPage,
+        orderBy: { created_at: "desc" },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        page,
+        per_page: perPage,
+        total_pages: Math.ceil(total / perPage),
+        rows: tickets,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateSupportTicketStatus = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { ticket_id } = req.params;
+    const { status, resolved_at } = req.body;
+
+    const ticket = await prisma.supportTicket.update({
+      where: { id: ticket_id },
+      data: {
+        status,
+        resolved_at: resolved_at ? new Date(resolved_at) : (status === "RESOLVED" || status === "CLOSED" ? new Date() : null),
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+      },
+    });
+
+    res.json({ success: true, data: ticket });
+  } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "P2025") {
+      res.status(404).json({ success: false, error: { message: "Ticket not found", code: "NOT_FOUND" } });
+      return;
+    }
+    next(err);
+  }
+};

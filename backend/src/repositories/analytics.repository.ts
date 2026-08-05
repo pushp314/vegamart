@@ -39,7 +39,7 @@ export async function topProducts(range: DateRange, limit = 10): Promise<TopProd
       JOIN orders o ON o."id" = oi."order_id"
       JOIN vendor_profiles v ON v."id" = o."vendor_id"
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY oi."product_id", oi."product_name", o."vendor_id", v."business_name"
       ORDER BY revenue DESC
@@ -79,7 +79,7 @@ export async function topVendors(range: DateRange, limit = 10): Promise<TopVendo
       FROM vendor_profiles v
       JOIN orders o ON o."vendor_id" = v."id"
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY v."id", v."business_name"
       ORDER BY revenue DESC
@@ -120,7 +120,7 @@ export async function topCustomers(range: DateRange, limit = 10): Promise<TopCus
       FROM users u
       JOIN orders o ON o."user_id" = u."id"
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY u."id", u."name", u."email"
       ORDER BY spend DESC
@@ -164,7 +164,7 @@ export async function categorySales(range: DateRange): Promise<CategorySales[]> 
       LEFT JOIN products p ON p."id" = oi."product_id"
       LEFT JOIN categories c ON c."id" = p."category_id"
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY c."id", c."name"
       ORDER BY revenue DESC
@@ -194,7 +194,7 @@ export async function orderTrend(range: DateRange): Promise<TrendPoint[]> {
         COALESCE(SUM(o."total"), 0) AS revenue
       FROM orders o
       WHERE o."created_at" >= ${range.from} AND o."created_at" < ${range.to}
-        AND o."status" NOT IN ('CANCELLED', 'FAILED')
+        AND o."status" NOT IN ('cancelled', 'failed')
         AND o."deleted_at" IS NULL
       GROUP BY date_trunc('day', o."created_at")
       ORDER BY period_start ASC

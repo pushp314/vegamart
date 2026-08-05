@@ -17,6 +17,8 @@ interface Settings {
   "platform.free_delivery_threshold"?: number;
   "platform.min_order_value"?: number;
   "platform.order_expiry_minutes"?: number;
+  "platform.default_delivery_radius_km"?: number;
+  "platform.deliveries_active"?: boolean;
   "platform.maintenance_mode"?: boolean;
   "platform.logo_url"?: string;
   "support.email"?: string;
@@ -239,6 +241,46 @@ export function AdminSettings() {
                 value={settings["support.phone"] ?? ""}
                 onChange={(e) => setSettings({ ...settings, "support.phone": e.target.value })}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Delivery & Service Areas</CardTitle>
+            <CardDescription>Configure service boundaries</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Default Max Delivery Radius (km)</Label>
+              <Input
+                type="number"
+                value={settings["platform.default_delivery_radius_km"] ?? 10}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    "platform.default_delivery_radius_km": Number(e.target.value),
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Global Service Status</Label>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="delivery_active"
+                  checked={settings["platform.deliveries_active"] ?? true}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      "platform.deliveries_active": e.target.checked,
+                    })
+                  }
+                  className="rounded border-input"
+                />
+                <label htmlFor="delivery_active" className="text-sm">Accepting Delivery Orders</label>
+              </div>
             </div>
           </CardContent>
         </Card>

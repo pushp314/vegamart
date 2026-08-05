@@ -1,4 +1,4 @@
-export const APP_NAME = "Gali Connect";
+export const APP_NAME = "VegaMart";
 
 export const API_PREFIX = "/api/v1";
 
@@ -11,7 +11,7 @@ export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
 export const MAX_CURSOR_SIZE = 50;
 
-export const ORDER_NUMBER_PREFIX = "GC";
+export const ORDER_NUMBER_PREFIX = "VM";
 
 export const TAX_RATE_PERCENT = 5;
 export const DEFAULT_CURRENCY = "INR";

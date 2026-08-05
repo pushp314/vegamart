@@ -1,5 +1,5 @@
 /**
- * Gali Connect discovery layer — nearby vendors, roaming carts, favorites,
+ * VegaMart discovery layer — nearby vendors, roaming carts, favorites,
  * follows, search history and categories. Reuses the shared `api` client.
  */
 import { api } from "@/lib/api";

@@ -70,22 +70,26 @@ function BecomeVendorPage() {
       }
 
       // Step 2: Register as a vendor
-      const res = await api.post("/vendors/register", {
+      const res = await api.post("/vendors", {
         business_name: businessName,
         category,
-        vendor_type: vendorType,
+        roaming: vendorType === "roaming",
         phone,
         address,
         city,
         state: stateName,
         pincode,
         description: description || undefined,
-        subscription_plan: subscriptionPlan,
       });
 
       setSubmitting(false);
 
       if (res.success) {
+        // Set the subscription plan immediately after creation
+        if (subscriptionPlan !== "basic") {
+          await api.put("/vendors/me", { subscription_plan: subscriptionPlan });
+        }
+        
         await refreshSession();
         setSubmitted(true);
         toast.success("Vendor application submitted successfully!");
@@ -115,7 +119,7 @@ function BecomeVendorPage() {
             <div className="pt-2">
               <button
                 onClick={() =>
-                  navigate({ to: vendorType === "roaming" ? "/vendor/roaming" : "/vendor" })
+                  navigate({ to: "/vendor" })
                 }
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-xs px-6 py-3 shadow-md hover:bg-primary/90"
               >

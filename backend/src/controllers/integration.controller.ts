@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 
+import { cacheService } from "../database/cache";
+
 import prisma from "../database/prisma";
 import { integrationService } from "../services/integration.service";
 import { authService } from "../services/auth.service";
@@ -11,12 +13,6 @@ import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
 import type {
   CreateOrderAliasBody,
-  DeliveredOtpBody,
-  DeliveryApplyBody,
-  DeliveryKycBody,
-  DeliveryLocationBody,
-  DeliveryOrderStatusBody,
-  DeliveryRegisterBody,
   RingBellBody,
   VendorKycBody,
   VendorRegisterBody,
@@ -25,18 +21,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Admin CMS aliases (frontend-compatible)
 // ---------------------------------------------------------------------------
-export const createCmsOfferAlias = asyncHandler(async (req: Request, res: Response) => {
-  const { title, sub, tag } = req.body as { title: string; sub?: string | null; tag?: string | null };
-  const row = await prisma.cmsOffer.create({
-    data: {
-      title,
-      description: sub ?? null,
-      discount: tag ?? null,
-    },
-  });
-  return sendCreated(res, row, "Offer created.");
-});
-
 export const createCmsBannerAlias = asyncHandler(async (req: Request, res: Response) => {
   const { title, type, link_url, image_url } = req.body as {
     title?: string | null;
@@ -53,22 +37,6 @@ export const createCmsBannerAlias = asyncHandler(async (req: Request, res: Respo
     },
   });
   return sendCreated(res, row, "Banner created.");
-});
-
-export const createCmsFaqAlias = asyncHandler(async (req: Request, res: Response) => {
-  const { question, answer, sort_order } = req.body as {
-    question: string;
-    answer: string;
-    sort_order?: number;
-  };
-  const row = await prisma.cmsFaq.create({
-    data: {
-      question,
-      answer,
-      sort_order: sort_order ?? 0,
-    },
-  });
-  return sendCreated(res, row, "FAQ created.");
 });
 
 export const featureProductAlias = asyncHandler(async (req: Request, res: Response) => {
@@ -103,16 +71,14 @@ export const listBanners = asyncHandler(async (_req: Request, res: Response) => 
   return sendSuccess(res, await integrationService.listBanners());
 });
 
-export const listOffers = asyncHandler(async (_req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listOffers());
-});
-
-export const listFaqs = asyncHandler(async (_req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listFaqs());
-});
-
 export const listTrendingProducts = asyncHandler(async (_req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listTrendingProducts());
+  const result = await cacheService.remember(
+    "product",
+    "trending",
+    async () => await integrationService.listTrendingProducts(),
+    300 // 5 minutes cache
+  );
+  return sendSuccess(res, result);
 });
 
 export const listFeaturedProducts = asyncHandler(async (_req: Request, res: Response) => {
@@ -212,60 +178,7 @@ export const ringBell = asyncHandler(async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // Delivery partner
 // ---------------------------------------------------------------------------
-export const registerDelivery = asyncHandler(async (req: Request, res: Response) => {
-  const data = await integrationService.registerDelivery(req.user!.id, req.body as DeliveryRegisterBody, req);
-  return sendCreated(res, data, "Delivery partner application submitted.");
-});
 
-export const applyDelivery = asyncHandler(async (req: Request, res: Response) => {
-  const data = await integrationService.applyDelivery(req.user!.id, req.body as DeliveryApplyBody, req);
-  return sendCreated(res, data, "Delivery partner application submitted.");
-});
-
-export const getDeliveryMe = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.getDeliveryMe(req.user!.id));
-});
-
-export const listDeliveryRequests = asyncHandler(async (_req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listDeliveryRequests());
-});
-
-export const listMyDeliveries = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listMyDeliveries(req.user!.id));
-});
-
-export const acceptDelivery = asyncHandler(async (req: Request, res: Response) => {
-  const data = await integrationService.acceptDelivery(req.user!.id, req.params.id as string, req);
-  return sendSuccess(res, data, { message: "Delivery accepted." });
-});
-
-export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Response) => {
-  const data = await integrationService.updateDeliveryStatus(
-    req.user!.id,
-    req.params.id as string,
-    req.body as DeliveryOrderStatusBody
-  );
-  return sendSuccess(res, data, { message: "Delivery status updated." });
-});
-
-export const updateDeliveryLocation = asyncHandler(async (req: Request, res: Response) => {
-  const data = await integrationService.updateDeliveryLocation(req.user!.id, req.body as DeliveryLocationBody);
-  return sendSuccess(res, data, { message: "Location updated." });
-});
-
-export const markDelivered = asyncHandler(async (req: Request, res: Response) => {
-  const data = await integrationService.markDelivered(req.user!.id, req.params.id as string, req.body as DeliveredOtpBody);
-  return sendSuccess(res, data, { message: "Order marked as delivered." });
-});
-
-export const submitDeliveryKyc = asyncHandler(async (req: Request, res: Response) => {
-  const data = await integrationService.submitDeliveryKyc(req.user!.id, req.body as DeliveryKycBody, req);
-  return sendCreated(res, data, "Documents submitted.");
-});
-
-export const getDeliveryTracking = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.getDeliveryTracking(req.params.id as string));
-});
 
 // ---------------------------------------------------------------------------
 // Addresses under /users/me

@@ -5,6 +5,6 @@ export const contactSchema = z.object({
   email: z.string().email("A valid email is required.").max(255).optional(),
   subject: z.string().trim().max(200).optional(),
   message: z.string().trim().min(1, "Message is required.").max(5000),
-});
+}).strict();
 
 export type ContactBody = z.infer<typeof contactSchema>;

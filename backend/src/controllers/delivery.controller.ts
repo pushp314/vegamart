@@ -1,9 +1,10 @@
 import type { Request, Response } from "express";
 
 import { deliveryService } from "../services/delivery.service";
-import { sendSuccess } from "../utils/ApiResponse";
-import asyncHandler from "../utils/asyncHandler";
+import { sendSuccess, sendCreated } from "../utils/ApiResponse";
+import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
+import type { DeliveryRegisterBody, DeliveryApplyBody, DeliveryOrderStatusBody, DeliveryLocationBody, DeliveredOtpBody, DeliveryKycBody } from "../validators/integration.validators";
 
 /**
  * @swagger
@@ -112,6 +113,61 @@ export const setAvailability = asyncHandler(async (req: Request, res: Response) 
  *         description: Profile updated.
  */
 export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
-  const data = await deliveryService.updateProfile(req.user!.id, req.body, req);
-  return sendSuccess(res, data, { message: "Profile updated." });
+  return sendSuccess(res, await deliveryService.updateProfile(req.user!.id, req.body as Record<string, unknown>, req));
+});
+
+export const registerDelivery = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.registerDelivery(req.user!.id, req.body as DeliveryRegisterBody, req);
+  return sendCreated(res, data, "Delivery partner application submitted.");
+});
+
+export const applyDelivery = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.applyDelivery(req.user!.id, req.body as DeliveryApplyBody, req);
+  return sendCreated(res, data, "Delivery partner application submitted.");
+});
+
+export const getDeliveryMe = asyncHandler(async (req: Request, res: Response) => {
+  return sendSuccess(res, await deliveryService.getDeliveryMe(req.user!.id));
+});
+
+export const listDeliveryRequests = asyncHandler(async (_req: Request, res: Response) => {
+  return sendSuccess(res, await deliveryService.listDeliveryRequests());
+});
+
+export const listMyDeliveries = asyncHandler(async (req: Request, res: Response) => {
+  return sendSuccess(res, await deliveryService.listMyDeliveries(req.user!.id));
+});
+
+export const acceptDelivery = asyncHandler(async (req: Request, res: Response) => {
+  const { eta_minutes } = req.body as { eta_minutes: number };
+  const data = await deliveryService.acceptDelivery(req.user!.id, req.params.id as string, eta_minutes, req);
+  return sendSuccess(res, data, { message: "Delivery accepted." });
+});
+
+export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.updateDeliveryStatus(
+    req.user!.id,
+    req.params.id as string,
+    req.body as DeliveryOrderStatusBody
+  );
+  return sendSuccess(res, data, { message: "Delivery status updated." });
+});
+
+export const updateDeliveryLocation = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.updateDeliveryLocation(req.user!.id, req.body as DeliveryLocationBody);
+  return sendSuccess(res, data, { message: "Location updated." });
+});
+
+export const markDelivered = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.markDelivered(req.user!.id, req.params.id as string, req.body as DeliveredOtpBody);
+  return sendSuccess(res, data, { message: "Order marked as delivered." });
+});
+
+export const submitDeliveryKyc = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.submitDeliveryKyc(req.user!.id, req.body as DeliveryKycBody, req);
+  return sendCreated(res, data, "Documents submitted.");
+});
+
+export const getDeliveryTracking = asyncHandler(async (req: Request, res: Response) => {
+  return sendSuccess(res, await deliveryService.getDeliveryTracking(req.params.id as string));
 });

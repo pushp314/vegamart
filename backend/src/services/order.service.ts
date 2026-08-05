@@ -182,4 +182,35 @@ export const orderService = {
     }
     return order;
   },
+
+  async requestRefund(userId: string, orderId: string, reason: string, req: Request): Promise<orderRepo.OrderRow> {
+    const order = await orderRepo.findById(orderId);
+    if (!order) {
+      throw new NotFoundError("Order not found.");
+    }
+    if (order.user_id !== userId) {
+      throw new ForbiddenError("You are not authorized to request a refund for this order.");
+    }
+    if (order.status !== "DELIVERED") {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Refunds can only be requested for delivered orders.", { code: "INVALID_STATUS" });
+    }
+
+    const updated = await orderRepo.updateOrderStatus(orderId, {
+      status: "REFUNDED",
+      note: `Refund requested: ${reason}`,
+      actorType: "customer",
+      actorId: userId,
+    });
+
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.ORDER_STATUS_CHANGED, entityType: "order", entityId: order.id, oldValues: { status: order.status }, newValues: { status: "REFUNDED", reason } },
+      req
+    );
+
+    await notificationService.orderStatus(order.user_id, order.order_number, "Refund Requested", `Your refund request for order ${order.order_number} is being processed.`, {
+      order_id: order.id,
+    });
+
+    return updated;
+  },
 };

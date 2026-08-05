@@ -238,7 +238,7 @@ export const checkoutService = {
         total: groupTotal,
         invoice_number: invoiceNumber,
         idempotency_key: idempotencyKey ?? null,
-        otp_code: paymentMethod === "COD" ? generateDeliveryOtp() : null,
+        otp_code: generateDeliveryOtp(),
       });
 
       await orderRepo.updateOrderStatus(order.id, {

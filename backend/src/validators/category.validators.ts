@@ -4,7 +4,7 @@ import { MAX_PAGE_SIZE } from "../constants";
 
 export const categoryIdParamsSchema = z.object({
   category_id: z.string().uuid("category_id must be a valid UUID."),
-});
+}).strict();
 
 export const createCategorySchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters.").max(120),
@@ -15,7 +15,7 @@ export const createCategorySchema = z.object({
   sort_order: z.coerce.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
   is_featured: z.boolean().optional(),
-});
+}).strict();
 
 export const updateCategorySchema = createCategorySchema.partial();
 
@@ -24,7 +24,7 @@ export const listCategoriesQuerySchema = z.object({
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   include_inactive: z.enum(["true", "false"]).optional(),
   tree: z.enum(["true", "false"]).optional(),
-});
+}).strict();
 
 export type CreateCategoryBody = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryBody = z.infer<typeof updateCategorySchema>;

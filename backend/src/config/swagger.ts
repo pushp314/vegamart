@@ -9,11 +9,11 @@ const options: swaggerJSDoc.Options = {
       title: `${env.APP_NAME} API`,
       version: "1.0.0",
       description: [
-        "REST API for the Gali Connect hyperlocal marketplace.",
+        "REST API for the VegaMart hyperlocal marketplace.",
         "Connects customers, street vendors, delivery partners and administrators.",
         "",
         "## API versioning",
-        "Both `v1` and `v2` are served (`/api/v1/*`, `/api/v2/*`). The `API-Version` header is echoed on every response.",
+        "The API is served at `/api/v1/*`. The `API-Version` header is echoed on every response.",
         "",
         "## Rate limiting",
         "Global, auth, payment, upload, admin and vendor scoped limits apply. On exceeding a limit the API returns `429` with code `RATE_LIMITED`.",
@@ -22,8 +22,8 @@ const options: swaggerJSDoc.Options = {
         "Read-heavy endpoints (products, categories, vendors, settings, dashboard, analytics) are cached with a fallback in-memory store. Writes invalidate the relevant cache namespace.",
       ].join(" "),
       contact: {
-        name: "Gali Connect Team",
-        email: "support@galiconnect.local",
+        name: "VegaMart Team",
+        email: "support@vegamart.in",
       },
       license: {
         name: "Proprietary",

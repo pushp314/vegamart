@@ -22,11 +22,14 @@ export type AdminTab =
   | "users"
   | "delivery"
   | "cms"
+  | "coupons"
   | "refunds"
   | "orders"
+  | "categories"
   | "products"
   | "reports"
   | "notifications"
+  | "support_tickets"
   | "audit_logs"
   | "settings";
 

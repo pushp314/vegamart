@@ -4,7 +4,7 @@ import { MAX_PAGE_SIZE } from "../constants";
 
 export const productIdParamsSchema = z.object({
   product_id: z.string().uuid("product_id must be a valid UUID."),
-});
+}).strict();
 
 export const createProductSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters.").max(160),
@@ -19,7 +19,7 @@ export const createProductSchema = z.object({
   is_featured: z.boolean().optional(),
   is_vegetarian: z.boolean().optional().nullable(),
   stock: z.coerce.number().int().min(0).optional(),
-});
+}).strict();
 
 export const updateProductSchema = createProductSchema.partial();
 
@@ -27,15 +27,15 @@ export const productImageSchema = z.object({
   url: z.string().url("url must be a valid URL.").max(500),
   alt_text: z.string().max(255).optional().nullable(),
   is_primary: z.boolean().optional(),
-});
+}).strict();
 
 export const productImagesSchema = z.object({
   images: z.array(productImageSchema).min(1, "At least one image is required.").max(10),
-});
+}).strict();
 
 export const setPrimaryImageSchema = z.object({
   image_id: z.string().uuid("image_id must be a valid UUID."),
-});
+}).strict();
 
 export const listProductsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -52,21 +52,21 @@ export const listProductsQuerySchema = z.object({
   sort: z
     .enum(["relevance", "price_asc", "price_desc", "rating", "newest", "popularity"])
     .optional(),
-});
+}).strict();
 
 export const vendorProductsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   q: z.string().trim().max(160).optional(),
   include_inactive: z.enum(["true", "false"]).optional(),
-});
+}).strict();
 
 export const createReviewSchema = z.object({
   rating: z.coerce.number().int().min(1, "Rating must be between 1 and 5.").max(5, "Rating must be between 1 and 5."),
   title: z.string().trim().max(140).optional().nullable(),
   comment: z.string().trim().max(5000).optional().nullable(),
   order_id: z.string().uuid("order_id must be a valid UUID.").optional().nullable(),
-});
+}).strict();
 
 export type CreateProductBody = z.infer<typeof createProductSchema>;
 export type UpdateProductBody = z.infer<typeof updateProductSchema>;

@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import {
+  cancelVendorApplication,
   createVendor,
   getMyDashboard,
   getMyDailyLocation,
@@ -10,6 +11,8 @@ import {
   getVendorById,
   getVendorBySlug,
   getVendorDailyLocation,
+  getVendorEarnings,
+  getVendorKyc,
   getVendorLocation,
   listVendors,
   nearbyDailyLocations,
@@ -17,7 +20,9 @@ import {
   patchVendorLocation,
   removeDailyLocation,
   reviewVendor,
+  ringBell,
   setVendorAvailability,
+  submitVendorKyc,
   suspendVendor,
   updateMyVendor,
   updateVendorHours,
@@ -25,7 +30,7 @@ import {
   upsertDailyLocation,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
-import { authenticate, optionalAuthenticate } from "../../middlewares/auth.middleware";
+import { authenticate, optionalAuthenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate";
 import { PERMISSIONS, ROLES } from "../../constants/roles";
 import {
@@ -42,6 +47,7 @@ import {
   vendorReviewSchema,
   vendorSlugParamsSchema,
 } from "../../validators/vendor.validators";
+import { vendorKycSchema, ringBellSchema } from "../../validators/integration.validators";
 
 const router = Router();
 
@@ -52,8 +58,12 @@ router.get("/vendors/by-slug/:slug", validate({ params: vendorSlugParamsSchema }
 
 // Vendor self-service (must precede /vendors/:vendor_id)
 router.get("/vendors/me", authenticate, getMyVendor);
+router.delete("/vendors/me", authenticate, blockGuest, requireRole(ROLES.VENDOR), cancelVendorApplication);
 router.post("/vendors", authenticate, requireRole(ROLES.VENDOR), validate({ body: createVendorSchema }), createVendor);
 router.put("/vendors/me", authenticate, validate({ body: updateVendorSchema }), updateMyVendor);
+router.get("/vendors/me/kyc", authenticate, requireRole(ROLES.VENDOR), getVendorKyc);
+router.post("/vendors/me/kyc", authenticate, blockGuest, requireRole(ROLES.VENDOR), validate({ body: vendorKycSchema }), submitVendorKyc);
+router.get("/vendors/me/earnings", authenticate, requireRole(ROLES.VENDOR), getVendorEarnings);
 router.get("/vendors/location", authenticate, getMyLocation);
 router.patch(
   "/vendors/location",
@@ -92,6 +102,12 @@ router.get("/vendors/nearby/daily", optionalAuthenticate, validate({ query: near
 router.get("/vendors/:vendor_id", validate({ params: vendorIdParamsSchema }), getVendorById);
 router.get("/vendors/:vendor_id/location", validate({ params: vendorIdParamsSchema }), getVendorLocation);
 router.get("/vendors/:vendor_id/daily-location", validate({ params: vendorIdParamsSchema }), getVendorDailyLocation);
+router.post(
+  "/vendors/:vendor_id/ring-bell",
+  authenticate,
+  validate({ params: vendorIdParamsSchema, body: ringBellSchema }),
+  ringBell
+);
 
 // Admin routes
 router.post(

@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 
+import { cacheService } from "../database/cache";
+
 import { categoryService } from "../services/category.service";
 import { sendCreated, sendNoContent, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
@@ -35,12 +37,19 @@ import type {
  */
 export const listCategories = asyncHandler(async (req: Request, res: Response) => {
   const query = req.query as { page?: string; per_page?: string; include_inactive?: string; tree?: string };
-  const result = await categoryService.list({
-    page: query.page ? Number(query.page) : undefined,
-    per_page: query.per_page ? Number(query.per_page) : undefined,
-    include_inactive: query.include_inactive,
-    tree: query.tree,
-  });
+  const cacheKey = `categories-list:${JSON.stringify(query)}`;
+  
+  const result = await cacheService.remember(
+    "category",
+    cacheKey,
+    async () => await categoryService.list({
+      page: query.page ? Number(query.page) : undefined,
+      per_page: query.per_page ? Number(query.per_page) : undefined,
+      include_inactive: query.include_inactive,
+      tree: query.tree,
+    }),
+    300 // 5 minutes cache
+  );
 
   if ("tree" in result) {
     return sendSuccess(res, result.tree);

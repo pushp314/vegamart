@@ -40,10 +40,8 @@ import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as DeliveryLoginRouteImport } from './routes/delivery.login'
-import { Route as OrdersTrackRouteImport } from './routes/orders.track'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
 import { Route as VendorLoginRouteImport } from './routes/vendor.login'
-import { Route as VendorRoamingRouteImport } from './routes/vendor.roaming'
 import { Route as VendorsIndexRouteImport } from './routes/vendors.index'
 import { Route as VendorsVendorIdRouteImport } from './routes/vendors.$vendorId'
 import { Route as OrdersOrderIdTrackRouteImport } from './routes/orders.$orderId.track'
@@ -203,11 +201,6 @@ const DeliveryLoginRoute = DeliveryLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => DeliveryRoute,
 } as any)
-const OrdersTrackRoute = OrdersTrackRouteImport.update({
-  id: '/track',
-  path: '/track',
-  getParentRoute: () => OrdersRoute,
-} as any)
 const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
   id: '/products/$productId',
   path: '/products/$productId',
@@ -216,11 +209,6 @@ const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
 const VendorLoginRoute = VendorLoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => VendorRoute,
-} as any)
-const VendorRoamingRoute = VendorRoamingRouteImport.update({
-  id: '/roaming',
-  path: '/roaming',
   getParentRoute: () => VendorRoute,
 } as any)
 const VendorsIndexRoute = VendorsIndexRouteImport.update({
@@ -271,10 +259,8 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/delivery/login': typeof DeliveryLoginRoute
-  '/orders/track': typeof OrdersTrackRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/vendor/login': typeof VendorLoginRoute
-  '/vendor/roaming': typeof VendorRoamingRoute
   '/vendors/$vendorId': typeof VendorsVendorIdRoute
   '/vendors/': typeof VendorsIndexRoute
   '/orders/$orderId/track': typeof OrdersOrderIdTrackRoute
@@ -311,10 +297,8 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/delivery/login': typeof DeliveryLoginRoute
-  '/orders/track': typeof OrdersTrackRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/vendor/login': typeof VendorLoginRoute
-  '/vendor/roaming': typeof VendorRoamingRoute
   '/vendors/$vendorId': typeof VendorsVendorIdRoute
   '/vendors': typeof VendorsIndexRoute
   '/orders/$orderId/track': typeof OrdersOrderIdTrackRoute
@@ -352,10 +336,8 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/delivery/login': typeof DeliveryLoginRoute
-  '/orders/track': typeof OrdersTrackRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/vendor/login': typeof VendorLoginRoute
-  '/vendor/roaming': typeof VendorRoamingRoute
   '/vendors/$vendorId': typeof VendorsVendorIdRoute
   '/vendors/': typeof VendorsIndexRoute
   '/orders/$orderId/track': typeof OrdersOrderIdTrackRoute
@@ -394,10 +376,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/auth/callback'
     | '/delivery/login'
-    | '/orders/track'
     | '/products/$productId'
     | '/vendor/login'
-    | '/vendor/roaming'
     | '/vendors/$vendorId'
     | '/vendors/'
     | '/orders/$orderId/track'
@@ -434,10 +414,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/auth/callback'
     | '/delivery/login'
-    | '/orders/track'
     | '/products/$productId'
     | '/vendor/login'
-    | '/vendor/roaming'
     | '/vendors/$vendorId'
     | '/vendors'
     | '/orders/$orderId/track'
@@ -474,10 +452,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/auth/callback'
     | '/delivery/login'
-    | '/orders/track'
     | '/products/$productId'
     | '/vendor/login'
-    | '/vendor/roaming'
     | '/vendors/$vendorId'
     | '/vendors/'
     | '/orders/$orderId/track'
@@ -737,13 +713,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeliveryLoginRouteImport
       parentRoute: typeof DeliveryRoute
     }
-    '/orders/track': {
-      id: '/orders/track'
-      path: '/track'
-      fullPath: '/orders/track'
-      preLoaderRoute: typeof OrdersTrackRouteImport
-      parentRoute: typeof OrdersRoute
-    }
     '/products/$productId': {
       id: '/products/$productId'
       path: '/products/$productId'
@@ -756,13 +725,6 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/vendor/login'
       preLoaderRoute: typeof VendorLoginRouteImport
-      parentRoute: typeof VendorRoute
-    }
-    '/vendor/roaming': {
-      id: '/vendor/roaming'
-      path: '/roaming'
-      fullPath: '/vendor/roaming'
-      preLoaderRoute: typeof VendorRoamingRouteImport
       parentRoute: typeof VendorRoute
     }
     '/vendors/': {
@@ -812,12 +774,10 @@ const DeliveryRouteWithChildren = DeliveryRoute._addFileChildren(
 )
 
 interface OrdersRouteChildren {
-  OrdersTrackRoute: typeof OrdersTrackRoute
   OrdersOrderIdTrackRoute: typeof OrdersOrderIdTrackRoute
 }
 
 const OrdersRouteChildren: OrdersRouteChildren = {
-  OrdersTrackRoute: OrdersTrackRoute,
   OrdersOrderIdTrackRoute: OrdersOrderIdTrackRoute,
 }
 
@@ -826,12 +786,10 @@ const OrdersRouteWithChildren =
 
 interface VendorRouteChildren {
   VendorLoginRoute: typeof VendorLoginRoute
-  VendorRoamingRoute: typeof VendorRoamingRoute
 }
 
 const VendorRouteChildren: VendorRouteChildren = {
   VendorLoginRoute: VendorLoginRoute,
-  VendorRoamingRoute: VendorRoamingRoute,
 }
 
 const VendorRouteWithChildren =

@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { VendorStatus } from "@prisma/client";
+import { VendorStatus, Prisma } from "@prisma/client";
 
 import log from "../config/logger";
 import { AUDIT_ACTIONS } from "../constants/auth";
@@ -11,7 +11,11 @@ import { notificationService } from "./notification.service";
 import { emailService } from "./email.service";
 import { discoveryService } from "./discovery.service";
 import { realtime } from "../realtime/realtime";
-import { ApiError, ConflictError, ForbiddenError } from "../utils/ApiError";
+import { ApiError, ConflictError, ForbiddenError, NotFoundError } from "../utils/ApiError";
+import * as roleRepo from "../repositories/role.repository";
+import * as sessionRepo from "../repositories/session.repository";
+import * as refreshTokenRepo from "../repositories/refresh-token.repository";
+import * as userRepo from "../repositories/user.repository";
 import { boundingBox, haversineDistanceKm } from "../utils/geo";
 import { HttpStatus } from "../utils/httpStatus";
 import { uniqueSlug } from "../utils/slug";
@@ -22,7 +26,9 @@ import type {
   VendorLocationBody,
   UpsertDailyLocationBody,
 } from "../validators/vendor.validators";
+import type { VendorKycBody, RingBellBody } from "../validators/integration.validators";
 import * as dailyLocationRepo from "../repositories/vendor-daily-location.repository";
+import { ROLES } from "../constants/roles";
 
 export interface NearbyVendor {
   vendor: Omit<vendorRepo.VendorRow, "latitude" | "longitude">;
@@ -807,4 +813,118 @@ export const vendorService = {
       per_page: perPage,
     };
   },
+
+  async cancelVendorApplication(userId: string, req: Request) {
+    const vendor = await vendorRepo.findByUserId(userId);
+    if (!vendor) {
+      throw new NotFoundError("Vendor profile not found.");
+    }
+    const customerRole = await roleRepo.findBySlug(ROLES.CUSTOMER);
+    if (!customerRole) {
+      throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "Customer role not configured.", { code: "ROLE_NOT_FOUND" });
+    }
+    await vendorRepo.softDelete(vendor.id);
+    await userRepo.changeRole(userId, customerRole.id);
+    await prisma.kycRecord.deleteMany({ where: { user_id: userId, type: "vendor" } });
+    await sessionRepo.revokeAllForUser(userId);
+    await refreshTokenRepo.revokeAllForUser(userId);
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.VENDOR_RESTORED, entityType: "vendor", entityId: vendor.id, newValues: { status: "cancelled", role_reverted: "customer" } },
+      req
+    );
+    return { success: true, message: "Vendor application cancelled successfully." };
+  },
+
+  async submitVendorKyc(userId: string, input: VendorKycBody, req: Request) {
+    await this.getMyVendor(userId);
+    const kyc = await prisma.kycRecord.upsert({
+      where: { user_id_type: { user_id: userId, type: "vendor" } },
+      update: {
+        documents: input as unknown as Prisma.InputJsonValue,
+        status: "PENDING",
+        rejection_reason: null,
+      },
+      create: {
+        user_id: userId,
+        type: "vendor",
+        documents: input as unknown as Prisma.InputJsonValue,
+        status: "PENDING",
+      },
+    });
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.KYC_SUBMITTED, entityType: "kyc", entityId: kyc.id, newValues: { type: "vendor", status: kyc.status } },
+      req
+    );
+    return kyc;
+  },
+
+  async getVendorKyc(userId: string) {
+    await this.getMyVendor(userId);
+    const kyc = await prisma.kycRecord.findUnique({ where: { user_id_type: { user_id: userId, type: "vendor" } } });
+    return kyc;
+  },
+
+  async getVendorEarnings(userId: string) {
+    const vendor = await this.getMyVendor(userId);
+    const stats = await vendorRepo.getVendorStats(vendor.id);
+    const commission = stats.total_earnings.toNumber();
+    const revenue = stats.total_revenue.toNumber();
+    const [recent] = await Promise.all([
+      prisma.order.findMany({
+        where: { vendor_id: vendor.id, status: { notIn: ["CANCELLED", "FAILED"] } },
+        orderBy: { created_at: "desc" },
+        take: 8,
+        select: {
+          id: true,
+          order_number: true,
+          status: true,
+          total: true,
+          created_at: true,
+        },
+      }),
+    ]);
+    return {
+      today_earnings: 0,
+      total_orders: stats.total_orders,
+      active_orders: stats.active_orders,
+      total_revenue: Math.round(revenue * 100) / 100,
+      total_commission: Math.round(commission * 100) / 100,
+      total_payout: Math.round((revenue - commission) * 100) / 100,
+      pending_payout: Math.round(stats.pending_earnings.toNumber() * 100) / 100,
+      product_count: stats.product_count,
+      out_of_stock_count: stats.out_of_stock_count,
+      recent_transactions: recent.map((o) => ({
+        id: o.id,
+        order_number: o.order_number,
+        status: o.status.toLowerCase(),
+        total: o.total.toNumber(),
+        created_at: o.created_at,
+      })),
+    };
+  },
+
+  async ringBell(vendorId: string, input: RingBellBody, req: Request) {
+    const vendor = await vendorRepo.findById(vendorId);
+    if (!vendor) {
+      throw new NotFoundError("Vendor not found.");
+    }
+    const name = (req as Request & { user?: { name?: string } }).user?.name ?? "Customer";
+    const data = {
+      address: input.address,
+      note: input.note ?? null,
+      customer_name: name,
+    };
+    realtime.publishVendorAlert(vendorId, data);
+    await notificationService.vendor(
+      vendor.user_id,
+      "New Street Call",
+      `${name} rang your bell from ${input.address}.`,
+      { vendor_id: vendorId, kind: "gali_bell" }
+    );
+    await auditService.record(
+      { userId: vendor.user_id, action: AUDIT_ACTIONS.GALI_BELL_RUNG, entityType: "vendor", entityId: vendorId, newValues: { address: input.address } },
+      req
+    );
+    return { delivered: true };
+  }
 };

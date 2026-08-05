@@ -16,6 +16,7 @@ import {
   Loader2,
   User as UserIcon,
   LogIn,
+  MessageSquare,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useAuth } from "@/context/auth-context";
@@ -342,6 +343,19 @@ function Profile() {
                   <HelpCircle className="h-4 w-4" />
                 </div>
                 <div className="text-sm font-bold text-foreground">FAQ & Help Center</div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </Link>
+
+            <Link
+              to="/contact"
+              className="flex items-center justify-between p-4 hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid h-9 w-9 place-items-center rounded-xl bg-cyan-100 text-cyan-700">
+                  <MessageSquare className="h-4 w-4" />
+                </div>
+                <div className="text-sm font-bold text-foreground">Contact Support</div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </Link>

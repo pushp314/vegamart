@@ -28,6 +28,9 @@ import {
   suspendUser,
   suspendVendorAdmin,
   updateOrderStatus,
+  updateVendorMembership,
+  listSupportTickets,
+  updateSupportTicketStatus,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -96,6 +99,9 @@ import {
   userIdParamsSchema,
   vendorDecisionSchema,
   vendorIdParamsSchema,
+  updateVendorMembershipSchema,
+  ticketIdParamsSchema,
+  updateTicketStatusSchema,
 } from "../../validators/admin.validators";
 
 const router = Router();
@@ -122,6 +128,7 @@ router.get("/vendors/:vendor_id", validate({ params: vendorIdParamsSchema }), ge
 router.post("/vendors/:vendor_id/review", validate({ params: vendorIdParamsSchema, body: vendorDecisionSchema }), reviewVendorAdmin);
 router.post("/vendors/:vendor_id/suspend", validate({ params: vendorIdParamsSchema, body: suspendVendorSchema }), suspendVendorAdmin);
 router.post("/vendors/:vendor_id/restore", validate({ params: vendorIdParamsSchema }), restoreVendorAdmin);
+router.patch("/vendors/:vendor_id/membership", validate({ params: vendorIdParamsSchema, body: updateVendorMembershipSchema }), updateVendorMembership);
 router.get("/vendors/:vendor_id/earnings", validate({ params: vendorIdParamsSchema }), getVendorEarnings);
 
 // Delivery partner management
@@ -193,3 +200,8 @@ router.patch("/orders/:order_id/status", validate({ params: adminOrderIdParamsSc
 router.get("/products", validate({ query: adminProductsQuerySchema }), listProductsAdmin);
 
 export default router;
+
+
+// Support Tickets
+router.get("/support-tickets", listSupportTickets);
+router.patch("/support-tickets/:ticket_id/status", validate({ params: ticketIdParamsSchema, body: updateTicketStatusSchema }), updateSupportTicketStatus);

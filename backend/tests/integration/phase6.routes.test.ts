@@ -108,7 +108,7 @@ describe("Phase 6 admin routes (validation & authorization, no DB)", () => {
     const res = await request(app).get("/api/v1/settings/public");
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data["platform.name"]).toBe("Gali Connect");
+    expect(res.body.data["platform.name"]).toBe("VegaMart");
   });
 
   it("rate-limits report endpoints", async () => {

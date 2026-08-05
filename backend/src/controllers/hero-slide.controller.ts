@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 
+import { cacheService } from "../database/cache";
+
 import { heroSlideService } from "../services/hero-slide.service";
 import { sendCreated, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
@@ -55,9 +57,16 @@ export const listHeroSlides = asyncHandler(async (req: Request, res: Response) =
  *         description: Paginated active hero slide list.
  */
 export const listPublicHeroSlides = asyncHandler(async (req: Request, res: Response) => {
-  // Force is_active to true for public endpoint
   const query = { ...req.query, is_active: "true" };
-  const result = await heroSlideService.list(query as never);
+  const cacheKey = `hero-slides-public:${JSON.stringify(query)}`;
+  
+  const result = await cacheService.remember(
+    "settings", 
+    cacheKey, 
+    async () => await heroSlideService.list(query as never),
+    300 // 5 minutes cache
+  );
+
   return sendSuccess(res, result.rows, {
     pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
   });

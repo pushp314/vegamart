@@ -3,6 +3,8 @@ import { api, authStorage, AUTH_SESSION_EVENT, type AuthSessionPayload } from "@
 
 export type UserRole = "customer" | "vendor" | "admin" | "super_admin" | "delivery";
 
+export const GUEST_USER_ID = "00000000-0000-0000-0000-000000000001";
+
 export interface User {
   id: string;
   name: string;
@@ -19,6 +21,7 @@ interface AuthContextType {
   role: UserRole;
   accessToken: string | null;
   isAuthenticated: boolean;
+  isGuest: boolean;
   isLoading: boolean;
   login: (
     email: string,
@@ -271,6 +274,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: user?.role || "customer",
         accessToken,
         isAuthenticated: !!user,
+        isGuest: user?.id === GUEST_USER_ID,
         isLoading,
         login,
         register,

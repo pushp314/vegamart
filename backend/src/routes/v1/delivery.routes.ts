@@ -5,12 +5,33 @@ import {
   getMyEarnings,
   setAvailability,
   updateProfile,
+  registerDelivery,
+  applyDelivery,
+  getDeliveryMe,
+  listDeliveryRequests,
+  listMyDeliveries,
+  acceptDelivery,
+  updateDeliveryStatus,
+  updateDeliveryLocation,
+  markDelivered,
+  submitDeliveryKyc,
+  getDeliveryTracking,
 } from "../../controllers/delivery.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
 import { ROLES } from "../../constants/roles";
 import { z } from "zod";
+import {
+  deliveryApplySchema,
+  deliveryRegisterSchema,
+  deliveryAcceptSchema,
+  deliveryOrderStatusSchema,
+  deliveryLocationSchema,
+  deliveredOtpSchema,
+  deliveryKycSchema,
+  orderIdAliasParamsSchema,
+} from "../../validators/integration.validators";
 
 const router = Router();
 
@@ -47,6 +68,14 @@ router.get(
 );
 
 router.put(
+  "/delivery/orders/:id/accept",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  validate({ params: orderIdAliasParamsSchema, body: deliveryAcceptSchema }),
+  acceptDelivery
+);
+
+router.put(
   "/delivery/me/availability",
   authenticate,
   requireRole(ROLES.DELIVERY_PARTNER),
@@ -61,5 +90,29 @@ router.put(
   validate({ body: deliveryProfileUpdateSchema }),
   updateProfile
 );
+
+// Delivery operations
+router.post("/delivery/register", authenticate, validate({ body: deliveryRegisterSchema }), registerDelivery);
+router.post("/delivery/apply", authenticate, validate({ body: deliveryApplySchema }), applyDelivery);
+router.get("/delivery/me", authenticate, requireRole(ROLES.DELIVERY_PARTNER), getDeliveryMe);
+router.get("/delivery/requests", authenticate, requireRole(ROLES.DELIVERY_PARTNER), listDeliveryRequests);
+router.get("/delivery/my-deliveries", authenticate, requireRole(ROLES.DELIVERY_PARTNER), listMyDeliveries);
+router.put(
+  "/delivery/orders/:id/status",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  validate({ params: orderIdAliasParamsSchema, body: deliveryOrderStatusSchema }),
+  updateDeliveryStatus
+);
+router.put("/delivery/location", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryLocationSchema }), updateDeliveryLocation);
+router.put(
+  "/delivery/order/:id/delivered",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  validate({ params: orderIdAliasParamsSchema, body: deliveredOtpSchema }),
+  markDelivered
+);
+router.post("/delivery/me/kyc", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryKycSchema }), submitDeliveryKyc);
+router.get("/delivery/order/:id/tracking", authenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
 
 export default router;

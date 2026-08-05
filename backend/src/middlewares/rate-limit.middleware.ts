@@ -64,6 +64,7 @@ export const authLimiter = createLimiter({
   windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
   max: env.AUTH_RATE_LIMIT_MAX,
   message: "Too many authentication attempts, please slow down.",
+  keyGenerator: identifierKeyGenerator,
 });
 
 function identifierKeyGenerator(req: Request): string {

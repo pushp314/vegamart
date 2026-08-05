@@ -76,7 +76,7 @@ describe("Integration compatibility routes", () => {
   });
 
   describe("public browse endpoints", () => {
-    it.each(["/api/v1/banners", "/api/v1/offers", "/api/v1/faqs", "/api/v1/products/trending"])(
+    it.each(["/api/v1/banners", "/api/v1/products/trending", "/api/v1/products/featured"])(
       "GET %s responds (200 or 503 depending on DB)",
       async (path) => {
         const res = await request(app).get(path);

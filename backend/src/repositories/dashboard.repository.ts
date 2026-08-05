@@ -158,7 +158,7 @@ export async function getDashboardCharts(days = 30): Promise<DashboardChartPoint
         SELECT date_trunc('day', created_at)::date AS day, COALESCE(SUM(total), 0) AS revenue
         FROM orders
         WHERE deleted_at IS NULL
-          AND status NOT IN ('CANCELLED', 'FAILED')
+          AND status NOT IN ('cancelled', 'failed')
           AND created_at >= ${start}
         GROUP BY 1
       ) r ON r.day = gs.day::date

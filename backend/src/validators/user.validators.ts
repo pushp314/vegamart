@@ -11,16 +11,16 @@ export const updateProfileSchema = z.object({
     .optional()
     .nullable(),
   avatar_url: z.string().url("avatar_url must be a valid URL.").optional().nullable(),
-});
+}).strict();
 
 export const sessionParamsSchema = z.object({
   session_id: z.string().uuid("session_id must be a valid UUID."),
-});
+}).strict();
 
 export const listSessionsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-});
+}).strict();
 
 export type UpdateProfileBody = z.infer<typeof updateProfileSchema>;
 

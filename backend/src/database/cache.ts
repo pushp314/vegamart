@@ -1,6 +1,7 @@
 import { env } from "../config";
 import log from "../config/logger";
 import { buildKey, isRedisAvailable, redis } from "../database/redis";
+import * as mem from "../database/cache-memory";
 import { recordCacheAccess } from "../monitoring/metrics";
 
 const TTL_VARIANTS: Record<string, number> = {
@@ -34,17 +35,14 @@ function deserialize<T>(raw: string | null | undefined): T | null {
 }
 
 async function memorySet(key: string, value: string, ttlSeconds: number): Promise<void> {
-  const mem = await import("../database/cache-memory");
   mem.memoryCacheSet(key, value, ttlSeconds);
 }
 
 async function memoryGet(key: string): Promise<string | null> {
-  const mem = await import("../database/cache-memory");
   return mem.memoryCacheGet(key);
 }
 
 async function memoryDel(key: string): Promise<void> {
-  const mem = await import("../database/cache-memory");
   mem.memoryCacheDel(key);
 }
 
@@ -101,15 +99,33 @@ export const cacheService = {
     const pattern = buildKey(namespace, "*");
     if (isRedisAvailable() && redis) {
       try {
-        const keys = await redis.keys(pattern);
-        if (keys.length > 0) {
-          await redis.del(...keys);
-        }
+        await new Promise<void>((resolve, reject) => {
+          const stream = redis!.scanStream({ match: pattern, count: 100 });
+          const keys: string[] = [];
+          
+          stream.on("data", (resultKeys: string[]) => {
+            keys.push(...resultKeys);
+          });
+          
+          stream.on("end", async () => {
+            if (keys.length > 0) {
+              try {
+                await redis!.del(...keys);
+              } catch (err) {
+                log.warn("Cache namespace invalidation failed during del", { context: "cache", error: err instanceof Error ? err.message : String(err) });
+              }
+            }
+            resolve();
+          });
+          
+          stream.on("error", (err) => {
+            reject(err);
+          });
+        });
       } catch (error) {
         log.warn("Cache namespace invalidation failed", { context: "cache", error: error instanceof Error ? error.message : String(error) });
       }
     }
-    const mem = await import("../database/cache-memory");
     mem.memoryCacheClearPattern(pattern);
   },
 

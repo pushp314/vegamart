@@ -12,7 +12,7 @@ const envSchema = z
     NODE_ENV: z
       .enum(["development", "test", "production", "staging"])
       .default("development"),
-    APP_NAME: z.string().default("Gali Connect"),
+    APP_NAME: z.string().default("VegaMart"),
     APP_PORT: z.coerce.number().int().positive().default(8080),
     APP_URL: z.string().url().default("http://localhost:8080"),
     API_VERSION: z.string().default("v1"),
@@ -35,8 +35,8 @@ const envSchema = z
     JWT_REFRESH_SECRET_PREVIOUS: stringOrEmpty,
     JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
     JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
-    JWT_ISSUER: z.string().default("gali-connect"),
-    JWT_AUDIENCE: z.string().default("gali-connect-client"),
+    JWT_ISSUER: z.string().default("vegamart"),
+    JWT_AUDIENCE: z.string().default("vegamart-client"),
 
     COOKIE_SECURE: booleanFromString,
     COOKIE_SAME_SITE: z
@@ -51,7 +51,7 @@ const envSchema = z
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
     AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
-    AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+    AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(40),
     PAYMENT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
     PAYMENT_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
     UPLOAD_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
@@ -103,7 +103,7 @@ const envSchema = z
     SMTP_SECURE: booleanFromString,
     SMTP_USER: stringOrEmpty,
     SMTP_PASSWORD: stringOrEmpty,
-    SMTP_FROM: z.string().default("Gali Connect <no-reply@galiconnect.local>"),
+    SMTP_FROM: z.string().default("VegaMart <no-reply@vegamart.in>"),
 
     GOOGLE_CLIENT_ID: stringOrEmpty,
     GOOGLE_CLIENT_SECRET: stringOrEmpty,
@@ -188,7 +188,7 @@ export function loadEnvForTest(): Env {
   const testEnv = {
     ...process.env,
     NODE_ENV: "test",
-    DATABASE_URL: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/gali_connect_test?schema=public",
+    DATABASE_URL: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/vegamart_test?schema=public",
     JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "test_access_secret_at_least_32_chars_long",
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test_refresh_secret_at_least_32_chars_long",
     API_VERSION: process.env.API_VERSION || "v1",

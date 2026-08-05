@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import path from "path";
 
-import { env, apiPrefix, isProduction } from "./config";
+import { env, apiPrefix } from "./config";
 import { httpLogger } from "./config/morgan";
 import { swaggerSpec } from "./config/swagger";
 import { requestId } from "./middlewares/request-id";
@@ -14,7 +14,6 @@ import { apiVersion } from "./middlewares/version";
 import { metricsMiddleware } from "./monitoring/metrics";
 import { errorHandler, notFoundHandler } from "./middlewares/error-handler";
 import v1Routes from "./routes/v1";
-import v2Routes from "./routes/v2";
 
 const app: Application = express();
 
@@ -35,9 +34,7 @@ app.use(express.urlencoded({ extended: true, limit: `${env.MAX_BODY_SIZE_MB}mb` 
 app.use(cookieParser());
 app.use(httpLogger);
 
-const publicDir = isProduction
-  ? path.resolve(process.cwd(), "public")
-  : path.resolve(process.cwd(), "src", "public");
+const publicDir = path.resolve(process.cwd(), "public");
 app.use(express.static(publicDir));
 
 if (env.SWAGGER_ENABLED) {
@@ -63,7 +60,6 @@ app.get("/", (_req: Request, res: Response) => {
   });
 });
 
-app.use(`${apiPrefix.replace(/\/v1$/, "")}/v2`, apiVersion("v2"), v2Routes);
 app.use(apiPrefix, apiVersion("v1"), v1Routes);
 
 app.use(notFoundHandler);

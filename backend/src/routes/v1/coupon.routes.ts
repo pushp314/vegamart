@@ -7,7 +7,7 @@ import {
   updateCoupon,
   validateCoupon,
 } from "../../controllers/coupon.controller";
-import { authenticate } from "../../middlewares/auth.middleware";
+import { authenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
 import { PERMISSIONS, ROLES } from "../../constants/roles";
@@ -22,7 +22,7 @@ import {
 const router = Router();
 
 // Customer: validate a code against the cart
-router.post("/coupons/validate", authenticate, requireRole(ROLES.CUSTOMER), validate({ body: validateCouponSchema }), validateCoupon);
+router.post("/coupons/validate", authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ body: validateCouponSchema }), validateCoupon);
 
 // Admin-only coupon management
 router.get("/coupons", authenticate, requirePermission(PERMISSIONS.COUPONS_READ), validate({ query: listCouponsQuerySchema }), listCoupons);

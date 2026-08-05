@@ -114,7 +114,7 @@ export function Navbar() {
                 size="sm"
                 className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold"
               >
-                <Link to="/vendor/roaming">
+                <Link to="/vendor">
                   <Sparkles className="h-4 w-4 mr-1 text-amber-600 animate-pulse" /> Street Cart
                   Portal
                 </Link>

@@ -27,6 +27,9 @@ const baseSelect = {
     select: { id: true, url: true, alt_text: true, sort_order: true, is_primary: true },
     orderBy: { sort_order: "asc" as const },
   },
+  vendor: {
+    select: { id: true, business_name: true, logo_url: true, status: true },
+  },
 } as const;
 
 export type ProductRow = {
@@ -57,6 +60,12 @@ export type ProductRow = {
     sort_order: number;
     is_primary: boolean;
   }>;
+  vendor?: {
+    id: string;
+    business_name: string;
+    logo_url: string | null;
+    status: import("@prisma/client").VendorStatus;
+  } | null;
 };
 
 function mapRow(row: unknown): ProductRow {

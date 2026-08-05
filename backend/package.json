@@ -1,15 +1,15 @@
 {
-  "name": "gali-connect-backend",
+  "name": "vegamart-backend",
   "version": "1.0.0",
-  "description": "Gali Connect - Hyperlocal marketplace backend (Blinkit/Zepto/Instamart style) for customers, street vendors, delivery partners and administrators.",
+  "description": "VegaMart - Hyperlocal marketplace backend for customers, street vendors, delivery partners and administrators.",
   "private": true,
   "main": "dist/server.js",
   "engines": {
     "node": ">=20.0.0"
   },
   "prisma": {
-    "schema": "src/prisma/schema.prisma",
-    "seed": "tsx src/prisma/seed.ts"
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -20,13 +20,13 @@
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "prisma:generate": "prisma generate --schema src/prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema src/prisma/schema.prisma",
-    "prisma:deploy": "prisma migrate deploy --schema src/prisma/schema.prisma",
-    "prisma:studio": "prisma studio --schema src/prisma/schema.prisma",
-    "prisma:seed": "tsx src/prisma/seed.ts",
-    "prisma:reset": "prisma migrate reset --schema src/prisma/schema.prisma",
-    "db:push": "prisma db push --schema src/prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:reset": "prisma migrate reset --schema prisma/schema.prisma",
+    "db:push": "prisma db push --schema prisma/schema.prisma",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -68,7 +68,7 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^2.2.0",
-    "@types/node": "^22.13.0",
+    "@types/node": "^22.20.1",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^8.0.1",
     "@types/pdfkit": "^0.17.6",

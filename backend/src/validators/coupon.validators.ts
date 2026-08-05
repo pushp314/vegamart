@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const couponIdParamsSchema = z.object({
   coupon_id: z.string().uuid("coupon_id must be a valid UUID."),
-});
+}).strict();
 
 const couponTypeEnum = z.enum(["PERCENTAGE", "FIXED", "FREE_DELIVERY"]);
 
@@ -20,7 +20,7 @@ export const createCouponSchema = z.object({
   applies_to_vendor_ids: z.array(z.string().uuid("Invalid vendor id.")).optional().nullable(),
   applies_to_product_ids: z.array(z.string().uuid("Invalid product id.")).optional().nullable(),
   applies_to_category_ids: z.array(z.string().uuid("Invalid category id.")).optional().nullable(),
-}).refine((data) => data.valid_until > data.valid_from, {
+}).strict().refine((data) => data.valid_until > data.valid_from, {
   message: "valid_until must be after valid_from.",
   path: ["valid_until"],
 });
@@ -39,7 +39,7 @@ export const updateCouponSchema = z.object({
   applies_to_vendor_ids: z.array(z.string().uuid("Invalid vendor id.")).optional().nullable(),
   applies_to_product_ids: z.array(z.string().uuid("Invalid product id.")).optional().nullable(),
   applies_to_category_ids: z.array(z.string().uuid("Invalid category id.")).optional().nullable(),
-});
+}).strict();
 
 export const listCouponsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -47,7 +47,7 @@ export const listCouponsQuerySchema = z.object({
   is_active: z.enum(["true", "false"]).optional(),
   q: z.string().trim().max(160).optional(),
   type: couponTypeEnum.optional(),
-});
+}).strict();
 
 export const validateCouponSchema = z.object({
   code: z.string().trim().min(1, "code is required.").max(50),
@@ -61,7 +61,7 @@ export const validateCouponSchema = z.object({
     .min(1)
     .max(100)
     .optional(),
-});
+}).strict();
 
 export type CreateCouponBody = z.infer<typeof createCouponSchema>;
 export type UpdateCouponBody = z.infer<typeof updateCouponSchema>;

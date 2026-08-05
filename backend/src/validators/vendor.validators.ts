@@ -4,11 +4,11 @@ import { MAX_PAGE_SIZE } from "../constants";
 
 export const vendorIdParamsSchema = z.object({
   vendor_id: z.string().uuid("vendor_id must be a valid UUID."),
-});
+}).strict();
 
 export const vendorSlugParamsSchema = z.object({
   slug: z.string().min(1).max(180),
-});
+}).strict();
 
 export const createVendorSchema = z.object({
   business_name: z.string().trim().min(2, "Business name must be at least 2 characters.").max(160),
@@ -39,18 +39,18 @@ export const createVendorSchema = z.object({
   available_from: z.string().max(20).optional().nullable(),
   available_to: z.string().max(20).optional().nullable(),
   roaming: z.boolean().optional(),
-});
+}).strict();
 
 export const updateVendorSchema = createVendorSchema.partial();
 
 export const vendorAvailabilitySchema = z.object({
   is_open: z.boolean(),
-});
+}).strict();
 
 export const vendorLocationSchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
-});
+}).strict();
 
 export const vendorLocationUpdateSchema = z.object({
   latitude: z.coerce.number().min(-90).max(90).optional(),
@@ -62,18 +62,18 @@ export const vendorLocationUpdateSchema = z.object({
   country: z.string().trim().min(1).max(60).optional(),
   pincode: z.string().regex(/^\d{6}$/, "Pincode must be exactly 6 digits.").optional(),
   delivery_radius_km: z.coerce.number().min(0.5).max(50).optional(),
-});
+}).strict();
 
 export const vendorHoursSchema = z.object({
   business_hours: z.string().max(500),
   available_from: z.string().max(20).optional().nullable(),
   available_to: z.string().max(20).optional().nullable(),
-});
+}).strict();
 
 export const vendorReviewSchema = z.object({
   decision: z.enum(["approve", "reject"]),
   reason: z.string().max(1000).optional().nullable(),
-});
+}).strict();
 
 export const listVendorsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -84,7 +84,7 @@ export const listVendorsQuerySchema = z.object({
   is_open: z.enum(["true", "false"]).optional(),
   sort: z.enum(["relevance", "rating", "name", "distance", "newest"]).optional(),
   order: z.enum(["asc", "desc"]).optional(),
-});
+}).strict();
 
 export const nearbyVendorsQuerySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
@@ -94,7 +94,7 @@ export const nearbyVendorsQuerySchema = z.object({
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   category: z.string().trim().max(120).optional(),
   is_open: z.enum(["true", "false"]).optional(),
-});
+}).strict();
 
 export const upsertDailyLocationSchema = z.object({
   area: z.string().trim().min(1, "Area is required.").max(200),
@@ -116,7 +116,7 @@ export const upsertDailyLocationSchema = z.object({
     .nullable(),
   notes: z.string().trim().max(500).optional().nullable(),
   is_active: z.boolean().optional().default(true),
-});
+}).strict();
 
 export type CreateVendorBody = z.infer<typeof createVendorSchema>;
 export type UpdateVendorBody = z.infer<typeof updateVendorSchema>;

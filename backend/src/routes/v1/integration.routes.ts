@@ -1,36 +1,24 @@
 import { Router } from "express";
 
 import {
-  acceptDelivery,
   addRecentlyViewed,
-  applyDelivery,
   approveDeliveryAlias,
   approveVendorAlias,
   cancelVendorApplication,
   createCmsBannerAlias,
-  createCmsFaqAlias,
-  createCmsOfferAlias,
   createMyAddress,
   createOrderAlias,
   featureProductAlias,
-  getDeliveryMe,
-  getDeliveryTracking,
   getVendorEarnings,
   getVendorKyc,
   listBanners,
   listDeliveryPartnersAlias,
-  listDeliveryRequests,
-  listFaqs,
   listFeaturedProducts,
   listMyAddresses,
-  listMyDeliveries,
-  listOffers,
   listRecentlyViewed,
   listRecommended,
   listTrendingProducts,
   listVendorOrdersAlias,
-  markDelivered,
-  registerDelivery,
   registerVendor,
   rejectDeliveryAlias,
   rejectVendorAlias,
@@ -40,13 +28,10 @@ import {
   ringBell,
   sendLoginOtpAlias,
   setDefaultMyAddress,
-  submitDeliveryKyc,
   submitVendorKyc,
   suspendVendorAlias,
   toggleAvailabilityAlias,
   toggleUserStatusAlias,
-  updateDeliveryLocation,
-  updateDeliveryStatus,
   updateMyAddress,
   updateMyProfile,
   verifyLoginOtpAlias,
@@ -60,14 +45,6 @@ import { vendorIdParamsSchema } from "../../validators/vendor.validators";
 import {
   createOrderAliasSchema,
   createCmsBannerSchema,
-  createCmsFaqSchema,
-  createCmsOfferSchema,
-  deliveredOtpSchema,
-  deliveryApplySchema,
-  deliveryKycSchema,
-  deliveryLocationSchema,
-  deliveryOrderStatusSchema,
-  deliveryRegisterSchema,
   featureProductSchema,
   orderIdAliasParamsSchema,
   productIdAliasParamsSchema,
@@ -91,8 +68,6 @@ router.post("/auth/login/otp/verify", otpLimiter, validate({ body: verifyLoginOt
 // Public browse
 // ---------------------------------------------------------------------------
 router.get("/banners", listBanners);
-router.get("/offers", listOffers);
-router.get("/faqs", listFaqs);
 router.get("/products/trending", listTrendingProducts);
 router.get("/products/featured", listFeaturedProducts);
 
@@ -144,38 +119,6 @@ router.post(
   ringBell
 );
 
-// ---------------------------------------------------------------------------
-// Delivery partner module
-// ---------------------------------------------------------------------------
-router.post("/delivery/register", authenticate, validate({ body: deliveryRegisterSchema }), registerDelivery);
-router.post("/delivery/apply", authenticate, validate({ body: deliveryApplySchema }), applyDelivery);
-router.get("/delivery/me", authenticate, requireRole(ROLES.DELIVERY_PARTNER), getDeliveryMe);
-router.get("/delivery/requests", authenticate, requireRole(ROLES.DELIVERY_PARTNER), listDeliveryRequests);
-router.get("/delivery/my-deliveries", authenticate, requireRole(ROLES.DELIVERY_PARTNER), listMyDeliveries);
-router.put(
-  "/delivery/orders/:id/accept",
-  authenticate,
-  requireRole(ROLES.DELIVERY_PARTNER),
-  validate({ params: orderIdAliasParamsSchema }),
-  acceptDelivery
-);
-router.put(
-  "/delivery/orders/:id/status",
-  authenticate,
-  requireRole(ROLES.DELIVERY_PARTNER),
-  validate({ params: orderIdAliasParamsSchema, body: deliveryOrderStatusSchema }),
-  updateDeliveryStatus
-);
-router.put("/delivery/location", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryLocationSchema }), updateDeliveryLocation);
-router.put(
-  "/delivery/order/:id/delivered",
-  authenticate,
-  requireRole(ROLES.DELIVERY_PARTNER),
-  validate({ params: orderIdAliasParamsSchema, body: deliveredOtpSchema }),
-  markDelivered
-);
-router.post("/delivery/me/kyc", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryKycSchema }), submitDeliveryKyc);
-router.get("/delivery/order/:id/tracking", authenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
 
 export default router;
 
@@ -188,7 +131,5 @@ integrationAdminRoutes.put("/vendors/:vendor_id/suspend", suspendVendorAlias);
 integrationAdminRoutes.put("/users/:user_id/status", toggleUserStatusAlias);
 integrationAdminRoutes.put("/delivery/:delivery_id/approve", approveDeliveryAlias);
 integrationAdminRoutes.put("/delivery/:delivery_id/reject", rejectDeliveryAlias);
-integrationAdminRoutes.post("/cms/offers", validate({ body: createCmsOfferSchema }), createCmsOfferAlias);
 integrationAdminRoutes.post("/cms/banners", validate({ body: createCmsBannerSchema }), createCmsBannerAlias);
-integrationAdminRoutes.post("/cms/faqs", validate({ body: createCmsFaqSchema }), createCmsFaqAlias);
 integrationAdminRoutes.put("/products/:product_id/feature", validate({ params: productIdAliasParamsSchema, body: featureProductSchema }), featureProductAlias);

@@ -48,7 +48,7 @@ export function StreetVendorMap() {
   // ── 2. Get user geolocation ───────────────────────────────────────
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
-    const watchId = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
@@ -57,7 +57,6 @@ export function StreetVendorMap() {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
     );
-    return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
   // ── 3. Initialize Leaflet map once we have a location ─────────────

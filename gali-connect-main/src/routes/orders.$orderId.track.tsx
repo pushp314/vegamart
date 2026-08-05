@@ -1,10 +1,20 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Bike, MapPin, RefreshCw, CheckCircle2, Loader2, PackageX } from "lucide-react";
+import {
+  Bike,
+  MapPin,
+  RefreshCw,
+  CheckCircle2,
+  Loader2,
+  PackageX,
+  User,
+  ArrowRight,
+} from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
-import { GoogleDeliveryTracker } from "@/components/marketplace/google-delivery-tracker";
+
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuth } from "@/context/auth-context";
 
 export const Route = createFileRoute("/orders/$orderId/track")({
   component: OrderIdTrackingPage,
@@ -13,6 +23,7 @@ export const Route = createFileRoute("/orders/$orderId/track")({
 function OrderIdTrackingPage() {
   const { orderId } = Route.useParams();
   const navigate = useNavigate();
+  const { user, isAuthenticated, isGuest, role, isLoading: authLoading } = useAuth();
 
   const {
     data: orderRes,
@@ -23,6 +34,7 @@ function OrderIdTrackingPage() {
     queryKey: ["orderDetail", orderId],
     queryFn: () => api.get<{ data: any }>(`/orders/${orderId}`),
     retry: 1,
+    enabled: !!user && !isGuest && role === "customer",
   });
 
   const order = orderRes?.data?.data || orderRes?.data || null;
@@ -58,6 +70,31 @@ function OrderIdTrackingPage() {
   const deliveryFee = Number(order?.delivery_fee ?? 0);
   const tax = Number(order?.tax ?? order?.platform_fee ?? 0);
   const totalAmount = Number(order?.total_amount ?? order?.total ?? 0);
+
+  if (!authLoading && (!isAuthenticated || isGuest || role !== "customer")) {
+    return (
+      <div className="min-h-screen bg-background text-foreground pb-24">
+        <AppHeader title="Live Order Tracking" subtitle="Login Required" />
+        <main className="flex-1 max-w-md w-full mx-auto px-6 py-16 text-center flex flex-col justify-center items-center">
+          <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-soft">
+            <User className="h-10 w-10" />
+          </div>
+          <h2 className="mt-6 font-display text-2xl font-bold">Login Required</h2>
+          <p className="mt-2 text-xs text-muted-foreground leading-relaxed max-w-xs">
+            Please log in to your customer account to track this order.
+          </p>
+          <div className="mt-6 w-full space-y-3">
+            <Link
+              to="/login"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90"
+            >
+              Log In to Continue <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24">
@@ -154,12 +191,6 @@ function OrderIdTrackingPage() {
               </div>
             )}
 
-            {/* Live Map Tracker */}
-            <GoogleDeliveryTracker
-              orderId={order.order_number || orderId}
-              vendorName={order.vendor_name}
-              status={status}
-            />
 
             {/* Status Timeline */}
             <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">

@@ -33,9 +33,12 @@ import { AdminOrders } from "@/components/admin/AdminOrders";
 import { AdminProducts } from "@/components/admin/AdminProducts";
 import { AdminReports } from "@/components/admin/AdminReports";
 import { AdminNotifications } from "@/components/admin/AdminNotifications";
+import { AdminCoupons } from "@/components/admin/AdminCoupons";
+import { AdminCategories } from "@/components/admin/AdminCategories";
+import { AdminSupportTickets } from "@/components/admin/AdminSupportTickets";
 import { AdminAuditLogs } from "@/components/admin/AdminAuditLogs";
 import { AdminSettings } from "@/components/admin/AdminSettings";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Tag, Layers, LifeBuoy } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin Portal — Vegamart" }] }),
@@ -219,14 +222,22 @@ function AdminDashboard() {
       icon: Bike,
       onClick: () => setActiveTab("delivery"),
     },
+    { id: "categories", title: "Categories", icon: Layers, onClick: () => setActiveTab("categories") },
     { id: "products", title: "Products", icon: FileText, onClick: () => setActiveTab("products") },
     { id: "cms", title: "CMS", icon: ClipboardList, onClick: () => setActiveTab("cms") },
+    { id: "coupons", title: "Coupons", icon: Tag, onClick: () => setActiveTab("coupons") },
     { id: "reports", title: "Reports", icon: FileBarChart, onClick: () => setActiveTab("reports") },
     {
       id: "notifications",
       title: "Notifications",
       icon: Bell,
       onClick: () => setActiveTab("notifications"),
+    },
+    {
+      id: "support_tickets",
+      title: "Support Tickets",
+      icon: LifeBuoy,
+      onClick: () => setActiveTab("support_tickets"),
     },
     {
       id: "audit_logs",
@@ -281,10 +292,13 @@ function AdminDashboard() {
           isRejecting={rejectDeliveryMutation.isPending}
         />
       )}
+      {activeTab === "categories" && <AdminCategories />}
       {activeTab === "products" && <AdminProducts />}
       {activeTab === "cms" && <AdminCMS />}
+      {activeTab === "coupons" && <AdminCoupons />}
       {activeTab === "reports" && <AdminReports />}
       {activeTab === "notifications" && <AdminNotifications />}
+      {activeTab === "support_tickets" && <AdminSupportTickets />}
       {activeTab === "audit_logs" && <AdminAuditLogs />}
       {activeTab === "refunds" && <AdminRefunds />}
       {activeTab === "settings" && <AdminSettings />}

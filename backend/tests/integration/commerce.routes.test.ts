@@ -1,6 +1,17 @@
 import request from "supertest";
 
 import app from "../../src/app";
+import { ROLES } from "../../src/constants/roles";
+import { signAccessToken } from "../../src/services/token.service";
+
+function customerToken(): string {
+  return signAccessToken({
+    sub: "11111111-1111-1111-1111-111111111111",
+    email: "customer@example.com",
+    role: ROLES.CUSTOMER,
+    session_id: "00000000-0000-0000-0000-000000000000",
+  });
+}
 
 describe("Phase 4 commerce routes (validation & authorization, no DB)", () => {
   it("requires auth to read the cart", async () => {
@@ -14,22 +25,18 @@ describe("Phase 4 commerce routes (validation & authorization, no DB)", () => {
   });
 
   it("rejects a cart item with a non-uuid product id as 422", async () => {
-    const guest = await request(app).post("/api/v1/auth/guest");
-    const token = guest.body.data.access_token as string;
     const res = await request(app)
       .post("/api/v1/cart/items")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${customerToken()}`)
       .send({ product_id: "nope", quantity: 1 });
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("rejects a cart item with quantity 0 as 422", async () => {
-    const guest = await request(app).post("/api/v1/auth/guest");
-    const token = guest.body.data.access_token as string;
     const res = await request(app)
       .post("/api/v1/cart/items")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${customerToken()}`)
       .send({ product_id: "11111111-1111-1111-1111-111111111111", quantity: 0 });
     expect(res.status).toBe(422);
   });
@@ -60,11 +67,9 @@ describe("Phase 4 commerce routes (validation & authorization, no DB)", () => {
   });
 
   it("rejects checkout with an invalid address uuid as 422", async () => {
-    const guest = await request(app).post("/api/v1/auth/guest");
-    const token = guest.body.data.access_token as string;
     const res = await request(app)
       .post("/api/v1/checkout")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${customerToken()}`)
       .send({ address_id: "nope" });
     expect(res.status).toBe(422);
   });

@@ -22,7 +22,7 @@ import notificationRoutes from "./notification.routes";
 import uploadRoutes from "./upload.routes";
 import adminRoutes from "./admin.routes";
 import publicSettingsRoutes from "./public-settings.routes";
-import broadcastRoutes from "./broadcast.routes";
+
 import deliveryRoutes from "./delivery.routes";
 import contactRoutes from "./contact.routes";
 
@@ -51,7 +51,7 @@ v1Router.use(uploadRoutes);
 v1Router.use("/admin", adminRoutes);
 v1Router.use("/admin", integrationAdminRoutes);
 v1Router.use(publicSettingsRoutes);
-v1Router.use(broadcastRoutes);
+
 v1Router.use(deliveryRoutes);
 v1Router.use(contactRoutes);
 

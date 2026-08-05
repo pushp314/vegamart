@@ -13,6 +13,8 @@ import {
   ArrowLeft,
   ArrowRight,
   MessageSquare,
+  ChevronLeft,
+  PlayCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -183,12 +185,24 @@ function ProductDetail() {
               </button>
             </div>
           </div>
-          <div className="aspect-square w-full overflow-hidden">
-            <img
-              src={gallery[imageIdx]}
-              alt={product.name}
-              className="h-full w-full object-cover"
-            />
+          <div className="aspect-square w-full overflow-hidden bg-black/5 flex items-center justify-center">
+            {gallery[imageIdx]?.match(/\.(mp4|webm|ogg)$/i) ? (
+              <video
+                src={gallery[imageIdx]}
+                autoPlay
+                controls
+                loop
+                muted
+                playsInline
+                className="h-full w-full object-contain bg-black"
+              />
+            ) : (
+              <img
+                src={gallery[imageIdx]}
+                alt={product.name}
+                className="h-full w-full object-cover"
+              />
+            )}
           </div>
           {discount > 0 && (
             <span className="absolute left-4 bottom-4 rounded-full bg-emerald-700 px-3 py-1 text-[11px] font-bold text-white">
@@ -201,18 +215,28 @@ function ProductDetail() {
         {gallery.length > 1 && (
           <div className="mx-auto max-w-3xl px-4 mt-4 lg:hidden">
             <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {gallery.map((src, i) => (
-                <button
-                  key={i}
-                  onClick={() => setImageIdx(i)}
-                  className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition ${
-                    imageIdx === i ? "border-primary" : "border-border opacity-70"
-                  }`}
-                  aria-label={`View image ${i + 1}`}
-                >
-                  <img src={src} alt="" className="h-full w-full object-cover" />
-                </button>
-              ))}
+              {gallery.map((src, i) => {
+                const isVideo = src.match(/\.(mp4|webm|ogg)$/i);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setImageIdx(i)}
+                    className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition bg-muted flex items-center justify-center ${
+                      imageIdx === i ? "border-primary" : "border-border opacity-70"
+                    }`}
+                    aria-label={`View media ${i + 1}`}
+                  >
+                    {isVideo ? (
+                      <>
+                        <video src={src} className="absolute inset-0 h-full w-full object-cover opacity-50" />
+                        <PlayCircle className="h-6 w-6 text-white drop-shadow-md relative z-10" />
+                      </>
+                    ) : (
+                      <img src={src} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

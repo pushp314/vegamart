@@ -118,7 +118,7 @@ export function AdminCreatePartner() {
             title: businessName,
             email,
             password,
-            portalURL: vendorType === "roaming" ? "/vendor/roaming" : "/vendor",
+            portalURL: "/vendor",
           });
 
           // Reset fields

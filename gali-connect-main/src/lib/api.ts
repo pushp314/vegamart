@@ -1,5 +1,5 @@
 /**
- * Type-safe API Client for Vegamart Go Backend (http://localhost:8080/api/v1).
+ * Type-safe API Client for VegaMart Node/Express Backend (http://localhost:8080/api/v1).
  * Features automatic JWT Bearer token header injection and fallback error handling.
  */
 
@@ -118,7 +118,7 @@ class ApiClient {
           success: false,
           error: {
             code: "SERVICE_UNAVAILABLE",
-            message: "Backend service is not running. Please start the Go backend on port 8080.",
+            message: "Backend service is not running. Please start the Node backend on port 8080.",
           },
         };
       }
@@ -151,7 +151,7 @@ class ApiClient {
         error: {
           code: "NETWORK_ERROR",
           message:
-            "Unable to connect to Vegamart backend. Make sure the server is running on port 8080.",
+            "Unable to connect to VegaMart backend. Make sure the server is running on port 8080.",
         },
       };
     }

@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { CheckCircle2, Package, MapPin, Store, Bike } from "lucide-react";
 import { OrderTracker } from "@/components/marketplace/order-tracker";
-import { GoogleDeliveryTracker } from "@/components/marketplace/google-delivery-tracker";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
@@ -51,15 +50,7 @@ function OrderSuccess() {
           </p>
         </div>
 
-        {/* Google Maps Delivery Tracing */}
-        {orderStatus === "out_for_delivery" && (
-          <GoogleDeliveryTracker
-            orderId={orderId}
-            vendorName={vendorName}
-            deliveryAddress={deliveryAddress}
-            status={orderStatus}
-          />
-        )}
+
 
         {/* Live Order Tracker */}
         <OrderTracker status={orderStatus} />
@@ -83,8 +74,8 @@ function OrderSuccess() {
 
         <div className="flex flex-col gap-2.5 sm:flex-row pt-2">
           <Link
-            to="/orders/track"
-            search={{ orderId: orderId || "" }}
+            to="/orders/$orderId/track"
+            params={{ orderId: orderId || "" }}
             className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-white font-extrabold text-xs h-12 shadow-md hover:bg-emerald-700 transition-colors"
           >
             <Bike className="h-4 w-4" /> Track Order Live 🛵

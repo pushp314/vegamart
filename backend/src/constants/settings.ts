@@ -33,7 +33,7 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
   [SETTING_KEYS.PLATFORM_NAME]: {
     key: SETTING_KEYS.PLATFORM_NAME,
     type: "string",
-    default: "Gali Connect",
+    default: "VegaMart",
     description: "Display name of the platform.",
     is_public: true,
   },
@@ -117,7 +117,7 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
   [SETTING_KEYS.SUPPORT_EMAIL]: {
     key: SETTING_KEYS.SUPPORT_EMAIL,
     type: "string",
-    default: "support@galiconnect.local",
+    default: "support@vegamart.in",
     description: "Public support email address.",
     is_public: true,
   },

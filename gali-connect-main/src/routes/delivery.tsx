@@ -26,6 +26,7 @@ import { useAuth } from "@/context/auth-context";
 import { DeliveryHistory } from "@/components/delivery/DeliveryHistory";
 import { DeliveryProfile } from "@/components/delivery/DeliveryProfile";
 import { DeliverySettings } from "@/components/delivery/DeliverySettings";
+import { DeliveryMapModal } from "@/components/delivery/DeliveryMapModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,20 @@ function DeliveryDashboard() {
     "requests" | "active" | "earnings" | "history" | "profile" | "settings"
   >("requests");
   const [isOnline, setIsOnline] = useState(false);
+  
+  // OTP Modal
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [otpValue, setOtpValue] = useState("");
+
+  // ETA Modal
+  const [etaModalOpen, setEtaModalOpen] = useState(false);
+  const [etaValue, setEtaValue] = useState("");
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
+
+  // Map Modal
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [mapData, setMapData] = useState<any>(null);
 
   // Fetch Delivery Profile
   const { data: profileRes, isLoading: partnerLoading } = useQuery({
@@ -102,12 +114,14 @@ function DeliveryDashboard() {
 
   // Accept Delivery Mutation
   const acceptMutation = useMutation({
-    mutationFn: (id: string) => api.put(`/delivery/orders/${id}/accept`),
+    mutationFn: ({ id, eta_minutes }: { id: string, eta_minutes: number }) => 
+      api.put(`/delivery/orders/${id}/accept`, { eta_minutes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
       queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
       toast.success("Delivery accepted! Head to the vendor.");
       setActiveTab("active");
+      setEtaModalOpen(false);
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to accept delivery request");
@@ -153,29 +167,6 @@ function DeliveryDashboard() {
     });
   };
 
-  // Geolocation broadcasting when online
-  useEffect(() => {
-    let watchId: number;
-    if (isOnline && partner && partner.status === "approved") {
-      if ("geolocation" in navigator) {
-        watchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            api
-              .put("/delivery/location", {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-              })
-              .catch((err) => console.error("Failed to update location", err));
-          },
-          (err) => console.error("Geolocation error:", err),
-          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 },
-        );
-      }
-    }
-    return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [isOnline, partner]);
 
   if (!isAuthenticated) {
     return (
@@ -380,11 +371,15 @@ function DeliveryDashboard() {
                     </div>
 
                     <button
-                      onClick={() => acceptMutation.mutate(r.id)}
+                      onClick={() => {
+                        setAcceptingOrderId(r.id);
+                        setEtaValue("15");
+                        setEtaModalOpen(true);
+                      }}
                       disabled={acceptMutation.isPending}
                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
                     >
-                      {acceptMutation.isPending ? (
+                      {acceptMutation.isPending && acceptingOrderId === r.id ? (
                         <Loader2 className="h-6 w-6 animate-spin" />
                       ) : (
                         "Accept Delivery"
@@ -460,26 +455,78 @@ function DeliveryDashboard() {
                       </div>
                     </div>
 
-                    <div className="p-3 bg-muted/50 border-t border-border flex gap-2">
-                      <button
-                        onClick={() =>
-                          updateStatusMutation.mutate({ orderId: o.id, status: "out_for_delivery" })
-                        }
-                        disabled={o.status === "out_for_delivery"}
-                        className={`flex-1 py-3 rounded-xl font-bold text-sm transition-colors ${o.status === "out_for_delivery" ? "bg-muted text-muted-foreground" : "bg-blue-600 text-white hover:bg-blue-500"}`}
-                      >
-                        Picked Up
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedOrderId(o.id);
-                          setOtpValue("");
-                          setOtpModalOpen(true);
-                        }}
-                        className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
-                      >
-                        <CheckCircle2 className="h-4 w-4" /> Delivered
-                      </button>
+                    <div className="p-3 bg-muted/50 border-t border-border flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            // Vendor Location
+                            const vLat = o.vendor?.lat || 0;
+                            const vLng = o.vendor?.lng || 0;
+                            // Customer Location
+                            const cLat = o.address?.lat || 0;
+                            const cLng = o.address?.lng || 0;
+                            
+                            // Delivery Partner Location (Using dummy current location for now, or could use navigator.geolocation)
+                            // We will just show Vendor to Customer if Out for Delivery, or Rider to Vendor if not picked up.
+                            if (o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP") {
+                              setMapData({
+                                title: "Route to Pickup",
+                                startLocation: { lat: partner.current_lat || vLat - 0.01, lng: partner.current_lng || vLng - 0.01, label: "Your Location" },
+                                endLocation: { lat: vLat, lng: vLng, label: o.vendor?.business_name || "Vendor" }
+                              });
+                            } else {
+                              setMapData({
+                                title: "Route to Dropoff",
+                                startLocation: { lat: vLat, lng: vLng, label: o.vendor?.business_name || "Vendor" },
+                                endLocation: { lat: cLat, lng: cLng, label: o.user?.name || "Customer" }
+                              });
+                            }
+                            setMapModalOpen(true);
+                          }}
+                          className="flex-1 py-3 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300 font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Navigation className="h-4 w-4" /> View Route
+                        </button>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        {o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" ? (
+                          <button
+                            onClick={() =>
+                              updateStatusMutation.mutate({ orderId: o.id, status: "picked_up" })
+                            }
+                            className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-blue-600 text-white hover:bg-blue-500"
+                          >
+                            Picked Up
+                          </button>
+                        ) : o.status === "PICKED_UP" ? (
+                          <button
+                            onClick={() =>
+                              updateStatusMutation.mutate({ orderId: o.id, status: "out_for_delivery" })
+                            }
+                            className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-purple-600 text-white hover:bg-purple-500"
+                          >
+                            Out for Delivery
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-muted text-muted-foreground"
+                          >
+                            Out for Delivery
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedOrderId(o.id);
+                            setOtpValue("");
+                            setOtpModalOpen(true);
+                          }}
+                          className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Delivered
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -667,6 +714,66 @@ function DeliveryDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ETA MODAL */}
+      <Dialog open={etaModalOpen} onOpenChange={setEtaModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Estimated Time of Arrival</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Provide an ETA in minutes for reaching the vendor and customer.
+            </p>
+            <Input
+              type="number"
+              placeholder="e.g. 15"
+              value={etaValue}
+              onChange={(e) => setEtaValue(e.target.value)}
+              className="text-lg"
+              min={1}
+              max={120}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEtaModalOpen(false);
+                  setAcceptingOrderId(null);
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  const minutes = parseInt(etaValue, 10);
+                  if (minutes > 0 && acceptingOrderId) {
+                    acceptMutation.mutate({ id: acceptingOrderId, eta_minutes: minutes });
+                  } else {
+                    toast.error("Please enter a valid ETA in minutes");
+                  }
+                }}
+                disabled={!etaValue || acceptMutation.isPending}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500"
+              >
+                {acceptMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm & Accept"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MAP MODAL */}
+      {mapModalOpen && mapData && (
+        <DeliveryMapModal
+          open={mapModalOpen}
+          onOpenChange={setMapModalOpen}
+          title={mapData.title}
+          startLocation={mapData.startLocation}
+          endLocation={mapData.endLocation}
+        />
+      )}
     </div>
   );
 }

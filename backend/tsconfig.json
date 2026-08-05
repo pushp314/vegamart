@@ -46,8 +46,7 @@
       "@emails/*": ["src/emails/*"],
       "@storage/*": ["src/storage/*"],
       "@payments/*": ["src/payments/*"],
-      "@notifications/*": ["src/notifications/*"],
-      "@prisma/*": ["src/prisma/*"]
+      "@notifications/*": ["src/notifications/*"]
     }
   },
   "include": ["src/**/*.ts"],

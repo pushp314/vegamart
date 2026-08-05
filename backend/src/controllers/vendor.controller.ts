@@ -13,6 +13,7 @@ import type {
   VendorLocationBody,
   UpsertDailyLocationBody,
 } from "../validators/vendor.validators";
+import type { VendorKycBody, RingBellBody } from "../validators/integration.validators";
 
 /**
  * @swagger
@@ -635,4 +636,105 @@ export const nearbyDailyLocations = asyncHandler(async (req: Request, res: Respo
   return sendSuccess(res, result.items, {
     pagination: buildPaginationMeta({ page: result.page, per_page: result.per_page }, result.total),
   });
+});
+
+export const cancelVendorApplication = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.cancelVendorApplication(req.user!.id, req);
+  return sendSuccess(res, data, { message: "Vendor application cancelled successfully." });
+});
+
+/**
+ * @swagger
+ * /api/v1/vendors/me/kyc:
+ *   get:
+ *     summary: Get my vendor KYC details
+ *     tags: [Vendors]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: KYC details retrieved successfully
+ */
+export const getVendorKyc = asyncHandler(async (req: Request, res: Response) => {
+  return sendSuccess(res, await vendorService.getVendorKyc(req.user!.id));
+});
+
+/**
+ * @swagger
+ * /api/v1/vendors/me/kyc:
+ *   post:
+ *     summary: Submit vendor KYC documents
+ *     tags: [Vendors]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               document_type:
+ *                 type: string
+ *               document_number:
+ *                 type: string
+ *               document_url:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: KYC documents submitted
+ */
+export const submitVendorKyc = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.submitVendorKyc(req.user!.id, req.body as VendorKycBody, req);
+  return sendCreated(res, data, "KYC documents submitted.");
+});
+
+/**
+ * @swagger
+ * /api/v1/vendors/me/earnings:
+ *   get:
+ *     summary: Get my vendor earnings summary
+ *     tags: [Vendors]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Earnings summary retrieved successfully
+ */
+export const getVendorEarnings = asyncHandler(async (req: Request, res: Response) => {
+  return sendSuccess(res, await vendorService.getVendorEarnings(req.user!.id));
+});
+
+/**
+ * @swagger
+ * /api/v1/vendors/{vendor_id}/ring-bell:
+ *   post:
+ *     summary: Ring a bell for a vendor
+ *     tags: [Vendors]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: Vendor ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               customer_lat:
+ *                 type: number
+ *               customer_lng:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Bell rung successfully
+ */
+export const ringBell = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.ringBell(req.params.vendor_id as string, req.body as RingBellBody, req);
+  return sendSuccess(res, data, { message: "Bell rung! The vendor has been notified." });
 });

@@ -18,6 +18,7 @@ import {
   MapPin,
   Star,
   BarChart3,
+  FileText,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PortalLayout } from "@/components/layout/portal-layout";
@@ -37,8 +38,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import { DailyLocationForm } from "@/components/vendor/daily-location-form";
+import { ShopLocationForm } from "@/components/vendor/shop-location-form";
 import { VendorReviews } from "@/components/vendor/VendorReviews";
 import { VendorAnalytics } from "@/components/vendor/VendorAnalytics";
+import { VendorProducts } from "@/components/vendor/VendorProducts";
+import { VendorSettings } from "@/components/vendor/VendorSettings";
 
 export const Route = createFileRoute("/vendor")({
   head: () => ({ meta: [{ title: "Vendor Portal — Vegamart" }] }),
@@ -49,7 +53,7 @@ function VendorParentLayout() {
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
 
-  if (pathname === "/vendor/roaming" || pathname === "/vendor/login") {
+  if (pathname === "/vendor/login") {
     return <Outlet />;
   }
 
@@ -64,7 +68,8 @@ type VendorTab =
   | "location"
   | "reviews"
   | "coupons"
-  | "analytics";
+  | "analytics"
+  | "settings";
 
 function VendorDashboard() {
   const queryClient = useQueryClient();
@@ -95,7 +100,7 @@ function VendorDashboard() {
   useEffect(() => {
     const vType = vendor?.profile?.vendor_type || vendor?.vendor_type;
     if (vendor && vType === "roaming") {
-      navigate({ to: "/vendor/roaming" });
+      navigate({ to: "/vendor" });
     }
   }, [vendor, navigate]);
 
@@ -242,7 +247,7 @@ function VendorDashboard() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: (data: any) => api.put("/vendors/me/profile", data),
+    mutationFn: (data: any) => api.put("/vendors/me", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
       toast.success("Subscription activated successfully!");
@@ -622,6 +627,12 @@ function VendorDashboard() {
           },
         ]
       : []),
+    {
+      id: "settings",
+      title: "Settings",
+      icon: FileText,
+      onClick: () => setActiveTab("settings"),
+    },
   ];
 
   return (
@@ -745,6 +756,17 @@ function VendorDashboard() {
               Location
             </button>
           )}
+          <button
+            onClick={() => setActiveTab("settings")}
+            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+              activeTab === "settings"
+                ? "bg-emerald-500 text-black  shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+            }`}
+          >
+            <FileText className="inline h-3 w-3 mr-1" />
+            Settings
+          </button>
         </div>
 
         {/* OVERVIEW TAB */}
@@ -844,68 +866,13 @@ function VendorDashboard() {
 
         {/* PRODUCTS TAB */}
         {activeTab === "products" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-bold">Store Catalog</h2>
-              <button
-                onClick={handleOpenAddProduct}
-                className="flex items-center gap-1.5 rounded-2xl bg-emerald-500 text-black  font-semibold text-xs px-4 py-2 shadow-xs hover:bg-emerald-400"
-              >
-                <Plus className="h-4 w-4" /> Add Product
-              </button>
-            </div>
-
-            {productList.length === 0 ? (
-              <div className="rounded-3xl border border-border bg-muted/50 border-border p-12 text-center space-y-3">
-                <Package className="h-10 w-10 mx-auto text-emerald-500" />
-                <h3 className="font-bold text-sm">Your store catalog is empty</h3>
-                <p className="text-xs text-muted-foreground">
-                  List your fresh products for nearby customers.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {productList.map((p) => (
-                  <div
-                    key={p.id}
-                    className="rounded-3xl border border-border bg-muted/50 border-border p-4 space-y-3 shadow-2xl"
-                  >
-                    <img
-                      src={
-                        p.images?.[0]?.url ||
-                        "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300"
-                      }
-                      alt={p.name}
-                      className="h-28 w-full rounded-2xl object-cover"
-                    />
-                    <div>
-                      <div className="font-bold text-sm truncate">{p.name}</div>
-                      <div className="text-xs font-bold text-emerald-600 mt-0.5">
-                        ₹{p.price}{" "}
-                        <span className="text-muted-foreground font-normal text-[11px]">
-                          / {p.unit}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 pt-2 border-t">
-                      <button
-                        onClick={() => handleOpenEditProduct(p)}
-                        className="flex-1 flex items-center justify-center gap-1 rounded-xl border border-border py-1.5 text-xs font-semibold hover:bg-accent/50"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" /> Edit
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(p)}
-                        className="p-1.5 rounded-xl border border-border text-destructive hover:bg-rose-500/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <VendorProducts
+            productList={productList}
+            categoriesList={categoriesList}
+            handleOpenEditProduct={handleOpenEditProduct}
+            handleOpenAddProduct={handleOpenAddProduct}
+            setDeleteTarget={setDeleteTarget}
+          />
         )}
 
         {/* ORDERS TAB */}
@@ -1031,9 +998,13 @@ function VendorDashboard() {
         )}
 
         {/* LOCATION TAB */}
-        {activeTab === "location" && vendor?.roaming && (
-          <div className="max-w-lg">
-            <DailyLocationForm vendorProfile={vendor} />
+        {activeTab === "location" && (
+          <div className="max-w-xl mx-auto">
+            {vendor?.roaming ? (
+              <DailyLocationForm vendorProfile={vendor} />
+            ) : (
+              <ShopLocationForm vendorProfile={vendor} />
+            )}
           </div>
         )}
 
@@ -1042,6 +1013,9 @@ function VendorDashboard() {
 
         {/* ANALYTICS TAB */}
         {activeTab === "analytics" && <VendorAnalytics />}
+
+        {/* SETTINGS TAB */}
+        {activeTab === "settings" && <VendorSettings vendorProfile={vendor} />}
 
         {/* EARNINGS TAB */}
         {activeTab === "earnings" && (

@@ -1,3 +1,4 @@
+import prisma from "../database/prisma";
 import type { Request } from "express";
 import { VendorStatus } from "@prisma/client";
 
@@ -140,4 +141,50 @@ export const adminVendorService = {
     const rows = await vendorRepo.getVendorStats(vendorId);
     return rows;
   },
+  async updateMembership(
+    vendorId: string,
+    input: {
+      commission_rate?: number;
+      membership_tier?: string;
+      membership_expires_at?: string | null;
+    },
+    adminId: string,
+    req: Request
+  ) {
+    const vendor = await prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+      include: { user: true },
+    });
+    if (!vendor) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Vendor not found.", { code: "NOT_FOUND" });
+    }
+
+    const updated = await prisma.vendorProfile.update({
+      where: { id: vendorId },
+      data: {
+        commission_rate: input.commission_rate !== undefined ? input.commission_rate : vendor.commission_rate,
+        membership_tier: input.membership_tier !== undefined ? input.membership_tier : vendor.membership_tier,
+        membership_expires_at: input.membership_expires_at !== undefined ? (input.membership_expires_at ? new Date(input.membership_expires_at) : null) : vendor.membership_expires_at,
+      },
+      include: { user: { select: { id: true, name: true, email: true, phone: true } } },
+    });
+
+    await auditService.record(
+      {
+        userId: adminId,
+        action: "VENDOR_MEMBERSHIP_UPDATED",
+        entityType: "vendor",
+        entityId: vendorId,
+        newValues: {
+          commission_rate: updated.commission_rate,
+          membership_tier: updated.membership_tier,
+          membership_expires_at: updated.membership_expires_at,
+        }
+      },
+      req
+    );
+
+    return updated;
+  },
 };
+// Trigger IDE TS Server refresh

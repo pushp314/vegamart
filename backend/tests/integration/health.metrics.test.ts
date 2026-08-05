@@ -62,12 +62,7 @@ describe("Phase 7 health & monitoring endpoints", () => {
     expect(res.body.data.system).toBeDefined();
   });
 
-  it("v2 mounts mirror v1 health endpoints", async () => {
-    const res = await request(app).get("/api/v2/health");
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.headers["api-version"]).toBe("v2");
-  });
+
 
   it("v1 responses echo the API-Version header", async () => {
     const res = await request(app).get("/api/v1/health");
