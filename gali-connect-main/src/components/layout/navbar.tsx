@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   MapPin,
   Search,
@@ -29,6 +29,10 @@ export function Navbar() {
   const { user, role } = useAuth();
   const { displayLocation } = useLocation();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // The Explore route renders its own immersive full-screen shell.
+  if (pathname === "/explore") return null;
 
   // Support the advertised ⌘K / Ctrl+K shortcut for search
   useEffect(() => {

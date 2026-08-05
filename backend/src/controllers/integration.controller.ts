@@ -171,6 +171,11 @@ export const registerVendor = asyncHandler(async (req: Request, res: Response) =
   return sendCreated(res, data, "Vendor application submitted.");
 });
 
+export const cancelVendorApplication = asyncHandler(async (req: Request, res: Response) => {
+  const data = await integrationService.cancelVendorApplication(req.user!.id, req);
+  return sendSuccess(res, data, { message: "Vendor application cancelled successfully." });
+});
+
 export const updateMyProfile = asyncHandler(async (req: Request, res: Response) => {
   const data = await integrationService.updateMyProfile(req.user!.id, req.body as Record<string, unknown>, req);
   return sendSuccess(res, data, { message: "Profile updated successfully." });

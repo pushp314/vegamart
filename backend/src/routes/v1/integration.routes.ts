@@ -6,6 +6,7 @@ import {
   applyDelivery,
   approveDeliveryAlias,
   approveVendorAlias,
+  cancelVendorApplication,
   createCmsBannerAlias,
   createCmsFaqAlias,
   createCmsOfferAlias,
@@ -127,6 +128,7 @@ router.post("/orders/:id/return", authenticate, requireRole(ROLES.CUSTOMER), val
 // Vendor self-service
 // ---------------------------------------------------------------------------
 router.post("/vendors/register", authenticate, validate({ body: vendorRegisterSchema }), registerVendor);
+router.delete("/vendors/me", authenticate, requireRole(ROLES.VENDOR), cancelVendorApplication);
 router.put("/vendors/me/availability", authenticate, requireRole(ROLES.VENDOR), toggleAvailabilityAlias);
 router.put("/vendors/me/toggle-availability", authenticate, requireRole(ROLES.VENDOR), toggleAvailabilityAlias);
 router.put("/vendors/me/profile", authenticate, requireRole(ROLES.VENDOR), updateMyProfile);

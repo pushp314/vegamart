@@ -212,6 +212,9 @@ model User {
   support_tickets       SupportTicket[]
   kyc_records           KycRecord[]
   recent_views          RecentlyViewed[]
+  favorite_vendors      CustomerFavorite[]
+  vendor_follows        VendorFollower[]
+  nearby_search_history NearbySearchHistory[]
 
   @@index([email])
   @@index([phone])
@@ -418,6 +421,9 @@ model VendorProfile {
   broadcasts      Broadcast[]
   vendor_earnings VendorEarning[]
   daily_locations VendorDailyLocation[]
+  location_history VendorLocationHistory[]
+  favorited_by      CustomerFavorite[]
+  followers         VendorFollower[]
 
   @@index([user_id])
   @@index([slug])
@@ -450,6 +456,77 @@ model VendorDailyLocation {
   @@index([latitude, longitude])
   @@index([is_active, broadcast_date])
   @@map("vendor_daily_locations")
+}
+
+model VendorLocationHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendor_id   String   @db.Uuid
+  area        String   @db.VarChar(200)
+  landmark    String?  @db.VarChar(200)
+  address     String   @db.VarChar(400)
+  latitude    Float    @db.DoublePrecision
+  longitude   Float    @db.DoublePrecision
+  start_time  String?  @db.VarChar(10)
+  end_time    String?  @db.VarChar(10)
+  notes       String?  @db.VarChar(500)
+  is_active   Boolean  @default(true)
+  recorded_at DateTime @default(now())
+  created_at  DateTime @default(now())
+
+  vendor VendorProfile @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+
+  @@index([vendor_id, recorded_at])
+  @@index([latitude, longitude])
+  @@map("vendor_location_history")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Discovery — Favorites, Follows & Nearby Search History
+// ──────────────────────────────────────────────────────────────────────────────
+
+model CustomerFavorite {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  vendor_id  String   @db.Uuid
+  created_at DateTime @default(now())
+
+  user   User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  vendor VendorProfile @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, vendor_id])
+  @@index([vendor_id])
+  @@map("customer_favorites")
+}
+
+model VendorFollower {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  vendor_id  String   @db.Uuid
+  created_at DateTime @default(now())
+
+  user   User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  vendor VendorProfile @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, vendor_id])
+  @@index([vendor_id])
+  @@map("vendor_followers")
+}
+
+model NearbySearchHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  query      String   @db.VarChar(200)
+  category   String?  @db.VarChar(120)
+  latitude   Float    @db.DoublePrecision
+  longitude  Float    @db.DoublePrecision
+  radius_km  Float    @default(5) @db.DoublePrecision
+  filters    Json?    @db.JsonB
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@map("nearby_search_history")
 }
 
 model DeliveryProfile {

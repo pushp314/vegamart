@@ -209,6 +209,35 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Discovery map animations */
+@keyframes gali-ping {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.9;
+  }
+  75%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@utility animate-ping-slow {
+  animation: gali-ping 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes gali-pop {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@utility animate-pop {
+  animation: gali-pop 0.35s ease-out both;
+}
+
 @media (max-width: 767px) {
   body {
     padding-bottom: calc(72px + env(safe-area-inset-bottom));

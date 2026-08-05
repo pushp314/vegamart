@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
 
 import { vendorService } from "../services/vendor.service";
+import { discoveryService } from "../services/discovery.service";
 import { sendCreated, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
 import { getByKey } from "../repositories/settings.repository";
+import { GUEST_USER_ID } from "../constants";
 import type {
   CreateVendorBody,
   UpdateVendorBody,
@@ -99,6 +101,16 @@ export const nearbyVendors = asyncHandler(async (req: Request, res: Response) =>
     page,
     perPage,
   });
+  if (req.user?.id && req.user.id !== GUEST_USER_ID) {
+    await discoveryService.recordSearch(req.user.id, {
+      query: query.category ?? "nearby",
+      category: query.category,
+      latitude: lat,
+      longitude: lng,
+      radius_km: radius,
+      filters: { is_open: query.is_open, scope: "vendors" },
+    });
+  }
   return sendSuccess(res, result.vendors, {
     pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
   });
@@ -610,6 +622,16 @@ export const nearbyDailyLocations = asyncHandler(async (req: Request, res: Respo
     page: query.page ? Number(query.page) : undefined,
     per_page: query.per_page ? Number(query.per_page) : undefined,
   });
+  if (req.user?.id && req.user.id !== GUEST_USER_ID) {
+    await discoveryService.recordSearch(req.user.id, {
+      query: query.category ?? "nearby-daily",
+      category: query.category,
+      latitude: lat,
+      longitude: lng,
+      radius_km: radius,
+      filters: { is_open: query.is_open, scope: "roaming" },
+    });
+  }
   return sendSuccess(res, result.items, {
     pagination: buildPaginationMeta({ page: result.page, per_page: result.per_page }, result.total),
   });

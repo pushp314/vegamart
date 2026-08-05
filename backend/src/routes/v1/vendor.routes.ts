@@ -25,7 +25,7 @@ import {
   upsertDailyLocation,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
-import { authenticate } from "../../middlewares/auth.middleware";
+import { authenticate, optionalAuthenticate } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate";
 import { PERMISSIONS, ROLES } from "../../constants/roles";
 import {
@@ -47,7 +47,7 @@ const router = Router();
 
 // Public routes
 router.get("/vendors", validate({ query: listVendorsQuerySchema }), listVendors);
-router.get("/vendors/nearby", validate({ query: nearbyVendorsQuerySchema }), nearbyVendors);
+router.get("/vendors/nearby", optionalAuthenticate, validate({ query: nearbyVendorsQuerySchema }), nearbyVendors);
 router.get("/vendors/by-slug/:slug", validate({ params: vendorSlugParamsSchema }), getVendorBySlug);
 
 // Vendor self-service (must precede /vendors/:vendor_id)
@@ -87,7 +87,7 @@ router.put(
   upsertDailyLocation,
 );
 router.delete("/vendors/me/daily-location", authenticate, requireRole(ROLES.VENDOR), removeDailyLocation);
-router.get("/vendors/nearby/daily", validate({ query: nearbyVendorsQuerySchema }), nearbyDailyLocations);
+router.get("/vendors/nearby/daily", optionalAuthenticate, validate({ query: nearbyVendorsQuerySchema }), nearbyDailyLocations);
 
 router.get("/vendors/:vendor_id", validate({ params: vendorIdParamsSchema }), getVendorById);
 router.get("/vendors/:vendor_id/location", validate({ params: vendorIdParamsSchema }), getVendorLocation);

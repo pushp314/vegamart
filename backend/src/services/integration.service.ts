@@ -19,6 +19,8 @@ import * as roleRepo from "../repositories/role.repository";
 import * as productRepo from "../repositories/product.repository";
 import * as addressRepo from "../repositories/address.repository";
 import * as settingsRepo from "../repositories/settings.repository";
+import * as sessionRepo from "../repositories/session.repository";
+import * as refreshTokenRepo from "../repositories/refresh-token.repository";
 import { ApiError, ConflictError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { realtime } from "../realtime/realtime";
@@ -176,6 +178,27 @@ export const integrationService = {
     }
     const vendor = await vendorService.create(userId, { ...input, roaming: input.vendor_type === "roaming" || input.vendor_type === "both" ? true : (input.roaming ?? false) }, req);
     return vendor;
+  },
+
+  async cancelVendorApplication(userId: string, req: Request) {
+    const vendor = await vendorRepo.findByUserId(userId);
+    if (!vendor) {
+      throw new NotFoundError("Vendor profile not found.");
+    }
+    const customerRole = await roleRepo.findBySlug(ROLES.CUSTOMER);
+    if (!customerRole) {
+      throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "Customer role not configured.", { code: "ROLE_NOT_FOUND" });
+    }
+    await vendorRepo.softDelete(vendor.id);
+    await userRepo.changeRole(userId, customerRole.id);
+    await prisma.kycRecord.deleteMany({ where: { user_id: userId, type: "vendor" } });
+    await sessionRepo.revokeAllForUser(userId);
+    await refreshTokenRepo.revokeAllForUser(userId);
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.VENDOR_RESTORED, entityType: "vendor", entityId: vendor.id, newValues: { status: "cancelled", role_reverted: "customer" } },
+      req
+    );
+    return { success: true, message: "Vendor application cancelled successfully." };
   },
 
   async updateMyProfile(userId: string, body: Record<string, unknown>, req: Request) {

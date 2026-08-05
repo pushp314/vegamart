@@ -36,6 +36,7 @@ const AUTH_REQUIRED_ENDPOINTS: EndpointCase[] = [
   { method: "get", path: "/api/v1/vendors/me/kyc" },
   { method: "post", path: "/api/v1/vendors/me/kyc", body: { document_type: "Aadhaar", document_number: "123456789012" } },
   { method: "get", path: "/api/v1/vendors/me/earnings" },
+  { method: "delete", path: "/api/v1/vendors/me" },
   { method: "post", path: "/api/v1/vendors/11111111-1111-1111-1111-111111111111/ring-bell", body: { address: "4th Cross, Main Rd" } },
   { method: "post", path: "/api/v1/delivery/register", body: { vehicle_type: "Bike", vehicle_number: "KA01AB1234" } },
   { method: "get", path: "/api/v1/delivery/me" },

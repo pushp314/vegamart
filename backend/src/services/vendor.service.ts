@@ -9,6 +9,7 @@ import { findById as findUserById } from "../repositories/user.repository";
 import { cacheService } from "../database/cache";
 import { notificationService } from "./notification.service";
 import { emailService } from "./email.service";
+import { discoveryService } from "./discovery.service";
 import { realtime } from "../realtime/realtime";
 import { ApiError, ConflictError, ForbiddenError } from "../utils/ApiError";
 import { boundingBox, haversineDistanceKm } from "../utils/geo";
@@ -499,6 +500,18 @@ export const vendorService = {
     });
 
     await cacheService.invalidateNamespace("vendor");
+
+    await discoveryService.recordLocationHistory(vendor.id, {
+      area: location.area,
+      landmark: location.landmark,
+      address: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      start_time: location.start_time,
+      end_time: location.end_time,
+      notes: location.notes,
+      is_active: location.is_active,
+    });
 
     if (location.is_active) {
       realtime.publishRoamingVendor(vendor.id, location.latitude, location.longitude);
