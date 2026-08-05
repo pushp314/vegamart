@@ -26,6 +26,7 @@ export function StreetVendorMap() {
   const leafletRef = useRef<LeafletModule | null>(null);
   const vendorIconRef = useRef<(category: string) => any>(null);
   const userIconRef = useRef<any>(null);
+  const fetchedVendorIdsRef = useRef<Set<string>>(new Set());
 
   const [vendors, setVendors] = useState<RoamingVendor[]>([]);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
@@ -164,22 +165,29 @@ export function StreetVendorMap() {
   }, [userLoc]);
 
   // ── 5. Fetch live vendor data from API ────────────────────────────
-  const { data: realVendorsData } = useQuery({
+  const { data: realVendorsData, isError: vendorsError } = useQuery({
     queryKey: ["live-vendors"],
     queryFn: () => api.get<any[]>("/vendors?is_open=true"),
     refetchInterval: 10000,
+    retry: false,
   });
 
   useEffect(() => {
+    if (vendorsError) {
+      console.warn("Vendor API unavailable - backend may not be running");
+    }
+  }, [vendorsError]);
+
+  useEffect(() => {
     const list = (realVendorsData?.data || [])
-      .filter((v: any) => v.latitude && v.longitude && v.roaming === true)
+      .filter((v: any) => v.latitude && v.longitude)
       .map((v: any) => ({
         id: v.id,
         name: v.business_name,
         category: v.category?.toLowerCase() || "vegetables",
         lat: v.latitude,
         lng: v.longitude,
-        isMoving: true,
+        isMoving: v.roaming === true,
       }));
     if (list.length > 0) setVendors(list);
   }, [realVendorsData]);
@@ -187,14 +195,56 @@ export function StreetVendorMap() {
   // ── 6. WebSocket for real-time location updates ───────────────────
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE_URL}/vendors/stream-roaming`);
+
+    const applyLocation = (vendorId: string, lat: number, lng: number, isMoving: boolean) => {
+      setVendors((prev) => {
+        if (prev.some((v) => v.id === vendorId)) {
+          return prev.map((v) => (v.id === vendorId ? { ...v, lat, lng, isMoving } : v));
+        }
+        if (fetchedVendorIdsRef.current.has(vendorId)) return prev;
+        fetchedVendorIdsRef.current.add(vendorId);
+        api
+          .get<any>(`/vendors/${vendorId}`)
+          .then((res) => {
+            const v = res?.data?.data ?? res?.data;
+            if (!v || !v.latitude || !v.longitude || v.is_open === false) {
+              fetchedVendorIdsRef.current.delete(vendorId);
+              return;
+            }
+            setVendors((curr) =>
+              curr.some((x) => x.id === v.id)
+                ? curr.map((x) => (x.id === v.id ? { ...x, lat, lng, isMoving } : x))
+                : [
+                    ...curr,
+                    {
+                      id: v.id,
+                      name: v.business_name,
+                      category: v.category?.toLowerCase() || "vegetables",
+                      lat,
+                      lng,
+                      isMoving,
+                    },
+                  ],
+            );
+          })
+          .catch(() => {
+            fetchedVendorIdsRef.current.delete(vendorId);
+          });
+        return prev;
+      });
+    };
+
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === "roaming_vendor_location" && payload.data?.vendor_id) {
           const { vendor_id, lat, lng } = payload.data;
-          setVendors((prev) =>
-            prev.map((v) => (v.id === vendor_id ? { ...v, lat, lng, isMoving: true } : v)),
-          );
+          applyLocation(vendor_id, lat, lng, true);
+        }
+        // Also handle general vendor location updates
+        if (payload.type === "vendor_location" && payload.data?.vendor_id) {
+          const { vendor_id, lat, lng } = payload.data;
+          applyLocation(vendor_id, lat, lng, false);
         }
       } catch {
         /* ignore parse errors */
@@ -229,7 +279,9 @@ export function StreetVendorMap() {
             `<div style="font-family:system-ui;text-align:center;">
               <strong style="font-size:13px;">${vendor.name}</strong><br/>
               <span style="font-size:11px;color:#666;">📍 ${vendor.category}</span><br/>
-              <span style="font-size:11px;color:#16a34a;font-weight:600;">● Live & Moving</span>
+              <span style="font-size:11px;color:${vendor.isMoving ? "#16a34a" : "#2563eb"};font-weight:600;">
+                ${vendor.isMoving ? "● Live & Moving" : "● Stationary"}
+              </span>
             </div>`,
           );
         vendorMarkersRef.current[vendor.id] = marker;
@@ -278,7 +330,7 @@ export function StreetVendorMap() {
 
       {vendors.length > 0 && (
         <div className="absolute top-4 right-4 z-30 bg-emerald-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg">
-          {vendors.length} vendor{vendors.length !== 1 ? "s" : ""} nearby
+          {vendors.length} vendor{vendors.length !== 1 ? "s" : ""} on map
         </div>
       )}
 

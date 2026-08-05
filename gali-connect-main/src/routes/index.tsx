@@ -629,6 +629,7 @@ function RecentlyViewed() {
                       aria-label={`Add ${p.name}`}
                       onClick={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         addToCart(cartProduct as any, 1);
                         toast.success(`Added ${p.name} to cart`);
                       }}
@@ -740,6 +741,7 @@ function Trending() {
                       aria-label={`Add ${p.name}`}
                       onClick={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         addToCart(p, 1);
                         toast.success(`Added ${p.name} to cart`);
                       }}
@@ -893,6 +895,7 @@ function Recommended() {
                       aria-label={`Add ${p.name}`}
                       onClick={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         addToCart(p, 1);
                         toast.success(`Added ${p.name} to cart`);
                       }}

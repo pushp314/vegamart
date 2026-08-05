@@ -37,7 +37,17 @@ export interface R2UploadInput {
   contentType: string;
 }
 
+const FALLBACK_IMAGE_BASE = "https://placehold.co/600x400";
+
+function placeholderUrl(key: string): string {
+  const text = encodeURIComponent(key.split("/").pop() || "Image");
+  return `${FALLBACK_IMAGE_BASE}?text=${text}`;
+}
+
 export function publicUrl(key: string): string {
+  if (!isR2Configured()) {
+    return placeholderUrl(key);
+  }
   if (env.R2_PUBLIC_URL) {
     const base = env.R2_PUBLIC_URL.replace(/\/+$/, "");
     return `${base}/${key}`;

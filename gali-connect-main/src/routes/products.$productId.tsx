@@ -393,6 +393,7 @@ function ProductDetail() {
                             aria-label={`Add ${p.name}`}
                             onClick={(e) => {
                               e.preventDefault();
+                              e.stopPropagation();
                               addToCart(p, 1);
                               toast.success(`Added ${p.name} to cart`);
                             }}

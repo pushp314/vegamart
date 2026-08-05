@@ -57,18 +57,26 @@ function AdminDashboard() {
   }, [authLoading, isAuthenticated, isAdmin, navigate]);
 
   // Dashboard Stats
-  const { data: statsRes, isLoading: statsLoading } = useQuery({
+  const { data: statsRes, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ["adminDashboardStats"],
     queryFn: () => api.get<{ data: any }>("/admin/dashboard"),
     enabled: isAuthenticated && isAdmin,
+    retry: false,
   });
+
+  useEffect(() => {
+    if (statsError) {
+      toast.error("Backend unavailable. Start the Go server on port 8080.");
+    }
+  }, [statsError]);
   const stats = statsRes?.data?.data || statsRes?.data || {};
 
   // Admin Vendors List
-  const { data: vendorsRes } = useQuery({
+  const { data: vendorsRes, isError: vendorsError } = useQuery({
     queryKey: ["adminVendors"],
     queryFn: () => api.get<any>("/admin/vendors"),
     enabled: isAuthenticated && isAdmin,
+    retry: false,
   });
   const vendorList: any[] = Array.isArray(vendorsRes?.data)
     ? vendorsRes.data
@@ -76,11 +84,18 @@ function AdminDashboard() {
       ? (vendorsRes?.data as any).data
       : [];
 
+  useEffect(() => {
+    if (vendorsError) {
+      toast.error("Backend unavailable. Start the Go server on port 8080.");
+    }
+  }, [vendorsError]);
+
   // Admin Users List
-  const { data: usersRes } = useQuery({
+  const { data: usersRes, isError: usersError } = useQuery({
     queryKey: ["adminUsers"],
     queryFn: () => api.get<any>("/admin/users"),
     enabled: isAuthenticated && isAdmin,
+    retry: false,
   });
   const userList: any[] = Array.isArray(usersRes?.data)
     ? usersRes.data
@@ -88,17 +103,30 @@ function AdminDashboard() {
       ? (usersRes?.data as any).data
       : [];
 
+  useEffect(() => {
+    if (usersError) {
+      toast.error("Backend unavailable. Start the Go server on port 8080.");
+    }
+  }, [usersError]);
+
   // Admin Delivery Fleet
-  const { data: deliveryRes } = useQuery({
+  const { data: deliveryRes, isError: deliveryError } = useQuery({
     queryKey: ["adminDelivery"],
     queryFn: () => api.get<any>("/admin/delivery-partners"),
     enabled: isAuthenticated && isAdmin,
+    retry: false,
   });
   const deliveryList: any[] = Array.isArray(deliveryRes?.data)
     ? deliveryRes.data
     : Array.isArray((deliveryRes?.data as any)?.data)
       ? (deliveryRes?.data as any).data
       : [];
+
+  useEffect(() => {
+    if (deliveryError) {
+      toast.error("Backend unavailable. Start the Go server on port 8080.");
+    }
+  }, [deliveryError]);
 
   // Mutations
   const approveVendorMutation = useMutation({

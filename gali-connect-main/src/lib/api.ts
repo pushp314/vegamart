@@ -112,6 +112,28 @@ class ApiClient {
         headers,
       });
 
+      // Handle service unavailable gracefully
+      if (res.status === 503) {
+        return {
+          success: false,
+          error: {
+            code: "SERVICE_UNAVAILABLE",
+            message: "Backend service is not running. Please start the Go backend on port 8080.",
+          },
+        };
+      }
+
+      // Handle not found gracefully
+      if (res.status === 404) {
+        return {
+          success: false,
+          error: {
+            code: "NOT_FOUND",
+            message: "Resource not found.",
+          },
+        };
+      }
+
       const json = await this.parseResponse<T>(res);
       if (res.status === 401 && allowRefresh && this.shouldRefresh(endpoint)) {
         const refreshed = await this.refreshSession();

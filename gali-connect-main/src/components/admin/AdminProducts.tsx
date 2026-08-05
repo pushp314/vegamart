@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,7 +38,7 @@ export function AdminProducts() {
   const [page, setPage] = useState(1);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
-  const { data: productsRes, isLoading } = useQuery({
+  const { data: productsRes, isLoading, isError: productsError } = useQuery({
     queryKey: ["adminProducts", search, page],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -47,7 +47,14 @@ export function AdminProducts() {
       params.set("per_page", "20");
       return api.get<any>(`/admin/products?${params.toString()}`);
     },
+    retry: false,
   });
+
+  useEffect(() => {
+    if (productsError) {
+      toast.error("Backend unavailable. Start the Go server on port 8080.");
+    }
+  }, [productsError]);
 
   const products: Product[] = Array.isArray(productsRes?.data)
     ? productsRes.data

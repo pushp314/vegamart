@@ -531,8 +531,9 @@ function VendorDashboard() {
       return;
     }
 
-    // 1. Upload image (if a new file was picked)
+    // 1. Upload image (if a new file was picked) — never block product creation on upload failure
     let attachImageUrl: string | null = null;
+    let imageFallbackWarned = false;
     if (prodImageFile) {
       setIsUploading(true);
       try {
@@ -543,9 +544,14 @@ function VendorDashboard() {
         if (uploadRes.success && uploadRes.data?.url) {
           attachImageUrl = uploadRes.data.url;
         } else {
-          toast.error(uploadRes.error?.message || "Image upload failed");
-          return;
+          imageFallbackWarned = true;
+          toast.warning(
+            uploadRes.error?.message || "Image upload failed — product will be saved without an image.",
+          );
         }
+      } catch {
+        imageFallbackWarned = true;
+        toast.warning("Image upload failed — product will be saved without an image.");
       } finally {
         setIsUploading(false);
       }
@@ -566,16 +572,23 @@ function VendorDashboard() {
 
       // 3. Attach the image to the product (single-image form, so replace old ones on edit)
       if (attachImageUrl && saved?.id) {
-        if (editingProduct && editingProduct.images?.length) {
-          for (const img of editingProduct.images) {
-            await api.delete(`/products/${editingProduct.id}/images/${img.id}`);
+        try {
+          if (editingProduct && editingProduct.images?.length) {
+            for (const img of editingProduct.images) {
+              await api.delete(`/products/${editingProduct.id}/images/${img.id}`);
+            }
           }
+          await api.post(`/products/${saved.id}/images`, { images: [{ url: attachImageUrl }] });
+        } catch {
+          toast.warning("Product saved, but the image could not be attached.");
         }
-        await api.post(`/products/${saved.id}/images`, { images: [{ url: attachImageUrl }] });
       }
 
       queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
       toast.success(editingProduct ? "Product updated!" : "Product listed successfully!");
+      if (imageFallbackWarned) {
+        toast("You can edit the product later to add an image.");
+      }
       setProductModalOpen(false);
     } catch (err: any) {
       toast.error(err?.message || "Failed to save product");
