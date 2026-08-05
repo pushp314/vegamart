@@ -13,8 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Star, Loader2, Package } from "lucide-react";
+import { Search, Star, Loader2, Package, Trash2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface Product {
   id: string;
@@ -35,6 +36,7 @@ export function AdminProducts() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
   const { data: productsRes, isLoading } = useQuery({
     queryKey: ["adminProducts", search, page],
@@ -61,6 +63,19 @@ export function AdminProducts() {
       toast.success("Product updated");
     },
     onError: () => toast.error("Failed to update product"),
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/products/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminProducts"] });
+      toast.success("Product deleted successfully");
+      setProductToDelete(null);
+    },
+    onError: () => {
+      toast.error("Failed to delete product");
+      setProductToDelete(null);
+    },
   });
 
   return (
@@ -161,18 +176,46 @@ export function AdminProducts() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            toggleFeatureMutation.mutate({
-                              id: product.id,
-                              is_featured: !product.is_featured,
-                            })
-                          }
-                        >
-                          {product.is_featured ? "Unfeature" : "Feature"}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              toggleFeatureMutation.mutate({
+                                id: product.id,
+                                is_featured: !product.is_featured,
+                              })
+                            }
+                          >
+                            {product.is_featured ? "Unfeature" : "Feature"}
+                          </Button>
+                          <AlertDialog open={productToDelete === product.id} onOpenChange={(open) => !open && setProductToDelete(null)}>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setProductToDelete(product.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{product.name}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteProductMutation.mutate(product.id)} className="bg-destructive hover:bg-destructive/90">
+                                  <AlertCircle className="h-4 w-4 mr-2" />
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
