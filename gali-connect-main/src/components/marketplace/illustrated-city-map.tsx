@@ -270,7 +270,10 @@ export const IllustratedCityMap = memo(function IllustratedCityMap({
     cy: -center.lat,
     scale: DEFAULT_SCALE,
   });
-  const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const [dpr, setDpr] = useState(1);
+  useEffect(() => {
+    setDpr(typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1);
+  }, []);
 
   // measure container
   useEffect(() => {

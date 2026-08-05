@@ -31,8 +31,6 @@ export function Navbar() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  // The Explore route renders its own immersive full-screen shell.
-  if (pathname === "/explore") return null;
 
   // Support the advertised ⌘K / Ctrl+K shortcut for search
   useEffect(() => {

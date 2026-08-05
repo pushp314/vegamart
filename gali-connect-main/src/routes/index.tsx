@@ -62,7 +62,7 @@ const CATS: Cat[] = [
     Icon: MapPin,
     bg: "bg-emerald-700",
     fg: "text-white",
-    to: "/explore",
+    to: "/street-vendors",
   },
   {
     id: "veg",
@@ -260,7 +260,7 @@ function Hero() {
             <p className="mt-2 md:mt-4 text-[13.5px] md:text-base leading-snug text-white/85 max-w-[22ch] md:max-w-[42ch]">
               See moving vendors on the map. Buy from the nearest one, right now.
             </p>
-            <Link to="/explore" className="mt-4 md:mt-6 inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm md:text-base px-4 md:px-6 py-2.5 md:py-3">
+            <Link to="/street-vendors" className="mt-4 md:mt-6 inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm md:text-base px-4 md:px-6 py-2.5 md:py-3">
               <MapPin className="h-4 w-4" /> Open Live Map <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -416,7 +416,7 @@ function LiveBanner() {
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">
       <Link
-        to="/explore"
+        to="/street-vendors"
         className="flex items-center gap-3 md:gap-4 rounded-2xl md:rounded-3xl bg-emerald-700 text-white px-4 md:px-6 py-4 md:py-5 shadow-[0_12px_30px_-16px_rgba(16,80,50,0.6)]"
       >
         <span className="grid h-10 w-10 md:h-12 md:w-12 place-items-center rounded-full bg-white/15">
@@ -454,7 +454,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
         <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
           Live vendors near you
         </h2>
-        <Link to="/explore" className="text-sm md:text-base font-semibold text-primary">
+        <Link to="/street-vendors" className="text-sm md:text-base font-semibold text-primary">
           See map →
         </Link>
       </div>

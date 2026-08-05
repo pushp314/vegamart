@@ -30,8 +30,7 @@ function StreetVendorsRoute() {
 
   const filteredVendors = useMemo(() => {
     return vendorList.filter((v) => {
-      const vType = v.profile?.vendor_type || v.vendor_type || "shop";
-      return vType === "roaming";
+      return v.roaming === true || v.profile?.roaming === true;
     });
   }, [vendorList]);
 
@@ -62,7 +61,7 @@ function StreetVendorsRoute() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredVendors.map((vendor) => {
               const profile = vendor.profile || {};
-              const isRoaming = (profile.vendor_type || vendor.vendor_type) === "roaming";
+              const isRoaming = vendor.roaming === true || profile.roaming === true;
               const phoneNum = profile.phone || vendor.phone || "+919876543210";
 
               return (

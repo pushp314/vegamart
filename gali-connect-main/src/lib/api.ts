@@ -9,7 +9,16 @@ const API_BASE_URL =
     ? "http://localhost:8080/api/v1"
     : "/api/v1");
 
-export const WS_BASE_URL = API_BASE_URL.replace(/^http/, "ws");
+export const WS_BASE_URL = (() => {
+  if (API_BASE_URL.startsWith("http")) {
+    return API_BASE_URL.replace(/^http/, "ws");
+  }
+  if (typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}${API_BASE_URL}`;
+  }
+  return API_BASE_URL;
+})();
 
 export const ACCESS_TOKEN_KEY = "vegamart_access_token";
 export const REFRESH_TOKEN_KEY = "vegamart_refresh_token";

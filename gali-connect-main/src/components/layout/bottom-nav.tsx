@@ -9,18 +9,15 @@ export function BottomNav() {
   const { itemCount } = useCart();
   const { unreadCount } = useNotifications();
 
-  // The Explore route renders its own immersive full-screen shell.
-  if (pathname === "/explore") return null;
-
   const TABS = [
     { id: "home", label: "Home", icon: Home, to: "/", match: (p: string) => p === "/" },
     {
-      id: "explore",
-      label: "Explore",
+      id: "vendors",
+      label: "Vendors",
       icon: Compass,
-      to: "/explore",
+      to: "/street-vendors",
       match: (p: string) =>
-        p.startsWith("/explore") || p.startsWith("/vendors") || p.startsWith("/search"),
+        p.startsWith("/street-vendors") || p.startsWith("/vendors") || p.startsWith("/search"),
     },
     {
       id: "orders",
