@@ -9,6 +9,7 @@ export const SETTING_KEYS = {
   MAX_ORDER_QUANTITY: "platform.max_order_quantity",
   MAX_CART_ITEMS: "platform.max_cart_items",
   MAINTENANCE_MODE: "platform.maintenance_mode",
+  PLATFORM_LOGO_URL: "platform.logo_url",
   ANNOUNCEMENT_ENABLED: "notifications.announcement_enabled",
   SUPPORT_EMAIL: "support.email",
   SUPPORT_PHONE: "support.phone",
@@ -97,6 +98,13 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "boolean",
     default: false,
     description: "When enabled, the app shows a maintenance notice.",
+    is_public: true,
+  },
+  [SETTING_KEYS.PLATFORM_LOGO_URL]: {
+    key: SETTING_KEYS.PLATFORM_LOGO_URL,
+    type: "string",
+    default: null,
+    description: "URL of the platform logo image.",
     is_public: true,
   },
   [SETTING_KEYS.ANNOUNCEMENT_ENABLED]: {

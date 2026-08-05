@@ -237,7 +237,7 @@ function SearchBar() {
 function Hero() {
   const { data: slidesResponse, isLoading } = useQuery({
     queryKey: ["hero-slides"],
-    queryFn: () => api.get<{ rows: Array<{ id: string; title: string; subtitle: string | null; body: string | null; image_url: string | null; link_url: string | null; link_text: string | null; is_active: boolean }> }>("/admin/hero-slides").then((r) => r.data),
+    queryFn: () => api.get<{ rows: Array<{ id: string; title: string; subtitle: string | null; body: string | null; image_url: string | null; link_url: string | null; link_text: string | null; is_active: boolean }> }>("/hero-slides/public").then((r) => r.data),
     staleTime: 5 * 60 * 1000,
   });
 

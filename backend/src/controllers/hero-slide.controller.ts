@@ -39,6 +39,32 @@ export const listHeroSlides = asyncHandler(async (req: Request, res: Response) =
 
 /**
  * @swagger
+ * /hero-slides/public:
+ *   get:
+ *     summary: List active hero slides (public endpoint)
+ *     tags: [Public]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1 }
+ *       - in: query
+ *         name: per_page
+ *         schema: { type: integer, minimum: 1, maximum: 100 }
+ *     responses:
+ *       200:
+ *         description: Paginated active hero slide list.
+ */
+export const listPublicHeroSlides = asyncHandler(async (req: Request, res: Response) => {
+  // Force is_active to true for public endpoint
+  const query = { ...req.query, is_active: "true" };
+  const result = await heroSlideService.list(query as never);
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
  * /admin/hero-slides:
  *   post:
  *     summary: Create a hero slide

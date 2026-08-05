@@ -162,6 +162,7 @@ function VendorDashboard() {
   const [prodMrp, setProdMrp] = useState("");
   const [prodUnit, setProdUnit] = useState("1 kg");
   const [prodCategoryId, setProdCategoryId] = useState("");
+  const [prodDescription, setProdDescription] = useState("");
   const [prodImageFile, setProdImageFile] = useState<File | null>(null);
   const [prodImageUrl, setProdImageUrl] = useState("");
   const [prodImageChanged, setProdImageChanged] = useState(false);
@@ -491,6 +492,7 @@ function VendorDashboard() {
     setProdMrp("");
     setProdUnit("1 kg");
     setProdCategoryId(categoriesList[0]?.id || "");
+    setProdDescription("");
     setProdImageFile(null);
     setProdImageUrl("");
     setProdImageChanged(false);
@@ -504,6 +506,7 @@ function VendorDashboard() {
     setProdMrp(p.mrp.toString());
     setProdUnit(p.unit);
     setProdCategoryId(p.category_id);
+    setProdDescription(p.description || "");
     setProdImageFile(null);
     setProdImageUrl(p.images?.[0]?.url || "");
     setProdImageChanged(false);
@@ -558,6 +561,7 @@ function VendorDashboard() {
         mrp,
         unit: prodUnit.trim(),
         category_id: prodCategoryId,
+        description: prodDescription.trim() || undefined,
       });
 
       // 3. Attach the image to the product (single-image form, so replace old ones on edit)
@@ -1167,6 +1171,17 @@ function VendorDashboard() {
                   onChange={(e) => setProdName(e.target.value)}
                   placeholder="e.g. Fresh Red Tomatoes"
                   className="w-full rounded-2xl bg-accent/50 border border-border h-11 px-3 text-sm outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-foreground">Description</div>
+                <textarea
+                  value={prodDescription}
+                  onChange={(e) => setProdDescription(e.target.value)}
+                  placeholder="Describe your product (optional)"
+                  rows={3}
+                  className="w-full rounded-2xl bg-accent/50 border border-border px-3 py-2 text-sm outline-none resize-none"
                 />
               </label>
 

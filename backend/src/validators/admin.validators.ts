@@ -121,6 +121,7 @@ export const settingsUpdateSchema = z
     "platform.max_order_quantity": z.coerce.number().int().min(1).max(100).optional(),
     "platform.max_cart_items": z.coerce.number().int().min(1).max(500).optional(),
     "platform.maintenance_mode": z.boolean().optional(),
+    "platform.logo_url": z.string().trim().url().max(500).optional().nullable(),
     "notifications.announcement_enabled": z.boolean().optional(),
     "support.email": z.string().trim().email().optional(),
     "support.phone": z.string().trim().max(30).optional(),

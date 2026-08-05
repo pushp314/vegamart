@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 interface Settings {
@@ -18,6 +18,7 @@ interface Settings {
   "platform.min_order_value"?: number;
   "platform.order_expiry_minutes"?: number;
   "platform.maintenance_mode"?: boolean;
+  "platform.logo_url"?: string;
   "support.email"?: string;
   "support.phone"?: string;
 }
@@ -25,6 +26,8 @@ interface Settings {
 export function AdminSettings() {
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState<Settings>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   const { data: settingsRes, isLoading } = useQuery({
     queryKey: ["adminSettings"],
@@ -46,6 +49,30 @@ export function AdminSettings() {
     },
     onError: () => toast.error("Failed to update settings"),
   });
+
+  const handleLogoUpload = async () => {
+    if (!logoFile) return;
+    
+    setIsUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", logoFile);
+      formData.append("folder", "profiles");
+      
+      const uploadRes = await api.post<{ url: string; key: string }>("/uploads", formData);
+      if (uploadRes.success && uploadRes.data?.url) {
+        setSettings({ ...settings, "platform.logo_url": uploadRes.data.url });
+        toast.success("Logo uploaded successfully");
+      } else {
+        toast.error(uploadRes.error?.message || "Logo upload failed");
+      }
+    } catch (error) {
+      toast.error("Failed to upload logo");
+    } finally {
+      setIsUploadingLogo(false);
+      setLogoFile(null);
+    }
+  };
 
   const handleSave = () => {
     updateSettingsMutation.mutate(settings);
@@ -89,6 +116,44 @@ export function AdminSettings() {
                 value={settings["platform.currency"] ?? "INR"}
                 onChange={(e) => setSettings({ ...settings, "platform.currency": e.target.value })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Platform Logo</Label>
+              <div className="flex items-center gap-4">
+                {settings["platform.logo_url"] && (
+                  <img
+                    src={settings["platform.logo_url"]}
+                    alt="Platform Logo"
+                    className="h-12 w-12 object-cover rounded-lg"
+                  />
+                )}
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setLogoFile(e.target.files[0]);
+                      }
+                    }}
+                    className="w-full text-xs text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                  />
+                </div>
+                {logoFile && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleLogoUpload}
+                    disabled={isUploadingLogo}
+                  >
+                    {isUploadingLogo ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
