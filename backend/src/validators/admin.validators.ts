@@ -182,3 +182,36 @@ export const adminProductsQuerySchema = z.object({
   is_active: z.enum(["true", "false"]).optional(),
   is_featured: z.enum(["true", "false"]).optional(),
 });
+
+export const heroSlideIdParamsSchema = z.object({
+  slide_id: z.string().uuid("slide_id must be a valid UUID."),
+});
+
+export const heroSlideQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  q: z.string().trim().max(160).optional(),
+  is_active: z.enum(["true", "false"]).optional(),
+});
+
+export const createHeroSlideSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  subtitle: z.string().trim().max(300).optional(),
+  body: z.string().trim().max(10000).optional(),
+  image_url: z.string().trim().max(500).optional(),
+  link_url: z.string().trim().max(500).optional(),
+  link_text: z.string().trim().max(100).optional(),
+  is_active: z.boolean().optional(),
+  sort_order: z.coerce.number().int().optional(),
+});
+
+export const updateHeroSlideSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  subtitle: z.string().trim().max(300).optional(),
+  body: z.string().trim().max(10000).optional(),
+  image_url: z.string().trim().max(500).optional(),
+  link_url: z.string().trim().max(500).optional(),
+  link_text: z.string().trim().max(100).optional(),
+  is_active: z.boolean().optional(),
+  sort_order: z.coerce.number().int().optional(),
+});

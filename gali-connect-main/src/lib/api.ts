@@ -296,3 +296,81 @@ export const getVendorDailyLocation = (vendorId: string) =>
 
 export const getNearbyDailyLocations = (lat: number, lng: number, radiusKm = 5) =>
   api.get(`/vendors/nearby/daily?lat=${lat}&lng=${lng}&radius=${radiusKm}`);
+
+// ── Hero Slides (Admin) ──────────────────────────────────────────────
+export interface HeroSlide {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  body: string | null;
+  image_url: string | null;
+  link_url: string | null;
+  link_text: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HeroSlideListResponse {
+  rows: HeroSlide[];
+  total: number;
+  page: number;
+  perPage: number;
+}
+
+export const getHeroSlides = () => api.get<HeroSlideListResponse>("/admin/hero-slides");
+
+export const createHeroSlide = (data: {
+  title: string;
+  subtitle?: string;
+  body?: string;
+  image_url?: string;
+  link_url?: string;
+  link_text?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}) => api.post<HeroSlide>("/admin/hero-slides", data);
+
+export const updateHeroSlide = (
+  id: string,
+  data: {
+    title?: string;
+    subtitle?: string;
+    body?: string;
+    image_url?: string;
+    link_url?: string;
+    link_text?: string;
+    is_active?: boolean;
+    sort_order?: number;
+  }
+) => api.patch<HeroSlide>(`/admin/hero-slides/${id}`, data);
+
+export const deleteHeroSlide = (id: string) => api.delete(`/admin/hero-slides/${id}`);
+
+export const publishHeroSlide = (id: string) => api.post(`/admin/hero-slides/${id}/publish`);
+
+export const unpublishHeroSlide = (id: string) => api.post(`/admin/hero-slides/${id}/unpublish`);
+
+// ── Featured Products ─────────────────────────────────────────────────
+export interface FeaturedProductImage {
+  id: string;
+  url: string;
+  alt_text: string | null;
+  sort_order: number;
+  is_primary: boolean;
+}
+
+export interface FeaturedProduct {
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  mrp: number;
+  images: FeaturedProductImage[];
+  rating: number;
+  review_count: number;
+  is_featured: boolean;
+}
+
+export const getFeaturedProducts = () => api.get<{ rows: FeaturedProduct[]; total: number }>("/products/featured");

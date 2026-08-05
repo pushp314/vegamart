@@ -115,6 +115,10 @@ export const listTrendingProducts = asyncHandler(async (_req: Request, res: Resp
   return sendSuccess(res, await integrationService.listTrendingProducts());
 });
 
+export const listFeaturedProducts = asyncHandler(async (_req: Request, res: Response) => {
+  return sendSuccess(res, await integrationService.listFeaturedProducts());
+});
+
 // ---------------------------------------------------------------------------
 // Recently viewed / recommended
 // ---------------------------------------------------------------------------

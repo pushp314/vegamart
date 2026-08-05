@@ -52,6 +52,15 @@ import {
   unpublishAnnouncement,
   updateAnnouncement,
 } from "../../controllers/announcement.controller";
+import {
+  createHeroSlide,
+  deleteHeroSlide,
+  getHeroSlide,
+  listHeroSlides,
+  publishHeroSlide,
+  unpublishHeroSlide,
+  updateHeroSlide,
+} from "../../controllers/hero-slide.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
@@ -69,10 +78,13 @@ import {
   auditLogQuerySchema,
   changeRoleSchema,
   createAnnouncementSchema,
+  createHeroSlideSchema,
   customReportQuerySchema,
   deliveryDecisionSchema,
   deliveryIdParamsSchema,
   growthQuerySchema,
+  heroSlideIdParamsSchema,
+  heroSlideQuerySchema,
   reportDateQuerySchema,
   reportOrdersQuerySchema,
   resetPasswordSchema,
@@ -80,6 +92,7 @@ import {
   suspendUserSchema,
   suspendVendorSchema,
   updateAnnouncementSchema,
+  updateHeroSlideSchema,
   userIdParamsSchema,
   vendorDecisionSchema,
   vendorIdParamsSchema,
@@ -161,6 +174,15 @@ router.patch("/announcements/:announcement_id", validate({ params: announcementI
 router.post("/announcements/:announcement_id/publish", validate({ params: announcementIdParamsSchema }), publishAnnouncement);
 router.post("/announcements/:announcement_id/unpublish", validate({ params: announcementIdParamsSchema }), unpublishAnnouncement);
 router.delete("/announcements/:announcement_id", validate({ params: announcementIdParamsSchema }), deleteAnnouncement);
+
+// Hero Slides
+router.get("/hero-slides", validate({ query: heroSlideQuerySchema }), listHeroSlides);
+router.post("/hero-slides", validate({ body: createHeroSlideSchema }), createHeroSlide);
+router.get("/hero-slides/:slide_id", validate({ params: heroSlideIdParamsSchema }), getHeroSlide);
+router.patch("/hero-slides/:slide_id", validate({ params: heroSlideIdParamsSchema, body: updateHeroSlideSchema }), updateHeroSlide);
+router.post("/hero-slides/:slide_id/publish", validate({ params: heroSlideIdParamsSchema }), publishHeroSlide);
+router.post("/hero-slides/:slide_id/unpublish", validate({ params: heroSlideIdParamsSchema }), unpublishHeroSlide);
+router.delete("/hero-slides/:slide_id", validate({ params: heroSlideIdParamsSchema }), deleteHeroSlide);
 
 // Order management
 router.get("/orders", validate({ query: adminOrderQuerySchema }), listOrders);

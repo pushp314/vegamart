@@ -25,12 +25,13 @@ import {
 } from "lucide-react";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, getFeaturedProducts } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useLocation } from "@/hooks/use-location";
 import { toast } from "sonner";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -169,6 +170,7 @@ function Home() {
             <SearchBar />
           </div>
           <Hero />
+          <FeaturedProducts />
           <Categories />
           <LiveBanner />
           <LiveVendors defaultAddress={activeAddress} />
@@ -233,35 +235,140 @@ function SearchBar() {
 }
 
 function Hero() {
+  const { data: slidesResponse, isLoading } = useQuery({
+    queryKey: ["hero-slides"],
+    queryFn: () => api.get<{ rows: Array<{ id: string; title: string; subtitle: string | null; body: string | null; image_url: string | null; link_url: string | null; link_text: string | null; is_active: boolean }> }>("/admin/hero-slides").then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const slides = slidesResponse?.rows?.filter((s) => s.is_active !== false) ?? [];
+
+  if (isLoading || slides.length === 0) {
+    return (
+      <section className="px-4 md:px-0 pt-4 md:pt-8">
+        <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white p-5 md:p-12 lg:p-16 shadow-[0_20px_60px_-30px_rgba(16,80,50,0.7)]">
+          <div className="absolute inset-0 opacity-30 mix-blend-overlay" style={{ backgroundImage: "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)" }} />
+          <div className="relative md:max-w-2xl">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
+              <Radio className="h-3 w-3" /> India's First Live Vendor Network
+            </span>
+            <h1 className="mt-3 md:mt-5 font-display text-[30px] md:text-5xl lg:text-6xl leading-[1.05] font-bold tracking-tight">
+              Har Gali Banegi
+              <br />
+              Live Market.
+            </h1>
+            <p className="mt-2 md:mt-4 text-[13.5px] md:text-base leading-snug text-white/85 max-w-[22ch] md:max-w-[42ch]">
+              See moving vendors on the map. Buy from the nearest one, right now.
+            </p>
+            <Link to="/explore" className="mt-4 md:mt-6 inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm md:text-base px-4 md:px-6 py-2.5 md:py-3">
+              <MapPin className="h-4 w-4" /> Open Live Map <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="px-4 md:px-0 pt-4 md:pt-8">
-      <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white p-5 md:p-12 lg:p-16 shadow-[0_20px_60px_-30px_rgba(16,80,50,0.7)]">
-        <div
-          className="absolute inset-0 opacity-30 mix-blend-overlay"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
-          }}
-        />
-        <div className="relative md:max-w-2xl">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
-            <Radio className="h-3 w-3" /> India's First Live Vendor Network
-          </span>
-          <h1 className="mt-3 md:mt-5 font-display text-[30px] md:text-5xl lg:text-6xl leading-[1.05] font-bold tracking-tight">
-            Har Gali Banegi
-            <br />
-            Live Market.
-          </h1>
-          <p className="mt-2 md:mt-4 text-[13.5px] md:text-base leading-snug text-white/85 max-w-[22ch] md:max-w-[42ch]">
-            See moving vendors on the map. Buy from the nearest one, right now.
-          </p>
-          <Link
-            to="/explore"
-            className="mt-4 md:mt-6 inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm md:text-base px-4 md:px-6 py-2.5 md:py-3"
-          >
-            <MapPin className="h-4 w-4" /> Open Live Map <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+      <Carousel className="relative">
+        {slides.map((slide) => (
+          <CarouselItem key={slide.id}>
+            <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white p-5 md:p-12 lg:p-16 shadow-[0_20px_60px_-30px_rgba(16,80,50,0.7)]">
+              <div className="absolute inset-0 opacity-30 mix-blend-overlay" style={{ backgroundImage: "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)" }} />
+              {slide.image_url && (
+                <img src={slide.image_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
+              )}
+              <div className="relative md:max-w-2xl">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
+                  <Radio className="h-3 w-3" /> {slide.title}
+                </span>
+                {slide.subtitle && (
+                  <h1 className="mt-3 md:mt-5 font-display text-[30px] md:text-5xl lg:text-6xl leading-[1.05] font-bold tracking-tight">
+                    {slide.subtitle}
+                  </h1>
+                )}
+                {slide.body && (
+                  <p className="mt-2 md:mt-4 text-[13.5px] md:text-base leading-snug text-white/85 max-w-[22ch] md:max-w-[42ch]">
+                    {slide.body}
+                  </p>
+                )}
+                {slide.link_url && (
+                  <Link to={slide.link_url} className="mt-4 md:mt-6 inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm md:text-base px-4 md:px-6 py-2.5 md:py-3">
+                    {slide.link_text || "Explore"} <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
+              </div>
+            </div>
+          </CarouselItem>
+        ))}
+        <CarouselPrevious className="left-2 md:left-4" />
+        <CarouselNext className="right-2 md:right-4" />
+      </Carousel>
+    </section>
+  );
+}
+
+function FeaturedProducts() {
+  const { data: featuredResponse, isLoading } = useQuery({
+    queryKey: ["featured-products"],
+    queryFn: () => getFeaturedProducts().then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const products = featuredResponse?.rows ?? [];
+
+  if (isLoading || products.length === 0) return null;
+
+  return (
+    <section className="px-4 md:px-0 pt-6 md:pt-10">
+      <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
+        Featured Products
+      </h2>
+      <p className="text-[13px] md:text-sm text-muted-foreground">
+        Hand-picked picks from our vendors
+      </p>
+      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+        {products.map((product) => {
+          const image = product.images?.[0]?.url;
+          return (
+            <Link
+              key={product.id}
+              to="/products/$productId"
+              params={{ productId: product.id }}
+              className="group rounded-2xl bg-card border hover:border-primary/40 transition-colors overflow-hidden"
+            >
+              <div className="aspect-square bg-muted relative">
+                {image ? (
+                  <img src={image} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                    <Heart className="h-8 w-8" />
+                  </div>
+                )}
+              </div>
+              <div className="p-3">
+                <h3 className="text-[13px] font-medium truncate group-hover:text-primary transition-colors">
+                  {product.name}
+                </h3>
+                <div className="mt-1 flex items-center gap-1">
+                  <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                  <span className="text-[11px] text-muted-foreground">
+                    {product.rating.toFixed(1)} ({product.review_count})
+                  </span>
+                </div>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-sm font-bold">₹{product.price}</span>
+                  {product.mrp > product.price && (
+                    <span className="text-[11px] text-muted-foreground line-through">
+                      ₹{product.mrp}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

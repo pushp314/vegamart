@@ -816,6 +816,15 @@ export const integrationService = {
     return rows;
   },
 
+  async listFeaturedProducts() {
+    const { rows } = await productRepo.listProducts(
+      { isAvailable: true, isFeatured: true, sort: "featured" },
+      0,
+      10
+    );
+    return rows;
+  },
+
   async addRecentlyViewed(userId: string, productId: string) {
     const product = await productRepo.findById(productId);
     if (!product) {

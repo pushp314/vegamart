@@ -74,6 +74,7 @@ function Profile() {
     if (avatarFile) {
       const formData = new FormData();
       formData.append("file", avatarFile);
+      formData.append("folder", "profiles");
       const uploadRes = await api.post<{ url: string; key: string }>("/uploads", formData);
       if (uploadRes.success && uploadRes.data?.url) {
         finalAvatarUrl = uploadRes.data.url;

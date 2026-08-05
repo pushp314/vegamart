@@ -4,31 +4,44 @@ import {
   Phone,
   MapPin,
   Store,
-  Navigation,
-  ShieldCheck,
   Clock,
   RefreshCw,
   Package,
+  CheckCircle2,
+  Truck,
+  Loader2,
+  AlertCircle,
+  Navigation,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useDeliveryTracking } from "@/hooks/use-delivery-tracking";
 
-interface DeliveryLocation {
-  lat: number;
-  lng: number;
-}
-
-interface GoogleDeliveryTrackerProps {
+interface SimpleDeliveryTrackerProps {
   orderId?: string;
   vendorName?: string;
   vendorAddress?: string;
   deliveryAddress?: string;
   status?: string;
-  vendorCoords?: DeliveryLocation;
-  destCoords?: DeliveryLocation;
 }
 
-const PREPARATION_STATUSES = new Set(["pending", "confirmed", "processing", "prepared", "packed"]);
+const STATUS_STEPS = [
+  { key: "pending", label: "Order Placed", icon: Package },
+  { key: "confirmed", label: "Confirmed", icon: CheckCircle2 },
+  { key: "preparing", label: "Preparing", icon: Loader2 },
+  { key: "packed", label: "Packed", icon: Package },
+  { key: "ready_for_pickup", label: "Ready", icon: CheckCircle2 },
+  { key: "picked_up", label: "Picked Up", icon: Truck },
+  { key: "out_for_delivery", label: "Out for Delivery", icon: Bike },
+  { key: "delivered", label: "Delivered", icon: CheckCircle2 },
+];
+
+const PREPARATION_STATUSES = new Set([
+  "pending",
+  "confirmed",
+  "processing",
+  "prepared",
+  "packed",
+]);
 
 export function GoogleDeliveryTracker({
   orderId,
@@ -36,17 +49,11 @@ export function GoogleDeliveryTracker({
   vendorAddress,
   deliveryAddress,
   status = "pending",
-  vendorCoords,
-  destCoords,
-}: GoogleDeliveryTrackerProps) {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
+}: SimpleDeliveryTrackerProps) {
+  const { trackingInfo, isConnected: wsConnected, refresh } = useDeliveryTracking(
+    orderId || "",
+  );
 
-  const { trackingInfo, isConnected: wsConnected, refresh } = useDeliveryTracking(orderId || "");
-
-  // Only render what the backend actually reports — never fabricate live data.
   const liveStatus = trackingInfo?.status || status;
   const displayEta = trackingInfo?.eta;
   const displayRiderName = trackingInfo?.driver_info?.name;
@@ -58,157 +65,36 @@ export function GoogleDeliveryTracker({
     .filter(Boolean)
     .join(" • ");
 
-  const vCoords = trackingInfo?.pickup_location || vendorCoords;
-  const dCoords = trackingInfo?.dropoff_location || destCoords;
   const hasLiveDriver = !!trackingInfo?.driver_location;
-
-  const [driverPos, setDriverPos] = useState<DeliveryLocation | null>(null);
   const [progress, setProgress] = useState(0);
-
-  const riderMarkerRef = useRef<any>(null);
-  const routePathRef = useRef<any>(null);
-  const animationFrameRef = useRef<number>(0);
-
-  // Progress calculator — only meaningful once a live driver position exists
-  useEffect(() => {
-    if (!driverPos || !vCoords || !dCoords) return;
-    const distTotal = Math.hypot(dCoords.lat - vCoords.lat, dCoords.lng - vCoords.lng);
-    const distDriver = Math.hypot(driverPos.lat - vCoords.lat, driverPos.lng - vCoords.lng);
-    if (distTotal > 0) {
-      setProgress(Math.min(100, Math.max(0, Math.round((distDriver / distTotal) * 100))));
-    }
-  }, [driverPos, vCoords, dCoords]);
+  const progressRef = useRef(0);
 
   useEffect(() => {
-    if (trackingInfo?.driver_location) {
-      setDriverPos(trackingInfo.driver_location);
-    }
-  }, [trackingInfo?.driver_location]);
-
-  // Load Google Maps JavaScript API if API Key is configured
-  useEffect(() => {
-    if (!apiKey) return;
-
-    const scriptId = "google-maps-script";
-    if (document.getElementById(scriptId)) {
-      setMapLoaded(true);
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = scriptId;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.onload = () => setMapLoaded(true);
-    document.head.appendChild(script);
-  }, [apiKey]);
-
-  // Render Google Map instance when script is ready (vendor + destination only)
-  useEffect(() => {
-    if (!mapLoaded || !mapRef.current || !(window as any).google) return;
-    if (mapInstanceRef.current) return; // Already initialized
-    if (!vCoords || !dCoords) return;
-
-    const google = (window as any).google;
-    const center = {
-      lat: (vCoords.lat + dCoords.lat) / 2,
-      lng: (vCoords.lng + dCoords.lng) / 2,
-    };
-
-    mapInstanceRef.current = new google.maps.Map(mapRef.current, {
-      center,
-      zoom: 15,
-      disableDefaultUI: true,
-      zoomControl: true,
-    });
-
-    new google.maps.Marker({
-      position: vCoords,
-      map: mapInstanceRef.current,
-      title: vendorName,
-      icon: {
-        url: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-      },
-    });
-
-    new google.maps.Marker({
-      position: dCoords,
-      map: mapInstanceRef.current,
-      title: "Delivery Location",
-      icon: {
-        url: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-      },
-    });
-  }, [mapLoaded, vCoords, dCoords, vendorName]);
-
-  // Add rider marker + route once a real driver position arrives
-  useEffect(() => {
-    if (!mapLoaded || !mapInstanceRef.current || !(window as any).google) return;
-    if (riderMarkerRef.current) return;
-    if (!driverPos || !vCoords || !dCoords) return;
-
-    const google = (window as any).google;
-    riderMarkerRef.current = new google.maps.Marker({
-      position: driverPos,
-      map: mapInstanceRef.current,
-      title: displayRiderName,
-      icon: {
-        url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-      },
-    });
-
-    routePathRef.current = new google.maps.Polyline({
-      path: [vCoords, driverPos, dCoords],
-      geodesic: true,
-      strokeColor: "#10b981",
-      strokeOpacity: 0.8,
-      strokeWeight: 4,
-    });
-    routePathRef.current.setMap(mapInstanceRef.current);
-  }, [mapLoaded, driverPos, vCoords, dCoords, displayRiderName]);
-
-  // Smooth Animate Driver Position
-  useEffect(() => {
-    if (!riderMarkerRef.current || !routePathRef.current || !(window as any).google) return;
-    if (!driverPos) return;
-
-    const startPos = {
-      lat: riderMarkerRef.current.getPosition().lat(),
-      lng: riderMarkerRef.current.getPosition().lng(),
-    };
-    const endPos = driverPos;
-
-    let startTime: number | null = null;
-    const duration = 1500; // 1.5 second smooth glide
-
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const elapsed = timestamp - startTime;
-      const t = Math.min(1, elapsed / duration);
-
-      // Easing function (easeOutCubic)
-      const easeT = 1 - Math.pow(1 - t, 3);
-
-      const currentLat = startPos.lat + (endPos.lat - startPos.lat) * easeT;
-      const currentLng = startPos.lng + (endPos.lng - startPos.lng) * easeT;
-
-      const newPos = { lat: currentLat, lng: currentLng };
-      riderMarkerRef.current.setPosition(newPos);
-
-      routePathRef.current.setPath([vCoords, newPos, dCoords]);
-
-      if (t < 1) {
-        animationFrameRef.current = requestAnimationFrame(animate);
+    const driverPos = trackingInfo?.driver_location;
+    if (hasLiveDriver && trackingInfo?.pickup_location && trackingInfo?.dropoff_location && driverPos) {
+      const vPos = trackingInfo.pickup_location;
+      const dPos = trackingInfo.dropoff_location;
+      const distTotal = Math.hypot(
+        dPos.lat - vPos.lat,
+        dPos.lng - vPos.lng,
+      );
+      const distDriver = Math.hypot(
+        driverPos.lat - vPos.lat,
+        driverPos.lng - vPos.lng,
+      );
+      if (distTotal > 0) {
+        const pct = Math.min(100, Math.max(0, Math.round((distDriver / distTotal) * 100)));
+        progressRef.current = pct;
+        setProgress(pct);
       }
-    };
+    } else {
+      progressRef.current = 0;
+      setProgress(0);
+    }
+  }, [hasLiveDriver, trackingInfo?.driver_location, trackingInfo?.pickup_location, trackingInfo?.dropoff_location]);
 
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    };
-  }, [driverPos, vCoords, dCoords]);
+  const currentStepIndex = STATUS_STEPS.findIndex((s) => s.key === liveStatus);
+  const displayStep = currentStepIndex >= 0 ? currentStepIndex : liveStatus === "cancelled" ? STATUS_STEPS.length : Math.max(0, currentStepIndex);
 
   const handleCallRider = () => {
     if (displayRiderPhone) {
@@ -242,30 +128,30 @@ export function GoogleDeliveryTracker({
     return "Order is being prepared — live tracking starts once a rider is assigned";
   };
 
-  const mapCenter = hasLiveDriver
-    ? driverPos
-    : vCoords && dCoords
-      ? { lat: (vCoords.lat + dCoords.lat) / 2, lng: (vCoords.lng + dCoords.lng) / 2 }
-      : null;
-
   return (
     <div className="rounded-3xl border bg-card overflow-hidden shadow-soft space-y-0">
-      {/* Live Header Bar */}
+      {/* Header */}
       <div className="flex items-center justify-between p-4 bg-emerald-900 text-white">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/10 text-emerald-300 backdrop-blur-xs">
-            <Bike className="h-5 w-5 animate-bounce" />
+          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/10 text-emerald-300">
+            <Bike className="h-5 w-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display text-sm font-bold">Live Order Tracking</span>
+              <span className="font-display text-sm font-bold">Order Tracking</span>
               <span
-                className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${wsConnected ? "text-emerald-200 bg-emerald-800/80" : "text-amber-200 bg-amber-800/80"}`}
+                className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  wsConnected
+                    ? "text-emerald-200 bg-emerald-800/80"
+                    : "text-amber-200 bg-amber-800/80"
+                }`}
               >
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${wsConnected ? "bg-emerald-400 animate-ping" : "bg-amber-400 animate-pulse"}`}
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    wsConnected ? "bg-emerald-400 animate-ping" : "bg-amber-400 animate-pulse"
+                  }`}
                 />
-                {wsConnected ? "Live GPS" : "Connecting…"}
+                {wsConnected ? "Live" : "Connecting…"}
               </span>
             </div>
             <div className="text-xs text-emerald-200 mt-0.5">{headerSubtext()}</div>
@@ -275,7 +161,7 @@ export function GoogleDeliveryTracker({
         <button
           onClick={() => {
             refresh();
-            toast.info("Refreshing live data...");
+            toast.info("Refreshing tracking data…");
           }}
           className="p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors"
           title="Refresh"
@@ -284,152 +170,154 @@ export function GoogleDeliveryTracker({
         </button>
       </div>
 
-      {/* Interactive Map Box */}
-      <div className="relative h-64 w-full bg-muted overflow-hidden">
-        {apiKey ? (
-          <div ref={mapRef} className="h-full w-full" />
-        ) : vCoords && dCoords && mapCenter ? (
-          <>
-            <iframe
-              title="Delivery Route Map"
-              width="100%"
-              height="100%"
-              className="absolute inset-0 border-0 opacity-80 pointer-events-none"
-              loading="lazy"
-              src={`https://maps.google.com/maps?q=${mapCenter.lat},${mapCenter.lng}&z=15&output=embed`}
-            />
+      {/* Simple Status Timeline */}
+      <div className="p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-600">
+            {PREPARATION_STATUSES.has(liveStatus) ? (
+              <Clock className="h-5 w-5" />
+            ) : liveStatus === "delivered" ? (
+              <CheckCircle2 className="h-5 w-5" />
+            ) : liveStatus === "cancelled" ? (
+              <AlertCircle className="h-5 w-5" />
+            ) : (
+              <Bike className="h-5 w-5" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-foreground capitalize">
+              {liveStatus?.replace(/_/g, " ") || "Pending"}
+            </p>
+            {displayEta && (
+              <p className="text-xs text-muted-foreground">ETA: {displayEta}</p>
+            )}
+          </div>
+        </div>
 
-            {/* Floating Live Overlay Card */}
-            <div className="relative z-10 self-start rounded-2xl bg-card/90 border p-2.5 shadow-sm backdrop-blur-xs flex items-center gap-2 text-xs m-3">
-              {hasLiveDriver ? (
-                <>
-                  <Navigation className="h-4 w-4 text-primary animate-spin" />
-                  <span className="font-bold">Tracing Delivery Rider Live GPS</span>
-                </>
-              ) : (
-                <>
-                  <Clock className="h-4 w-4 text-primary" />
-                  <span className="font-bold">Waiting for rider location…</span>
-                </>
-              )}
-            </div>
+        {/* Progress Steps */}
+        <div className="relative">
+          <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-muted" />
+          <div className="space-y-2">
+            {STATUS_STEPS.slice(0, displayStep + 1).map((step, idx) => {
+              const isActive = idx <= displayStep;
+              const Icon = step.icon;
+              return (
+                <div key={step.key} className="flex items-center gap-3 relative">
+                  <div
+                    className={`relative z-10 grid h-8 w-8 place-items-center rounded-full border-2 ${
+                      isActive
+                        ? "bg-emerald-500 border-emerald-500 text-white"
+                        : "bg-card border-border text-muted-foreground"
+                    }`}
+                  >
+                    {isActive ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                  </div>
+                  <span
+                    className={`text-xs font-medium ${
+                      isActive ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-            {/* Bottom Floating Route Info */}
-            <div className="relative z-10 self-end rounded-2xl bg-card/90 border p-2.5 shadow-sm backdrop-blur-xs text-xs flex items-center gap-3 m-3">
-              <div className="flex items-center gap-1 font-semibold text-emerald-800">
-                <Store className="h-3.5 w-3.5 text-emerald-600" /> {vendorName || "Vendor"}
-              </div>
-              <span>→</span>
-              <div className="flex items-center gap-1 font-semibold text-foreground">
-                <MapPin className="h-3.5 w-3.5 text-rose-500" /> Your Doorstep
-              </div>
+        {/* Route Info */}
+        {(vendorAddress || deliveryAddress) && (
+          <div className="rounded-2xl bg-muted/60 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs">
+              <Store className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              <span className="text-muted-foreground truncate">{vendorAddress || vendorName || "Vendor"}</span>
             </div>
-          </>
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-50 text-emerald-600">
-              <Package className="h-6 w-6" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-bold text-foreground">
-                {hasLiveDriver ? "Live map is loading…" : "Tracking will appear here once a rider starts"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                You'll see a live map and rider details once your order is out for delivery.
-              </p>
+            <div className="flex items-center gap-2 text-xs">
+              <Navigation className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+              <span className="text-muted-foreground truncate">{deliveryAddress || "Your location"}</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Delivery Rider Details & Actions */}
-      <div className="p-4 space-y-4 bg-card border-t">
-        {displayRiderName ? (
-          <>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-primary font-display font-bold text-lg">
-                    {displayRiderName.substring(0, 2).toUpperCase()}
-                  </div>
-                  <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-600 text-white text-[10px]">
-                    <ShieldCheck className="h-3 w-3" />
+      {/* Rider Details */}
+      {displayRiderName ? (
+        <div className="p-4 space-y-3 bg-card border-t">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-primary font-display font-bold">
+                  {displayRiderName.substring(0, 2).toUpperCase()}
+                </div>
+                <span className="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-600 text-white text-[8px]">
+                  <CheckCircle2 className="h-3 w-3" />
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm text-foreground">{displayRiderName}</h4>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    Verified
                   </span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-sm text-foreground">{displayRiderName}</h4>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      Verified Rider
-                    </span>
-                  </div>
-                  {displayRiderVehicle ? (
-                    <div className="text-xs text-muted-foreground mt-0.5">{displayRiderVehicle}</div>
-                  ) : null}
-                </div>
+                {displayRiderVehicle ? (
+                  <div className="text-xs text-muted-foreground mt-0.5">{displayRiderVehicle}</div>
+                ) : null}
               </div>
-
-              {displayRiderPhone ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleCallRider}
-                    className="flex items-center gap-1.5 rounded-2xl bg-primary text-primary-foreground font-bold text-xs px-3.5 py-2.5 shadow-xs hover:bg-primary/90 transition-colors"
-                  >
-                    <Phone className="h-4 w-4" /> Call Rider
-                  </button>
-                </div>
-              ) : null}
             </div>
-          </>
-        ) : (
+
+            {displayRiderPhone ? (
+              <button
+                onClick={handleCallRider}
+                className="flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs px-3 py-2 shadow-xs hover:bg-primary/90 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5" /> Call
+              </button>
+            ) : null}
+          </div>
+
+          {hasLiveDriver && (
+            <div className="space-y-1.5 pt-1 border-t">
+              <div className="flex justify-between text-[11px] font-bold">
+                <span className="text-muted-foreground">Delivery Progress</span>
+                <span className="text-primary">{progress}%</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-700 rounded-full"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="p-4 bg-card border-t">
           <div className="flex items-center gap-3 rounded-2xl bg-muted/60 border border-dashed p-3.5">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-card border text-muted-foreground">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-card border text-muted-foreground">
               {PREPARATION_STATUSES.has(liveStatus) ? (
-                <Clock className="h-5 w-5" />
+                <Clock className="h-4 w-4" />
               ) : (
-                <Bike className="h-5 w-5" />
+                <Bike className="h-4 w-4" />
               )}
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">
+              <p className="text-xs font-bold text-foreground">
                 {PREPARATION_STATUSES.has(liveStatus)
                   ? "Preparing your order"
                   : liveStatus === "out_for_delivery"
                     ? "Looking for a rider"
                     : "No rider assigned"}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 {PREPARATION_STATUSES.has(liveStatus)
                   ? "A rider will be assigned as soon as your order is ready."
                   : "Rider details will appear here once assigned."}
               </p>
             </div>
           </div>
-        )}
-
-        {/* Live Progress Bar */}
-        <div className="space-y-1.5 pt-1 border-t">
-          {hasLiveDriver ? (
-            <>
-              <div className="flex justify-between text-[11px] font-bold">
-                <span className="text-muted-foreground">Delivery Progress</span>
-                <span className="text-primary">{progress}% Completed</span>
-              </div>
-              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-700 rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              Live progress updates once the rider begins the delivery
-            </div>
-          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

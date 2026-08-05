@@ -1209,3 +1209,24 @@ model CmsFaq {
   @@index([is_active])
   @@map("cms_faqs")
 }
+
+model HeroSlide {
+  id         String   @id @default(uuid()) @db.Uuid
+  title      String   @db.VarChar(200)
+  subtitle   String?  @db.VarChar(300)
+  body       String?  @db.Text
+  image_url  String?  @db.VarChar(500)
+  link_url   String?  @db.VarChar(500)
+  link_text  String?  @db.VarChar(100)
+  is_active  Boolean  @default(true)
+  sort_order Int      @default(0)
+  created_by String?  @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  deleted_at DateTime?
+
+  @@index([is_active])
+  @@index([sort_order])
+  @@index([created_at])
+  @@map("hero_slides")
+}

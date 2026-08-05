@@ -21,6 +21,7 @@ import {
   listDeliveryPartnersAlias,
   listDeliveryRequests,
   listFaqs,
+  listFeaturedProducts,
   listMyAddresses,
   listMyDeliveries,
   listOffers,
@@ -93,6 +94,7 @@ router.get("/banners", listBanners);
 router.get("/offers", listOffers);
 router.get("/faqs", listFaqs);
 router.get("/products/trending", listTrendingProducts);
+router.get("/products/featured", listFeaturedProducts);
 
 // ---------------------------------------------------------------------------
 // Customer self-service (users/me)
