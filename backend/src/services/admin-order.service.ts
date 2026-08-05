@@ -256,7 +256,7 @@ export const adminOrderService = {
     await auditService.record(
       {
         userId: adminUserId,
-        action: AUDIT_ACTIONS.ORDER_RETURNED,
+        action: AUDIT_ACTIONS.ORDER_STATUS_CHANGED,
         entityType: "order",
         entityId: orderId,
         newValues: { status: mappedStatus, reason },

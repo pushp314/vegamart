@@ -100,6 +100,8 @@ export interface ProductListFilter {
   maxPrice?: number;
   isVegetarian?: boolean;
   isAvailable?: boolean;
+  isActive?: boolean;
+  isFeatured?: boolean;
   tag?: string;
   sort?: string;
   includeInactive?: boolean;
@@ -149,6 +151,45 @@ export async function listProducts(
     prisma.product.count({ where }),
   ]);
   return { rows: rows.map(mapRow), total };
+}
+
+export async function listProductsAdmin(
+  filter: ProductListFilter,
+  skip: number,
+  take: number
+): Promise<{ rows: ProductRow[]; total: number }> {
+  const where: Prisma.ProductWhereInput = { deleted_at: null };
+
+  if (filter.vendorId) where.vendor_id = filter.vendorId;
+  if (filter.categoryId) where.category_id = filter.categoryId;
+  if (filter.isActive !== undefined) where.is_active = filter.isActive;
+  if (filter.isFeatured !== undefined) where.is_featured = filter.isFeatured;
+  if (filter.isAvailable !== undefined) where.is_available = filter.isAvailable;
+  if (filter.q) {
+    where.OR = [
+      { name: { contains: filter.q, mode: "insensitive" } },
+      { slug: { contains: filter.q, mode: "insensitive" } },
+      { description: { contains: filter.q, mode: "insensitive" } },
+      { tag: { contains: filter.q, mode: "insensitive" } },
+    ];
+  }
+
+  const orderBy = buildOrderBy(filter.sort);
+  const [rows, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      select: {
+        ...baseSelect,
+        vendor: { select: { id: true, business_name: true, slug: true } },
+        category: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy,
+      skip,
+      take,
+    }),
+    prisma.product.count({ where }),
+  ]);
+  return { rows: rows as unknown as ProductRow[], total };
 }
 
 export async function listByVendor(

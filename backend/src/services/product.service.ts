@@ -174,6 +174,36 @@ export const productService = {
     }).then((cached) => ({ rows: cached?.rows ?? [], total: cached?.total ?? 0, page, perPage }));
   },
 
+  async listAdmin(query: {
+    page?: number;
+    per_page?: number;
+    q?: string;
+    is_active?: string;
+    is_featured?: string;
+  }) {
+    const page = Math.max(1, query.page ?? 1);
+    const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
+    const { rows, total } = await productRepo.listProductsAdmin(
+      {
+        q: query.q,
+        isActive: query.is_active === "true" ? true : query.is_active === "false" ? false : undefined,
+        isFeatured: query.is_featured === "true" ? true : query.is_featured === "false" ? false : undefined,
+      },
+      (page - 1) * perPage,
+      perPage
+    );
+    return {
+      rows: rows.map((p) => ({
+        ...p,
+        price: Number(p.price),
+        mrp: Number(p.mrp),
+      })),
+      total,
+      page,
+      perPage,
+    };
+  },
+
   async getById(productId: string, includeInactive = false): Promise<productRepo.ProductRow> {
     if (includeInactive) {
       return this.getByIdUncached(productId, true);

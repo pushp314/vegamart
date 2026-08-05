@@ -15,6 +15,7 @@ import {
   listAuditLogs,
   listDeliveryPartners,
   listOrders,
+  listProductsAdmin,
   listUsers,
   listVendorsAdmin,
   resetUserPassword,
@@ -54,12 +55,13 @@ import {
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
-import { apiLimiter } from "../../middlewares/rate-limit.middleware";
+import { apiLimiter, adminLimiter } from "../../middlewares/rate-limit.middleware";
 import { ROLES } from "../../constants/roles";
 import {
   adminOrderIdParamsSchema,
   adminOrderQuerySchema,
   adminPaginationQuerySchema,
+  adminProductsQuerySchema,
   analyticsQuerySchema,
   announcementIdParamsSchema,
   announcementQuerySchema,
@@ -85,7 +87,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN));
+router.use(adminLimiter, authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN));
 
 // Dashboard
 router.get("/dashboard", getDashboard);
@@ -164,5 +166,8 @@ router.delete("/announcements/:announcement_id", validate({ params: announcement
 router.get("/orders", validate({ query: adminOrderQuerySchema }), listOrders);
 router.get("/orders/:order_id", validate({ params: adminOrderIdParamsSchema }), getOrder);
 router.patch("/orders/:order_id/status", validate({ params: adminOrderIdParamsSchema }), updateOrderStatus);
+
+// Product management
+router.get("/products", validate({ query: adminProductsQuerySchema }), listProductsAdmin);
 
 export default router;

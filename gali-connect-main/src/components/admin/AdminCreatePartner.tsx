@@ -104,7 +104,12 @@ export function AdminCreatePartner() {
           const vId = vendorRes.data?.id || vendorRes.data?.data?.id;
           // Step 3: Approve vendor automatically
           if (vId) {
-            await api.put(`/admin/vendors/${vId}/approve`);
+            const approveRes = await api.put<any>(`/admin/vendors/${vId}/approve`);
+            if (!approveRes.success) {
+              setLoading(false);
+              toast.error(approveRes.error?.message || "Vendor created but failed to approve");
+              return;
+            }
           }
 
           toast.success(`Vendor ${businessName} created and approved! Login credentials sent.`);
@@ -146,7 +151,12 @@ export function AdminCreatePartner() {
         if (deliveryRes.success) {
           const dId = deliveryRes.data?.id || deliveryRes.data?.data?.id;
           if (dId) {
-            await api.put(`/admin/delivery/${dId}/approve`);
+            const approveRes = await api.put<any>(`/admin/delivery/${dId}/approve`);
+            if (!approveRes.success) {
+              setLoading(false);
+              toast.error(approveRes.error?.message || "Partner created but failed to approve");
+              return;
+            }
           }
 
           toast.success(`Delivery partner ${name} created and approved! Login credentials sent.`);

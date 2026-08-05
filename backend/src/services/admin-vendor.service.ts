@@ -8,6 +8,13 @@ import { cacheService } from "../database/cache";
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
+interface KycDocuments {
+  document_type?: string | null;
+  document_number?: string | null;
+  fssai_license?: string | null;
+  gst_number?: string | null;
+}
+
 export const adminVendorService = {
   async list(query: {
     page?: number;
@@ -20,7 +27,7 @@ export const adminVendorService = {
   }) {
     const page = Math.max(1, query.page ?? 1);
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
-    const { rows, total } = await vendorRepo.listVendors(
+    const { rows, total } = await vendorRepo.listVendorsAdmin(
       {
         q: query.q,
         city: query.city,
@@ -32,11 +39,34 @@ export const adminVendorService = {
       (page - 1) * perPage,
       perPage
     );
-    const serialized = rows.map((v) => ({
-      ...v,
-      status: v.status.toLowerCase(),
-      vendor_type: v.roaming ? "roaming" : "shop",
-    }));
+    const serialized = rows.map((v) => {
+      const { user, ...vendor } = v;
+      const kyc_records = user?.kyc_records ?? [];
+      const kyc = kyc_records.length > 0 ? kyc_records[0] : null;
+      const docs = (kyc?.documents ?? {}) as KycDocuments;
+      return {
+        ...vendor,
+        user: user
+          ? {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+            }
+          : null,
+        kyc: kyc
+          ? {
+              status: kyc.status.toLowerCase(),
+              document_type: docs.document_type ?? null,
+              document_number: docs.document_number ?? null,
+              fssai_license: docs.fssai_license ?? null,
+              gst_number: docs.gst_number ?? null,
+            }
+          : null,
+        status: vendor.status.toLowerCase(),
+        vendor_type: vendor.roaming ? "roaming" : "shop",
+      };
+    });
     return { rows: serialized, total, page, perPage };
   },
 

@@ -70,6 +70,9 @@ export async function listAuditLogs(
         user_agent: true,
         request_id: true,
         created_at: true,
+        user: {
+          select: { id: true, name: true, email: true },
+        },
       },
     }),
     prisma.auditLog.count({ where }),

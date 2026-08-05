@@ -5,6 +5,7 @@ import { adminVendorService } from "../../src/services/admin-vendor.service";
 jest.mock("../../src/repositories/vendor.repository", () => ({
   findById: jest.fn(),
   listVendors: jest.fn(),
+  listVendorsAdmin: jest.fn(),
   updateVendor: jest.fn(),
   restore: jest.fn(),
   getVendorStats: jest.fn(),
@@ -41,14 +42,14 @@ describe("admin vendor service", () => {
   });
 
   it("lists vendors including all statuses", async () => {
-    repo.listVendors.mockResolvedValue({
-      rows: [makeVendor({ status: "PENDING" }) as any],
+    repo.listVendorsAdmin.mockResolvedValue({
+      rows: [{ ...makeVendor({ status: "PENDING" }), user: null } as any],
       total: 1,
     });
 
     const result = await adminVendorService.list({ page: 1, per_page: 20 });
 
-    expect(repo.listVendors).toHaveBeenCalledWith(
+    expect(repo.listVendorsAdmin).toHaveBeenCalledWith(
       expect.objectContaining({ includeAll: true, status: undefined }),
       expect.any(Number),
       expect.any(Number)

@@ -186,11 +186,7 @@ export interface VendorFilter {
   includeAll?: boolean;
 }
 
-export async function listVendors(
-  filter: VendorFilter,
-  skip: number,
-  take: number
-): Promise<{ rows: VendorRow[]; total: number }> {
+function buildVendorWhere(filter: VendorFilter): Prisma.VendorProfileWhereInput {
   const where: Prisma.VendorProfileWhereInput = { deleted_at: null };
   if (!filter.includeAll) {
     where.status = filter.status ?? "APPROVED";
@@ -215,6 +211,15 @@ export async function listVendors(
       { city: { contains: filter.q, mode: "insensitive" } },
     ];
   }
+  return where;
+}
+
+export async function listVendors(
+  filter: VendorFilter,
+  skip: number,
+  take: number
+): Promise<{ rows: VendorRow[]; total: number }> {
+  const where = buildVendorWhere(filter);
 
   const [rows, total] = await Promise.all([
     prisma.vendorProfile.findMany({
@@ -227,6 +232,66 @@ export async function listVendors(
     prisma.vendorProfile.count({ where }),
   ]);
   return { rows: rows as unknown as VendorRow[], total };
+}
+
+export interface AdminVendorRow extends VendorRow {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    kyc_records: Array<{
+      id: string;
+      type: string;
+      documents: unknown;
+      status: import("@prisma/client").KycStatus;
+      verified_by: string | null;
+      verified_at: Date | null;
+      rejection_reason: string | null;
+    }>;
+  } | null;
+}
+
+export async function listVendorsAdmin(
+  filter: VendorFilter,
+  skip: number,
+  take: number
+): Promise<{ rows: AdminVendorRow[]; total: number }> {
+  const where = buildVendorWhere(filter);
+
+  const [rows, total] = await Promise.all([
+    prisma.vendorProfile.findMany({
+      where,
+      select: {
+        ...baseSelect,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            kyc_records: {
+              where: { type: "vendor" },
+              select: {
+                id: true,
+                type: true,
+                documents: true,
+                status: true,
+                verified_by: true,
+                verified_at: true,
+                rejection_reason: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ is_open: "desc" }, { rating: "desc" }, { created_at: "desc" }],
+      skip,
+      take,
+    }),
+    prisma.vendorProfile.count({ where }),
+  ]);
+  return { rows: rows as unknown as AdminVendorRow[], total };
 }
 
 export interface NearbyBoundingBox {

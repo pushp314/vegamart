@@ -52,7 +52,7 @@ import {
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
-import { otpLimiter } from "../../middlewares/rate-limit.middleware";
+import { otpLimiter, adminLimiter } from "../../middlewares/rate-limit.middleware";
 import { ROLES } from "../../constants/roles";
 import { vendorIdParamsSchema } from "../../validators/vendor.validators";
 import {
@@ -176,7 +176,7 @@ router.get("/delivery/order/:id/tracking", authenticate, validate({ params: orde
 export default router;
 
 export const integrationAdminRoutes = Router();
-integrationAdminRoutes.use(authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN));
+integrationAdminRoutes.use(adminLimiter, authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN));
 integrationAdminRoutes.get("/delivery", listDeliveryPartnersAlias);
 integrationAdminRoutes.put("/vendors/:vendor_id/approve", approveVendorAlias);
 integrationAdminRoutes.put("/vendors/:vendor_id/reject", rejectVendorAlias);

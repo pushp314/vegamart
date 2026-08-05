@@ -17,17 +17,17 @@ export function AdminCMS() {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
               const fd = new FormData(form);
-              try {
-                await api.post("/admin/cms/offers", {
-                  title: fd.get("title"),
-                  sub: fd.get("sub"),
-                  tag: fd.get("tag"),
-                  tone: fd.get("tone"),
-                });
+              const res = await api.post<any>("/admin/cms/offers", {
+                title: fd.get("title"),
+                sub: fd.get("sub"),
+                tag: fd.get("tag"),
+                tone: fd.get("tone"),
+              });
+              if (res.success) {
                 toast.success("Offer created!");
                 form.reset();
-              } catch (err) {
-                toast.error("Failed to create offer");
+              } else {
+                toast.error(res.error?.message || "Failed to create offer");
               }
             }}
             className="space-y-4 flex-1 flex flex-col justify-between"
@@ -78,18 +78,18 @@ export function AdminCMS() {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
               const fd = new FormData(form);
-              try {
-                await api.post("/admin/cms/banners", {
-                  title: fd.get("title"),
-                  type: fd.get("type"),
-                  link_url: fd.get("link_url"),
-                  image_url:
-                    "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1200&h=400&fit=crop", // placeholder
-                });
+              const res = await api.post<any>("/admin/cms/banners", {
+                title: fd.get("title"),
+                type: fd.get("type"),
+                link_url: fd.get("link_url"),
+                image_url:
+                  "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1200&h=400&fit=crop", // placeholder
+              });
+              if (res.success) {
                 toast.success("Banner created!");
                 form.reset();
-              } catch (err) {
-                toast.error("Failed to create banner");
+              } else {
+                toast.error(res.error?.message || "Failed to create banner");
               }
             }}
             className="space-y-4 flex-1 flex flex-col justify-between"
@@ -135,16 +135,16 @@ export function AdminCMS() {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
               const fd = new FormData(form);
-              try {
-                await api.post("/admin/cms/faqs", {
-                  question: fd.get("question"),
-                  answer: fd.get("answer"),
-                  sort_order: parseInt((fd.get("sort_order") as string) || "0"),
-                });
+              const res = await api.post<any>("/admin/cms/faqs", {
+                question: fd.get("question"),
+                answer: fd.get("answer"),
+                sort_order: parseInt((fd.get("sort_order") as string) || "0"),
+              });
+              if (res.success) {
                 toast.success("FAQ created!");
                 form.reset();
-              } catch (err) {
-                toast.error("Failed to create FAQ");
+              } else {
+                toast.error(res.error?.message || "Failed to create FAQ");
               }
             }}
             className="space-y-4"
@@ -193,16 +193,16 @@ export function AdminCMS() {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
               const fd = new FormData(form);
-              try {
-                await api.put(`/admin/products/${fd.get("product_id")}/feature`, {
-                  is_featured: fd.get("action") === "feature",
-                });
+              const res = await api.put<any>(`/admin/products/${fd.get("product_id")}/feature`, {
+                is_featured: fd.get("action") === "feature",
+              });
+              if (res.success) {
                 toast.success(
                   `Product ${fd.get("action") === "feature" ? "Featured" : "Un-featured"} successfully!`,
                 );
                 form.reset();
-              } catch (err) {
-                toast.error("Failed to update product featured status");
+              } else {
+                toast.error(res.error?.message || "Failed to update product featured status");
               }
             }}
             className="flex flex-col sm:flex-row gap-3 items-center"

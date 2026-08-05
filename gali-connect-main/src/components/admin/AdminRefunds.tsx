@@ -36,17 +36,16 @@ export function AdminRefunds() {
             const form = e.target as HTMLFormElement;
             const fd = new FormData(form);
             setProcessing(true);
-            try {
-              await api.post(`/payments/${fd.get("order_id")}/refund`, {
-                amount: parseFloat(fd.get("amount") as string),
-              });
+            const res = await api.post<any>(`/payments/${fd.get("order_id")}/refund`, {
+              amount: parseFloat(fd.get("amount") as string),
+            });
+            if (res.success) {
               toast.success("Refund processed successfully!");
               form.reset();
-            } catch (err) {
-              toast.error("Failed to process refund");
-            } finally {
-              setProcessing(false);
+            } else {
+              toast.error(res.error?.message || "Failed to process refund");
             }
+            setProcessing(false);
           }}
           className="space-y-4 p-6"
         >

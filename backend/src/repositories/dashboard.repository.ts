@@ -118,3 +118,118 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 export async function countUsersByRole(slug: string): Promise<number> {
   return prisma.user.count({ where: { deleted_at: null, role: { slug } } });
 }
+
+export interface DashboardChartPoint {
+  name: string;
+  revenue: number;
+  users: number;
+  vendors: number;
+  orders: number;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDay(d: Date): string {
+  const day = d.getUTCDate().toString().padStart(2, "0");
+  return `${day} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+export async function getDashboardCharts(days = 30): Promise<DashboardChartPoint[]> {
+  const start = new Date();
+  start.setDate(start.getDate() - (days - 1));
+  start.setHours(0, 0, 0, 0);
+
+  const rows = await prisma.$queryRaw<Array<{
+    day: Date;
+    revenue: Prisma.Decimal;
+    users: bigint;
+    vendors: bigint;
+    orders: bigint;
+  }>>(
+    Prisma.sql`
+      SELECT
+        gs.day::date AS day,
+        COALESCE(r.revenue, 0) AS revenue,
+        COALESCE(u.users, 0) AS users,
+        COALESCE(v.vendors, 0) AS vendors,
+        COALESCE(o.orders, 0) AS orders
+      FROM generate_series(${start}::timestamp, CURRENT_DATE::timestamp, interval '1 day') AS gs(day)
+      LEFT JOIN (
+        SELECT date_trunc('day', created_at)::date AS day, COALESCE(SUM(total), 0) AS revenue
+        FROM orders
+        WHERE deleted_at IS NULL
+          AND status NOT IN ('CANCELLED', 'FAILED')
+          AND created_at >= ${start}
+        GROUP BY 1
+      ) r ON r.day = gs.day::date
+      LEFT JOIN (
+        SELECT date_trunc('day', created_at)::date AS day, COUNT(*) AS users
+        FROM users
+        WHERE deleted_at IS NULL AND created_at >= ${start}
+        GROUP BY 1
+      ) u ON u.day = gs.day::date
+      LEFT JOIN (
+        SELECT date_trunc('day', created_at)::date AS day, COUNT(*) AS vendors
+        FROM vendor_profiles
+        WHERE deleted_at IS NULL AND created_at >= ${start}
+        GROUP BY 1
+      ) v ON v.day = gs.day::date
+      LEFT JOIN (
+        SELECT date_trunc('day', created_at)::date AS day, COUNT(*) AS orders
+        FROM orders
+        WHERE deleted_at IS NULL AND created_at >= ${start}
+        GROUP BY 1
+      ) o ON o.day = gs.day::date
+      ORDER BY gs.day::date ASC
+    `
+  );
+
+  return rows.map((r) => ({
+    name: formatDay(r.day),
+    revenue: Number(r.revenue.toString()),
+    users: Number(r.users),
+    vendors: Number(r.vendors),
+    orders: Number(r.orders),
+  }));
+}
+
+function percentChange(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+function sumSeries(values: number[]): number {
+  return values.reduce((a, b) => a + b, 0);
+}
+
+export async function getDashboardTrends(): Promise<{
+  revenue_trend: number;
+  user_trend: number;
+  vendor_trend: number;
+  orders_trend: number;
+}> {
+  const points = await getDashboardCharts(14);
+  const week = points.length;
+  const firstHalf = points.slice(0, Math.floor(week / 2));
+  const secondHalf = points.slice(Math.floor(week / 2));
+
+  const current = {
+    revenue: sumSeries(secondHalf.map((p) => p.revenue)),
+    users: sumSeries(secondHalf.map((p) => p.users)),
+    vendors: sumSeries(secondHalf.map((p) => p.vendors)),
+    orders: sumSeries(secondHalf.map((p) => p.orders)),
+  };
+  const previous = {
+    revenue: sumSeries(firstHalf.map((p) => p.revenue)),
+    users: sumSeries(firstHalf.map((p) => p.users)),
+    vendors: sumSeries(firstHalf.map((p) => p.vendors)),
+    orders: sumSeries(firstHalf.map((p) => p.orders)),
+  };
+
+  return {
+    revenue_trend: percentChange(current.revenue, previous.revenue),
+    user_trend: percentChange(current.users, previous.users),
+    vendor_trend: percentChange(current.vendors, previous.vendors),
+    orders_trend: percentChange(current.orders, previous.orders),
+  };
+}

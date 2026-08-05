@@ -6,6 +6,7 @@ import { adminVendorService } from "../services/admin-vendor.service";
 import { adminDeliveryService } from "../services/admin-delivery.service";
 import { auditLogService } from "../services/audit-log.service";
 import { adminOrderService } from "../services/admin-order.service";
+import { productService } from "../services/product.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
@@ -636,6 +637,41 @@ export const getAuditLog = asyncHandler(async (req: Request, res: Response) => {
  */
 export const listOrders = asyncHandler(async (req: Request, res: Response) => {
   const result = await adminOrderService.list(req.query as never);
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /admin/products:
+ *   get:
+ *     summary: List all products including inactive for admin
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: per_page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: q
+ *         schema: { type: string }
+ *       - in: query
+ *         name: is_active
+ *         schema: { type: string, enum: [true, false] }
+ *       - in: query
+ *         name: is_featured
+ *         schema: { type: string, enum: [true, false] }
+ *     responses:
+ *       200:
+ *         description: Paginated product list.
+ */
+export const listProductsAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const result = await productService.listAdmin(req.query as never);
   return sendSuccess(res, result.rows, {
     pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
   });

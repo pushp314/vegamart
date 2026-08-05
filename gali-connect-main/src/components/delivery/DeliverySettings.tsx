@@ -83,7 +83,9 @@ export function DeliverySettings() {
           <div className="flex items-center justify-between py-2">
             <div>
               <p className="font-medium">Account Status</p>
-              <p className="text-sm text-muted-foreground capitalize">{partner?.status ?? "Unknown"}</p>
+              <p className="text-sm text-muted-foreground capitalize">
+                {partner?.status ?? "Unknown"}
+              </p>
             </div>
           </div>
           <div className="flex items-center justify-between py-2">

@@ -9,7 +9,19 @@ import { useAuth } from "@/context/auth-context";
 // Components
 import { AdminTab } from "@/components/admin/AdminSidebar";
 import { PortalLayout } from "@/components/layout/portal-layout";
-import { LayoutDashboard, Users, Store, Bike, FileText, Banknote, ShoppingCart, Bell, FileBarChart, ClipboardList, Settings } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  Store,
+  Bike,
+  FileText,
+  Banknote,
+  ShoppingCart,
+  Bell,
+  FileBarChart,
+  ClipboardList,
+  Settings,
+} from "lucide-react";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { AdminVendors } from "@/components/admin/AdminVendors";
 import { AdminUsers } from "@/components/admin/AdminUsers";
@@ -182,8 +194,18 @@ function AdminDashboard() {
     { id: "products", title: "Products", icon: FileText, onClick: () => setActiveTab("products") },
     { id: "cms", title: "CMS", icon: ClipboardList, onClick: () => setActiveTab("cms") },
     { id: "reports", title: "Reports", icon: FileBarChart, onClick: () => setActiveTab("reports") },
-    { id: "notifications", title: "Notifications", icon: Bell, onClick: () => setActiveTab("notifications") },
-    { id: "audit_logs", title: "Audit Logs", icon: FileText, onClick: () => setActiveTab("audit_logs") },
+    {
+      id: "notifications",
+      title: "Notifications",
+      icon: Bell,
+      onClick: () => setActiveTab("notifications"),
+    },
+    {
+      id: "audit_logs",
+      title: "Audit Logs",
+      icon: FileText,
+      onClick: () => setActiveTab("audit_logs"),
+    },
     { id: "refunds", title: "Refunds", icon: Banknote, onClick: () => setActiveTab("refunds") },
     { id: "settings", title: "Settings", icon: Settings, onClick: () => setActiveTab("settings") },
   ];

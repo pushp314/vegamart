@@ -174,3 +174,11 @@ export const adminOrderQuerySchema = z.object({
 export const adminOrderIdParamsSchema = z.object({
   order_id: z.string().uuid("order_id must be a valid UUID."),
 });
+
+export const adminProductsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  q: z.string().trim().max(160).optional(),
+  is_active: z.enum(["true", "false"]).optional(),
+  is_featured: z.enum(["true", "false"]).optional(),
+});

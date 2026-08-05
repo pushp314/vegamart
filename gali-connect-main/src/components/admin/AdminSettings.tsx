@@ -80,18 +80,14 @@ export function AdminSettings() {
               <Label>Platform Name</Label>
               <Input
                 value={settings["platform.name"] ?? ""}
-                onChange={(e) =>
-                  setSettings({ ...settings, "platform.name": e.target.value })
-                }
+                onChange={(e) => setSettings({ ...settings, "platform.name": e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Currency</Label>
               <Input
                 value={settings["platform.currency"] ?? "INR"}
-                onChange={(e) =>
-                  setSettings({ ...settings, "platform.currency": e.target.value })
-                }
+                onChange={(e) => setSettings({ ...settings, "platform.currency": e.target.value })}
               />
             </div>
           </CardContent>
@@ -169,18 +165,14 @@ export function AdminSettings() {
               <Input
                 type="email"
                 value={settings["support.email"] ?? ""}
-                onChange={(e) =>
-                  setSettings({ ...settings, "support.email": e.target.value })
-                }
+                onChange={(e) => setSettings({ ...settings, "support.email": e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Support Phone</Label>
               <Input
                 value={settings["support.phone"] ?? ""}
-                onChange={(e) =>
-                  setSettings({ ...settings, "support.phone": e.target.value })
-                }
+                onChange={(e) => setSettings({ ...settings, "support.phone": e.target.value })}
               />
             </div>
           </CardContent>
@@ -195,9 +187,7 @@ export function AdminSettings() {
             <div className="flex items-center justify-between">
               <div>
                 <Label>Maintenance Mode</Label>
-                <p className="text-sm text-muted-foreground">
-                  Temporarily disable the platform
-                </p>
+                <p className="text-sm text-muted-foreground">Temporarily disable the platform</p>
               </div>
               <Switch
                 checked={settings["platform.maintenance_mode"] ?? false}

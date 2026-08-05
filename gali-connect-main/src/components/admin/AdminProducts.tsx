@@ -5,7 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Search, Star, Loader2, Package } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,7 +43,7 @@ export function AdminProducts() {
       if (search) params.set("q", search);
       params.set("page", String(page));
       params.set("per_page", "20");
-      return api.get<any>(`/products?${params.toString()}`);
+      return api.get<any>(`/admin/products?${params.toString()}`);
     },
   });
 
@@ -136,7 +143,9 @@ export function AdminProducts() {
                         <div className="flex items-center gap-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                           <span className="text-sm">{product.rating.toFixed(1)}</span>
-                          <span className="text-xs text-muted-foreground">({product.review_count})</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({product.review_count})
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>

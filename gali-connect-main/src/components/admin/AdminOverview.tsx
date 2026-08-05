@@ -30,13 +30,18 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
     padding: "10px 14px",
   };
 
+  const formatTrend = (value: number | undefined) => {
+    const v = value ?? 0;
+    return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
+  };
+
   const cards = [
     {
       title: "Total Revenue",
       value: `₹${stats.total_revenue?.toLocaleString() || "0"}`,
       icon: IndianRupee,
-      trend: "+12.5%",
-      up: true,
+      trend: formatTrend(stats.revenue_trend),
+      up: (stats.revenue_trend ?? 0) >= 0,
       accent: "bg-emerald-50 text-emerald-600 ring-emerald-100",
       glow: "bg-emerald-400/10",
       chart: (stats.revenue_chart || []).map((p: any) => p.revenue ?? 0),
@@ -46,8 +51,8 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
       title: "Active Users",
       value: stats.total_users?.toLocaleString() || "0",
       icon: Users,
-      trend: "+5.2%",
-      up: true,
+      trend: formatTrend(stats.user_trend),
+      up: (stats.user_trend ?? 0) >= 0,
       accent: "bg-blue-50 text-blue-600 ring-blue-100",
       glow: "bg-blue-400/10",
       chart: (stats.user_chart || []).map((p: any) => p.users ?? 0),
@@ -57,8 +62,8 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
       title: "Registered Vendors",
       value: stats.total_vendors?.toLocaleString() || "0",
       icon: Store,
-      trend: "+2.1%",
-      up: true,
+      trend: formatTrend(stats.vendor_trend),
+      up: (stats.vendor_trend ?? 0) >= 0,
       accent: "bg-amber-50 text-amber-600 ring-amber-100",
       glow: "bg-amber-400/10",
       chart: (stats.vendor_chart || []).map((p: any) => p.vendors ?? 0),
@@ -68,8 +73,8 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
       title: "Total Orders",
       value: stats.total_orders?.toLocaleString() || "0",
       icon: ShoppingBag,
-      trend: "+18.3%",
-      up: true,
+      trend: formatTrend(stats.orders_trend),
+      up: (stats.orders_trend ?? 0) >= 0,
       accent: "bg-violet-50 text-violet-600 ring-violet-100",
       glow: "bg-violet-400/10",
       chart: (stats.orders_chart || []).map((p: any) => p.orders ?? 0),

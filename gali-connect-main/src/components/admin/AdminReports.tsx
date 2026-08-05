@@ -2,7 +2,13 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download, TrendingUp, DollarSign, ShoppingCart, Users } from "lucide-react";
 
@@ -19,7 +25,21 @@ export function AdminReports() {
     },
   });
 
-  const reportData = reportRes?.data?.data ?? reportRes?.data ?? {};
+  const raw = reportRes?.data?.data ?? reportRes?.data ?? {};
+  const rows: Array<Record<string, any>> = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+  const ordersTotal = typeof raw?.total === "number" ? raw.total : null;
+
+  const totalRevenue = rows.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
+  const totalOrders =
+    ordersTotal !== null ? ordersTotal : rows.reduce((sum, r) => sum + (Number(r.orders) || Number(r.units_sold) || 0), 0);
+  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const activeVendors = reportType === "vendors" ? rows.length : 0;
+
+  const reportData = { total_revenue: totalRevenue, total_orders: totalOrders, avg_order_value: avgOrderValue, active_vendors: activeVendors };
 
   return (
     <div className="space-y-6">
@@ -48,7 +68,33 @@ export function AdminReports() {
               <SelectItem value="365">Last year</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline">
+          <Button
+            variant="outline"
+            disabled={rows.length === 0}
+            onClick={() => {
+              if (rows.length === 0) return;
+              const headers = Object.keys(rows[0]);
+              const csv = [
+                headers.join(","),
+                ...rows.map((r) =>
+                  headers
+                    .map((h) => {
+                      const v = r[h];
+                      const str = v === null || v === undefined ? "" : String(v);
+                      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+                    })
+                    .join(","),
+                ),
+              ].join("\n");
+              const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = `${reportType}-report-${period}d.csv`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -110,7 +156,7 @@ export function AdminReports() {
             </CardHeader>
             <CardContent>
               <pre className="text-sm bg-muted p-4 rounded-lg overflow-auto max-h-96">
-                {JSON.stringify(reportData, null, 2)}
+                {JSON.stringify(rows, null, 2)}
               </pre>
             </CardContent>
           </Card>
