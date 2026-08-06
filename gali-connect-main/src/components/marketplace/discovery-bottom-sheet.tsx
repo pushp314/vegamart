@@ -1,11 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { motion, useDragControls, type PanInfo } from "framer-motion";
 import { ChevronUp, GripVertical, X, SlidersHorizontal } from "lucide-react";
 
@@ -56,10 +49,7 @@ export const DiscoveryBottomSheet = memo(function DiscoveryBottomSheet({
 
   const maxH = useMemo(() => Math.round(viewportH * 0.92), [viewportH]);
   const halfH = useMemo(() => Math.min(Math.round(viewportH * 0.56), 560), [viewportH]);
-  const collapsedH = useMemo(
-    () => Math.min(COLLAPSED_H, maxH),
-    [maxH],
-  );
+  const collapsedH = useMemo(() => Math.min(COLLAPSED_H, maxH), [maxH]);
 
   const yFor = useCallback(
     (s: SheetSnap) => {

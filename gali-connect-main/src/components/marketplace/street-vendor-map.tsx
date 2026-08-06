@@ -71,9 +71,9 @@ export function StreetVendorMap() {
       function createVendorIcon(category: string) {
         const colors: Record<string, { bg: string; ring: string; emoji: string }> = {
           vegetables: { bg: "#059669", ring: "#34d399", emoji: "🥦" },
-          fruits:     { bg: "#e11d48", ring: "#fb7185", emoji: "🍎" },
-          ice_cream:  { bg: "#7c3aed", ring: "#a78bfa", emoji: "🍦" },
-          snacks:     { bg: "#d97706", ring: "#fbbf24", emoji: "🍿" },
+          fruits: { bg: "#e11d48", ring: "#fb7185", emoji: "🍎" },
+          ice_cream: { bg: "#7c3aed", ring: "#a78bfa", emoji: "🍦" },
+          snacks: { bg: "#d97706", ring: "#fbbf24", emoji: "🍿" },
         };
         const c = colors[category.toLowerCase()] ?? { bg: "#d97706", ring: "#fbbf24", emoji: "🛒" };
 
@@ -193,63 +193,81 @@ export function StreetVendorMap() {
 
   // ── 6. WebSocket for real-time location updates ───────────────────
   useEffect(() => {
-    const ws = new WebSocket(`${WS_BASE_URL}/vendors/stream-roaming`);
+    let cancelled = false;
+    let ws: WebSocket | null = null;
 
-    const applyLocation = (vendorId: string, lat: number, lng: number, isMoving: boolean) => {
-      setVendors((prev) => {
-        if (prev.some((v) => v.id === vendorId)) {
-          return prev.map((v) => (v.id === vendorId ? { ...v, lat, lng, isMoving } : v));
-        }
-        if (fetchedVendorIdsRef.current.has(vendorId)) return prev;
-        fetchedVendorIdsRef.current.add(vendorId);
-        api
-          .get<any>(`/vendors/${vendorId}`)
-          .then((res) => {
-            const v = res?.data?.data ?? res?.data;
-            if (!v || !v.latitude || !v.longitude || v.is_open === false) {
+    // Delay WS creation slightly to avoid Strict Mode double-invoke race
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      ws = new WebSocket(`${WS_BASE_URL}/vendors/stream-roaming`);
+
+      const applyLocation = (vendorId: string, lat: number, lng: number, isMoving: boolean) => {
+        setVendors((prev) => {
+          if (prev.some((v) => v.id === vendorId)) {
+            return prev.map((v) => (v.id === vendorId ? { ...v, lat, lng, isMoving } : v));
+          }
+          if (fetchedVendorIdsRef.current.has(vendorId)) return prev;
+          fetchedVendorIdsRef.current.add(vendorId);
+          api
+            .get<any>(`/vendors/${vendorId}`)
+            .then((res) => {
+              const v = res?.data?.data ?? res?.data;
+              if (!v || !v.latitude || !v.longitude || v.is_open === false) {
+                fetchedVendorIdsRef.current.delete(vendorId);
+                return;
+              }
+              setVendors((curr) =>
+                curr.some((x) => x.id === v.id)
+                  ? curr.map((x) => (x.id === v.id ? { ...x, lat, lng, isMoving } : x))
+                  : [
+                      ...curr,
+                      {
+                        id: v.id,
+                        name: v.business_name,
+                        category: v.category?.toLowerCase() || "vegetables",
+                        lat,
+                        lng,
+                        isMoving,
+                      },
+                    ],
+              );
+            })
+            .catch(() => {
               fetchedVendorIdsRef.current.delete(vendorId);
-              return;
-            }
-            setVendors((curr) =>
-              curr.some((x) => x.id === v.id)
-                ? curr.map((x) => (x.id === v.id ? { ...x, lat, lng, isMoving } : x))
-                : [
-                    ...curr,
-                    {
-                      id: v.id,
-                      name: v.business_name,
-                      category: v.category?.toLowerCase() || "vegetables",
-                      lat,
-                      lng,
-                      isMoving,
-                    },
-                  ],
-            );
-          })
-          .catch(() => {
-            fetchedVendorIdsRef.current.delete(vendorId);
-          });
-        return prev;
-      });
-    };
+            });
+          return prev;
+        });
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.type === "roaming_vendor_location" && payload.data?.vendor_id) {
-          const { vendor_id, lat, lng } = payload.data;
-          applyLocation(vendor_id, lat, lng, true);
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "roaming_vendor_location" && payload.data?.vendor_id) {
+            const { vendor_id, lat, lng } = payload.data;
+            applyLocation(vendor_id, lat, lng, true);
+          }
+          // Also handle general vendor location updates
+          if (payload.type === "vendor_location" && payload.data?.vendor_id) {
+            const { vendor_id, lat, lng } = payload.data;
+            applyLocation(vendor_id, lat, lng, false);
+          }
+        } catch {
+          /* ignore parse errors */
         }
-        // Also handle general vendor location updates
-        if (payload.type === "vendor_location" && payload.data?.vendor_id) {
-          const { vendor_id, lat, lng } = payload.data;
-          applyLocation(vendor_id, lat, lng, false);
-        }
-      } catch {
-        /* ignore parse errors */
+      };
+
+      ws.onerror = () => {
+        /* suppress console noise */
+      };
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (ws && ws.readyState !== WebSocket.CLOSED && ws.readyState !== WebSocket.CLOSING) {
+        ws.close();
       }
     };
-    return () => ws.close();
   }, []);
 
   // ── 7. Sync vendor markers on map ─────────────────────────────────

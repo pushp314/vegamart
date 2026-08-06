@@ -38,7 +38,8 @@ export const listNotifications = asyncHandler(async (req: Request, res: Response
     req.user!.id,
     (page - 1) * perPage,
     perPage,
-    query.type
+    query.type,
+    req.user!.role
   );
   return sendSuccess(res, rows, {
     pagination: buildPaginationMeta({ page, per_page: perPage }, total),

@@ -44,13 +44,15 @@ export function ReviewModal({
       return;
     }
 
-    if (targetType !== "product" || !targetId) {
-      toast.error("Reviews are only available for products right now.");
+    if (!targetId) {
+      toast.error("Invalid target for review.");
       return;
     }
 
     setSubmitting(true);
-    const res = await api.post(`/products/${targetId}/reviews`, {
+    const endpoint = targetType === "vendor" ? `/vendors/${targetId}/reviews` : `/products/${targetId}/reviews`;
+    
+    const res = await api.post(endpoint, {
       rating,
       comment: comment.trim() || undefined,
     });

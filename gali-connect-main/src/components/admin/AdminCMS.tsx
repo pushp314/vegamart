@@ -18,14 +18,14 @@ export function AdminCMS() {
     queryKey: ["adminHeroSlides"],
     queryFn: () => api.get<any>("/admin/hero-slides"),
   });
-  
+
   const { data: announcementsRes, isLoading: announcementsLoading } = useQuery({
     queryKey: ["adminAnnouncements"],
     queryFn: () => api.get<any>("/admin/announcements"),
   });
 
-  const slides = slidesRes?.data?.rows || [];
-  const announcements = announcementsRes?.data?.rows || [];
+  const slides = slidesRes?.data || [];
+  const announcements = announcementsRes?.data || [];
 
   // Mutations
   const createSlideMutation = useMutation({
@@ -78,11 +78,17 @@ export function AdminCMS() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setIsBannerModalOpen(true)} variant={activeSubTab === "banners" ? "default" : "outline"}>
+          <Button
+            onClick={() => setIsBannerModalOpen(true)}
+            variant={activeSubTab === "banners" ? "default" : "outline"}
+          >
             <Image className="h-4 w-4 mr-2" />
             Add Banner
           </Button>
-          <Button onClick={() => setIsAnnouncementModalOpen(true)} variant={activeSubTab === "announcements" ? "default" : "outline"}>
+          <Button
+            onClick={() => setIsAnnouncementModalOpen(true)}
+            variant={activeSubTab === "announcements" ? "default" : "outline"}
+          >
             <Megaphone className="h-4 w-4 mr-2" />
             Add Announcement
           </Button>
@@ -93,7 +99,9 @@ export function AdminCMS() {
         <button
           onClick={() => setActiveSubTab("banners")}
           className={`px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-            activeSubTab === "banners" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+            activeSubTab === "banners"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground"
           }`}
         >
           Hero Banners
@@ -101,7 +109,9 @@ export function AdminCMS() {
         <button
           onClick={() => setActiveSubTab("announcements")}
           className={`px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-            activeSubTab === "announcements" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+            activeSubTab === "announcements"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground"
           }`}
         >
           Announcements
@@ -111,12 +121,21 @@ export function AdminCMS() {
       {activeSubTab === "banners" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {slides.map((slide: any) => (
-            <div key={slide.id} className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm flex flex-col">
+            <div
+              key={slide.id}
+              className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm flex flex-col"
+            >
               <div className="h-32 bg-muted/50 relative">
                 {slide.image_url ? (
-                  <img src={slide.image_url} alt={slide.title} className="w-full h-full object-cover" />
+                  <img
+                    src={slide.image_url}
+                    alt={slide.title}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">No Image</div>
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                    No Image
+                  </div>
                 )}
                 {slide.is_active && (
                   <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
@@ -127,12 +146,14 @@ export function AdminCMS() {
               <div className="p-5 flex-1 flex flex-col justify-between">
                 <div>
                   <h3 className="font-bold text-lg">{slide.title}</h3>
-                  {slide.subtitle && <p className="text-sm text-muted-foreground">{slide.subtitle}</p>}
+                  {slide.subtitle && (
+                    <p className="text-sm text-muted-foreground">{slide.subtitle}</p>
+                  )}
                 </div>
                 <div className="mt-4 pt-4 border-t border-border flex justify-end">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="text-rose-600"
                     onClick={() => {
                       if (confirm("Delete this banner?")) deleteSlideMutation.mutate(slide.id);
@@ -155,24 +176,30 @@ export function AdminCMS() {
       {activeSubTab === "announcements" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {announcements.map((ann: any) => (
-            <div key={ann.id} className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+            <div
+              key={ann.id}
+              className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-black uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded-md">
                     Audience: {ann.audience}
                   </span>
-                  {ann.is_active && <span className="text-emerald-500 text-[10px] font-bold">Active</span>}
+                  {ann.is_active && (
+                    <span className="text-emerald-500 text-[10px] font-bold">Active</span>
+                  )}
                 </div>
                 <h3 className="font-bold text-lg mb-2">{ann.title}</h3>
                 <p className="text-sm text-muted-foreground">{ann.body}</p>
               </div>
               <div className="mt-6 pt-4 border-t border-border flex justify-end">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="text-rose-600"
                   onClick={() => {
-                    if (confirm("Delete this announcement?")) deleteAnnouncementMutation.mutate(ann.id);
+                    if (confirm("Delete this announcement?"))
+                      deleteAnnouncementMutation.mutate(ann.id);
                   }}
                 >
                   Delete
@@ -214,26 +241,38 @@ export function AdminCMS() {
               <Input name="title" required />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Subtitle (Optional)</label>
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Subtitle (Optional)
+              </label>
               <Input name="subtitle" />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Image URL (Optional)</label>
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Image URL (Optional)
+              </label>
               <Input name="image_url" type="url" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Link URL</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Link URL
+                </label>
                 <Input name="link_url" />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Sort Order</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Sort Order
+                </label>
                 <Input name="sort_order" type="number" defaultValue="0" />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsBannerModalOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createSlideMutation.isPending}>Create Banner</Button>
+              <Button type="button" variant="outline" onClick={() => setIsBannerModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createSlideMutation.isPending}>
+                Create Banner
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -276,7 +315,9 @@ export function AdminCMS() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Message Body</label>
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Message Body
+              </label>
               <textarea
                 name="body"
                 required
@@ -285,8 +326,16 @@ export function AdminCMS() {
               ></textarea>
             </div>
             <div className="flex justify-end gap-3 mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsAnnouncementModalOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createAnnouncementMutation.isPending}>Publish</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAnnouncementModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createAnnouncementMutation.isPending}>
+                Publish
+              </Button>
             </div>
           </form>
         </DialogContent>

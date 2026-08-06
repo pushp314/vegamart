@@ -186,7 +186,7 @@ export const publishAnnouncement = asyncHandler(async (req: Request, res: Respon
  *         description: Announcement unpublished.
  */
 export const unpublishAnnouncement = asyncHandler(async (req: Request, res: Response) => {
-  const data = await announcementService.unpublish(req.user!.id, req.params.announcement_id as string, req);
+  const data = await announcementService.unpublish(req.params.announcement_id as string, req.user!.id, req);
   return sendSuccess(res, data);
 });
 
@@ -208,6 +208,6 @@ export const unpublishAnnouncement = asyncHandler(async (req: Request, res: Resp
  *         description: Announcement deleted.
  */
 export const deleteAnnouncement = asyncHandler(async (req: Request, res: Response) => {
-  const data = await announcementService.remove(req.user!.id, req.params.announcement_id as string, req);
+  const data = await announcementService.remove(req.params.announcement_id as string, req.user!.id, req);
   return sendSuccess(res, data);
 });

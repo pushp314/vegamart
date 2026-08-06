@@ -62,7 +62,7 @@ function VendorsPage() {
     queryFn: () => {
       let url = "/vendors";
       if (activeAddress?.latitude && activeAddress?.longitude) {
-        url += `?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}`;
+        url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}`;
       }
       return api.get<Vendor[]>(url);
     },

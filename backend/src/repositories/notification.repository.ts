@@ -26,13 +26,15 @@ export async function listByUser(
   userId: string,
   skip: number,
   take: number,
-  type?: string
+  type?: string,
+  role?: string
 ) {
   const where: Prisma.NotificationWhereInput = { user_id: userId };
-  if (type) {
+  if (type && type !== "system" && type !== "promo") {
     where.type = type as Prisma.NotificationWhereInput["type"];
   }
-  const [rows, total] = await Promise.all([
+
+  const [notifRows, notifTotal] = await Promise.all([
     prisma.notification.findMany({
       where,
       orderBy: { created_at: "desc" },
@@ -41,6 +43,43 @@ export async function listByUser(
     }),
     prisma.notification.count({ where }),
   ]);
+
+  let rows: any[] = [...notifRows];
+  let total = notifTotal;
+
+  // If no type specified or type is system/promo, also fetch active announcements
+  if (!type || type === "system" || type === "promo") {
+    const audienceFilter = role ? { in: ["all", role] } : { equals: "all" };
+    const announcements = await prisma.announcement.findMany({
+      where: {
+        is_active: true,
+        published_at: { not: null },
+        audience: audienceFilter as any,
+      },
+      orderBy: { published_at: "desc" },
+      take: 20 // Just grab latest 20 active announcements
+    });
+
+    const mappedAnnouncements = announcements.map(a => ({
+      id: a.id,
+      user_id: userId,
+      type: "promotional",
+      channel: "in_app",
+      title: a.title,
+      body: a.body,
+      data: null,
+      is_read: false,
+      created_at: a.published_at || a.created_at,
+      read_at: null
+    }));
+
+    rows = [...mappedAnnouncements, ...rows].sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+    total += announcements.length;
+    
+    // Apply pagination properly to the merged array
+    rows = rows.slice(0, take);
+  }
+
   return { rows, total };
 }
 

@@ -13,6 +13,7 @@ import type {
   VendorLocationBody,
   UpsertDailyLocationBody,
 } from "../validators/vendor.validators";
+import type { CreateReviewBody } from "../validators/product.validators";
 import type { VendorKycBody, RingBellBody } from "../validators/integration.validators";
 
 /**
@@ -737,4 +738,11 @@ export const getVendorEarnings = asyncHandler(async (req: Request, res: Response
 export const ringBell = asyncHandler(async (req: Request, res: Response) => {
   const data = await vendorService.ringBell(req.params.vendor_id as string, req.body as RingBellBody, req);
   return sendSuccess(res, data, { message: "Bell rung! The vendor has been notified." });
+});
+
+export const createVendorReview = asyncHandler(async (req: Request, res: Response) => {
+  const { vendor_id } = req.params as { vendor_id: string };
+  const body = req.body as CreateReviewBody;
+  const review = await vendorService.createReview(req.user!.id, vendor_id, body, req);
+  return sendCreated(res, review, "Vendor review submitted successfully.");
 });

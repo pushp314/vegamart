@@ -13,11 +13,13 @@ import {
   Radio,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { api, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { VendorLocationCard } from "@/components/vendor/vendor-location-card";
+import { ReviewModal } from "@/components/marketplace/review-modal";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/vendors/$vendorId")({
@@ -51,6 +53,7 @@ function VendorDetail() {
   const { vendor } = Route.useLoaderData();
   const profile: any = vendor.profile || (vendor as any);
   const { addToCart } = useCart();
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const { data: productsRes, isLoading } = useQuery({
     queryKey: ["products", { vendor_id: vendor.id }],
@@ -67,7 +70,7 @@ function VendorDetail() {
     "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
 
   const ownerName = profile.owner_name || vendor.business_name || "Verified Merchant";
-  const phone = profile.phone || (vendor as any).phone || "+919876543210";
+  const phone = profile.phone || (vendor as any).phone || null;
   const isRoaming =
     profile.vendor_type === "roaming" || profile.roaming === true || profile.roaming === "true";
 
@@ -152,13 +155,16 @@ function VendorDetail() {
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3 text-xs pt-1">
-                  <span className="inline-flex items-center gap-1 font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                  <button
+                    onClick={() => setReviewOpen(true)}
+                    className="inline-flex items-center gap-1 font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
                     <Star className="h-3.5 w-3.5 fill-amber-400" />
                     {profile.rating || "4.8"}
                     <span className="text-muted-foreground font-normal ml-0.5">
                       ({profile.review_count ?? 0})
                     </span>
-                  </span>
+                  </button>
 
                   <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
                     <MapPin className="h-3.5 w-3.5" /> 1.2 km away
@@ -173,12 +179,20 @@ function VendorDetail() {
 
             {/* Direct Action CTAs */}
             <div className="flex items-center gap-2.5 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-border">
-              <a
-                href={`tel:${phone}`}
-                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs h-11 px-5 transition-colors"
-              >
-                <Phone className="h-4 w-4 text-emerald-600" /> Call Store
-              </a>
+              {phone ? (
+                <a
+                  href={`tel:${phone}`}
+                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs h-11 px-5 transition-colors"
+                >
+                  <Phone className="h-4 w-4 text-emerald-600" /> Call Store
+                </a>
+              ) : (
+                <span
+                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl border bg-muted/50 text-muted-foreground font-bold text-xs h-11 px-5 cursor-not-allowed opacity-60"
+                >
+                  <Phone className="h-4 w-4" /> No Phone
+                </span>
+              )}
               <button
                 onClick={handleShare}
                 className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-xs h-11 px-6 shadow-md hover:bg-primary/90 transition-colors"
@@ -245,6 +259,15 @@ function VendorDetail() {
           )}
         </div>
       </main>
+
+      <ReviewModal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        targetId={vendor.id}
+        targetName={vendor.business_name}
+        targetType="vendor"
+        onSuccess={() => setReviewOpen(false)}
+      />
     </div>
   );
 }

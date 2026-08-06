@@ -61,12 +61,6 @@ export const Route = createFileRoute("/products/$productId")({
   ),
 });
 
-const WEIGHT_VARIANTS = [
-  { id: "250g", label: "250 g", multiplier: 0.28 },
-  { id: "500g", label: "500 g", multiplier: 0.55 },
-  { id: "1kg", label: "1 kg", multiplier: 1 },
-  { id: "2kg", label: "2 kg", multiplier: 1.9 },
-];
 
 function ProductDetail() {
   const { product } = Route.useLoaderData();
@@ -95,7 +89,15 @@ function ProductDetail() {
     enabled: !!product.category_id,
   });
 
-  const [variant, setVariant] = useState(WEIGHT_VARIANTS[2].id);
+  const { data: settingsRes } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<any>("/settings/public"),
+  });
+  const settings = settingsRes?.data || {};
+  const globalThreshold = settings["platform.free_delivery_threshold"] ?? 199;
+  const vendorThreshold = vendor?.free_delivery_min_order;
+  const freeDeliveryThreshold = vendorThreshold != null ? Number(vendorThreshold) : globalThreshold;
+
   const [qty, setQty] = useState(1);
   const [imageIdx, setImageIdx] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -110,9 +112,20 @@ function ProductDetail() {
     return ["https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop"];
   }, [product.images]);
 
-  const activeVariant = WEIGHT_VARIANTS.find((v) => v.id === variant)!;
-  const unitPrice = Math.round(product.price * activeVariant.multiplier);
-  const unitMrp = Math.round(product.mrp * activeVariant.multiplier);
+  // Build variant list — base product is always included as the first option
+  const allVariants = useMemo(() => {
+    const base = { unit: product.unit, price: Number(product.price), mrp: Number(product.mrp || product.price) };
+    if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+      return [base, ...product.variants.filter((v: any) => v.unit !== product.unit)];
+    }
+    return [base];
+  }, [product]);
+
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
+  const selectedVariant = allVariants[selectedVariantIdx] || allVariants[0];
+
+  const unitPrice = selectedVariant.price;
+  const unitMrp = selectedVariant.mrp;
   const total = unitPrice * qty;
   const discount = unitMrp > unitPrice ? Math.round(((unitMrp - unitPrice) / unitMrp) * 100) : 0;
 
@@ -120,12 +133,12 @@ function ProductDetail() {
   const reviewCount = product.review_count || 0;
 
   const handleAdd = () => {
-    addToCart(product, qty, activeVariant.label);
-    toast.success(`Added ${qty} × ${product.name} (${activeVariant.label}) to cart`);
+    addToCart({ ...product, price: unitPrice, mrp: unitMrp }, qty, selectedVariant.unit);
+    toast.success(`Added ${qty} × ${product.name} (${selectedVariant.unit}) to cart`);
   };
 
   const handleBuyNow = () => {
-    addToCart(product, qty, activeVariant.label);
+    addToCart({ ...product, price: unitPrice, mrp: unitMrp }, qty, selectedVariant.unit);
     navigate({ to: "/checkout" });
   };
 
@@ -228,7 +241,10 @@ function ProductDetail() {
                   >
                     {isVideo ? (
                       <>
-                        <video src={src} className="absolute inset-0 h-full w-full object-cover opacity-50" />
+                        <video
+                          src={src}
+                          className="absolute inset-0 h-full w-full object-cover opacity-50"
+                        />
                         <PlayCircle className="h-6 w-6 text-white drop-shadow-md relative z-10" />
                       </>
                     ) : (
@@ -269,7 +285,7 @@ function ProductDetail() {
                 >
                   {vendor.business_name}
                 </Link>{" "}
-                · {product.unit}
+                · {selectedVariant.unit}
               </p>
             )}
 
@@ -289,33 +305,32 @@ function ProductDetail() {
             </div>
             <p className="text-[11.5px] text-muted-foreground">Inclusive of all taxes</p>
 
-            {/* Variants */}
-            <div className="mt-5">
-              <div className="text-[12px] font-semibold text-foreground/80">Pack size</div>
-              <div className="mt-2 grid grid-cols-4 gap-2">
-                {WEIGHT_VARIANTS.map((v) => {
-                  const active = v.id === variant;
-                  return (
+            {/* Dynamic Variants / Pack size */}
+            {allVariants.length > 0 && (
+              <div className="mt-5">
+                <div className="text-[12px] font-semibold text-foreground/80">Pack size</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {allVariants.map((v, idx) => (
                     <button
-                      key={v.id}
-                      onClick={() => setVariant(v.id)}
-                      className={`rounded-xl border p-2.5 text-center transition ${
-                        active
-                          ? "border-primary bg-emerald-50"
-                          : "border-border hover:border-primary/40"
+                      key={v.unit}
+                      onClick={() => setSelectedVariantIdx(idx)}
+                      className={`rounded-xl border p-2.5 text-center transition min-w-[80px] ${
+                        selectedVariantIdx === idx
+                          ? "border-primary bg-emerald-50 ring-1 ring-primary/30"
+                          : "border-border hover:border-emerald-300"
                       }`}
                     >
-                      <div className={`text-[13px] font-semibold ${active ? "text-primary" : ""}`}>
-                        {v.label}
+                      <div className={`text-[13px] font-semibold ${selectedVariantIdx === idx ? "text-primary" : "text-foreground"}`}>
+                        {v.unit}
                       </div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
-                        ₹{Math.round(product.price * v.multiplier)}
+                        ₹{v.price}
                       </div>
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Qty */}
             <div className="mt-5 flex items-center justify-between">
@@ -338,6 +353,46 @@ function ProductDetail() {
                 </button>
               </div>
             </div>
+
+            {/* Inline desktop action bar — visible above the fold */}
+            <div className="hidden lg:flex items-center gap-3 mt-6 pt-5 border-t border-border">
+              <div className="mr-auto">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Total
+                </div>
+                <div className="font-display text-2xl font-bold tabular-nums">₹{total}</div>
+              </div>
+              <button
+                onClick={() => {
+                  toggleWishlist(product);
+                  if (wishlisted) {
+                    toast.info(`Removed ${product.name} from wishlist`);
+                  } else {
+                    toast.success(`Added ${product.name} to wishlist ❤️`);
+                  }
+                }}
+                className={`inline-flex items-center gap-2 rounded-full border px-5 text-sm font-bold h-12 transition-all ${
+                  wishlisted
+                    ? "bg-rose-50 border-rose-200 text-rose-600"
+                    : "bg-card hover:bg-muted text-foreground"
+                }`}
+              >
+                <Heart className={`h-4 w-4 ${wishlisted ? "fill-rose-500" : ""}`} />
+                {wishlisted ? "Saved" : "Save"}
+              </button>
+              <button
+                onClick={handleAdd}
+                className="inline-flex items-center gap-2 rounded-full border bg-card hover:bg-muted text-foreground text-sm font-bold h-12 px-6 transition-all"
+              >
+                <Plus className="h-4 w-4" /> Add to cart
+              </button>
+              <button
+                onClick={handleBuyNow}
+                className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-sm font-bold h-12 px-7 shadow-md hover:bg-primary/90 transition-all"
+              >
+                Buy now <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </section>
 
           {/* Delivery promises */}
@@ -345,16 +400,12 @@ function ProductDetail() {
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="h-4 w-4 text-primary" />
               <span className="font-semibold">Delivering to {displayLocation}</span>
-              <Link
-                to="/addresses"
-                className="ml-auto text-[12px] font-semibold text-primary"
-              >
+              <Link to="/addresses" className="ml-auto text-[12px] font-semibold text-primary">
                 Change
               </Link>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <Fact icon={<Clock className="h-4 w-4" />} label="ETA" value="15 min" />
-              <Fact icon={<Truck className="h-4 w-4" />} label="Delivery" value="Free ₹199+" />
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Fact icon={<Truck className="h-4 w-4" />} label="Delivery" value={`Free ₹${freeDeliveryThreshold}+`} />
               <Fact
                 icon={<ShieldCheck className="h-4 w-4" />}
                 label="Promise"
@@ -436,47 +487,6 @@ function ProductDetail() {
         </main>
       </div>
 
-      {/* Inline desktop action bar */}
-      <div className="hidden lg:block mx-auto max-w-6xl px-6 mt-6">
-        <div className="flex items-center gap-3 justify-end">
-          <div className="mr-auto">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Total
-            </div>
-            <div className="font-display text-2xl font-bold tabular-nums">₹{total}</div>
-          </div>
-          <button
-            onClick={() => {
-              toggleWishlist(product);
-              if (wishlisted) {
-                toast.info(`Removed ${product.name} from wishlist`);
-              } else {
-                toast.success(`Added ${product.name} to wishlist ❤️`);
-              }
-            }}
-            className={`inline-flex items-center gap-2 rounded-full border px-5 text-sm font-bold h-12 transition-all ${
-              wishlisted
-                ? "bg-rose-50 border-rose-200 text-rose-600"
-                : "bg-card hover:bg-muted text-foreground"
-            }`}
-          >
-            <Heart className={`h-4 w-4 ${wishlisted ? "fill-rose-500 text-rose-500" : ""}`} />
-            {wishlisted ? "Wishlisted" : "Save to Wishlist"}
-          </button>
-          <button
-            onClick={handleAdd}
-            className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary font-semibold text-sm h-12 px-6"
-          >
-            Add to cart
-          </button>
-          <button
-            onClick={handleBuyNow}
-            className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground font-semibold text-sm h-12 px-6"
-          >
-            Buy now <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
 
       {/* Sticky action bar (mobile) */}
       <div

@@ -69,40 +69,43 @@ export function InstallAppBanner() {
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ y: 80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 80, opacity: 0 }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
           transition={{ type: "spring", stiffness: 320, damping: 28 }}
-          className="fixed inset-x-3 z-[70] md:hidden"
-          style={{ bottom: "calc(84px + env(safe-area-inset-bottom))" }}
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
         >
-          <div className="glass flex items-center gap-3 rounded-2xl border p-3 shadow-glow">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-brand text-primary-foreground shadow-glow">
-              <Download className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold">Install Vegamart</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {iosHint
-                  ? "Tap Share → Add to Home Screen"
-                  : "Faster, offline-ready, one-tap access."}
-              </div>
-            </div>
-            {!iosHint && deferred && (
-              <button
-                onClick={install}
-                className="shrink-0 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-primary-foreground shadow-glow active:scale-95 transition tap-highlight-none"
-              >
-                Install
-              </button>
-            )}
+          <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-2xl relative">
             <button
               onClick={dismiss}
-              aria-label="Dismiss"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full hover:bg-muted tap-highlight-none"
+              className="absolute right-4 top-4 p-2 text-muted-foreground hover:bg-muted rounded-full tap-highlight-none"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
+            
+            <div className="flex flex-col items-center text-center space-y-4 pt-4">
+              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-brand text-primary-foreground shadow-glow">
+                <Download className="h-8 w-8" />
+              </div>
+              
+              <div>
+                <h3 className="text-xl font-bold font-display">Install Vegamart</h3>
+                <p className="mt-2 text-sm text-muted-foreground px-4">
+                  {iosHint
+                    ? "Tap the Share button and select 'Add to Home Screen'."
+                    : "Get faster, offline-ready, one-tap access to Vegamart."}
+                </p>
+              </div>
+
+              {!iosHint && deferred && (
+                <button
+                  onClick={install}
+                  className="w-full rounded-xl bg-brand py-3.5 text-[15px] font-bold text-primary-foreground shadow-glow active:scale-[0.98] transition tap-highlight-none mt-2"
+                >
+                  Install App Now
+                </button>
+              )}
+            </div>
           </div>
         </motion.div>
       )}

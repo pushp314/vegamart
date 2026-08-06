@@ -50,8 +50,6 @@ function OrderSuccess() {
           </p>
         </div>
 
-
-
         {/* Live Order Tracker */}
         <OrderTracker status={orderStatus} />
 

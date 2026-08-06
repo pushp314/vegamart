@@ -9,6 +9,7 @@ import {
   getDashboard,
   getDeliveryPartner,
   getOrder,
+  deleteProduct,
   getUser,
   getVendorAdmin,
   getVendorEarnings,
@@ -104,6 +105,8 @@ import {
   updateTicketStatusSchema,
 } from "../../validators/admin.validators";
 
+import { productIdParamsSchema } from "../../validators/product.validators";
+
 const router = Router();
 
 router.use(adminLimiter, authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN));
@@ -198,6 +201,7 @@ router.patch("/orders/:order_id/status", validate({ params: adminOrderIdParamsSc
 
 // Product management
 router.get("/products", validate({ query: adminProductsQuerySchema }), listProductsAdmin);
+router.delete("/products/:product_id", validate({ params: productIdParamsSchema }), deleteProduct);
 
 export default router;
 

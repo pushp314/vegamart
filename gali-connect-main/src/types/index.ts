@@ -34,6 +34,7 @@ export type Vendor = {
   profile?: VendorProfile;
   distance_km?: number;
   eta_min?: number;
+  free_delivery_min_order?: number;
 };
 
 export type ProductImage = {
@@ -55,6 +56,7 @@ export type Product = {
   price: number;
   mrp: number;
   unit: string;
+  variants?: { unit: string; price: number; mrp: number }[];
   is_active: boolean;
   is_featured: boolean;
   rating: number;

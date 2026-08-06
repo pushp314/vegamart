@@ -51,6 +51,26 @@ export const listCoupons = asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /coupons/available:
+ *   get:
+ *     summary: List available active coupons (customer)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Coupons]
+ */
+export const listAvailableCoupons = asyncHandler(async (_req: Request, res: Response) => {
+  const result = await couponService.listAdmin({
+    is_active: "true",
+    per_page: 20,
+  });
+  return sendSuccess(res, result.rows.map(c => ({
+    code: c.code,
+    desc: c.type === "PERCENTAGE" ? `Flat ${Number(c.value)}% OFF` : c.type === "FIXED" ? `Flat ₹${Number(c.value)} OFF` : "Free Delivery",
+  })));
+});
+
+/**
+ * @swagger
  * /coupons:
  *   post:
  *     summary: Create a coupon (admin)

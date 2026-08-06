@@ -15,7 +15,17 @@ import {
 } from "@/components/ui/table";
 import { Search, Star, Loader2, Package, Trash2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Product {
   id: string;
@@ -38,7 +48,11 @@ export function AdminProducts() {
   const [page, setPage] = useState(1);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
-  const { data: productsRes, isLoading, isError: productsError } = useQuery({
+  const {
+    data: productsRes,
+    isLoading,
+    isError: productsError,
+  } = useQuery({
     queryKey: ["adminProducts", search, page],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -196,7 +210,10 @@ export function AdminProducts() {
                           >
                             {product.is_featured ? "Unfeature" : "Feature"}
                           </Button>
-                          <AlertDialog open={productToDelete === product.id} onOpenChange={(open) => !open && setProductToDelete(null)}>
+                          <AlertDialog
+                            open={productToDelete === product.id}
+                            onOpenChange={(open) => !open && setProductToDelete(null)}
+                          >
                             <AlertDialogTrigger asChild>
                               <Button
                                 variant="destructive"
@@ -210,12 +227,16 @@ export function AdminProducts() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Delete Product</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete "{product.name}"? This action cannot be undone.
+                                  Are you sure you want to delete "{product.name}"? This action
+                                  cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteProductMutation.mutate(product.id)} className="bg-destructive hover:bg-destructive/90">
+                                <AlertDialogAction
+                                  onClick={() => deleteProductMutation.mutate(product.id)}
+                                  className="bg-destructive hover:bg-destructive/90"
+                                >
                                   <AlertCircle className="h-4 w-4 mr-2" />
                                   Delete
                                 </AlertDialogAction>

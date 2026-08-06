@@ -11,7 +11,7 @@ export function AdminCategories() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
-  
+
   const { data: categoriesRes, isLoading } = useQuery({
     queryKey: ["adminCategories"],
     queryFn: () => api.get<any>("/categories"),
@@ -65,7 +65,12 @@ export function AdminCategories() {
             Organize products with categories and subcategories.
           </p>
         </div>
-        <Button onClick={() => { setEditingCategory(null); setIsModalOpen(true); }}>
+        <Button
+          onClick={() => {
+            setEditingCategory(null);
+            setIsModalOpen(true);
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Category
         </Button>
@@ -78,12 +83,19 @@ export function AdminCategories() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {categories.map((category: any) => (
-            <div key={category.id} className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+            <div
+              key={category.id}
+              className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
                     {category.image_url ? (
-                      <img src={category.image_url} alt={category.name} className="h-full w-full object-cover" />
+                      <img
+                        src={category.image_url}
+                        alt={category.name}
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <Layers className="h-6 w-6 text-muted-foreground" />
                     )}
@@ -94,22 +106,26 @@ export function AdminCategories() {
                   </div>
                 </div>
                 {category.description && (
-                  <p className="text-sm text-muted-foreground mt-3 line-clamp-2">{category.description}</p>
+                  <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                    {category.description}
+                  </p>
                 )}
                 <div className="mt-4">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${category.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                    {category.is_active ? 'Active' : 'Inactive'}
+                  <span
+                    className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${category.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                  >
+                    {category.is_active ? "Active" : "Inactive"}
                   </span>
                 </div>
               </div>
-              
+
               <div className="mt-6 pt-4 border-t border-border flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => openEditModal(category)}>
                   <Edit2 className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 border-rose-200"
                   onClick={() => {
                     if (confirm("Delete this category?")) deleteMutation.mutate(category.id);
@@ -143,7 +159,7 @@ export function AdminCategories() {
                 image_url: fd.get("image_url") || undefined,
                 is_active: fd.get("is_active") === "on",
               };
-              
+
               if (editingCategory) {
                 updateMutation.mutate({ id: editingCategory.id, data });
               } else {
@@ -153,11 +169,15 @@ export function AdminCategories() {
             className="space-y-4"
           >
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Category Name</label>
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Category Name
+              </label>
               <Input name="name" defaultValue={editingCategory?.name} required />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Description
+              </label>
               <Input name="description" defaultValue={editingCategory?.description} />
             </div>
             <div className="space-y-2">
@@ -165,11 +185,21 @@ export function AdminCategories() {
               <Input name="image_url" type="url" defaultValue={editingCategory?.image_url} />
             </div>
             <div className="flex items-center gap-2 mt-4">
-              <input type="checkbox" name="is_active" id="is_active" defaultChecked={editingCategory ? editingCategory.is_active : true} className="rounded border-input" />
-              <label htmlFor="is_active" className="text-sm font-medium">Active Category</label>
+              <input
+                type="checkbox"
+                name="is_active"
+                id="is_active"
+                defaultChecked={editingCategory ? editingCategory.is_active : true}
+                className="rounded border-input"
+              />
+              <label htmlFor="is_active" className="text-sm font-medium">
+                Active Category
+              </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+                Cancel
+              </Button>
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
                 {editingCategory ? "Update" : "Create"}
               </Button>

@@ -13,12 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import type { DiscoveryVendor } from "@/lib/discovery";
-import {
-  colorForCategory,
-  walkTimeMinutes,
-  distanceFrom,
-  relativeTime,
-} from "@/lib/discovery";
+import { colorForCategory, walkTimeMinutes, distanceFrom, relativeTime } from "@/lib/discovery";
 
 interface DiscoveryVendorCardProps {
   vendor: DiscoveryVendor;
@@ -68,7 +63,12 @@ export const DiscoveryVendorCard = memo(function DiscoveryVendorCard({
       <div className="flex gap-3 p-3">
         {/* Photo */}
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-muted sm:h-28 sm:w-28">
-          <img src={img} alt={vendor.business_name} loading="lazy" className="h-full w-full object-cover" />
+          <img
+            src={img}
+            alt={vendor.business_name}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
           {open && (
             <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-black text-white shadow-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> OPEN
@@ -115,13 +115,12 @@ export const DiscoveryVendorCard = memo(function DiscoveryVendorCard({
                 )}
               </div>
               <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ background: color }}
-                />
+                <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
                 <span className="capitalize">{vendor.category ?? "Local vendor"}</span>
                 <span>•</span>
-                <span className="capitalize">{vendor.vendor_type === "roaming" ? "Street cart" : "Shop"}</span>
+                <span className="capitalize">
+                  {vendor.vendor_type === "roaming" ? "Street cart" : "Shop"}
+                </span>
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[11px] font-black text-amber-700">
@@ -157,12 +156,14 @@ export const DiscoveryVendorCard = memo(function DiscoveryVendorCard({
 
           {/* open until / last updated */}
           <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] font-medium text-muted-foreground">
-            {open && (vendor.available_to || (vendor.business_hours && vendor.business_hours.includes("–"))) && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200/60">
-                <Clock className="h-3 w-3" /> open till{" "}
-                {vendor.available_to ?? vendor.business_hours?.split("–")[1]?.trim() ?? "close"}
-              </span>
-            )}
+            {open &&
+              (vendor.available_to ||
+                (vendor.business_hours && vendor.business_hours.includes("–"))) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200/60">
+                  <Clock className="h-3 w-3" /> open till{" "}
+                  {vendor.available_to ?? vendor.business_hours?.split("–")[1]?.trim() ?? "close"}
+                </span>
+              )}
             {vendor.vendor_type === "roaming" && vendor.updated_at && (
               <span className="inline-flex items-center gap-1 text-emerald-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />

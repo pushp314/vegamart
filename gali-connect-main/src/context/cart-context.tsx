@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { Product } from "@/types";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -37,6 +38,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
+
+  const { data: settingsRes } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<any>("/settings/public"),
+  });
+  const settings = settingsRes?.data || {};
 
   // Restore cart from localStorage on mount (prevents SSR hydration mismatch)
   useEffect(() => {
@@ -126,7 +133,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setAppliedCoupon(code);
 
       const calculatedDiscount =
-        coupon.discount != null && Number.isFinite(Number(coupon.discount)) ? Number(coupon.discount) : 0;
+        coupon.discount != null && Number.isFinite(Number(coupon.discount))
+          ? Number(coupon.discount)
+          : 0;
 
       setCouponDiscount(calculatedDiscount);
       return { success: true, message: `Coupon applied: ₹${calculatedDiscount.toFixed(2)} off!` };
@@ -150,8 +159,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [items],
   );
 
-  const deliveryFee = subtotal > 199 || subtotal === 0 ? 0 : 25;
-  const tax = Math.round(subtotal * 0.05);
+  const deliveryFee = subtotal > (settings["platform.free_delivery_threshold"] ?? 199) || subtotal === 0 
+    ? 0 
+    : (settings["platform.delivery_fee"] ?? 25);
+  const taxRate = (settings["platform.tax_rate_percent"] ?? 5) / 100;
+  const tax = Math.round(subtotal * taxRate);
   const discount = Math.min(couponDiscount, subtotal);
   const total = Math.max(0, subtotal + deliveryFee + tax - discount);
   const itemCount = useMemo(() => items.reduce((acc, item) => acc + item.quantity, 0), [items]);

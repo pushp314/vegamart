@@ -31,7 +31,8 @@ export type AdminTab =
   | "notifications"
   | "support_tickets"
   | "audit_logs"
-  | "settings";
+  | "settings"
+  | "faqs";
 
 interface AdminSidebarProps {
   activeTab: AdminTab;

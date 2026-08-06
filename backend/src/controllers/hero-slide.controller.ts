@@ -249,7 +249,7 @@ export const publishHeroSlide = asyncHandler(async (req: Request, res: Response)
  *         description: Hero slide unpublished.
  */
 export const unpublishHeroSlide = asyncHandler(async (req: Request, res: Response) => {
-  const data = await heroSlideService.unpublish(req.user!.id, req.params.slide_id as string, req);
+  const data = await heroSlideService.unpublish(req.params.slide_id as string, req.user!.id, req);
   return sendSuccess(res, data);
 });
 
@@ -271,6 +271,6 @@ export const unpublishHeroSlide = asyncHandler(async (req: Request, res: Respons
  *         description: Hero slide deleted.
  */
 export const deleteHeroSlide = asyncHandler(async (req: Request, res: Response) => {
-  const data = await heroSlideService.remove(req.user!.id, req.params.slide_id as string, req);
+  const data = await heroSlideService.remove(req.params.slide_id as string, req.user!.id, req);
   return sendSuccess(res, data);
 });

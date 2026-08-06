@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, CreditCard, FileText } from "lucide-react";
+import { Save, Loader2, CreditCard, FileText, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +11,13 @@ import { Input } from "@/components/ui/input";
 export function VendorSettings({ vendorProfile }: any) {
   const queryClient = useQueryClient();
   const [gstin, setGstin] = useState(vendorProfile.gstin || "");
-  const [subscriptionPlan, setSubscriptionPlan] = useState(vendorProfile.subscription_plan || "basic");
+  const [freeDeliveryMin, setFreeDeliveryMin] = useState(
+    vendorProfile.free_delivery_min_order ? String(vendorProfile.free_delivery_min_order) : ""
+  );
+  const [subscriptionPlan, setSubscriptionPlan] = useState(
+    vendorProfile.subscription_plan || "basic",
+  );
+  const [contactPhone, setContactPhone] = useState(vendorProfile.phone || "");
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => api.put("/vendors/me", data),
@@ -28,14 +34,16 @@ export function VendorSettings({ vendorProfile }: any) {
     e.preventDefault();
     updateMutation.mutate({
       gstin: gstin,
-      subscription_plan: subscriptionPlan
+      subscription_plan: subscriptionPlan,
+      free_delivery_min_order: freeDeliveryMin ? Number(freeDeliveryMin) : null,
+      phone: contactPhone || null,
     });
   };
 
   return (
     <div className="space-y-6">
       <h2 className="font-display text-lg font-bold">Business Settings</h2>
-      
+
       <form onSubmit={handleSave} className="space-y-6">
         <Card>
           <CardHeader>
@@ -47,7 +55,9 @@ export function VendorSettings({ vendorProfile }: any) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5 max-w-sm">
-              <Label htmlFor="gstin" className="text-xs font-medium">GSTIN (Optional)</Label>
+              <Label htmlFor="gstin" className="text-xs font-medium">
+                GSTIN (Optional)
+              </Label>
               <Input
                 id="gstin"
                 placeholder="e.g. 22AAAAA0000A1Z5"
@@ -55,6 +65,48 @@ export function VendorSettings({ vendorProfile }: any) {
                 onChange={(e) => setGstin(e.target.value)}
                 className="h-9 text-sm uppercase"
               />
+            </div>
+            <div className="space-y-1.5 max-w-sm">
+              <Label htmlFor="freeDeliveryMin" className="text-xs font-medium">
+                Free Delivery Minimum Order Amount (₹)
+              </Label>
+              <Input
+                id="freeDeliveryMin"
+                type="number"
+                min="0"
+                placeholder="e.g. 199 or leave blank for global default"
+                value={freeDeliveryMin}
+                onChange={(e) => setFreeDeliveryMin(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-emerald-600" />
+              Contact Information
+            </CardTitle>
+            <CardDescription>Set your store phone number so customers can call you directly.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5 max-w-sm">
+              <Label htmlFor="contactPhone" className="text-xs font-medium">
+                Store Phone Number
+              </Label>
+              <Input
+                id="contactPhone"
+                type="tel"
+                placeholder="e.g. +919876543210"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                className="h-9 text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                This number will appear on your store page for customers to call.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -70,13 +122,20 @@ export function VendorSettings({ vendorProfile }: any) {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Basic Plan */}
-              <div 
+              <div
                 className={`relative rounded-2xl border-2 p-5 cursor-pointer transition-all ${subscriptionPlan === "basic" ? "border-emerald-500 bg-emerald-50/50" : "border-border hover:border-emerald-200"}`}
                 onClick={() => setSubscriptionPlan("basic")}
               >
                 {subscriptionPlan === "basic" && (
                   <div className="absolute -top-3 -right-3 h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={3}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
                   </div>
                 )}
                 <div className="font-display font-bold text-lg mb-1">Basic</div>
@@ -89,18 +148,29 @@ export function VendorSettings({ vendorProfile }: any) {
               </div>
 
               {/* Premium Plan */}
-              <div 
+              <div
                 className={`relative rounded-2xl border-2 p-5 cursor-pointer transition-all ${subscriptionPlan === "premium" ? "border-emerald-500 bg-emerald-50/50" : "border-border hover:border-emerald-200"}`}
                 onClick={() => setSubscriptionPlan("premium")}
               >
                 {subscriptionPlan === "premium" && (
                   <div className="absolute -top-3 -right-3 h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={3}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
                   </div>
                 )}
-                <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-xl">POPULAR</div>
+                <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-xl">
+                  POPULAR
+                </div>
                 <div className="font-display font-bold text-lg mb-1">Premium</div>
-                <div className="text-2xl font-black text-emerald-700 mb-3">₹499<span className="text-sm font-normal text-muted-foreground">/mo</span></div>
+                <div className="text-2xl font-black text-emerald-700 mb-3">
+                  ₹499<span className="text-sm font-normal text-muted-foreground">/mo</span>
+                </div>
                 <ul className="text-xs text-muted-foreground space-y-2">
                   <li>• Unlimited products</li>
                   <li>• 2% Platform fee</li>
@@ -112,9 +182,9 @@ export function VendorSettings({ vendorProfile }: any) {
           </CardContent>
         </Card>
 
-        <Button 
-          type="submit" 
-          disabled={updateMutation.isPending} 
+        <Button
+          type="submit"
+          disabled={updateMutation.isPending}
           className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white"
         >
           {updateMutation.isPending ? (

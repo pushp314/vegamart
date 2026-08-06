@@ -43,7 +43,7 @@ function OrderIdTrackingPage() {
   const isDelivered = status === "delivered";
   const isOutForDelivery = status === "out_for_delivery";
   const statusLabel =
-    ({
+    {
       pending: "Placed",
       confirmed: "Confirmed",
       processing: "Processing",
@@ -52,7 +52,7 @@ function OrderIdTrackingPage() {
       out_for_delivery: "Out for Delivery",
       delivered: "Delivered",
       cancelled: "Cancelled",
-    }[status] || status);
+    }[status] || status;
 
   const steps = [
     { label: "Order Placed", desc: "Sent to vendor", done: !!order },
@@ -98,7 +98,10 @@ function OrderIdTrackingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24">
-      <AppHeader title="Live Order Tracking" subtitle={`Order #${order?.order_number || orderId}`} />
+      <AppHeader
+        title="Live Order Tracking"
+        subtitle={`Order #${order?.order_number || orderId}`}
+      />
 
       <main className="mx-auto max-w-4xl px-4 md:px-6 py-6 space-y-6">
         {isLoading ? (
@@ -180,7 +183,9 @@ function OrderIdTrackingPage() {
             {!isDelivered && order.otp_code && (
               <div className="rounded-3xl border border-rose-500/30 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-rose-500/5 p-5 shadow-soft flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="font-display font-black text-sm text-rose-600">Secure Delivery OTP</h3>
+                  <h3 className="font-display font-black text-sm text-rose-600">
+                    Secure Delivery OTP
+                  </h3>
                   <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                     Please share this 6-digit code with the delivery partner to receive your order.
                   </p>
@@ -190,7 +195,6 @@ function OrderIdTrackingPage() {
                 </div>
               </div>
             )}
-
 
             {/* Status Timeline */}
             <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
@@ -225,7 +229,9 @@ function OrderIdTrackingPage() {
             <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
               <div className="flex items-center justify-between border-b pb-3">
                 <div>
-                  <h3 className="font-display font-black text-base text-foreground">Order Details</h3>
+                  <h3 className="font-display font-black text-base text-foreground">
+                    Order Details
+                  </h3>
                   <p className="text-xs text-muted-foreground">
                     Order #{order.order_number || orderId}
                   </p>
@@ -274,7 +280,8 @@ function OrderIdTrackingPage() {
                           </span>
                         </div>
                         <span className="font-bold text-foreground tabular-nums">
-                          ₹{((item.unit_price || item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                          ₹
+                          {((item.unit_price || item.price || 0) * (item.quantity || 1)).toFixed(2)}
                         </span>
                       </div>
                     ))

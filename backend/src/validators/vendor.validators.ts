@@ -29,6 +29,7 @@ export const createVendorSchema = z.object({
   business_hours: z.string().max(500).optional().nullable(),
   min_order: z.coerce.number().min(0).optional(),
   delivery_fee: z.coerce.number().min(0).optional(),
+  free_delivery_min_order: z.coerce.number().min(0).optional().nullable(),
   owner_name: z.string().trim().max(120).optional().nullable(),
   phone: z
     .string()
@@ -41,7 +42,10 @@ export const createVendorSchema = z.object({
   roaming: z.boolean().optional(),
 }).strict();
 
-export const updateVendorSchema = createVendorSchema.partial();
+export const updateVendorSchema = createVendorSchema.partial().extend({
+  subscription_plan: z.string().trim().max(100).optional(),
+  gstin: z.string().trim().max(20).optional().nullable(),
+});
 
 export const vendorAvailabilitySchema = z.object({
   is_open: z.boolean(),

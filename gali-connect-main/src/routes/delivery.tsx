@@ -26,7 +26,9 @@ import { useAuth } from "@/context/auth-context";
 import { DeliveryHistory } from "@/components/delivery/DeliveryHistory";
 import { DeliveryProfile } from "@/components/delivery/DeliveryProfile";
 import { DeliverySettings } from "@/components/delivery/DeliverySettings";
-import { DeliveryMapModal } from "@/components/delivery/DeliveryMapModal";
+import { lazy, Suspense } from "react";
+import { ClientOnly } from "@/components/system/client-only";
+const DeliveryMapModal = lazy(() => import("@/components/delivery/DeliveryMapModal").then(m => ({ default: m.DeliveryMapModal })));
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -52,7 +54,7 @@ function DeliveryDashboard() {
     "requests" | "active" | "earnings" | "history" | "profile" | "settings"
   >("requests");
   const [isOnline, setIsOnline] = useState(false);
-  
+
   // OTP Modal
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -114,7 +116,7 @@ function DeliveryDashboard() {
 
   // Accept Delivery Mutation
   const acceptMutation = useMutation({
-    mutationFn: ({ id, eta_minutes }: { id: string, eta_minutes: number }) => 
+    mutationFn: ({ id, eta_minutes }: { id: string; eta_minutes: number }) =>
       api.put(`/delivery/orders/${id}/accept`, { eta_minutes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
@@ -166,7 +168,6 @@ function DeliveryDashboard() {
       },
     });
   };
-
 
   if (!isAuthenticated) {
     return (
@@ -465,20 +466,36 @@ function DeliveryDashboard() {
                             // Customer Location
                             const cLat = o.address?.lat || 0;
                             const cLng = o.address?.lng || 0;
-                            
+
                             // Delivery Partner Location (Using dummy current location for now, or could use navigator.geolocation)
                             // We will just show Vendor to Customer if Out for Delivery, or Rider to Vendor if not picked up.
                             if (o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP") {
                               setMapData({
                                 title: "Route to Pickup",
-                                startLocation: { lat: partner.current_lat || vLat - 0.01, lng: partner.current_lng || vLng - 0.01, label: "Your Location" },
-                                endLocation: { lat: vLat, lng: vLng, label: o.vendor?.business_name || "Vendor" }
+                                startLocation: {
+                                  lat: partner.current_lat || vLat - 0.01,
+                                  lng: partner.current_lng || vLng - 0.01,
+                                  label: "Your Location",
+                                },
+                                endLocation: {
+                                  lat: vLat,
+                                  lng: vLng,
+                                  label: o.vendor?.business_name || "Vendor",
+                                },
                               });
                             } else {
                               setMapData({
                                 title: "Route to Dropoff",
-                                startLocation: { lat: vLat, lng: vLng, label: o.vendor?.business_name || "Vendor" },
-                                endLocation: { lat: cLat, lng: cLng, label: o.user?.name || "Customer" }
+                                startLocation: {
+                                  lat: vLat,
+                                  lng: vLng,
+                                  label: o.vendor?.business_name || "Vendor",
+                                },
+                                endLocation: {
+                                  lat: cLat,
+                                  lng: cLng,
+                                  label: o.user?.name || "Customer",
+                                },
                               });
                             }
                             setMapModalOpen(true);
@@ -488,7 +505,7 @@ function DeliveryDashboard() {
                           <Navigation className="h-4 w-4" /> View Route
                         </button>
                       </div>
-                      
+
                       <div className="flex gap-2">
                         {o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" ? (
                           <button
@@ -502,7 +519,10 @@ function DeliveryDashboard() {
                         ) : o.status === "PICKED_UP" ? (
                           <button
                             onClick={() =>
-                              updateStatusMutation.mutate({ orderId: o.id, status: "out_for_delivery" })
+                              updateStatusMutation.mutate({
+                                orderId: o.id,
+                                status: "out_for_delivery",
+                              })
                             }
                             className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-purple-600 text-white hover:bg-purple-500"
                           >
@@ -757,7 +777,11 @@ function DeliveryDashboard() {
                 disabled={!etaValue || acceptMutation.isPending}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-500"
               >
-                {acceptMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm & Accept"}
+                {acceptMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Confirm & Accept"
+                )}
               </Button>
             </div>
           </div>
@@ -766,13 +790,17 @@ function DeliveryDashboard() {
 
       {/* MAP MODAL */}
       {mapModalOpen && mapData && (
-        <DeliveryMapModal
-          open={mapModalOpen}
-          onOpenChange={setMapModalOpen}
-          title={mapData.title}
-          startLocation={mapData.startLocation}
-          endLocation={mapData.endLocation}
-        />
+        <ClientOnly>
+          <Suspense fallback={null}>
+            <DeliveryMapModal
+              open={mapModalOpen}
+              onOpenChange={setMapModalOpen}
+              title={mapData.title}
+              startLocation={mapData.startLocation}
+              endLocation={mapData.endLocation}
+            />
+          </Suspense>
+        </ClientOnly>
       )}
     </div>
   );

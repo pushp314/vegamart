@@ -30,16 +30,20 @@ interface ShopLocationFormProps {
   };
 }
 
-function LocationMarker({ position, setPosition }: { position: L.LatLng | null, setPosition: (p: L.LatLng) => void }) {
+function LocationMarker({
+  position,
+  setPosition,
+}: {
+  position: L.LatLng | null;
+  setPosition: (p: L.LatLng) => void;
+}) {
   useMapEvents({
     click(e) {
       setPosition(e.latlng);
     },
   });
 
-  return position === null ? null : (
-    <Marker position={position}></Marker>
-  );
+  return position === null ? null : <Marker position={position}></Marker>;
 }
 
 export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
@@ -57,11 +61,11 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
   }, [vendorProfile]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: { lat: number; lng: number; delivery_radius_km: number }) => 
+    mutationFn: (data: { lat: number; lng: number; delivery_radius_km: number }) =>
       api.put("/vendors/me", {
         latitude: data.lat,
         longitude: data.lng,
-        delivery_radius_km: data.delivery_radius_km
+        delivery_radius_km: data.delivery_radius_km,
       }),
     onSuccess: () => {
       toast.success("Shop location updated successfully");
@@ -80,7 +84,7 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
     updateMutation.mutate({
       lat: position.lat,
       lng: position.lng,
-      delivery_radius_km: radiusKm
+      delivery_radius_km: radiusKm,
     });
   };
 
@@ -103,10 +107,13 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
             />
             <LocationMarker position={position} setPosition={setPosition} />
             {position && (
-              <Circle 
-                center={position} 
-                radius={radiusKm * 1000} 
-                pathOptions={{ fillColor: 'var(--color-emerald-500)', color: 'var(--color-emerald-600)' }} 
+              <Circle
+                center={position}
+                radius={radiusKm * 1000}
+                pathOptions={{
+                  fillColor: "var(--color-emerald-500)",
+                  color: "var(--color-emerald-600)",
+                }}
               />
             )}
           </MapContainer>
@@ -131,9 +138,9 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
           </div>
         </div>
 
-        <Button 
-          onClick={handleSave} 
-          disabled={updateMutation.isPending} 
+        <Button
+          onClick={handleSave}
+          disabled={updateMutation.isPending}
           className="w-full bg-emerald-600 hover:bg-emerald-500 text-white"
         >
           {updateMutation.isPending ? (

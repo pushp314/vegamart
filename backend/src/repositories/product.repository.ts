@@ -13,6 +13,7 @@ const baseSelect = {
   price: true,
   mrp: true,
   unit: true,
+  variants: true,
   tag: true,
   is_active: true,
   is_featured: true,
@@ -28,7 +29,7 @@ const baseSelect = {
     orderBy: { sort_order: "asc" as const },
   },
   vendor: {
-    select: { id: true, business_name: true, logo_url: true, status: true },
+    select: { id: true, business_name: true, logo_url: true, status: true, free_delivery_min_order: true },
   },
 } as const;
 
@@ -43,6 +44,7 @@ export type ProductRow = {
   price: import("@prisma/client").Prisma.Decimal;
   mrp: import("@prisma/client").Prisma.Decimal;
   unit: string;
+  variants: any | null;
   tag: string | null;
   is_active: boolean;
   is_featured: boolean;
@@ -65,6 +67,7 @@ export type ProductRow = {
     business_name: string;
     logo_url: string | null;
     status: import("@prisma/client").VendorStatus;
+    free_delivery_min_order?: import("@prisma/client").Prisma.Decimal | null;
   } | null;
 };
 

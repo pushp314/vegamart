@@ -1,4 +1,6 @@
 import { randomUUID } from "crypto";
+import { ApiError } from "./ApiError";
+import { HttpStatus } from "./httpStatus";
 
 import { IMAGE_MIME_TYPES, MAX_IMAGE_SIZE_BYTES } from "../constants";
 
@@ -8,8 +10,7 @@ const MAGIC_BYTES: Record<string, Array<number[]>> = {
   "image/jpeg": [[0xff, 0xd8, 0xff]],
   "image/png": [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
   "image/webp": [
-    [0x52, 0x49, 0x46, 0x46, 0x57, 0x45, 0x42, 0x50],
-    [0x52, 0x49, 0x46, 0x46, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20],
+    [0x52, 0x49, 0x46, 0x46, -1, -1, -1, -1, 0x57, 0x45, 0x42, 0x50],
   ],
   "image/gif": [
     [0x47, 0x49, 0x46, 0x38, 0x37, 0x61],
@@ -44,7 +45,7 @@ export function hasValidMagicBytes(mime: string, buffer: Buffer): boolean {
     return true; // text/plain has no binary signature
   }
   const prefix = buffer.subarray(0, 12);
-  return signatures.some((sig) => sig.every((byte, i) => prefix[i] === byte));
+  return signatures.some((sig) => sig.every((byte, i) => byte === -1 || prefix[i] === byte));
 }
 
 export interface ImageDimensions {
@@ -135,15 +136,15 @@ export function buildObjectKey(folder: string, originalName: string): string {
 
 export function validateUpload(kind: UploadKind, mime: string, buffer: Buffer): void {
   if (!isAllowedMime(kind, mime)) {
-    throw new Error(`Unsupported file type "${mime}".`);
+    throw new ApiError(HttpStatus.BAD_REQUEST, `Unsupported file type "${mime}".`, { code: "UNSUPPORTED_MEDIA_TYPE" });
   }
   if (buffer.length > maxSizeFor(kind)) {
-    throw new Error("File exceeds the maximum allowed size.");
+    throw new ApiError(HttpStatus.BAD_REQUEST, "File exceeds the maximum allowed size.", { code: "PAYLOAD_TOO_LARGE" });
   }
   if (buffer.length === 0) {
-    throw new Error("Empty file.");
+    throw new ApiError(HttpStatus.BAD_REQUEST, "Empty file.", { code: "BAD_REQUEST" });
   }
   if (!hasValidMagicBytes(mime, buffer)) {
-    throw new Error("File content does not match its declared type.");
+    throw new ApiError(HttpStatus.BAD_REQUEST, "File content does not match its declared type.", { code: "BAD_REQUEST" });
   }
 }

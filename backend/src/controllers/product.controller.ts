@@ -5,11 +5,22 @@ import { sendCreated, sendNoContent, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
 import { HttpStatus } from "../utils/httpStatus";
+import prisma from "../database/prisma";
 import type {
   CreateProductBody,
   CreateReviewBody,
   UpdateProductBody,
 } from "../validators/product.validators";
+
+export const getGalleryImages = asyncHandler(async (_req: Request, res: Response) => {
+  const images = await prisma.productImage.findMany({
+    distinct: ['url'],
+    select: { url: true },
+    orderBy: { created_at: 'desc' },
+    take: 100,
+  });
+  return sendSuccess(res, images.map(img => img.url));
+});
 
 /**
  * @swagger

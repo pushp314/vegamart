@@ -38,7 +38,8 @@ import { AdminCategories } from "@/components/admin/AdminCategories";
 import { AdminSupportTickets } from "@/components/admin/AdminSupportTickets";
 import { AdminAuditLogs } from "@/components/admin/AdminAuditLogs";
 import { AdminSettings } from "@/components/admin/AdminSettings";
-import { UserPlus, Tag, Layers, LifeBuoy } from "lucide-react";
+import { AdminFAQ } from "@/components/admin/AdminFAQ";
+import { UserPlus, Tag, Layers, LifeBuoy, HelpCircle } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin Portal — Vegamart" }] }),
@@ -60,7 +61,11 @@ function AdminDashboard() {
   }, [authLoading, isAuthenticated, isAdmin, navigate]);
 
   // Dashboard Stats
-  const { data: statsRes, isLoading: statsLoading, isError: statsError } = useQuery({
+  const {
+    data: statsRes,
+    isLoading: statsLoading,
+    isError: statsError,
+  } = useQuery({
     queryKey: ["adminDashboardStats"],
     queryFn: () => api.get<{ data: any }>("/admin/dashboard"),
     enabled: isAuthenticated && isAdmin,
@@ -160,6 +165,15 @@ function AdminDashboard() {
     onError: () => toast.error("Failed to suspend vendor"),
   });
 
+  const restoreVendorMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/admin/vendors/${id}/restore`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
+      toast.success("Vendor unsuspended");
+    },
+    onError: () => toast.error("Failed to unsuspend vendor"),
+  });
+
   const toggleUserStatusMutation = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => {
       if (is_active) {
@@ -222,7 +236,12 @@ function AdminDashboard() {
       icon: Bike,
       onClick: () => setActiveTab("delivery"),
     },
-    { id: "categories", title: "Categories", icon: Layers, onClick: () => setActiveTab("categories") },
+    {
+      id: "categories",
+      title: "Categories",
+      icon: Layers,
+      onClick: () => setActiveTab("categories"),
+    },
     { id: "products", title: "Products", icon: FileText, onClick: () => setActiveTab("products") },
     { id: "cms", title: "CMS", icon: ClipboardList, onClick: () => setActiveTab("cms") },
     { id: "coupons", title: "Coupons", icon: Tag, onClick: () => setActiveTab("coupons") },
@@ -246,7 +265,18 @@ function AdminDashboard() {
       onClick: () => setActiveTab("audit_logs"),
     },
     { id: "refunds", title: "Refunds", icon: Banknote, onClick: () => setActiveTab("refunds") },
-    { id: "settings", title: "Settings", icon: Settings, onClick: () => setActiveTab("settings") },
+    {
+      id: "settings",
+      title: "Settings",
+      icon: Settings,
+      onClick: () => setActiveTab("settings"),
+    },
+    {
+      id: "faqs",
+      title: "FAQs",
+      icon: HelpCircle,
+      onClick: () => setActiveTab("faqs"),
+    },
   ];
 
   if (authLoading || !isAuthenticated || !isAdmin) {
@@ -273,6 +303,7 @@ function AdminDashboard() {
           onApprove={(id) => approveVendorMutation.mutate(id)}
           onReject={(id, reason) => rejectVendorMutation.mutate({ id, reason })}
           onSuspend={(id) => suspendVendorMutation.mutate(id)}
+          onRestore={(id) => restoreVendorMutation.mutate(id)}
           isApproving={approveVendorMutation.isPending}
           isRejecting={rejectVendorMutation.isPending}
         />
@@ -302,6 +333,7 @@ function AdminDashboard() {
       {activeTab === "audit_logs" && <AdminAuditLogs />}
       {activeTab === "refunds" && <AdminRefunds />}
       {activeTab === "settings" && <AdminSettings />}
+      {activeTab === "faqs" && <AdminFAQ />}
     </PortalLayout>
   );
 }

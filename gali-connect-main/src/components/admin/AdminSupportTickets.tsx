@@ -91,11 +91,21 @@ export function AdminSupportTickets() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead className="font-bold uppercase tracking-wider text-[10px]">Ticket ID & Subject</TableHead>
-                <TableHead className="font-bold uppercase tracking-wider text-[10px]">User</TableHead>
-                <TableHead className="font-bold uppercase tracking-wider text-[10px]">Status & Priority</TableHead>
-                <TableHead className="font-bold uppercase tracking-wider text-[10px]">Created At</TableHead>
-                <TableHead className="font-bold uppercase tracking-wider text-[10px] text-right">Actions</TableHead>
+                <TableHead className="font-bold uppercase tracking-wider text-[10px]">
+                  Ticket ID & Subject
+                </TableHead>
+                <TableHead className="font-bold uppercase tracking-wider text-[10px]">
+                  User
+                </TableHead>
+                <TableHead className="font-bold uppercase tracking-wider text-[10px]">
+                  Status & Priority
+                </TableHead>
+                <TableHead className="font-bold uppercase tracking-wider text-[10px]">
+                  Created At
+                </TableHead>
+                <TableHead className="font-bold uppercase tracking-wider text-[10px] text-right">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -111,21 +121,36 @@ export function AdminSupportTickets() {
                   <TableRow key={ticket.id}>
                     <TableCell>
                       <p className="font-bold text-sm text-foreground">{ticket.subject}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{ticket.id}</p>
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2 max-w-md">{ticket.description}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                        {ticket.id}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2 max-w-md">
+                        {ticket.description}
+                      </p>
                     </TableCell>
                     <TableCell>
-                      <p className="font-medium text-sm text-foreground">{ticket.user?.name || "Anonymous"}</p>
-                      <p className="text-xs text-muted-foreground">{ticket.user?.email || "No email"}</p>
+                      <p className="font-medium text-sm text-foreground">
+                        {ticket.user?.name || "Anonymous"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {ticket.user?.email || "No email"}
+                      </p>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-2 items-start">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider
-                          ${ticket.status === 'OPEN' ? 'bg-amber-100 text-amber-800' : 
-                            ticket.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' : 
-                            ticket.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' : 
-                            ticket.status === 'CLOSED' ? 'bg-gray-100 text-gray-800' : 
-                            'bg-rose-100 text-rose-800'}`}
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider
+                          ${
+                            ticket.status === "OPEN"
+                              ? "bg-amber-100 text-amber-800"
+                              : ticket.status === "IN_PROGRESS"
+                                ? "bg-blue-100 text-blue-800"
+                                : ticket.status === "RESOLVED"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : ticket.status === "CLOSED"
+                                    ? "bg-gray-100 text-gray-800"
+                                    : "bg-rose-100 text-rose-800"
+                          }`}
                         >
                           {ticket.status}
                         </span>

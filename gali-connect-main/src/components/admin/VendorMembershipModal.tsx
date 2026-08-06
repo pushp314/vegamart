@@ -11,14 +11,17 @@ interface VendorMembershipModalProps {
   isSaving: boolean;
 }
 
-export function VendorMembershipModal({ vendor, onClose, onSave, isSaving }: VendorMembershipModalProps) {
+export function VendorMembershipModal({
+  vendor,
+  onClose,
+  onSave,
+  isSaving,
+}: VendorMembershipModalProps) {
   const [commissionRate, setCommissionRate] = useState<string>(
-    vendor.commission_rate?.toString() || "5"
+    vendor.commission_rate?.toString() || "5",
   );
-  const [membershipTier, setMembershipTier] = useState<string>(
-    vendor.membership_tier || "basic"
-  );
-  
+  const [membershipTier, setMembershipTier] = useState<string>(vendor.membership_tier || "basic");
+
   // Format dates correctly for input type="datetime-local"
   const getInitialDate = () => {
     if (vendor.membership_expires_at) {
@@ -29,14 +32,16 @@ export function VendorMembershipModal({ vendor, onClose, onSave, isSaving }: Ven
     }
     return "";
   };
-  
+
   const [membershipExpiresAt, setMembershipExpiresAt] = useState<string>(getInitialDate());
 
   const handleSave = () => {
     onSave(vendor.id, {
       commission_rate: parseFloat(commissionRate),
       membership_tier: membershipTier,
-      membership_expires_at: membershipExpiresAt ? new Date(membershipExpiresAt).toISOString() : null,
+      membership_expires_at: membershipExpiresAt
+        ? new Date(membershipExpiresAt).toISOString()
+        : null,
     });
   };
 
@@ -60,7 +65,7 @@ export function VendorMembershipModal({ vendor, onClose, onSave, isSaving }: Ven
               onChange={(e) => setCommissionRate(e.target.value)}
             />
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
               Membership Tier
@@ -75,7 +80,7 @@ export function VendorMembershipModal({ vendor, onClose, onSave, isSaving }: Ven
               <option value="gold">Gold (Featured)</option>
             </select>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
               Membership Expires At
@@ -85,14 +90,20 @@ export function VendorMembershipModal({ vendor, onClose, onSave, isSaving }: Ven
               value={membershipExpiresAt}
               onChange={(e) => setMembershipExpiresAt(e.target.value)}
             />
-            <p className="text-[10px] text-muted-foreground">Leave blank for lifetime membership.</p>
+            <p className="text-[10px] text-muted-foreground">
+              Leave blank for lifetime membership.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="outline" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-500">
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-emerald-600 hover:bg-emerald-500"
+            >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
             </Button>
           </div>

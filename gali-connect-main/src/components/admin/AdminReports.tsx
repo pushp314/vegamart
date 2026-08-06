@@ -35,11 +35,18 @@ export function AdminReports() {
 
   const totalRevenue = rows.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
   const totalOrders =
-    ordersTotal !== null ? ordersTotal : rows.reduce((sum, r) => sum + (Number(r.orders) || Number(r.units_sold) || 0), 0);
+    ordersTotal !== null
+      ? ordersTotal
+      : rows.reduce((sum, r) => sum + (Number(r.orders) || Number(r.units_sold) || 0), 0);
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
   const activeVendors = reportType === "vendors" ? rows.length : 0;
 
-  const reportData = { total_revenue: totalRevenue, total_orders: totalOrders, avg_order_value: avgOrderValue, active_vendors: activeVendors };
+  const reportData = {
+    total_revenue: totalRevenue,
+    total_orders: totalOrders,
+    avg_order_value: avgOrderValue,
+    active_vendors: activeVendors,
+  };
 
   return (
     <div className="space-y-6">
@@ -155,9 +162,41 @@ export function AdminReports() {
               <CardTitle>Report Data</CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="text-sm bg-muted p-4 rounded-lg overflow-auto max-h-96">
-                {JSON.stringify(rows, null, 2)}
-              </pre>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs uppercase bg-muted text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 rounded-tl-lg">Period Start</th>
+                      <th className="px-4 py-3">Orders</th>
+                      <th className="px-4 py-3">Revenue (₹)</th>
+                      <th className="px-4 py-3 rounded-tr-lg">Avg Order Value (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                          No data available for this period.
+                        </td>
+                      </tr>
+                    ) : (
+                      rows.map((row: any, i: number) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                          <td className="px-4 py-3 font-medium">
+                            {new Date(row.period_start).toLocaleDateString(undefined, { 
+                              year: 'numeric', month: 'short', day: 'numeric',
+                              hour: '2-digit', minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="px-4 py-3">{row.orders}</td>
+                          <td className="px-4 py-3 font-semibold text-emerald-600">₹{Number(row.revenue).toFixed(2)}</td>
+                          <td className="px-4 py-3">₹{Number(row.avg_order_value).toFixed(2)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         </>

@@ -12,6 +12,7 @@ import * as inventoryRepo from "../repositories/inventory.repository";
 import * as orderRepo from "../repositories/order.repository";
 import * as paymentRepo from "../repositories/payment.repository";
 import { findById as findAddressById } from "../repositories/address.repository";
+import { settingsService } from "./settings.service";
 import { findById as findVendorById } from "../repositories/vendor.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
@@ -44,11 +45,20 @@ function groupByVendor(cart: cartRepo.CartRow): VendorGroup[] {
   return [...groups.values()];
 }
 
-function computeDeliveryFee(vendorSubtotal: number, minOrder: number, deliveryFee: number): number {
-  if (minOrder > 0 && vendorSubtotal >= minOrder) {
+function computeDeliveryFee(
+  vendorSubtotal: number, 
+  globalFreeDeliveryThreshold: number, 
+  globalDeliveryFee: number,
+  vendorFreeDeliveryMinOrder: number | null,
+  vendorDeliveryFee: number
+): number {
+  const freeThreshold = vendorFreeDeliveryMinOrder !== null ? vendorFreeDeliveryMinOrder : globalFreeDeliveryThreshold;
+  const fee = vendorDeliveryFee > 0 ? vendorDeliveryFee : globalDeliveryFee;
+
+  if (freeThreshold > 0 && vendorSubtotal >= freeThreshold) {
     return 0;
   }
-  return deliveryFee;
+  return fee;
 }
 
 export interface CheckoutSummaryItem {
@@ -110,7 +120,18 @@ export const checkoutService = {
       if (!vendor) {
         throw new ApiError(HttpStatus.BAD_REQUEST, "One of the vendors is no longer available.", { code: "INVALID_VENDOR" });
       }
-      const vendorDeliveryFee = computeDeliveryFee(group.subtotal, vendor.min_order.toNumber(), vendor.delivery_fee.toNumber());
+
+      const settings = await settingsService.getAllSettings();
+      const globalDeliveryFee = (settings["pricing.delivery_fee"] as number) || 0;
+      const globalFreeDeliveryThreshold = (settings["pricing.free_delivery_threshold"] as number) || 0;
+
+      const vendorDeliveryFee = computeDeliveryFee(
+        group.subtotal, 
+        globalFreeDeliveryThreshold, 
+        globalDeliveryFee,
+        vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null,
+        vendor.delivery_fee ? vendor.delivery_fee.toNumber() : 0
+      );
       summaryGroups.push({
         vendor_id: group.vendor_id,
         vendor_name: vendor.business_name,
@@ -145,8 +166,11 @@ export const checkoutService = {
       couponInfo = { id: coupon.id, code: coupon.code, type: coupon.type, discount };
     }
 
+    const settings = await settingsService.getAllSettings();
+    const taxRatePercent = (settings["pricing.tax_rate"] as number) || TAX_RATE_PERCENT;
+
     const taxable = Math.max(0, itemsSubtotal - discount);
-    const tax = Math.round((taxable * TAX_RATE_PERCENT) / 100 * 100) / 100;
+    const tax = Math.round((taxable * taxRatePercent) / 100 * 100) / 100;
     const total = Math.round((itemsSubtotal + deliveryFee - discount + tax) * 100) / 100;
 
     return {

@@ -1,14 +1,6 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Search,
-  MapPin,
-  Mic,
-  SlidersHorizontal,
-  X,
-  TrendingUp,
-  History,
-} from "lucide-react";
+import { Search, MapPin, Mic, SlidersHorizontal, X, TrendingUp, History } from "lucide-react";
 import type { DiscoveryVendor } from "@/lib/discovery";
 import { DISCOVERY_CATEGORIES } from "@/lib/discovery";
 
@@ -160,7 +152,10 @@ export const DiscoverySearch = memo(function DiscoverySearch({
                       }}
                       className="flex w-full items-center gap-3 rounded-2xl bg-white/60 px-3 py-2 text-left ring-1 ring-black/5 transition hover:bg-white"
                     >
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm" style={{ background: `${v.category ? "var(--primary)" : ""}` }}>
+                      <span
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm"
+                        style={{ background: `${v.category ? "var(--primary)" : ""}` }}
+                      >
                         {v.category?.slice(0, 2).toUpperCase() ?? "V"}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -173,7 +168,9 @@ export const DiscoverySearch = memo(function DiscoverySearch({
                       </span>
                       <span
                         className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
-                          v.is_open ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                          v.is_open
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-muted text-muted-foreground"
                         }`}
                       >
                         {v.is_open ? "OPEN" : "CLOSED"}

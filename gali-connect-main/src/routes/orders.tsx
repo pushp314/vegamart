@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, Outlet, useMatchRoute } from "@tanstack/react-router";
 import {
   Bike,
   ChevronDown,
@@ -54,6 +54,18 @@ function statusLabel(status: string): string {
 }
 
 function Orders() {
+  const matchRoute = useMatchRoute();
+  const isChildRoute = matchRoute({ to: "/orders/$orderId/track", fuzzy: true });
+
+  // If a child route is active (e.g., order tracking), render only the child
+  if (isChildRoute) {
+    return <Outlet />;
+  }
+
+  return <OrdersList />;
+}
+
+function OrdersList() {
   const refresh = () => new Promise<void>((res) => setTimeout(res, 700));
   const [expandedTracking, setExpandedTracking] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
@@ -107,10 +119,12 @@ function Orders() {
     }
   };
 
+  const ordersEndpoint = role === "vendor" ? "/vendors/orders" : "/orders";
+
   const { data: res, isLoading } = useQuery({
-    queryKey: ["orders"],
-    queryFn: () => api.get<any[]>("/orders"),
-    enabled: !!user && !isGuest && role === "customer",
+    queryKey: ["orders", role],
+    queryFn: () => api.get<any[]>(ordersEndpoint),
+    enabled: !!user && !isGuest,
   });
 
   const orders = res?.data || [];
@@ -119,7 +133,7 @@ function Orders() {
     setExpandedTracking((prev) => (prev === id ? null : id));
   };
 
-  if (!authLoading && (!isAuthenticated || isGuest || role !== "customer")) {
+  if (!authLoading && (!isAuthenticated || isGuest)) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <AppHeader title="Your orders" subtitle="Login Required" />
@@ -175,16 +189,15 @@ function Orders() {
                 const canCancel = ["pending", "confirmed"].includes(statusLower);
                 const canRefund = statusLower === "delivered";
                 const handleReorder = () => {
-                  const products: any[] = (o.items || [])
-                    .map((item: any) => ({
-                      id: item.product_id,
-                      name: item.product_name || item.name || "Item",
-                      price: Number(item.unit_price ?? item.price ?? 0),
-                      mrp: Number(item.mrp ?? item.unit_price ?? item.price ?? 0),
-                      unit: item.unit || "",
-                      vendor_id: o.vendor_id,
-                      images: item.image_url ? [{ url: item.image_url }] : [],
-                    }));
+                  const products: any[] = (o.items || []).map((item: any) => ({
+                    id: item.product_id,
+                    name: item.product_name || item.name || "Item",
+                    price: Number(item.unit_price ?? item.price ?? 0),
+                    mrp: Number(item.mrp ?? item.unit_price ?? item.price ?? 0),
+                    unit: item.unit || "",
+                    vendor_id: o.vendor_id,
+                    images: item.image_url ? [{ url: item.image_url }] : [],
+                  }));
                   if (products.length === 0) {
                     toast.error("This order has no items to reorder");
                     return;
@@ -296,13 +309,13 @@ function Orders() {
             <DialogDescription>
               {refundTarget ? (
                 <>
-                  Order #{refundTarget.order_number || refundTarget.id} has been delivered. 
-                  Please let us know why you are requesting a refund.
+                  Order #{refundTarget.order_number || refundTarget.id} has been delivered. Please
+                  let us know why you are requesting a refund.
                 </>
               ) : null}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-2">
             <textarea
               className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary min-h-[100px] resize-none"

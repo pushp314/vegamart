@@ -11,6 +11,7 @@ import {
   removeProductImage,
   setPrimaryProductImage,
   updateProduct,
+  getGalleryImages,
 } from "../../controllers/product.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
@@ -29,6 +30,7 @@ import {
 
 const router = Router();
 
+router.get("/products/gallery", authenticate, getGalleryImages);
 router.get("/products", validate({ query: listProductsQuerySchema }), listProducts);
 router.get("/products/me", authenticate, validate({ query: vendorProductsQuerySchema }), listMyProducts);
 router.get("/products/:product_id", validate({ params: productIdParamsSchema }), getProduct);

@@ -54,13 +54,13 @@ export function AdminSettings() {
 
   const handleLogoUpload = async () => {
     if (!logoFile) return;
-    
+
     setIsUploadingLogo(true);
     try {
       const formData = new FormData();
       formData.append("file", logoFile);
       formData.append("folder", "profiles");
-      
+
       const uploadRes = await api.post<{ url: string; key: string }>("/uploads", formData);
       if (uploadRes.success && uploadRes.data?.url) {
         setSettings({ ...settings, "platform.logo_url": uploadRes.data.url });
@@ -279,7 +279,9 @@ export function AdminSettings() {
                   }
                   className="rounded border-input"
                 />
-                <label htmlFor="delivery_active" className="text-sm">Accepting Delivery Orders</label>
+                <label htmlFor="delivery_active" className="text-sm">
+                  Accepting Delivery Orders
+                </label>
               </div>
             </div>
           </CardContent>

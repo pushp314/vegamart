@@ -2,6 +2,7 @@ import type { Request } from "express";
 
 import { auditService } from "./audit.service";
 import * as heroSlideRepo from "../repositories/hero-slide.repository";
+import { deleteObject, extractKeyFromUrl } from "../storage/r2.client";
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -79,13 +80,19 @@ export const heroSlideService = {
     adminUserId: string,
     req: Request
   ) {
-    await this.getById(id);
+    const row = await this.getById(id);
 
     const data: Record<string, unknown> = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.subtitle !== undefined) data.subtitle = input.subtitle;
     if (input.body !== undefined) data.body = input.body;
-    if (input.image_url !== undefined) data.image_url = input.image_url;
+    if (input.image_url !== undefined) {
+      if (input.image_url !== row.image_url && row.image_url) {
+        const key = extractKeyFromUrl(row.image_url);
+        if (key) await deleteObject(key).catch(() => {});
+      }
+      data.image_url = input.image_url;
+    }
     if (input.link_url !== undefined) data.link_url = input.link_url;
     if (input.link_text !== undefined) data.link_text = input.link_text;
     if (input.is_active !== undefined) data.is_active = input.is_active;
@@ -123,7 +130,11 @@ export const heroSlideService = {
   },
 
   async remove(id: string, adminUserId: string, req: Request) {
-    await this.getById(id);
+    const row = await this.getById(id);
+    if (row.image_url) {
+      const key = extractKeyFromUrl(row.image_url);
+      if (key) await deleteObject(key).catch(() => {});
+    }
     await heroSlideRepo.softDelete(id);
     await auditService.record(
       { userId: adminUserId, action: "HERO_SLIDE_DELETED", entityType: "hero_slide", entityId: id },

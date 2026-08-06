@@ -23,7 +23,13 @@ interface DeliveryMapModalProps {
   endLocation: { lat: number; lng: number; label: string };
 }
 
-export function DeliveryMapModal({ open, onOpenChange, title, startLocation, endLocation }: DeliveryMapModalProps) {
+export function DeliveryMapModal({
+  open,
+  onOpenChange,
+  title,
+  startLocation,
+  endLocation,
+}: DeliveryMapModalProps) {
   const center = [
     (startLocation.lat + endLocation.lat) / 2,
     (startLocation.lng + endLocation.lng) / 2,
@@ -41,23 +47,27 @@ export function DeliveryMapModal({ open, onOpenChange, title, startLocation, end
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            
+
             <Marker position={[startLocation.lat, startLocation.lng]}>
-              <Popup><strong>Start:</strong> {startLocation.label}</Popup>
+              <Popup>
+                <strong>Start:</strong> {startLocation.label}
+              </Popup>
             </Marker>
-            
+
             <Marker position={[endLocation.lat, endLocation.lng]}>
-              <Popup><strong>Destination:</strong> {endLocation.label}</Popup>
+              <Popup>
+                <strong>Destination:</strong> {endLocation.label}
+              </Popup>
             </Marker>
-            
+
             {/* Simple straight line for visual direction */}
-            <Polyline 
+            <Polyline
               positions={[
                 [startLocation.lat, startLocation.lng],
-                [endLocation.lat, endLocation.lng]
-              ]} 
-              color="blue" 
-              dashArray="5, 10" 
+                [endLocation.lat, endLocation.lng],
+              ]}
+              color="blue"
+              dashArray="5, 10"
               weight={4}
             />
           </MapContainer>

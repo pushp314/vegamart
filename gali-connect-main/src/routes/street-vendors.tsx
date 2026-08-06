@@ -1,13 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { StreetVendorMap } from "@/components/marketplace/street-vendor-map";
-import {
-  Store,
-  Phone,
-  Star,
-  Sparkles,
-  Navigation,
-} from "lucide-react";
+import { Store, Phone, Star, Sparkles, Navigation } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 

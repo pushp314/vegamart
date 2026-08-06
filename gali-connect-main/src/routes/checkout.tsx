@@ -28,10 +28,11 @@ export const Route = createFileRoute("/checkout")({
   component: Checkout,
 });
 
-const SLOTS = [
-  { label: "Express", desc: "~15 min" },
-  { label: "1 hour", desc: "By 6:30 PM" },
-  { label: "Schedule", desc: "Pick time" },
+const DELIVERY_OPTIONS = [
+  { label: "Self Pickup", desc: "Pick up from store" },
+  { label: "Shop Delivery", desc: "Delivered by vendor" },
+  { label: "Vendor Delivery", desc: "Delivered by vendor fleet" },
+  { label: "VegaMart Delivery Partner", desc: "Delivered by our fleet" },
 ];
 
 const PAYMENTS = [
@@ -57,14 +58,15 @@ function Checkout() {
   } = useCart();
 
   const [payment, setPayment] = useState("upi");
-  const [slot, setSlot] = useState(0);
+  const [deliveryOption, setDeliveryOption] = useState(0);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
 
-  const AVAILABLE_OFFERS = [
-    { code: "VEGA50", desc: "Flat ₹50 OFF" },
-    { code: "FREEDEL", desc: "Free Delivery" },
-  ];
+  const { data: offersRes } = useQuery({
+    queryKey: ["availableOffers"],
+    queryFn: () => api.get<any>("/coupons/available"),
+  });
+  const AVAILABLE_OFFERS = offersRes?.data || [];
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -200,7 +202,7 @@ function Checkout() {
       address_id: selectedAddress.id,
       payment_method: payment,
       coupon_code: appliedCoupon || undefined,
-      delivery_slot: SLOTS[slot].label,
+      delivery_slot: DELIVERY_OPTIONS[deliveryOption].label,
       items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
     });
   };
@@ -324,33 +326,31 @@ function Checkout() {
               )}
             </section>
 
-            {/* Delivery Slot */}
+            {/* Checkout Delivery Options */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
-              <h2 className="font-display text-base font-bold">Delivery Slot</h2>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {SLOTS.map((s, i) => {
-                  const active = i === slot;
+              <h2 className="font-display text-base font-bold">Checkout Delivery Options</h2>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {DELIVERY_OPTIONS.map((opt, i) => {
+                  const active = i === deliveryOption;
                   return (
                     <button
-                      key={s.label}
+                      key={opt.label}
                       type="button"
-                      onClick={() => setSlot(i)}
-                      className={`rounded-2xl border p-3 text-left transition-all ${
+                      onClick={() => setDeliveryOption(i)}
+                      className={`rounded-2xl border p-3 text-left transition-all flex flex-col justify-center ${
                         active
                           ? "bg-primary text-primary-foreground border-primary ring-2 ring-primary/20 shadow-xs"
                           : "border-border hover:border-primary/40 bg-card"
                       }`}
                     >
-                      <div className="text-xs font-bold">{s.label}</div>
-                      <div
-                        className={`mt-0.5 text-[10.5px] ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}
-                      >
-                        {s.desc}
-                      </div>
+                      <div className="text-xs font-bold leading-tight">{opt.label}</div>
                     </button>
                   );
                 })}
               </div>
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                Delivery boy should show when item will be delivered in after order acceptance.
+              </p>
             </section>
 
             {/* Payment Method */}
@@ -431,7 +431,10 @@ function Checkout() {
                       Available Offers
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-                      {AVAILABLE_OFFERS.map((offer) => (
+                      {AVAILABLE_OFFERS.length === 0 && (
+                        <div className="text-[11px] text-muted-foreground py-2">No offers available currently.</div>
+                      )}
+                      {AVAILABLE_OFFERS.map((offer: any) => (
                         <button
                           key={offer.code}
                           onClick={async () => {
@@ -494,7 +497,7 @@ function Checkout() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Taxes & Charges (5% GST)</span>
+                  <span className="text-muted-foreground">Taxes & Charges (GST)</span>
                   <span className="font-semibold tabular-nums">₹{tax.toFixed(2)}</span>
                 </div>
                 {discount > 0 && (

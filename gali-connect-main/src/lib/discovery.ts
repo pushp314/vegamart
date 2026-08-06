@@ -139,7 +139,10 @@ export function normalizeNearbyVendor(item: RawNearbyItem): DiscoveryVendor | nu
       const parsed = JSON.parse(rawTags);
       if (Array.isArray(parsed)) tags = parsed;
     } catch {
-      tags = rawTags.split(",").map((t) => t.trim()).filter(Boolean);
+      tags = rawTags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
     }
   }
 
@@ -200,7 +203,7 @@ export async function fetchNearbyVendors(opts: {
   if (opts.isOpen) params.set("is_open", "true");
 
   const res = await api.get<any[]>(`/vendors/nearby?${params.toString()}`);
-  const rows = Array.isArray(res.data) ? res.data : (res.data as any)?.data ?? [];
+  const rows = Array.isArray(res.data) ? res.data : ((res.data as any)?.data ?? []);
   const vendors = rows.map(normalizeNearbyVendor).filter(Boolean) as DiscoveryVendor[];
   return { vendors, total: res.pagination?.total ?? vendors.length };
 }
@@ -229,10 +232,13 @@ export async function fetchNearbyDailyLocations(opts: {
   const res = await api.get<RawDailyLocation[]>(`/vendors/nearby/daily?${params.toString()}`);
   const rows: RawDailyLocation[] = Array.isArray(res.data)
     ? res.data
-    : ((res.data as any)?.data ?? []) as RawDailyLocation[];
+    : (((res.data as any)?.data ?? []) as RawDailyLocation[]);
   const locations = rows
     .map((item) => {
-      const v = normalizeNearbyVendor({ ...item, vendor: { ...item, latitude: item.latitude, longitude: item.longitude } });
+      const v = normalizeNearbyVendor({
+        ...item,
+        vendor: { ...item, latitude: item.latitude, longitude: item.longitude },
+      });
       if (!v) return null;
       v.roaming = true;
       v.vendor_type = "roaming";
@@ -259,7 +265,7 @@ export async function fetchCategories(): Promise<{ id: string; name: string }[]>
   const res = await api.get<RawCategory[]>("/categories");
   const rows: RawCategory[] = Array.isArray(res.data)
     ? res.data
-    : ((res.data as any)?.data ?? []) as RawCategory[];
+    : (((res.data as any)?.data ?? []) as RawCategory[]);
   return rows.map((c) => ({ id: c.id, name: c.name }));
 }
 
@@ -284,7 +290,7 @@ export async function fetchMyFavorites(): Promise<DiscoveryVendor[]> {
   const res = await api.get<RawNearbyItem[]>("/discovery/favorites");
   const rows: RawNearbyItem[] = Array.isArray(res.data)
     ? res.data
-    : ((res.data as any)?.data ?? []) as RawNearbyItem[];
+    : (((res.data as any)?.data ?? []) as RawNearbyItem[]);
   return rows
     .map((r) => normalizeNearbyVendor({ vendor: r, latitude: r.latitude, longitude: r.longitude }))
     .filter(Boolean) as DiscoveryVendor[];
@@ -294,7 +300,7 @@ export async function fetchMyFollows(): Promise<DiscoveryVendor[]> {
   const res = await api.get<RawNearbyItem[]>("/discovery/follows");
   const rows: RawNearbyItem[] = Array.isArray(res.data)
     ? res.data
-    : ((res.data as any)?.data ?? []) as RawNearbyItem[];
+    : (((res.data as any)?.data ?? []) as RawNearbyItem[]);
   return rows
     .map((r) => normalizeNearbyVendor({ vendor: r, latitude: r.latitude, longitude: r.longitude }))
     .filter(Boolean) as DiscoveryVendor[];
@@ -315,7 +321,7 @@ export interface NearbySearchHistoryEntry {
 
 export async function fetchSearchHistory(): Promise<NearbySearchHistoryEntry[]> {
   const res = await api.get<NearbySearchHistoryEntry[]>("/discovery/search-history");
-  return Array.isArray(res.data) ? res.data : (res.data as any)?.data ?? [];
+  return Array.isArray(res.data) ? res.data : ((res.data as any)?.data ?? []);
 }
 
 export function clearSearchHistory(): Promise<ApiResponse> {
@@ -353,11 +359,7 @@ export function walkTimeMinutes(distanceKm: number | undefined): number | null {
   return Math.max(2, Math.round((distanceKm / 4.8) * 60)); // ~4.8 km/h walking
 }
 
-export function distanceFrom(
-  userLat: number,
-  userLng: number,
-  v: DiscoveryVendor,
-): number | null {
+export function distanceFrom(userLat: number, userLng: number, v: DiscoveryVendor): number | null {
   if (v.latitude == null || v.longitude == null) return null;
   return calculateDistance(userLat, userLng, v.latitude, v.longitude);
 }

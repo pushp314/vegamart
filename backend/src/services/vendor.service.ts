@@ -19,7 +19,9 @@ import * as userRepo from "../repositories/user.repository";
 import { boundingBox, haversineDistanceKm } from "../utils/geo";
 import { HttpStatus } from "../utils/httpStatus";
 import { uniqueSlug } from "../utils/slug";
+import { deleteObject, extractKeyFromUrl } from "../storage/r2.client";
 import prisma from "../database/prisma";
+import { upsertSetting } from "../repositories/settings.repository";
 import type {
   CreateVendorBody,
   UpdateVendorBody,
@@ -27,6 +29,7 @@ import type {
   UpsertDailyLocationBody,
 } from "../validators/vendor.validators";
 import type { VendorKycBody, RingBellBody } from "../validators/integration.validators";
+import type { CreateReviewBody } from "../validators/product.validators";
 import * as dailyLocationRepo from "../repositories/vendor-daily-location.repository";
 import { ROLES } from "../constants/roles";
 
@@ -92,6 +95,7 @@ export const vendorService = {
       business_hours: input.business_hours ?? null,
       min_order: input.min_order ?? 0,
       delivery_fee: input.delivery_fee ?? 0,
+      free_delivery_min_order: input.free_delivery_min_order ?? null,
       owner_name: input.owner_name ?? null,
       phone: input.phone ?? null,
       available_from: input.available_from ?? null,
@@ -126,8 +130,20 @@ export const vendorService = {
     if (input.description !== undefined) data.description = input.description || null;
     if (input.category !== undefined) data.category = input.category || null;
     if (input.tags !== undefined) data.tags = input.tags || null;
-    if (input.logo_url !== undefined) data.logo_url = input.logo_url || null;
-    if (input.banner_url !== undefined) data.banner_url = input.banner_url || null;
+    if (input.logo_url !== undefined) {
+      if (input.logo_url !== vendor.logo_url && vendor.logo_url) {
+        const key = extractKeyFromUrl(vendor.logo_url);
+        if (key) await deleteObject(key).catch(() => {});
+      }
+      data.logo_url = input.logo_url || null;
+    }
+    if (input.banner_url !== undefined) {
+      if (input.banner_url !== vendor.banner_url && vendor.banner_url) {
+        const key = extractKeyFromUrl(vendor.banner_url);
+        if (key) await deleteObject(key).catch(() => {});
+      }
+      data.banner_url = input.banner_url || null;
+    }
     if (input.address !== undefined) data.address = input.address.trim();
     if (input.landmark !== undefined) data.landmark = input.landmark || null;
     if (input.city !== undefined) data.city = input.city.trim();
@@ -140,6 +156,7 @@ export const vendorService = {
     if (input.business_hours !== undefined) data.business_hours = input.business_hours || null;
     if (input.min_order !== undefined) data.min_order = input.min_order;
     if (input.delivery_fee !== undefined) data.delivery_fee = input.delivery_fee;
+    if (input.free_delivery_min_order !== undefined) data.free_delivery_min_order = input.free_delivery_min_order;
     if (input.owner_name !== undefined) data.owner_name = input.owner_name || null;
     if (input.phone !== undefined) data.phone = input.phone || null;
     if (input.available_from !== undefined) data.available_from = input.available_from || null;
@@ -148,6 +165,10 @@ export const vendorService = {
 
     if (Object.keys(data).length > 0) {
       await vendorRepo.updateVendor(vendor.id, data as never);
+    }
+
+    if (input.subscription_plan) {
+      await upsertSetting({ key: `vendor_subscription:${vendor.id}`, value: { plan: input.subscription_plan }, type: "json" });
     }
 
     const updated = await vendorRepo.findById(vendor.id);
@@ -926,5 +947,56 @@ export const vendorService = {
       req
     );
     return { delivered: true };
+  },
+
+  async createReview(userId: string, vendorId: string, input: CreateReviewBody, req: Request) {
+    const vendor = await vendorRepo.findById(vendorId);
+    if (!vendor) {
+      throw new NotFoundError("Vendor not found.");
+    }
+
+    const existing = await prisma.vendorReview.findFirst({
+      where: { user_id: userId, vendor_id: vendorId, deleted_at: null },
+    });
+    if (existing) {
+      throw new ConflictError("You have already reviewed this vendor.");
+    }
+
+    const review = await prisma.$transaction(async (tx) => {
+      const created = await tx.vendorReview.create({
+        data: {
+          user_id: userId,
+          vendor_id: vendorId,
+          order_id: input.order_id ?? null,
+          rating: input.rating,
+          title: input.title?.trim() || null,
+          comment: input.comment?.trim() || null,
+        },
+      });
+
+      const agg = await tx.vendorReview.aggregate({
+        where: { vendor_id: vendorId, deleted_at: null },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+
+      await tx.vendorProfile.update({
+        where: { id: vendorId },
+        data: {
+          rating: agg._avg.rating ?? 0,
+          review_count: agg._count.rating,
+        },
+      });
+
+      return created;
+    });
+
+    await cacheService.invalidateNamespace("vendor");
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.REVIEW_CREATED, entityType: "vendor", entityId: vendorId, newValues: { rating: input.rating } },
+      req
+    );
+
+    return review;
   }
 };

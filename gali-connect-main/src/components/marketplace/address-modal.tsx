@@ -111,7 +111,6 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
               <input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Full Name"
                 className="w-full rounded-2xl bg-muted border h-10 px-3 text-xs outline-none"
               />
             </label>
@@ -120,8 +119,7 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="10-digit mobile"
-                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none placeholder:text-muted-foreground"
+                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
               />
             </label>
           </div>
@@ -133,8 +131,7 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
             <input
               value={line1}
               onChange={(e) => setLine1(e.target.value)}
-              placeholder="e.g. B-402, Green Valley Apartments"
-              className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none placeholder:text-muted-foreground"
+              className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
             />
           </label>
 
@@ -145,8 +142,7 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
             <input
               value={line2}
               onChange={(e) => setLine2(e.target.value)}
-              placeholder="e.g. Near Indiranagar Metro Station"
-              className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none placeholder:text-muted-foreground"
+              className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
             />
           </label>
 
@@ -156,8 +152,7 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
               <input
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                placeholder="e.g. Bengaluru"
-                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none placeholder:text-muted-foreground"
+                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
               />
             </label>
             <label className="block">
@@ -165,8 +160,7 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
               <input
                 value={pincode}
                 onChange={(e) => setPincode(e.target.value)}
-                placeholder="560038"
-                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none placeholder:text-muted-foreground"
+                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
               />
             </label>
           </div>

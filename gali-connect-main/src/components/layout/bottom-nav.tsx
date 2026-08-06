@@ -73,9 +73,7 @@ export function BottomNav() {
                   >
                     <span
                       className={`relative grid h-10 w-10 place-items-center rounded-full transition-colors ${
-                        active
-                          ? "text-primary"
-                          : "text-foreground/70"
+                        active ? "text-primary" : "text-foreground/70"
                       }`}
                     >
                       <motion.span

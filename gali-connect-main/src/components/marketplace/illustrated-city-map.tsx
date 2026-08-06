@@ -1,11 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus, LocateFixed } from "lucide-react";
 import type { DiscoveryVendor } from "@/lib/discovery";
 import { VendorMarker } from "@/components/marketplace/vendor-marker";
@@ -139,8 +132,10 @@ function buildBackground(view: MapView, w: number, h: number, dpr: number) {
       const y = j * CELL;
 
       let fill = "#d8dbe0";
-      if (r < 0.07) fill = "#9ad7dd"; // water tank/lake
-      else if (r < 0.115) fill = "#a8d8a0"; // park
+      if (r < 0.07)
+        fill = "#9ad7dd"; // water tank/lake
+      else if (r < 0.115)
+        fill = "#a8d8a0"; // park
       else {
         const shade = randFor(`s:${key}`);
         fill = shade < 0.5 ? "#e3e5ea" : "#d9dce2";
@@ -166,9 +161,7 @@ function buildBackground(view: MapView, w: number, h: number, dpr: number) {
         for (let t = 0; t < n; t++) {
           const tx = x + randFor(`tx:${key}:${t}`) * CELL;
           const ty = y + randFor(`ty:${key}:${t}`) * CELL;
-          trees.push(
-            <circle key={`${key}:t${t}`} cx={tx} cy={ty} r={dpr * 0.7} fill="#7cbd78" />,
-          );
+          trees.push(<circle key={`${key}:t${t}`} cx={tx} cy={ty} r={dpr * 0.7} fill="#7cbd78" />);
         }
       }
 
@@ -361,10 +354,7 @@ export const IllustratedCityMap = memo(function IllustratedCityMap({
         if (prev > 0 && dist > 0) {
           const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
           setView((v) => {
-            const newScale = Math.min(
-              MAX_SCALE,
-              Math.max(MIN_SCALE, v.scale * (dist / prev)),
-            );
+            const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * (dist / prev)));
             const ratio = newScale / v.scale;
             const dx = (mid.x - size.w / 2) / v.scale;
             const dy = (mid.y - size.h / 2) / v.scale;
@@ -385,34 +375,34 @@ export const IllustratedCityMap = memo(function IllustratedCityMap({
     pointers.current.delete(e.pointerId);
   }, []);
 
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    setView((v) => {
-      const factor = Math.pow(1.0016, -e.deltaY);
-      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * factor));
-      const ratio = newScale / v.scale;
-      const rect = containerRef.current?.getBoundingClientRect();
-      const mx = e.clientX - (rect?.left ?? 0);
-      const my = e.clientY - (rect?.top ?? 0);
-      const dx = (mx - size.w / 2) / v.scale;
-      const dy = (my - size.h / 2) / v.scale;
-      return {
-        scale: newScale,
-        cx: v.cx + dx * (1 - ratio),
-        cy: v.cy + dy * (1 - ratio),
-      };
-    });
-  }, [size]);
-
-  const zoomBy = useCallback(
-    (factor: number) => {
+  const onWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault();
       setView((v) => {
+        const factor = Math.pow(1.0016, -e.deltaY);
         const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * factor));
-        return { ...v, scale: newScale };
+        const ratio = newScale / v.scale;
+        const rect = containerRef.current?.getBoundingClientRect();
+        const mx = e.clientX - (rect?.left ?? 0);
+        const my = e.clientY - (rect?.top ?? 0);
+        const dx = (mx - size.w / 2) / v.scale;
+        const dy = (my - size.h / 2) / v.scale;
+        return {
+          scale: newScale,
+          cx: v.cx + dx * (1 - ratio),
+          cy: v.cy + dy * (1 - ratio),
+        };
       });
     },
-    [],
+    [size],
   );
+
+  const zoomBy = useCallback((factor: number) => {
+    setView((v) => {
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * factor));
+      return { ...v, scale: newScale };
+    });
+  }, []);
 
   /* -------- derived render data -------- */
   const viewKey = `${view.cx.toFixed(5)}:${view.cy.toFixed(5)}:${view.scale.toFixed(1)}`;

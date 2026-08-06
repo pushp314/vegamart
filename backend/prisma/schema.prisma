@@ -13,7 +13,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -215,6 +214,7 @@ model User {
   favorite_vendors      CustomerFavorite[]
   vendor_follows        VendorFollower[]
   nearby_search_history NearbySearchHistory[]
+  vendor_reviews        VendorReview[]
 
   @@index([email])
   @@index([phone])
@@ -396,9 +396,10 @@ model VendorProfile {
   latitude              Float?       @db.DoublePrecision
   longitude             Float?       @db.DoublePrecision
   delivery_radius_km    Float        @default(5)
-  business_hours        String?      @db.VarChar(500)
+  business_hours        String?      @db.VarChar(100)
   min_order             Decimal      @default(0) @db.Decimal(10, 2)
   delivery_fee          Decimal      @default(0) @db.Decimal(10, 2)
+  free_delivery_min_order Decimal?   @db.Decimal(10, 2)
   rating                Float        @default(0) @db.DoublePrecision
   review_count          Int          @default(0)
   is_open               Boolean      @default(false)
@@ -425,6 +426,7 @@ model VendorProfile {
   daily_locations  VendorDailyLocation[]
   location_history VendorLocationHistory[]
   favorited_by     CustomerFavorite[]
+  vendor_reviews   VendorReview[]
   followers        VendorFollower[]
 
   @@index([user_id])
@@ -590,6 +592,7 @@ model Product {
   price          Decimal   @db.Decimal(10, 2)
   mrp            Decimal   @db.Decimal(10, 2)
   unit           String    @db.VarChar(50)
+  variants       Json?     @db.JsonB
   tag            String?   @db.VarChar(60)
   is_active      Boolean   @default(true)
   is_featured    Boolean   @default(false)
@@ -721,6 +724,7 @@ model CartItem {
   cart_id        String   @db.Uuid
   product_id     String   @db.Uuid
   quantity       Int      @default(1)
+  selected_unit  String?  @db.VarChar(50)
   price_snapshot Decimal  @db.Decimal(10, 2)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
@@ -837,16 +841,17 @@ model OrderEvent {
 }
 
 model OrderItem {
-  id           String   @id @default(uuid()) @db.Uuid
-  order_id     String   @db.Uuid
-  product_id   String   @db.Uuid
-  product_name String   @db.VarChar(160)
-  unit         String   @db.VarChar(50)
-  quantity     Int      @default(1)
-  unit_price   Decimal  @db.Decimal(10, 2)
-  total_price  Decimal  @db.Decimal(10, 2)
-  image_url    String?  @db.VarChar(500)
-  created_at   DateTime @default(now())
+  id            String   @id @default(uuid()) @db.Uuid
+  order_id      String   @db.Uuid
+  product_id    String   @db.Uuid
+  product_name  String   @db.VarChar(160)
+  unit          String   @db.VarChar(50)
+  quantity      Int      @default(1)
+  selected_unit String?  @db.VarChar(50)
+  unit_price    Decimal  @db.Decimal(10, 2)
+  total_price   Decimal  @db.Decimal(10, 2)
+  image_url     String?  @db.VarChar(500)
+  created_at    DateTime @default(now())
 
   order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
   product Product @relation(fields: [product_id], references: [id], onDelete: Restrict)
@@ -1105,8 +1110,31 @@ model SupportTicket {
   @@map("support_tickets")
 }
 
+model VendorReview {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendor_id   String   @db.Uuid
+  user_id     String   @db.Uuid
+  order_id    String?  @db.Uuid
+  rating      Int      @default(0)
+  title       String?  @db.VarChar(120)
+  comment     String?  @db.Text
+  is_verified Boolean  @default(false)
+  images      String[] @default([])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  deleted_at  DateTime?
+
+  vendor VendorProfile @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([vendor_id])
+  @@index([user_id])
+  @@index([rating])
+  @@map("vendor_reviews")
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
-// Governance & Platform
+// Audit & System logs& Platform
 // ──────────────────────────────────────────────────────────────────────────────
 
 model AuditLog {
@@ -1202,4 +1230,15 @@ model HeroSlide {
   @@index([sort_order])
   @@index([created_at])
   @@map("hero_slides")
+}
+
+model Faq {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question   String
+  answer     String
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("faqs")
 }

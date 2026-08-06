@@ -38,7 +38,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import { DailyLocationForm } from "@/components/vendor/daily-location-form";
-import { ShopLocationForm } from "@/components/vendor/shop-location-form";
+import { ClientOnly } from "@/components/system/client-only";
+import { lazy, Suspense } from "react";
+const ShopLocationForm = lazy(() => import("@/components/vendor/shop-location-form").then(m => ({ default: m.ShopLocationForm })));
 import { VendorReviews } from "@/components/vendor/VendorReviews";
 import { VendorAnalytics } from "@/components/vendor/VendorAnalytics";
 import { VendorProducts } from "@/components/vendor/VendorProducts";
@@ -175,6 +177,13 @@ function VendorDashboard() {
 
   const [suggestedImages, setSuggestedImages] = useState<string[]>([]);
   const [isSearchingImages, setIsSearchingImages] = useState(false);
+  const [galleryModalOpen, setGalleryModalOpen] = useState(false);
+
+  const { data: galleryImages } = useQuery({
+    queryKey: ["productGallery"],
+    queryFn: () => api.get<string[]>("/products/gallery"),
+    enabled: galleryModalOpen,
+  });
 
   useEffect(() => {
     if (!productModalOpen || !prodName || prodName.length < 3) {
@@ -551,7 +560,8 @@ function VendorDashboard() {
         } else {
           imageFallbackWarned = true;
           toast.warning(
-            uploadRes.error?.message || "Image upload failed — product will be saved without an image.",
+            uploadRes.error?.message ||
+              "Image upload failed — product will be saved without an image.",
           );
         }
       } catch {
@@ -1003,7 +1013,11 @@ function VendorDashboard() {
             {vendor?.roaming ? (
               <DailyLocationForm vendorProfile={vendor} />
             ) : (
-              <ShopLocationForm vendorProfile={vendor} />
+              <ClientOnly>
+                <Suspense fallback={<div className="p-4 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mx-auto inline mr-2" />Loading Map...</div>}>
+                  <ShopLocationForm vendorProfile={vendor} />
+                </Suspense>
+              </ClientOnly>
             )}
           </div>
         )}
@@ -1137,17 +1151,30 @@ function VendorDashboard() {
                   <label className="block text-xs font-semibold text-foreground mb-1">
                     Product Image
                   </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setProdImageFile(e.target.files[0]);
-                        setProdImageChanged(true);
-                      }
-                    }}
-                    className="w-full text-xs text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setProdImageFile(e.target.files[0]);
+                          setProdImageChanged(true);
+                        }
+                      }}
+                      className="flex-1 text-xs text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setGalleryModalOpen(true)}
+                      className="text-xs font-semibold text-primary hover:underline px-3 py-2 bg-primary/10 rounded-full"
+                    >
+                      Browse Gallery
+                    </button>
+                  </div>
+                  <div className="mt-2 text-[10px] text-muted-foreground leading-tight">
+                    Supported: JPG, PNG, WEBP, GIF.<br />
+                    Max 5MB. Dimensions up to 8192×8192px.
+                  </div>
                 </div>
               </div>
 
@@ -1312,6 +1339,53 @@ function VendorDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Gallery Modal */}
+      {galleryModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl bg-muted/50 border-border border rounded-3xl p-6 shadow-glow flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between border-b pb-3 mb-4 shrink-0">
+              <h3 className="font-display text-lg font-bold">Image Gallery</h3>
+              <button
+                onClick={() => setGalleryModalOpen(false)}
+                className="grid h-8 w-8 place-items-center rounded-full hover:bg-accent/50 text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto overflow-x-hidden flex-1 scrollbar-none">
+              {!galleryImages?.data ? (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading gallery...
+                </div>
+              ) : galleryImages.data.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  No images uploaded yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                  {galleryImages.data.map((url, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setProdImageUrl(url);
+                        setProdImageFile(null);
+                        setProdImageChanged(true);
+                        setGalleryModalOpen(false);
+                      }}
+                      className="relative aspect-square overflow-hidden rounded-xl border border-border hover:ring-2 hover:ring-primary transition-all group"
+                    >
+                      <img src={url} alt={`Gallery ${idx}`} className="h-full w-full object-cover" loading="lazy" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white text-xs font-semibold">Select</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </PortalLayout>
   );
 }

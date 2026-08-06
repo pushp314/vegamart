@@ -24,7 +24,7 @@ export function ProductCard({ product }: { product: Product }) {
       <Link
         to="/products/$productId"
         params={{ productId: product.id }}
-        className="absolute inset-0 z-0 rounded-2xl"
+        className="absolute inset-0 z-[1] rounded-2xl"
         aria-label={product.name}
       />
 
@@ -54,7 +54,7 @@ export function ProductCard({ product }: { product: Product }) {
             }
           }}
           aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
-          className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-background/80 backdrop-blur-xs shadow-sm border border-border/50 hover:bg-background transition-colors"
+          className="absolute right-2 top-2 z-[5] grid h-7 w-7 place-items-center rounded-full bg-background/80 backdrop-blur-xs shadow-sm border border-border/50 hover:bg-background transition-colors"
         >
           <Heart
             className={`h-4 w-4 transition-colors ${
@@ -83,7 +83,7 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
           <Button
             size="sm"
-            className="relative z-10 h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3"
+            className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3"
             onClick={(e) => {
               e.stopPropagation();
               addToCart(product, 1);

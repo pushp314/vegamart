@@ -24,6 +24,7 @@ const baseSelect = {
   business_hours: true,
   min_order: true,
   delivery_fee: true,
+  free_delivery_min_order: true,
   rating: true,
   review_count: true,
   is_open: true,
@@ -61,6 +62,7 @@ export type VendorRow = {
   business_hours: string | null;
   min_order: import("@prisma/client").Prisma.Decimal;
   delivery_fee: import("@prisma/client").Prisma.Decimal;
+  free_delivery_min_order: import("@prisma/client").Prisma.Decimal | null;
   rating: number;
   review_count: number;
   is_open: boolean;
@@ -129,6 +131,7 @@ export async function createVendor(data: {
   business_hours?: string | null;
   min_order?: number;
   delivery_fee?: number;
+  free_delivery_min_order?: number | null;
   owner_name?: string | null;
   phone?: string | null;
   available_from?: string | null;
@@ -157,6 +160,7 @@ export async function createVendor(data: {
       business_hours: data.business_hours ?? null,
       min_order: data.min_order ?? 0,
       delivery_fee: data.delivery_fee ?? 0,
+      free_delivery_min_order: data.free_delivery_min_order ?? null,
       owner_name: data.owner_name ?? null,
       phone: data.phone ?? null,
       available_from: data.available_from ?? null,

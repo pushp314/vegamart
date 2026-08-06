@@ -4,13 +4,12 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 
-
-export function VendorProducts({ 
-  productList, 
+export function VendorProducts({
+  productList,
   categoriesList,
-  handleOpenEditProduct, 
-  handleOpenAddProduct, 
-  setDeleteTarget 
+  handleOpenEditProduct,
+  handleOpenAddProduct,
+  setDeleteTarget,
 }: any) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,7 +19,7 @@ export function VendorProducts({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv')) {
+    if (!file.name.endsWith(".csv")) {
       toast.error("Please upload a valid CSV file");
       return;
     }
@@ -31,10 +30,10 @@ export function VendorProducts({
 
     try {
       // Assuming a backend endpoint for bulk upload exists, e.g., /products/bulk-upload
-      // If not, we would need to implement it in the backend. 
+      // If not, we would need to implement it in the backend.
       // For now, let's simulate or use the real endpoint.
       const res = await api.post("/products/bulk-upload", formData);
-      
+
       if (res.success) {
         toast.success("Products uploaded successfully");
         queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
@@ -67,19 +66,23 @@ export function VendorProducts({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 className="font-display text-lg font-bold">Store Catalog</h2>
         <div className="flex items-center gap-2">
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleBulkUpload} 
-            accept=".csv" 
-            className="hidden" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleBulkUpload}
+            accept=".csv"
+            className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploadingBulk}
             className="flex items-center gap-1.5 rounded-2xl bg-muted text-foreground border border-border font-semibold text-xs px-3 py-2 shadow-xs hover:bg-muted/80"
           >
-            {isUploadingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {isUploadingBulk ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
             Bulk Upload
           </button>
           <button
@@ -104,7 +107,7 @@ export function VendorProducts({
           {productList.map((p: any) => (
             <div
               key={p.id}
-              className={`rounded-3xl border border-border bg-muted/50 p-4 space-y-3 shadow-2xl relative ${!p.is_active ? 'opacity-70' : ''}`}
+              className={`rounded-3xl border border-border bg-muted/50 p-4 space-y-3 shadow-2xl relative ${!p.is_active ? "opacity-70" : ""}`}
             >
               {!p.is_active && (
                 <div className="absolute top-2 right-2 bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
@@ -121,12 +124,12 @@ export function VendorProducts({
               />
               <div>
                 <div className="font-bold text-sm truncate">{p.name}</div>
-                <div className="text-xs text-muted-foreground">{p.category?.name || "Uncategorized"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {p.category?.name || "Uncategorized"}
+                </div>
                 <div className="text-xs font-bold text-emerald-600 mt-0.5">
                   ₹{p.price}{" "}
-                  <span className="text-muted-foreground font-normal text-[11px]">
-                    / {p.unit}
-                  </span>
+                  <span className="text-muted-foreground font-normal text-[11px]">/ {p.unit}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 pt-2 border-t">

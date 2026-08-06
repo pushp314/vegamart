@@ -4,6 +4,7 @@ import {
   createCoupon,
   deleteCoupon,
   listCoupons,
+  listAvailableCoupons,
   updateCoupon,
   validateCoupon,
 } from "../../controllers/coupon.controller";
@@ -20,6 +21,9 @@ import {
 } from "../../validators/coupon.validators";
 
 const router = Router();
+
+// Customer: view available active coupons
+router.get("/coupons/available", authenticate, blockGuest, requireRole(ROLES.CUSTOMER), listAvailableCoupons);
 
 // Customer: validate a code against the cart
 router.post("/coupons/validate", authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ body: validateCouponSchema }), validateCoupon);

@@ -5,7 +5,13 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export function AdminCoupons() {
   const queryClient = useQueryClient();
@@ -16,8 +22,8 @@ export function AdminCoupons() {
     queryKey: ["adminCoupons"],
     queryFn: () => api.get<any>("/coupons"),
   });
-  
-  const coupons = couponsRes?.data?.rows || [];
+
+  const coupons = couponsRes?.data || [];
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.post("/coupons", data),
@@ -28,7 +34,7 @@ export function AdminCoupons() {
     },
     onError: (err: any) => toast.error(err?.message || "Failed to create coupon"),
   });
-  
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/coupons/${id}`),
     onSuccess: () => {
@@ -38,8 +44,8 @@ export function AdminCoupons() {
     onError: (err: any) => toast.error(err?.message || "Failed to delete coupon"),
   });
 
-  const filtered = coupons.filter((c: any) => 
-    (c.code || "").toLowerCase().includes(query.toLowerCase())
+  const filtered = coupons.filter((c: any) =>
+    (c.code || "").toLowerCase().includes(query.toLowerCase()),
   );
 
   return (
@@ -73,34 +79,41 @@ export function AdminCoupons() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((coupon: any) => (
-          <div key={coupon.id} className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+          <div
+            key={coupon.id}
+            className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between"
+          >
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Tag className="h-5 w-5 text-primary" />
-                  <span className="font-black text-lg text-foreground tracking-tight">{coupon.code}</span>
+                  <span className="font-black text-lg text-foreground tracking-tight">
+                    {coupon.code}
+                  </span>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${coupon.is_active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                  {coupon.is_active ? 'Active' : 'Inactive'}
+                <span
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${coupon.is_active ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}
+                >
+                  {coupon.is_active ? "Active" : "Inactive"}
                 </span>
               </div>
               <p className="text-sm text-muted-foreground font-medium mb-1">
-                {coupon.discount_type === 'PERCENTAGE' ? `${coupon.discount_value}% OFF` : `₹${coupon.discount_value} OFF`}
+                {coupon.type === "PERCENTAGE" ? `${coupon.value}% OFF` : `₹${coupon.value} OFF`}
               </p>
               <p className="text-xs text-muted-foreground/70">
                 Max Discount: ₹{coupon.max_discount}
               </p>
-              {coupon.expires_at && (
+              {coupon.valid_until && (
                 <p className="text-xs text-muted-foreground/70 mt-1">
-                  Expires: {new Date(coupon.expires_at).toLocaleDateString()}
+                  Expires: {new Date(coupon.valid_until).toLocaleDateString()}
                 </p>
               )}
             </div>
-            
+
             <div className="mt-6 pt-4 border-t border-border flex justify-end">
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
                 onClick={() => {
                   if (confirm("Are you sure you want to delete this coupon?")) {
@@ -114,7 +127,7 @@ export function AdminCoupons() {
           </div>
         ))}
       </div>
-      
+
       {filtered.length === 0 && !isLoading && (
         <div className="text-center py-20 bg-card rounded-3xl border border-border">
           <Tag className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
@@ -134,18 +147,23 @@ export function AdminCoupons() {
               const fd = new FormData(e.target as HTMLFormElement);
               createMutation.mutate({
                 code: fd.get("code"),
-                discount_type: fd.get("discount_type"),
-                discount_value: Number(fd.get("discount_value")),
+                type: fd.get("discount_type"),
+                value: Number(fd.get("discount_value")),
                 min_order_value: Number(fd.get("min_order_value")) || 0,
-                max_discount: Number(fd.get("max_discount")),
-                expires_at: fd.get("expires_at") ? new Date(fd.get("expires_at") as string).toISOString() : undefined,
-                usage_limit: fd.get("usage_limit") ? Number(fd.get("usage_limit")) : undefined,
+                max_discount: Number(fd.get("max_discount")) || 0,
+                valid_from: new Date().toISOString(),
+                valid_until: fd.get("expires_at")
+                  ? new Date(fd.get("expires_at") as string).toISOString()
+                  : new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+                usage_limit: fd.get("usage_limit") ? Number(fd.get("usage_limit")) : 0,
               });
             }}
             className="space-y-4"
           >
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Coupon Code</label>
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Coupon Code
+              </label>
               <Input name="code" placeholder="e.g. SUMMER20" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -167,27 +185,39 @@ export function AdminCoupons() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Min Order (₹)</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Min Order (₹)
+                </label>
                 <Input name="min_order_value" type="number" step="0.01" />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Max Discount (₹)</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Max Discount (₹)
+                </label>
                 <Input name="max_discount" type="number" step="0.01" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Expires At</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Expires At
+                </label>
                 <Input name="expires_at" type="datetime-local" />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Usage Limit</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Usage Limit
+                </label>
                 <Input name="usage_limit" type="number" />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createMutation.isPending}>Create</Button>
+              <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                Create
+              </Button>
             </div>
           </form>
         </DialogContent>

@@ -131,9 +131,7 @@ export function VendorReviews() {
                       for <span className="font-medium">{review.product.name}</span>
                     </p>
                   )}
-                  {review.comment && (
-                    <p className="text-sm">{review.comment}</p>
-                  )}
+                  {review.comment && <p className="text-sm">{review.comment}</p>}
                 </div>
               ))}
             </div>

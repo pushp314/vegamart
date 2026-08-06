@@ -11,6 +11,7 @@ interface AdminVendorsProps {
   onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onSuspend: (id: string) => void;
+  onRestore: (id: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
 }
@@ -20,6 +21,7 @@ export function AdminVendors({
   onApprove,
   onReject,
   onSuspend,
+  onRestore,
   isApproving,
   isRejecting,
 }: AdminVendorsProps) {
@@ -242,6 +244,16 @@ export function AdminVendors({
                               Suspend
                             </button>
                           </>
+                        )}
+                        {status === "suspended" && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Unsuspend this vendor?")) onRestore(v.id);
+                            }}
+                            className="px-4 py-2 text-xs font-bold rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-200 transition-all active:scale-95"
+                          >
+                            Unsuspend
+                          </button>
                         )}
                       </div>
                     </td>

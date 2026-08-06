@@ -31,7 +31,6 @@ export function Navbar() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-
   // Support the advertised ⌘K / Ctrl+K shortcut for search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

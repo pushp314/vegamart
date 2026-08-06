@@ -711,6 +711,11 @@ export const getOrder = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(res, data);
 });
 
+export const deleteProduct = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
+  await productService.adminRemove(req.user!.id, req.params.product_id as string, req);
+  sendSuccess(res, "Product deleted successfully");
+});
+
 /**
  * @swagger
  * /admin/orders/{order_id}/status:

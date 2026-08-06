@@ -89,7 +89,7 @@ function BecomeVendorPage() {
         if (subscriptionPlan !== "basic") {
           await api.put("/vendors/me", { subscription_plan: subscriptionPlan });
         }
-        
+
         await refreshSession();
         setSubmitted(true);
         toast.success("Vendor application submitted successfully!");
@@ -118,9 +118,7 @@ function BecomeVendorPage() {
             </p>
             <div className="pt-2">
               <button
-                onClick={() =>
-                  navigate({ to: "/vendor" })
-                }
+                onClick={() => navigate({ to: "/vendor" })}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-xs px-6 py-3 shadow-md hover:bg-primary/90"
               >
                 Go to {vendorType === "roaming" ? "Street Vendor Portal" : "Merchant Dashboard"}{" "}

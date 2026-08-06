@@ -22,9 +22,11 @@ import notificationRoutes from "./notification.routes";
 import uploadRoutes from "./upload.routes";
 import adminRoutes from "./admin.routes";
 import publicSettingsRoutes from "./public-settings.routes";
+import offersRoutes from "./offers.routes";
 
 import deliveryRoutes from "./delivery.routes";
 import contactRoutes from "./contact.routes";
+import { faqRoutes } from "./faq.routes";
 
 const v1Router = Router();
 
@@ -51,8 +53,10 @@ v1Router.use(uploadRoutes);
 v1Router.use("/admin", adminRoutes);
 v1Router.use("/admin", integrationAdminRoutes);
 v1Router.use(publicSettingsRoutes);
+v1Router.use(offersRoutes);
 
 v1Router.use(deliveryRoutes);
 v1Router.use(contactRoutes);
+v1Router.use("/faqs", faqRoutes);
 
 export default v1Router;

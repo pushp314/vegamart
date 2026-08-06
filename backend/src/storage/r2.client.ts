@@ -58,6 +58,9 @@ export function publicUrl(key: string): string {
 export async function uploadObject(input: R2UploadInput): Promise<string> {
   const s3 = getClient();
   if (!s3) {
+    if (env.NODE_ENV === "production") {
+      throw new Error("R2 is not configured. Cannot process uploads in production.");
+    }
     log.warn(`[r2] R2 not configured — upload skipped for key "${input.key}".`);
     return publicUrl(input.key);
   }
@@ -77,6 +80,9 @@ export async function uploadObject(input: R2UploadInput): Promise<string> {
       context: "storage",
       error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
     });
+    if (env.NODE_ENV === "production") {
+      throw new Error(`R2 upload failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
     return `https://placehold.co/600x400?text=${encodeURIComponent(input.key.split("/").pop() || "Mock+Image")}`;
   }
 }
@@ -104,4 +110,22 @@ export async function deleteObject(key: string): Promise<void> {
       cause: error,
     });
   }
+}
+
+export function extractKeyFromUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  
+  if (env.R2_PUBLIC_URL) {
+    const base = env.R2_PUBLIC_URL.replace(/\/+$/, "");
+    if (url.startsWith(`${base}/`)) {
+      return url.slice(base.length + 1);
+    }
+  }
+  
+  const rawBase = `https://${env.R2_BUCKET_NAME}.${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  if (url.startsWith(`${rawBase}/`)) {
+    return url.slice(rawBase.length + 1);
+  }
+  
+  return null;
 }

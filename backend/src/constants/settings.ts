@@ -49,7 +49,7 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "number",
     default: 5,
     description: "Tax rate (GST) applied to order subtotals, in percent.",
-    is_public: false,
+    is_public: true,
   },
   [SETTING_KEYS.DELIVERY_FEE]: {
     key: SETTING_KEYS.DELIVERY_FEE,

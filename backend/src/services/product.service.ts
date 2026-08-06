@@ -8,6 +8,7 @@ import * as productRepo from "../repositories/product.repository";
 import { existsById as categoryExists } from "../repositories/category.repository";
 import { cacheService } from "../database/cache";
 import prisma from "../database/prisma";
+import { deleteObject, extractKeyFromUrl } from "../storage/r2.client";
 import { ApiError, ConflictError, ForbiddenError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { uniqueSlug } from "../utils/slug";
@@ -133,11 +134,42 @@ export const productService = {
   },
 
   async remove(userId: string, productId: string, req: Request): Promise<void> {
-    await this.ensureOwnedProduct(productId, userId);
+    const product = await this.ensureOwnedProduct(productId, userId);
+    
+    // Cleanup R2 images
+    for (const image of product.images) {
+      if (image.url) {
+        const key = extractKeyFromUrl(image.url);
+        if (key) await deleteObject(key).catch(() => {});
+      }
+    }
+    
     await productRepo.softDelete(productId);
     await cacheService.invalidateNamespace("product");
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.PRODUCT_DELETED, entityType: "product", entityId: productId },
+      req
+    );
+  },
+
+  async adminRemove(adminUserId: string, productId: string, req: Request): Promise<void> {
+    const product = await productRepo.findById(productId);
+    if (!product) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
+    }
+    
+    // Cleanup R2 images
+    for (const image of product.images) {
+      if (image.url) {
+        const key = extractKeyFromUrl(image.url);
+        if (key) await deleteObject(key).catch(() => {});
+      }
+    }
+    
+    await productRepo.softDelete(productId);
+    await cacheService.invalidateNamespace("product");
+    await auditService.record(
+      { userId: adminUserId, action: "ADMIN_PRODUCT_DELETED", entityType: "product", entityId: productId },
       req
     );
   },
@@ -273,11 +305,21 @@ export const productService = {
   },
 
   async removeImage(userId: string, productId: string, imageId: string, req: Request): Promise<void> {
-    await this.ensureOwnedProduct(productId, userId);
+    const product = await this.ensureOwnedProduct(productId, userId);
+    const image = product.images.find((i) => i.id === imageId);
+    
     const removed = await productRepo.removeImage(productId, imageId);
     if (!removed) {
       throw new ApiError(HttpStatus.NOT_FOUND, "Image not found.", { code: "NOT_FOUND" });
     }
+    
+    if (image?.url) {
+      const key = extractKeyFromUrl(image.url);
+      if (key) {
+        await deleteObject(key).catch(() => {}); // fire and forget
+      }
+    }
+    
     await cacheService.invalidateEntity("product", productId);
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.IMAGE_REMOVED, entityType: "product", entityId: productId, newValues: { image_id: imageId } },

@@ -374,7 +374,7 @@ export const updateHeroSlide = (
     link_text?: string;
     is_active?: boolean;
     sort_order?: number;
-  }
+  },
 ) => api.patch<HeroSlide>(`/admin/hero-slides/${id}`, data);
 
 export const deleteHeroSlide = (id: string) => api.delete(`/admin/hero-slides/${id}`);
@@ -404,4 +404,5 @@ export interface FeaturedProduct {
   is_featured: boolean;
 }
 
-export const getFeaturedProducts = () => api.get<{ rows: FeaturedProduct[]; total: number }>("/products/featured");
+export const getFeaturedProducts = () =>
+  api.get<{ rows: FeaturedProduct[]; total: number }>("/products/featured");

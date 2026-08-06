@@ -33,7 +33,7 @@ export const IMAGE_MIME_TYPES = [
 ] as const;
 
 export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-export const MAX_IMAGE_DIMENSION = 4096;
+export const MAX_IMAGE_DIMENSION = 8192;
 
 export const CACHE_TTL_SECONDS = {
   PUBLIC_CATALOG: 60 * 5,

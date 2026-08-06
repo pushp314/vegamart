@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import {
+  createVendorReview,
   cancelVendorApplication,
   createVendor,
   getMyDashboard,
@@ -48,6 +49,7 @@ import {
   vendorSlugParamsSchema,
 } from "../../validators/vendor.validators";
 import { vendorKycSchema, ringBellSchema } from "../../validators/integration.validators";
+import { createReviewSchema } from "../../validators/product.validators";
 
 const router = Router();
 
@@ -107,6 +109,13 @@ router.post(
   authenticate,
   validate({ params: vendorIdParamsSchema, body: ringBellSchema }),
   ringBell
+);
+router.post(
+  "/vendors/:vendor_id/reviews",
+  authenticate,
+  requireRole(ROLES.CUSTOMER),
+  validate({ params: vendorIdParamsSchema, body: createReviewSchema }),
+  createVendorReview
 );
 
 // Admin routes

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const folderEnum = z.enum(["products", "vendors", "profiles", "categories", "documents", "invoices"]);
+const folderEnum = z.enum(["products", "vendors", "profiles", "categories", "documents", "invoices", "hero"]);
 
 export const uploadFolderSchema = z.object({
   folder: folderEnum,
