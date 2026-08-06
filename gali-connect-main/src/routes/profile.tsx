@@ -17,9 +17,11 @@ import {
   User as UserIcon,
   LogIn,
   MessageSquare,
+  Download,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useAuth } from "@/context/auth-context";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { homePathForRole } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -43,6 +45,17 @@ function Profile() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const [saving, setSaving] = useState(false);
+  const [iosInstallHint, setIosInstallHint] = useState(false);
+  const { canInstall, isIOS, showInstallOption, install } = usePwaInstall();
+
+  const handleInstallApp = async () => {
+    if (canInstall) {
+      const outcome = await install();
+      if (outcome === "accepted") toast.success("Vegamart installed!");
+    } else if (isIOS) {
+      setIosInstallHint(true);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -270,6 +283,26 @@ function Profile() {
             My Account
           </h2>
           <div className="rounded-3xl border bg-card overflow-hidden divide-y">
+            {showInstallOption && (
+              <button
+                onClick={handleInstallApp}
+                className="flex w-full items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-primary">
+                    <Download className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-foreground">Install App</div>
+                    <div className="text-xs text-muted-foreground">
+                      Add Vegamart to your home screen
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+            )}
+
             <Link
               to="/orders"
               className="flex items-center justify-between p-4 hover:bg-muted/40 transition-colors"
@@ -391,6 +424,30 @@ function Profile() {
           <LogOut className="h-4 w-4" /> Sign Out
         </button>
       </main>
+
+      {/* iOS Install Hint Modal */}
+      {iosInstallHint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-glow text-center space-y-4">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-brand text-primary-foreground shadow-glow">
+              <Download className="h-7 w-7" />
+            </div>
+            <div>
+              <h3 className="font-display text-base font-bold">Install Vegamart</h3>
+              <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                Tap the <span className="font-semibold">Share</span> button in Safari and select{" "}
+                <span className="font-semibold">Add to Home Screen</span>.
+              </p>
+            </div>
+            <button
+              onClick={() => setIosInstallHint(false)}
+              className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Edit Profile Modal */}
       {editOpen && (
