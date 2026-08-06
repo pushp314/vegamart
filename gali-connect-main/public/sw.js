@@ -1,4 +1,4 @@
-const CACHE_NAME = "vegamart-v1";
+const CACHE_NAME = "vegamart-v2";
 const PRECACHE_URLS = [
   "/manifest.webmanifest",
   "/icons/icon-192.png",
@@ -30,6 +30,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
+
+  // In dev (localhost) never intercept: Vite serves un-versioned module URLs, so
+  // cache-first responses go stale and cause SSR hydration mismatches. Network-only.
+  if (self.location.hostname === "localhost") return;
 
   const url = new URL(request.url);
 

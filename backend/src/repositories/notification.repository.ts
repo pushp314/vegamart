@@ -69,6 +69,7 @@ export async function listByUser(
       body: a.body,
       data: null,
       is_read: false,
+      source: "announcement",
       created_at: a.published_at || a.created_at,
       read_at: null
     }));

@@ -73,6 +73,8 @@ export const authStorage = {
   },
 };
 
+let refreshInFlight: Promise<boolean> | null = null;
+
 class ApiClient {
   private getHeaders(): HeadersInit {
     const headers: Record<string, string> = {
@@ -198,7 +200,20 @@ class ApiClient {
     );
   }
 
-  private async refreshSession() {
+  private refreshSession(): Promise<boolean> {
+    // Single-flight refresh: when several requests 401 at once (e.g. react-query
+    // refetching on window focus), only one token rotation should hit the server.
+    // Concurrent callers all await the same promise; otherwise the first rotation
+    // revokes the refresh token and the rest fail and wipe the session.
+    if (!refreshInFlight) {
+      refreshInFlight = this.performRefresh().finally(() => {
+        refreshInFlight = null;
+      });
+    }
+    return refreshInFlight;
+  }
+
+  private async performRefresh() {
     const refreshToken = authStorage.getRefreshToken();
     if (!refreshToken) return false;
 
