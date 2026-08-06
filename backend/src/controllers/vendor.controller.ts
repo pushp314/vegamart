@@ -99,7 +99,7 @@ export const nearbyVendors = asyncHandler(async (req: Request, res: Response) =>
   const perPage = query.per_page ? Number(query.per_page) : 20;
   const result = await vendorService.nearby(lat, lng, radius, {
     category: query.category,
-    isOpen: query.is_open === "true",
+    isOpen: query.is_open !== undefined ? query.is_open === "true" : undefined,
     page,
     perPage,
   });
@@ -620,7 +620,7 @@ export const nearbyDailyLocations = asyncHandler(async (req: Request, res: Respo
   const radius = query.radius ? Number(query.radius) : 5;
   const result = await vendorService.getNearbyWithDailyLocation(lat, lng, radius, {
     category: query.category,
-    is_open: query.is_open === "true",
+    is_open: query.is_open !== undefined ? query.is_open === "true" : undefined,
     page: query.page ? Number(query.page) : undefined,
     per_page: query.per_page ? Number(query.per_page) : undefined,
   });
