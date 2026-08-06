@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { MapPin } from "lucide-react";
+import { Logo } from "@/components/system/logo";
 
 export function SplashScreen() {
   const [show, setShow] = useState(true);
@@ -33,9 +33,9 @@ export function SplashScreen() {
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 260, damping: 18 }}
-              className="relative grid h-24 w-24 place-items-center rounded-3xl bg-card/15 backdrop-blur-lg shadow-glow ring-1 ring-white/30"
+              className="relative grid h-24 w-24 place-items-center"
             >
-              <MapPin className="h-11 w-11" strokeWidth={2.4} />
+              <Logo className="h-24 w-24 rounded-3xl" />
               <motion.span
                 aria-hidden
                 className="absolute inset-0 rounded-3xl ring-2 ring-white/40"

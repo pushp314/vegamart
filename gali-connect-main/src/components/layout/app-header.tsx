@@ -1,6 +1,7 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import type { ReactNode } from "react";
+import { Logo } from "@/components/system/logo";
 
 export function AppHeader({
   title,
@@ -31,12 +32,8 @@ export function AppHeader({
             <ChevronLeft className="h-5 w-5" />
           </button>
         ) : (
-          <Link
-            to="/"
-            aria-label="Home"
-            className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground font-bold"
-          >
-            V
+          <Link to="/" aria-label="Home" className="grid h-10 w-10 place-items-center rounded-full">
+            <Logo className="h-9 w-9" />
           </Link>
         )}
         <div className="min-w-0 flex-1">

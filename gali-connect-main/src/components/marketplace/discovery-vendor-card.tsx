@@ -69,13 +69,26 @@ export const DiscoveryVendorCard = memo(function DiscoveryVendorCard({
             loading="lazy"
             className="h-full w-full object-cover"
           />
+          {vendor.is_sponsored && (
+            <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm">
+              <Star className="h-2.5 w-2.5 fill-white" /> Sponsored
+            </span>
+          )}
           {open && (
-            <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-black text-white shadow-sm">
+            <span
+              className={`absolute left-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-black text-white shadow-sm ${
+                vendor.is_sponsored ? "top-8" : "top-1.5"
+              }`}
+            >
               <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> OPEN
             </span>
           )}
           {!open && (
-            <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-white backdrop-blur-sm">
+            <span
+              className={`absolute left-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-white backdrop-blur-sm ${
+                vendor.is_sponsored ? "top-8" : "top-1.5"
+              }`}
+            >
               CLOSED
             </span>
           )}

@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 
 import { couponService } from "../services/coupon.service";
 import { cartService } from "../services/cart.service";
+import { vendorService } from "../services/vendor.service";
 import { sendCreated, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
@@ -154,6 +155,75 @@ export const updateCoupon = asyncHandler(async (req: Request, res: Response) => 
  */
 export const deleteCoupon = asyncHandler(async (req: Request, res: Response) => {
   await couponService.remove(req.params.coupon_id as string, req);
+  return sendSuccess(res, { deleted: true });
+});
+
+/**
+ * @swagger
+ * /vendors/me/coupons:
+ *   get:
+ *     summary: List the vendor's own coupons (Business tier)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendor Coupons]
+ */
+export const listVendorCoupons = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  const query = req.query as Record<string, string | undefined>;
+  const result = await couponService.listVendor(vendor.id, {
+    page: query.page ? Number(query.page) : undefined,
+    per_page: query.per_page ? Number(query.per_page) : undefined,
+    is_active: query.is_active,
+    q: query.q,
+    type: query.type,
+  });
+  return sendSuccess(res, result.rows, {
+    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
+  });
+});
+
+/**
+ * @swagger
+ * /vendors/me/coupons:
+ *   post:
+ *     summary: Create a coupon scoped to the vendor (Business tier)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendor Coupons]
+ */
+export const createVendorCoupon = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  const coupon = await couponService.createForVendor(vendor.id, req.body as CreateCouponBody, req);
+  return sendCreated(res, coupon);
+});
+
+/**
+ * @swagger
+ * /vendors/me/coupons/{coupon_id}:
+ *   patch:
+ *     summary: Update one of the vendor's own coupons (Business tier)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendor Coupons]
+ */
+export const updateVendorCoupon = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  const coupon = await couponService.updateForVendor(vendor.id, req.params.coupon_id as string, req.body as UpdateCouponBody, req);
+  return sendSuccess(res, coupon);
+});
+
+/**
+ * @swagger
+ * /vendors/me/coupons/{coupon_id}:
+ *   delete:
+ *     summary: Delete one of the vendor's own coupons (Business tier)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Vendor Coupons]
+ */
+export const deleteVendorCoupon = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  await couponService.removeForVendor(vendor.id, req.params.coupon_id as string, req);
   return sendSuccess(res, { deleted: true });
 });
 

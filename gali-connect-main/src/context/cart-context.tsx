@@ -3,6 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import type { Product } from "@/types";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { Store, AlertTriangle, Trash2, ArrowRight } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const MAX_ITEM_QTY = 20;
 
@@ -39,13 +47,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
 
+  // Store Change Modal State
+  const [pendingItem, setPendingItem] = useState<{
+    product: Product;
+    quantity: number;
+    variantLabel?: string;
+  } | null>(null);
+
   const { data: settingsRes } = useQuery({
     queryKey: ["publicSettings"],
     queryFn: () => api.get<any>("/settings/public"),
   });
   const settings = settingsRes?.data || {};
 
-  // Restore cart from localStorage on mount (prevents SSR hydration mismatch)
+  const multiStoreEnabled = !!settings["platform.multi_store_checkout_enabled"];
+
+  // Restore cart from localStorage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem("vegamart_cart");
@@ -67,18 +84,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const firstProduct = items.length > 0 ? items[0]?.product : null;
   const vendorId = firstProduct?.vendor_id || (firstProduct as any)?.vendorId || null;
-  const vendorName = vendorId ? vendorId.replace(/-/g, " ").toUpperCase() : null;
+  const currentVendorName =
+    firstProduct?.vendor?.business_name ||
+    (firstProduct?.vendor as any)?.name ||
+    (vendorId ? vendorId.replace(/-/g, " ").toUpperCase() : "Current Store");
 
-  const addToCart = (product: Product, quantity = 1, variantLabel?: string) => {
+  const addToCartDirectly = (product: Product, quantity = 1, variantLabel?: string) => {
     setItems((prev) => {
-      const pVendorId = product.vendor_id || (product as any).vendorId;
-      const prevVendorId = prev[0]?.product?.vendor_id || (prev[0]?.product as any)?.vendorId;
-      // Hyperlocal Single-Vendor Rule: If adding item from a different vendor, reset cart
-      if (prev.length > 0 && prevVendorId && pVendorId && prevVendorId !== pVendorId) {
-        toast.warning("Cart cleared — items must be from a single vendor");
-        return [{ id: `c_${Date.now()}`, product, quantity, selectedVariant: variantLabel }];
-      }
-
       const existingIndex = prev.findIndex(
         (i) => i.product.id === product.id && i.selectedVariant === variantLabel,
       );
@@ -97,6 +109,43 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       return [...prev, { id: `c_${Date.now()}`, product, quantity, selectedVariant: variantLabel }];
     });
+  };
+
+  const addToCart = (product: Product, quantity = 1, variantLabel?: string) => {
+    const pVendorId = product.vendor_id || (product as any).vendorId;
+    const prevVendorId = items[0]?.product?.vendor_id || (items[0]?.product as any)?.vendorId;
+
+    // Single Store Enforcement Rule
+    if (
+      !multiStoreEnabled &&
+      items.length > 0 &&
+      prevVendorId &&
+      pVendorId &&
+      prevVendorId !== pVendorId
+    ) {
+      // Trigger Store Changed Modal Popup
+      setPendingItem({ product, quantity, variantLabel });
+      return;
+    }
+
+    addToCartDirectly(product, quantity, variantLabel);
+    toast.success(`Added ${product.name} to cart`);
+  };
+
+  const handleConfirmClearAndAdd = () => {
+    if (!pendingItem) return;
+    setItems([
+      {
+        id: `c_${Date.now()}`,
+        product: pendingItem.product,
+        quantity: pendingItem.quantity,
+        selectedVariant: pendingItem.variantLabel,
+      },
+    ]);
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    toast.success(`Cart cleared & added ${pendingItem.product.name}`);
+    setPendingItem(null);
   };
 
   const updateQuantity = (id: string, qty: number) => {
@@ -128,24 +177,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         throw new Error(res.error?.message || "Invalid or expired coupon code");
       }
       const coupon = res.data;
-      if (!coupon) throw new Error("Invalid or expired coupon code");
-
       setAppliedCoupon(code);
-
-      const calculatedDiscount =
-        coupon.discount != null && Number.isFinite(Number(coupon.discount))
-          ? Number(coupon.discount)
-          : 0;
-
-      setCouponDiscount(calculatedDiscount);
-      return { success: true, message: `Coupon applied: ₹${calculatedDiscount.toFixed(2)} off!` };
+      setCouponDiscount(coupon.discount_amount || 0);
+      return { success: true, message: "Coupon applied successfully" };
     } catch (err: any) {
-      setAppliedCoupon(null);
-      setCouponDiscount(0);
-      return {
-        success: false,
-        message: err?.message || err.response?.data?.message || "Invalid or expired coupon code",
-      };
+      return { success: false, message: err.message || "Failed to apply coupon" };
     }
   };
 
@@ -156,24 +192,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const subtotal = useMemo(
     () => items.reduce((acc, item) => acc + item.product.price * item.quantity, 0),
-    [items],
+    [items]
   );
 
-  const deliveryFee = subtotal > (settings["platform.free_delivery_threshold"] ?? 199) || subtotal === 0 
-    ? 0 
-    : (settings["platform.delivery_fee"] ?? 25);
-  const taxRate = (settings["platform.tax_rate_percent"] ?? 5) / 100;
-  const tax = Math.round(subtotal * taxRate);
-  const discount = Math.min(couponDiscount, subtotal);
+  const deliveryFee = subtotal > 0 ? (settings["platform.delivery_fee"] as number) || 30 : 0;
+  const taxRate = (settings["platform.tax_rate_percent"] as number) || 5;
+  const tax = Math.round((subtotal * taxRate) / 100);
+  const discount = couponDiscount;
   const total = Math.max(0, subtotal + deliveryFee + tax - discount);
-  const itemCount = useMemo(() => items.reduce((acc, item) => acc + item.quantity, 0), [items]);
+  const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
+
+  const pendingVendorName =
+    pendingItem?.product?.vendor?.business_name ||
+    (pendingItem?.product?.vendor as any)?.name ||
+    "New Store";
 
   return (
     <CartContext.Provider
       value={{
         items,
         vendorId,
-        vendorName,
+        vendorName: currentVendorName,
         subtotal,
         deliveryFee,
         tax,
@@ -190,6 +229,50 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+
+      {/* Store Changed Modal Popup */}
+      <Dialog open={!!pendingItem} onOpenChange={(open) => !open && setPendingItem(null)}>
+        <DialogContent className="rounded-3xl border-border max-w-md p-6">
+          <DialogHeader className="text-center space-y-3">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-amber-500/10 text-amber-500">
+              <Store className="h-8 w-8" />
+            </div>
+            <DialogTitle className="font-display text-xl font-bold">
+              अलग Store का Product / Store Changed
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed text-muted-foreground">
+              आपके Cart में पहले से <span className="font-bold text-foreground">{currentVendorName}</span> का सामान मौजूद है।
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs space-y-2 text-foreground">
+            <p className="font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              एक समय में सिर्फ एक ही Store से Order किया जा सकता है।
+            </p>
+            <p className="text-muted-foreground text-[11px]">
+              पहले वाले store का cart clear करें या उसी store से shopping जारी रखें।
+            </p>
+          </div>
+
+          <div className="space-y-2.5 pt-2">
+            <button
+              onClick={handleConfirmClearAndAdd}
+              className="w-full rounded-2xl bg-amber-500 text-slate-950 px-4 py-3 text-xs font-black uppercase tracking-wider shadow-lg hover:bg-amber-400 flex items-center justify-center gap-2 transition-all"
+            >
+              <Trash2 className="h-4 w-4" />
+              पहले वाला Cart Clear करें और {pendingVendorName} से Item जोड़ें
+            </button>
+
+            <button
+              onClick={() => setPendingItem(null)}
+              className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-xs font-bold text-muted-foreground hover:text-foreground transition-all"
+            >
+              पुराने Store ({currentVendorName}) से Shopping जारी रखें
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </CartContext.Provider>
   );
 }

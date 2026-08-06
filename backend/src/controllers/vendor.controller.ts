@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 
 import { vendorService } from "../services/vendor.service";
 import { discoveryService } from "../services/discovery.service";
+import { analyticsService } from "../services/analytics.service";
 import { sendCreated, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
@@ -308,6 +309,7 @@ export const updateVendorHours = asyncHandler(async (req: Request, res: Response
  */
 export const getVendorById = asyncHandler(async (req: Request, res: Response) => {
   const vendor = await vendorService.getById(req.params.vendor_id as string);
+  await analyticsService.trackStoreView(vendor.id);
   return sendSuccess(res, vendor);
 });
 
@@ -330,6 +332,7 @@ export const getVendorById = asyncHandler(async (req: Request, res: Response) =>
  */
 export const getVendorBySlug = asyncHandler(async (req: Request, res: Response) => {
   const vendor = await vendorService.getBySlug(req.params.slug as string);
+  await analyticsService.trackStoreView(vendor.id);
   return sendSuccess(res, vendor);
 });
 
@@ -482,6 +485,11 @@ export const suspendVendor = asyncHandler(async (req: Request, res: Response) =>
  */
 export const getMyDashboard = asyncHandler(async (req: Request, res: Response) => {
   const data = await vendorService.getMyDashboard(req.user!.id);
+  return sendSuccess(res, data);
+});
+
+export const getVendorAnalytics = asyncHandler(async (req: Request, res: Response) => {
+  const data = await vendorService.getVendorAnalytics(req.user!.id);
   return sendSuccess(res, data);
 });
 
@@ -703,7 +711,35 @@ export const submitVendorKyc = asyncHandler(async (req: Request, res: Response) 
  *         description: Earnings summary retrieved successfully
  */
 export const getVendorEarnings = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await vendorService.getVendorEarnings(req.user!.id));
+  const month = req.query.month as string | undefined;
+  return sendSuccess(res, await vendorService.getVendorEarnings(req.user!.id, month));
+});
+
+export const getMyMembership = asyncHandler(async (req: Request, res: Response) => {
+  return sendSuccess(res, await vendorService.getMyMembership(req.user!.id));
+});
+
+export const purchaseMembership = asyncHandler(async (req: Request, res: Response) => {
+  const { plan_id } = req.body as { plan_id: string };
+  const result = await vendorService.purchaseMembership(req.user!.id, plan_id, req);
+  const message = "checkout" in result
+    ? "Membership checkout initiated. Complete payment to activate your plan."
+    : "Membership plan activated successfully.";
+  return sendSuccess(res, result, { message });
+});
+
+export const verifyMembershipPayment = asyncHandler(async (req: Request, res: Response) => {
+  const result = await vendorService.verifyMembershipPayment(
+    req.user!.id,
+    req.body as { razorpay_subscription_id: string; razorpay_payment_id: string; razorpay_signature: string },
+    req
+  );
+  return sendSuccess(res, result, { message: "Payment verified. Membership plan activated." });
+});
+
+export const cancelMembership = asyncHandler(async (req: Request, res: Response) => {
+  const membership = await vendorService.cancelMembership(req.user!.id, req);
+  return sendSuccess(res, membership, { message: "Membership plan canceled successfully." });
 });
 
 /**

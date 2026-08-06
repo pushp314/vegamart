@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Store, Lock, Mail, Loader2 } from "lucide-react";
+import { ArrowRight, Lock, Mail, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { Logo } from "@/components/system/logo";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/vendor/login")({
@@ -41,9 +42,7 @@ function VendorLogin() {
       <div className="w-full max-w-md bg-card border rounded-3xl p-6 sm:p-8 shadow-soft">
         <div className="flex items-center justify-between">
           <Link to="/" className="inline-flex items-center gap-2 font-display text-lg font-bold">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground">
-              <Store className="h-4 w-4" />
-            </span>
+            <Logo className="h-9 w-9" />
             Vegamart
           </Link>
           <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">

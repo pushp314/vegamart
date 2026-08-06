@@ -19,6 +19,7 @@ export interface DiscoveryVendor {
   rating: number;
   review_count: number;
   is_verified: boolean;
+  is_sponsored?: boolean;
   is_open: boolean;
   roaming: boolean;
   vendor_type: VendorKind;
@@ -157,6 +158,7 @@ export function normalizeNearbyVendor(item: RawNearbyItem): DiscoveryVendor | nu
     rating: num(vendor.rating) ?? 0,
     review_count: num(vendor.review_count) ?? 0,
     is_verified: Boolean(vendor.is_verified),
+    is_sponsored: Boolean(vendor.is_sponsored),
     is_open: Boolean(vendor.is_open),
     roaming,
     vendor_type: roaming ? "roaming" : "shop",

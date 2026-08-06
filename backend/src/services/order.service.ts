@@ -129,6 +129,11 @@ export const orderService = {
         timestamps.started_at = new Date();
         break;
       case "DELIVERED":
+        if (!order.otp_code || !input.otp_code || input.otp_code !== order.otp_code) {
+          throw new ApiError(HttpStatus.BAD_REQUEST, "Delivery OTP required to mark order as delivered.", {
+            code: "INVALID_OTP",
+          });
+        }
         timestamps.delivered_at = new Date();
         await inventoryRepo.consumeQuantityForOrder(order.id);
         break;

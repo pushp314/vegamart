@@ -57,6 +57,18 @@ export const productService = {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Category does not exist.", { code: "INVALID_CATEGORY" });
     }
 
+    const planLimit = vendor.membership_plan?.product_limit ?? 20;
+    if (planLimit > 0) {
+      const activeCount = await productRepo.countForVendor(vendor.id);
+      if (activeCount >= planLimit) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `Your current membership allows up to ${planLimit} products. Upgrade your membership to list more.`,
+          { code: "PRODUCT_LIMIT_REACHED", details: { limit: String(planLimit), current: String(activeCount) } }
+        );
+      }
+    }
+
     const existingSlugs = await productRepo.listSlugs(vendor.id);
     const slug = uniqueSlug(input.name, existingSlugs);
 
@@ -75,6 +87,7 @@ export const productService = {
       is_featured: input.is_featured ?? false,
       is_vegetarian: input.is_vegetarian ?? null,
       stock: input.stock ?? 0,
+      total_stock: input.stock ?? 0,
       is_available: input.stock !== undefined ? input.stock > 0 : true,
     });
 
@@ -115,8 +128,12 @@ export const productService = {
     if (input.is_vegetarian !== undefined) data.is_vegetarian = input.is_vegetarian;
 
     if (input.stock !== undefined) {
-      data.stock = input.stock;
-      data.is_available = input.stock > 0;
+      const nextStock = Math.max(0, Math.floor(input.stock));
+      if (nextStock > product.stock) {
+        data.total_stock = (product.total_stock ?? 0) + (nextStock - product.stock);
+      }
+      data.stock = nextStock;
+      data.is_available = nextStock > 0;
     }
 
     if (Object.keys(data).length > 0) {
@@ -228,6 +245,7 @@ export const productService = {
     q?: string;
     is_active?: string;
     is_featured?: string;
+    vendor_id?: string;
   }) {
     const page = Math.max(1, query.page ?? 1);
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
@@ -236,6 +254,7 @@ export const productService = {
         q: query.q,
         isActive: query.is_active === "true" ? true : query.is_active === "false" ? false : undefined,
         isFeatured: query.is_featured === "true" ? true : query.is_featured === "false" ? false : undefined,
+        vendorId: query.vendor_id,
       },
       (page - 1) * perPage,
       perPage
@@ -269,7 +288,13 @@ export const productService = {
     if (!product) {
       throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
     }
-    if (!includeInactive && (!product.is_active || !product.is_available)) {
+    if (
+      !includeInactive &&
+      (!product.is_active ||
+        !product.is_available ||
+        product.vendor?.status !== "APPROVED" ||
+        product.vendor?.is_open === false)
+    ) {
       throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
     }
     return product;

@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import prisma from "../database/prisma";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { DEFAULT_CURRENCY, TAX_RATE_PERCENT } from "../constants";
@@ -18,6 +19,8 @@ import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { generateDeliveryOtp, generateInvoiceNumber, generateOrderNumber } from "../utils/order";
+import { checkVendorDailyOrderLimit } from "../middlewares/subscription.middleware";
+import { analyticsService } from "./analytics.service";
 import type { CheckoutPreviewBody, CreateOrderFromCartBody, PlaceOrderBody } from "../validators/checkout.validators";
 
 interface VendorGroup {
@@ -76,6 +79,8 @@ export interface CheckoutGroup {
   items_subtotal: number;
   delivery_fee: number;
   min_order: number;
+  provides_delivery: boolean;
+  is_open: boolean;
 }
 
 export interface CheckoutSummary {
@@ -120,6 +125,13 @@ export const checkoutService = {
       if (!vendor) {
         throw new ApiError(HttpStatus.BAD_REQUEST, "One of the vendors is no longer available.", { code: "INVALID_VENDOR" });
       }
+      if (!vendor.is_open) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `${vendor.business_name} is currently offline. You can still save your cart and check out when they are back online.`,
+          { code: "VENDOR_OFFLINE" }
+        );
+      }
 
       const settings = await settingsService.getAllSettings();
       const globalDeliveryFee = (settings["pricing.delivery_fee"] as number) || 0;
@@ -145,6 +157,8 @@ export const checkoutService = {
         items_subtotal: Math.round(group.subtotal * 100) / 100,
         delivery_fee: Math.round(vendorDeliveryFee * 100) / 100,
         min_order: vendor.min_order.toNumber(),
+        provides_delivery: vendor.provides_delivery,
+        is_open: vendor.is_open,
       });
       itemsSubtotal += group.subtotal;
       deliveryFee += vendorDeliveryFee;
@@ -217,6 +231,11 @@ export const checkoutService = {
     }
 
     await this.validateStock(groups);
+    
+    // Check daily order limit for all involved vendors
+    for (const group of groups) {
+      await checkVendorDailyOrderLimit(group.vendor_id);
+    }
 
     const idempotencyKey = input.idempotency_key ?? undefined;
     const orders = [];
@@ -271,6 +290,37 @@ export const checkoutService = {
         actorType: "customer",
         actorId: userId,
       });
+
+      // Increment daily order counter
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      await prisma.dailyOrderCounter.upsert({
+        where: {
+          vendor_id_date: {
+            vendor_id: group.vendor_id,
+            date: today
+          }
+        },
+        update: { count: { increment: 1 } },
+        create: {
+          vendor_id: group.vendor_id,
+          date: today,
+          count: 1
+        }
+      });
+
+      // Populate analytics tables (best-effort; failures are logged, not thrown)
+      await analyticsService.recordOrder(
+        group.vendor_id,
+        group.items.map((item) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          total_price: item.line_total,
+        })),
+        groupTotal
+      );
+      await analyticsService.recordCustomer(group.vendor_id, userId, order.id);
 
       let payment;
       if (paymentMethod === "RAZORPAY") {
@@ -332,6 +382,12 @@ export const checkoutService = {
   async validateStock(groups: VendorGroup[]): Promise<void> {
     for (const group of groups) {
       for (const item of group.items) {
+        const product = item.product;
+        if (product.stock < item.quantity) {
+          throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, `Insufficient stock for "${product.name}".`, {
+            code: "INSUFFICIENT_STOCK",
+          });
+        }
         const inventory = await inventoryRepo.findByProductId(item.product_id);
         const available = inventory ? inventory.quantity - inventory.reserved : null;
         if (available !== null && available < item.quantity) {

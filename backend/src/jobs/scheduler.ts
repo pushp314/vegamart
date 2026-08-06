@@ -11,6 +11,8 @@ import {
   computeDailySalesReport,
   computeDailyVendorSummaries,
   expireExpiredCoupons,
+  expireExpiredMemberships,
+  remindExpiringMemberships,
 } from "./job-tasks";
 
 interface RegisteredJob {
@@ -59,6 +61,12 @@ export function startJobs(): void {
 
   // Daily at 03:00 IST: expire coupons that have lapsed
   register("expire-expired-coupons", "0 3 * * *", () => expireExpiredCoupons());
+
+  // Hourly: demote vendors whose paid membership has lapsed
+  register("expire-expired-memberships", "15 * * * *", () => expireExpiredMemberships());
+
+  // Daily at 08:00 IST: remind vendors whose membership expires in 7 or 1 days
+  register("remind-expiring-memberships", "0 8 * * *", () => remindExpiringMemberships());
 
   // Daily at 04:00 IST: clean up old notifications
   register("cleanup-old-notifications", "0 4 * * *", () =>

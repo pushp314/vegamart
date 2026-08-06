@@ -9,7 +9,7 @@ const DISMISS_DAYS = 7;
 export function InstallAppBanner() {
   const { canInstall, isIOS, isStandalone, install } = usePwaInstall();
   const [visible, setVisible] = useState(false);
-  const [iosHint, setIosHint] = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -19,12 +19,7 @@ export function InstallAppBanner() {
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     if (isIOS) {
-      timers.push(
-        setTimeout(() => {
-          setIosHint(true);
-          setVisible(true);
-        }, 1200),
-      );
+      timers.push(setTimeout(() => setVisible(true), 1200));
     }
     if (canInstall) {
       timers.push(setTimeout(() => setVisible(true), 800));
@@ -39,8 +34,11 @@ export function InstallAppBanner() {
 
   const onInstall = async () => {
     const outcome = await install();
-    if (outcome === "accepted") setVisible(false);
-    else dismiss();
+    if (outcome === "accepted") {
+      setVisible(false);
+    } else {
+      setShowSteps(true);
+    }
   };
 
   return (
@@ -68,20 +66,39 @@ export function InstallAppBanner() {
 
               <div>
                 <h3 className="text-xl font-bold font-display">Install Vegamart</h3>
-                <p className="mt-2 text-sm text-muted-foreground px-4">
-                  {iosHint
-                    ? "Tap the Share button and select 'Add to Home Screen'."
-                    : "Get faster, offline-ready, one-tap access to Vegamart."}
+                <p className="mt-2 text-sm italic text-muted-foreground px-4">
+                  Your neighbourhood, delivered.
                 </p>
               </div>
 
-              {!iosHint && canInstall && (
-                <button
-                  onClick={onInstall}
-                  className="w-full rounded-xl bg-brand py-3.5 text-[15px] font-bold text-primary-foreground shadow-glow active:scale-[0.98] transition tap-highlight-none mt-2"
-                >
-                  Install App Now
-                </button>
+              <button
+                onClick={onInstall}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-[15px] font-bold text-primary-foreground shadow-glow active:scale-[0.98] transition tap-highlight-none mt-2"
+              >
+                <Download className="h-4 w-4" /> Install App Now
+              </button>
+
+              {showSteps && (
+                <ol className="space-y-2 text-left text-[13px] text-muted-foreground w-full">
+                  <li className="flex gap-2 rounded-xl bg-muted px-3 py-2.5">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] font-black text-primary">
+                      1
+                    </span>
+                    Tap the <span className="font-semibold">Share</span> button in Safari.
+                  </li>
+                  <li className="flex gap-2 rounded-xl bg-muted px-3 py-2.5">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] font-black text-primary">
+                      2
+                    </span>
+                    Select <span className="font-semibold">Add to Home Screen</span>.
+                  </li>
+                  <li className="flex gap-2 rounded-xl bg-muted px-3 py-2.5">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] font-black text-primary">
+                      3
+                    </span>
+                    Open Vegamart from your Home screen.
+                  </li>
+                </ol>
               )}
             </div>
           </div>

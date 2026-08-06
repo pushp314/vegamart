@@ -1,18 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  ShoppingBag,
-  Minus,
-  Plus,
-  Trash2,
-  Ticket,
-  X,
-  CheckCircle2,
-} from "lucide-react";
+import { ArrowRight, ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
-import { useState } from "react";
-import { toast } from "sonner";
 import { useLocation } from "@/hooks/use-location";
 
 export const Route = createFileRoute("/cart")({
@@ -30,29 +19,10 @@ function Cart() {
     tax,
     discount,
     appliedCoupon,
-    applyCoupon,
-    removeCoupon,
     total,
     itemCount,
   } = useCart();
   const { displayLocation } = useLocation();
-
-  const [promoCode, setPromoCode] = useState("");
-  const [isApplying, setIsApplying] = useState(false);
-
-  const handleApplyPromo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!promoCode.trim()) return;
-    setIsApplying(true);
-    const res = await applyCoupon(promoCode);
-    setIsApplying(false);
-    if (res.success) {
-      toast.success(res.message);
-      setPromoCode("");
-    } else {
-      toast.error(res.message);
-    }
-  };
 
   if (items.length === 0) {
     return (
@@ -153,46 +123,6 @@ function Cart() {
           </div>
 
           <aside className="mt-5 md:mt-0 space-y-5">
-            {/* Offers & Benefits */}
-            <section className="rounded-2xl bg-card border p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Ticket className="h-5 w-5 text-emerald-600" />
-                <h2 className="font-display text-[17px] font-bold">Offers & Benefits</h2>
-              </div>
-
-              {appliedCoupon ? (
-                <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span className="font-bold text-sm">'{appliedCoupon}' applied</span>
-                  </div>
-                  <button
-                    onClick={removeCoupon}
-                    className="text-emerald-700 hover:text-emerald-900 text-xs font-semibold underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleApplyPromo} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter promo code"
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
-                    className="flex-1 h-11 px-4 rounded-xl border bg-background text-sm font-medium uppercase placeholder:normal-case placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!promoCode.trim() || isApplying}
-                    className="h-11 px-5 rounded-xl bg-zinc-900 text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors"
-                  >
-                    {isApplying ? "..." : "Apply"}
-                  </button>
-                </form>
-              )}
-            </section>
-
             <section className="rounded-2xl bg-card border p-4 md:sticky md:top-24">
               <h2 className="font-display text-[17px] font-bold">Bill summary</h2>
               <dl className="mt-3 space-y-2 text-sm">

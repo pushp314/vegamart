@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import prisma from "../database/prisma";
 import log from "../config/logger";
+import { notificationService } from "../services/notification.service";
 
 export async function cleanupExpiredOtps(): Promise<number> {
   const result = await prisma.otpVerification.deleteMany({
@@ -141,4 +142,87 @@ export async function cleanupTempFiles(retentionHours: number): Promise<void> {
   log.info(`[cron] Found ${candidates.length} uploaded files older than ${retentionHours}h (cleanup is delegated to R2 lifecycle rules)`, {
     context: "cron",
   });
+}
+
+export async function expireExpiredMemberships(): Promise<number> {
+  const now = new Date();
+  const expired = await prisma.vendorProfile.findMany({
+    where: {
+      membership_expires_at: { lte: now },
+      membership_plan_id: { not: null },
+    },
+    select: {
+      id: true,
+      user_id: true,
+      business_name: true,
+      membership_plan: { select: { includes_sponsorship: true, name: true } },
+    },
+  });
+
+  let count = 0;
+  for (const vendor of expired) {
+    const demoteSponsorship = vendor.membership_plan?.includes_sponsorship ?? false;
+    await prisma.vendorProfile.update({
+      where: { id: vendor.id },
+      data: {
+        is_sponsored: demoteSponsorship ? false : undefined,
+        commission_rate: 5,
+      },
+    });
+    await notificationService.vendor(
+      vendor.user_id,
+      "Membership expired",
+      `Your ${vendor.membership_plan?.name ?? ""} plan has expired. Your store has reverted to the basic plan. Renew to keep your premium features.`,
+      { vendor_id: vendor.id, plan_id: null, tier: "basic" }
+    );
+    count += 1;
+  }
+
+  if (count > 0) {
+    log.info(`[cron] Expired memberships for ${count} vendors`, { context: "cron" });
+  }
+  return count;
+}
+
+/**
+ * Notifies vendors whose membership expires in exactly 7 days or 1 day.
+ * Intended to run daily.
+ */
+export async function remindExpiringMemberships(): Promise<number> {
+  const now = new Date();
+  const in7Days = new Date(now.getTime() + 7 * 86400000);
+
+  const upcoming = await prisma.vendorProfile.findMany({
+    where: {
+      membership_plan_id: { not: null },
+      membership_expires_at: { gte: now, lte: in7Days },
+    },
+    select: {
+      id: true,
+      user_id: true,
+      business_name: true,
+      membership_expires_at: true,
+      membership_plan: { select: { name: true } },
+    },
+  });
+
+  let count = 0;
+  for (const vendor of upcoming) {
+    const expiresAt = vendor.membership_expires_at!;
+    const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / 86400000);
+    if (daysLeft === 7 || daysLeft === 1) {
+      await notificationService.vendor(
+        vendor.user_id,
+        `Membership expiring in ${daysLeft} day${daysLeft > 1 ? "s" : ""}`,
+        `Your ${vendor.membership_plan?.name ?? ""} plan expires on ${expiresAt.toLocaleDateString()}. Renew now to keep your premium features.`,
+        { vendor_id: vendor.id, expires_at: expiresAt.toISOString() }
+      );
+      count += 1;
+    }
+  }
+
+  if (count > 0) {
+    log.info(`[cron] Sent membership expiry reminders to ${count} vendors`, { context: "cron" });
+  }
+  return count;
 }

@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Bell, Search, Menu, User, LogOut, ChevronDown, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/lib/use-theme";
+import { Logo } from "@/components/system/logo";
 
 import {
   Sidebar,
@@ -61,12 +62,9 @@ export function PortalLayout({
       <div className="flex min-h-screen w-full bg-background text-foreground font-sans selection:bg-primary/30">
         <Sidebar variant="inset" className="border-r border-border bg-card">
           <SidebarHeader className="flex h-16 items-center justify-center border-b border-border px-6 bg-card">
-            <Link
-              to="/"
-              className="flex items-center gap-2 font-bold text-lg text-primary font-display"
-            >
-              <span className="bg-primary text-primary-foreground p-1 rounded-lg">V</span>
-              egamart {portalName}
+            <Link to="/" className="flex items-center gap-2 font-bold text-lg font-display">
+              <Logo className="h-8 w-8" />
+              <span className="text-primary">Vegamart</span>
             </Link>
           </SidebarHeader>
           <SidebarContent className="bg-card">
@@ -143,12 +141,6 @@ export function PortalLayout({
               >
                 <DropdownMenuLabel className="text-foreground">My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-border" />
-                <DropdownMenuItem className="hover:bg-accent focus:bg-accent cursor-pointer">
-                  Profile Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem className="hover:bg-accent focus:bg-accent cursor-pointer">
-                  Support
-                </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-border" />
                 <DropdownMenuItem
                   onClick={onLogout}

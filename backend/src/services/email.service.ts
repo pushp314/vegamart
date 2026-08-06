@@ -8,6 +8,8 @@ import {
   paymentSuccessTemplate,
   vendorApprovedTemplate,
   vendorRejectedTemplate,
+  vendorWelcomeTemplate,
+  deliveryWelcomeTemplate,
   verifyEmailTemplate,
   welcomeTemplate,
 } from "../emails/templates";
@@ -15,6 +17,19 @@ import {
 export const emailService = {
   sendWelcomeEmail(email: string, name: string): Promise<boolean> {
     const tpl = welcomeTemplate(name);
+    return sendEmail({ to: email, ...tpl });
+  },
+
+  sendVendorWelcomeEmail(
+    email: string,
+    input: { name: string; businessName: string }
+  ): Promise<boolean> {
+    const tpl = vendorWelcomeTemplate(input);
+    return sendEmail({ to: email, ...tpl });
+  },
+
+  sendDeliveryWelcomeEmail(email: string, name: string): Promise<boolean> {
+    const tpl = deliveryWelcomeTemplate(name);
     return sendEmail({ to: email, ...tpl });
   },
 

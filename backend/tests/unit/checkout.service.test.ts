@@ -21,6 +21,43 @@ jest.mock("../../src/services/audit.service", () => ({
   auditService: { record: jest.fn().mockResolvedValue(undefined) },
 }));
 
+jest.mock("../../src/services/analytics.service", () => ({
+  analyticsService: {
+    recordOrder: jest.fn().mockResolvedValue(undefined),
+    recordCustomer: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock("../../src/services/membership-plan.service", () => ({
+  membershipPlanService: {
+    getMyMembership: jest.fn().mockResolvedValue({
+      tier: "basic",
+      plan: { daily_order_limit: 5 },
+      is_expired: false,
+    }),
+  },
+}));
+
+jest.mock("../../src/database/prisma", () => ({
+  __esModule: true,
+  default: {
+    dailyOrderCounter: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      upsert: jest.fn().mockResolvedValue({ id: "counter-1" }),
+    },
+  },
+}));
+
+jest.mock("../../src/services/settings.service", () => ({
+  settingsService: {
+    getAllSettings: jest.fn().mockResolvedValue({
+      "pricing.delivery_fee": 30,
+      "pricing.free_delivery_threshold": 0,
+      "pricing.tax_rate": 5,
+    }),
+  },
+}));
+
 jest.mock("../../src/repositories/cart.repository", () => ({
   getOrCreate: jest.fn(),
   clear: jest.fn(),
@@ -112,6 +149,7 @@ function makeCart(): cartRepo.CartRow {
           mrp: dec(120),
           is_active: true,
           is_available: true,
+          stock: 10,
           vendor_id: "v1",
           category_id: "c1",
           images: [],
@@ -128,6 +166,8 @@ function makeVendor() {
     business_name: "Sharma Store",
     min_order: dec(0),
     delivery_fee: dec(30),
+    is_open: true,
+    provides_delivery: false,
   } as any;
 }
 

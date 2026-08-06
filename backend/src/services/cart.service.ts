@@ -20,6 +20,9 @@ export const cartService = {
     if (!product || !product.is_active || !product.is_available) {
       throw new ApiError(HttpStatus.NOT_FOUND, "Product not found or unavailable.", { code: "NOT_FOUND" });
     }
+    if (product.vendor?.is_open === false || product.vendor?.status !== "APPROVED") {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product is unavailable because the vendor is offline.", { code: "NOT_FOUND" });
+    }
 
     const cart = await cartRepo.getOrCreate(userId);
     const existing = cart.items.find((item) => item.product_id === input.product_id);
@@ -27,6 +30,12 @@ export const cartService = {
     if (targetQuantity > CART_MAX_QUANTITY) {
       throw new ApiError(HttpStatus.BAD_REQUEST, `Quantity cannot exceed ${CART_MAX_QUANTITY} per product.`, {
         code: "QUANTITY_LIMIT",
+      });
+    }
+
+    if (product.stock < targetQuantity) {
+      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
+        code: "INSUFFICIENT_STOCK",
       });
     }
 
@@ -55,6 +64,13 @@ export const cartService = {
     if (input.quantity > CART_MAX_QUANTITY) {
       throw new ApiError(HttpStatus.BAD_REQUEST, `Quantity cannot exceed ${CART_MAX_QUANTITY} per product.`, {
         code: "QUANTITY_LIMIT",
+      });
+    }
+
+    const product = await findProductById(item.product_id);
+    if (product && product.stock < input.quantity) {
+      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
+        code: "INSUFFICIENT_STOCK",
       });
     }
 

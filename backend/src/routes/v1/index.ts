@@ -23,6 +23,7 @@ import uploadRoutes from "./upload.routes";
 import adminRoutes from "./admin.routes";
 import publicSettingsRoutes from "./public-settings.routes";
 import offersRoutes from "./offers.routes";
+import membershipPlanRoutes from "./membership-plan.routes";
 
 import deliveryRoutes from "./delivery.routes";
 import contactRoutes from "./contact.routes";
@@ -54,6 +55,7 @@ v1Router.use("/admin", adminRoutes);
 v1Router.use("/admin", integrationAdminRoutes);
 v1Router.use(publicSettingsRoutes);
 v1Router.use(offersRoutes);
+v1Router.use(membershipPlanRoutes);
 
 v1Router.use(deliveryRoutes);
 v1Router.use(contactRoutes);

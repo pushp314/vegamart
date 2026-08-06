@@ -20,6 +20,7 @@ export type VendorProfile = {
   rating: number;
   review_count: number;
   is_open: boolean;
+  provides_delivery?: boolean;
   phone?: string;
   owner_name: string;
 };
@@ -31,7 +32,25 @@ export type Vendor = {
   slug: string;
   status: VendorStatus;
   is_verified: boolean;
+  is_sponsored?: boolean;
+  commission_rate?: number;
+  membership_tier?: string;
+  membership_plan_id?: string | null;
+  membership_expires_at?: string | null;
+  membership_plan?: {
+    id: string;
+    name: string;
+    slug: string;
+    price: number;
+    billing_period: string;
+    features: string[];
+    product_limit: number;
+    commission_rate: number;
+    includes_sponsorship: boolean;
+  } | null;
   profile?: VendorProfile;
+  provides_delivery?: boolean;
+  is_open?: boolean;
   distance_km?: number;
   eta_min?: number;
   free_delivery_min_order?: number;
@@ -59,9 +78,12 @@ export type Product = {
   variants?: { unit: string; price: number; mrp: number }[];
   is_active: boolean;
   is_featured: boolean;
+  is_available?: boolean;
   rating: number;
   review_count: number;
   tag?: string;
+  stock?: number;
+  total_stock?: number;
   images?: ProductImage[];
   vendor?: Vendor;
 };

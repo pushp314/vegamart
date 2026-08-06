@@ -25,6 +25,7 @@ const baseSelect = {
           mrp: true,
           is_active: true,
           is_available: true,
+          stock: true,
           vendor_id: true,
           category_id: true,
           images: {
@@ -59,6 +60,7 @@ export type CartRow = {
       mrp: import("@prisma/client").Prisma.Decimal;
       is_active: boolean;
       is_available: boolean;
+      stock: number;
       vendor_id: string;
       category_id: string;
       images: Array<{

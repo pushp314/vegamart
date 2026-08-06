@@ -53,12 +53,16 @@ export function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
 
+  const vendorIdFromUrl = new URLSearchParams(window.location.search).get("vendor_id");
+  const [vendorId] = useState(vendorIdFromUrl || "");
+
   const { data: ordersRes, isLoading } = useQuery({
-    queryKey: ["adminOrders", search, statusFilter, page],
+    queryKey: ["adminOrders", search, statusFilter, page, vendorId],
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (vendorId) params.set("vendor_id", vendorId);
       params.set("page", String(page));
       params.set("per_page", "20");
       return api.get<any>(`/admin/orders?${params.toString()}`);
@@ -76,7 +80,14 @@ export function AdminOrders() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Order Management</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold">Order Management</h2>
+          {vendorId && (
+            <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 border-indigo-200">
+              Filtered by Vendor
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

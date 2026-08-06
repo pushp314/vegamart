@@ -19,8 +19,20 @@ export function ProductCard({ product }: { product: Product }) {
     product.images?.[0]?.url ||
     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
 
+  const vendorOffline = product.vendor?.is_open === false;
+  const outOfStock =
+    !product.is_available ||
+    (typeof product.stock === "number" && product.stock <= 0) ||
+    vendorOffline;
+  const lowStock =
+    !outOfStock && typeof product.stock === "number" && product.stock > 0 && product.stock <= 5;
+
   return (
-    <div className="group relative overflow-hidden rounded-2xl border bg-card p-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-glow">
+    <div
+      className={`group relative overflow-hidden rounded-2xl border bg-card p-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-glow ${
+        outOfStock ? "opacity-80" : ""
+      }`}
+    >
       <Link
         to="/products/$productId"
         params={{ productId: product.id }}
@@ -33,11 +45,32 @@ export function ProductCard({ product }: { product: Product }) {
           src={image}
           alt={product.name}
           loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 ${
+            outOfStock ? "grayscale-[35%]" : ""
+          }`}
         />
-        {discount > 0 && (
-          <div className="absolute left-2 top-2 rounded-md bg-saffron px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+        {product.vendor?.is_sponsored && (
+          <div className="absolute left-2 top-2 z-[2] rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
+            Sponsored
+          </div>
+        )}
+        {discount > 0 && !outOfStock && (
+          <div
+            className={`absolute left-2 rounded-md bg-saffron px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground ${
+              product.vendor?.is_sponsored ? "top-9" : "top-2"
+            }`}
+          >
             {discount}% OFF
+          </div>
+        )}
+        {outOfStock && (
+          <div className="absolute inset-x-0 bottom-0 z-[3] bg-black/60 px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
+            {vendorOffline ? "Store Closed" : "Out of Stock"}
+          </div>
+        )}
+        {lowStock && (
+          <div className="absolute right-2 bottom-2 z-[3] rounded-md bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
+            Only {product.stock} left
           </div>
         )}
 
@@ -83,14 +116,15 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
           <Button
             size="sm"
-            className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3"
+            disabled={outOfStock}
+            className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3 disabled:opacity-50 disabled:hover:bg-brand"
             onClick={(e) => {
               e.stopPropagation();
               addToCart(product, 1);
               toast.success(`Added ${product.name} to cart`);
             }}
           >
-            <Plus className="h-3.5 w-3.5" /> Add
+            <Plus className="h-3.5 w-3.5" /> {outOfStock ? "Unavailable" : "Add"}
           </Button>
         </div>
       </div>

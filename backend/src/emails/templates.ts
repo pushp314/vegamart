@@ -90,11 +90,51 @@ export function welcomeTemplate(name: string): { subject: string; html: string; 
   const subject = `Welcome to ${env.APP_NAME || APP_NAME}!`;
   const html = layout(
     subject,
-    `<h2>Welcome, ${name}!</h2>
+    `<h2>Welcome, ${name}! 🛒</h2>
      <p>Your account has been created successfully. You can now browse vendors, order groceries and track deliveries right from your neighbourhood.</p>
-     <p>Get started by exploring nearby stores on the home screen.</p>`
+     <p>Get started by exploring nearby stores on the home screen — fresh produce, groceries and more delivered to your door.</p>
+     <p style="text-align:center"><a class="button" href="${baseContext().appUrl}">Start Shopping</a></p>`
   );
-  const text = `Welcome, ${name}! Your account has been created successfully.`;
+  const text = `Welcome, ${name}! Your account has been created successfully. Browse nearby vendors and start ordering from ${baseContext().appUrl}.`;
+  return { subject, html, text };
+}
+
+export function vendorWelcomeTemplate(input: {
+  name: string;
+  businessName: string;
+}): { subject: string; html: string; text: string } {
+  const subject = `Welcome aboard, ${input.businessName}!`;
+  const html = layout(
+    subject,
+    `<h2>Welcome, ${input.name}! 🏪</h2>
+     <p>Your vendor account for <strong>${input.businessName}</strong> has been created successfully.</p>
+     <p>Here's what happens next:</p>
+     <ol>
+       <li>Complete your store profile — business hours, location, and logo.</li>
+       <li>Submit your KYC documents for verification.</li>
+       <li>Once approved, list your products and start accepting orders.</li>
+     </ol>
+     <p style="text-align:center"><a class="button" href="${baseContext().appUrl}">Open Vendor Portal</a></p>`
+  );
+  const text = `Welcome, ${input.name}! Your vendor account for ${input.businessName} has been created. Complete your profile, submit KYC and start listing products.`;
+  return { subject, html, text };
+}
+
+export function deliveryWelcomeTemplate(name: string): { subject: string; html: string; text: string } {
+  const subject = `Welcome to the delivery team, ${name}!`;
+  const html = layout(
+    subject,
+    `<h2>Welcome, ${name}! 🛵</h2>
+     <p>Your delivery partner account has been created successfully.</p>
+     <p>Here's what happens next:</p>
+     <ol>
+       <li>Complete your delivery profile — phone number and vehicle details.</li>
+       <li>Submit your KYC documents for verification.</li>
+       <li>Once approved, accept nearby delivery requests and start earning.</li>
+     </ol>
+     <p style="text-align:center"><a class="button" href="${baseContext().appUrl}">Open Delivery Portal</a></p>`
+  );
+  const text = `Welcome, ${name}! Your delivery partner account has been created. Complete your profile, submit KYC and start accepting deliveries.`;
   return { subject, html, text };
 }
 

@@ -7,6 +7,7 @@ import {
   getMyDashboard,
   getMyDailyLocation,
   getMyLocation,
+  getMyMembership,
   getMyReviews,
   getMyVendor,
   getVendorById,
@@ -15,10 +16,12 @@ import {
   getVendorEarnings,
   getVendorKyc,
   getVendorLocation,
+  getVendorAnalytics,
   listVendors,
   nearbyDailyLocations,
   nearbyVendors,
   patchVendorLocation,
+  purchaseMembership,
   removeDailyLocation,
   reviewVendor,
   ringBell,
@@ -26,11 +29,14 @@ import {
   submitVendorKyc,
   suspendVendor,
   updateMyVendor,
+  cancelMembership,
+  verifyMembershipPayment,
   updateVendorHours,
   updateVendorLocation,
   upsertDailyLocation,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
+import { requirePlan } from "../../middlewares/subscription.middleware";
 import { authenticate, optionalAuthenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate";
 import { PERMISSIONS, ROLES } from "../../constants/roles";
@@ -38,6 +44,7 @@ import {
   createVendorSchema,
   listVendorsQuerySchema,
   nearbyVendorsQuerySchema,
+  purchaseMembershipSchema,
   upsertDailyLocationSchema,
   updateVendorSchema,
   vendorAvailabilitySchema,
@@ -47,6 +54,7 @@ import {
   vendorLocationUpdateSchema,
   vendorReviewSchema,
   vendorSlugParamsSchema,
+  verifyMembershipPaymentSchema,
 } from "../../validators/vendor.validators";
 import { vendorKycSchema, ringBellSchema } from "../../validators/integration.validators";
 import { createReviewSchema } from "../../validators/product.validators";
@@ -66,6 +74,27 @@ router.put("/vendors/me", authenticate, validate({ body: updateVendorSchema }), 
 router.get("/vendors/me/kyc", authenticate, requireRole(ROLES.VENDOR), getVendorKyc);
 router.post("/vendors/me/kyc", authenticate, blockGuest, requireRole(ROLES.VENDOR), validate({ body: vendorKycSchema }), submitVendorKyc);
 router.get("/vendors/me/earnings", authenticate, requireRole(ROLES.VENDOR), getVendorEarnings);
+router.get("/vendors/me/membership", authenticate, requireRole(ROLES.VENDOR), getMyMembership);
+router.post(
+  "/vendors/me/membership",
+  authenticate,
+  requireRole(ROLES.VENDOR),
+  validate({ body: purchaseMembershipSchema }),
+  purchaseMembership
+);
+router.post(
+  "/vendors/me/membership/verify",
+  authenticate,
+  requireRole(ROLES.VENDOR),
+  validate({ body: verifyMembershipPaymentSchema }),
+  verifyMembershipPayment
+);
+router.post(
+  "/vendors/me/membership/cancel",
+  authenticate,
+  requireRole(ROLES.VENDOR),
+  cancelMembership
+);
 router.get("/vendors/location", authenticate, getMyLocation);
 router.patch(
   "/vendors/location",
@@ -87,6 +116,13 @@ router.put(
 );
 router.put("/vendors/me/hours", authenticate, validate({ body: vendorHoursSchema }), updateVendorHours);
 router.get("/vendors/me/dashboard", authenticate, requireRole(ROLES.VENDOR), getMyDashboard);
+router.get(
+  "/vendors/me/analytics", 
+  authenticate, 
+  requireRole(ROLES.VENDOR), 
+  requirePlan("premium"), 
+  getVendorAnalytics
+);
 router.get("/vendors/me/reviews", authenticate, requireRole(ROLES.VENDOR), getMyReviews);
 
 // Daily Location (Location Broadcast) — must precede /vendors/:vendor_id

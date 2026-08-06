@@ -9,6 +9,7 @@ import { adminDeliveryService } from "../services/admin-delivery.service";
 import { auditLogService } from "../services/audit-log.service";
 import { adminOrderService } from "../services/admin-order.service";
 import { productService } from "../services/product.service";
+import { membershipPlanService } from "../services/membership-plan.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { HttpStatus } from "../utils/httpStatus";
@@ -430,14 +431,54 @@ export const restoreVendorAdmin = asyncHandler(async (req: Request, res: Respons
  *         description: Vendor earnings stats.
  */
 export const getVendorEarnings = asyncHandler(async (req: Request, res: Response) => {
-  const data = await adminVendorService.earnings(req.params.vendor_id as string);
+  const month = req.query.month as string | undefined;
+  const data = await adminVendorService.earnings(req.params.vendor_id as string, month);
   return sendSuccess(res, data);
 });
 
 export const updateVendorMembership = asyncHandler(async (req: Request, res: Response) => {
   const data = await adminVendorService.updateMembership(
     req.params.vendor_id as string,
-    req.body as { commission_rate?: number; membership_tier?: string; membership_expires_at?: string },
+    req.body as { membership_plan_id?: string | null; commission_rate?: number | null; membership_tier?: string | null; membership_expires_at?: string | null },
+    req.user!.id,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
+export const listMembershipPlans = asyncHandler(async (req: Request, res: Response) => {
+  const includeInactive = (req.query as { include_inactive?: string }).include_inactive === "true";
+  const data = await membershipPlanService.listPlans(includeInactive);
+  return sendSuccess(res, data);
+});
+
+export const getMembershipPlan = asyncHandler(async (req: Request, res: Response) => {
+  const data = await membershipPlanService.getPlan(req.params.plan_id as string);
+  return sendSuccess(res, data);
+});
+
+export const createMembershipPlan = asyncHandler(async (req: Request, res: Response) => {
+  const data = await membershipPlanService.createPlan(req.body as Parameters<typeof membershipPlanService.createPlan>[0]);
+  return sendSuccess(res, data);
+});
+
+export const updateMembershipPlan = asyncHandler(async (req: Request, res: Response) => {
+  const data = await membershipPlanService.updatePlan(
+    req.params.plan_id as string,
+    req.body as Parameters<typeof membershipPlanService.updatePlan>[1]
+  );
+  return sendSuccess(res, data);
+});
+
+export const deleteMembershipPlan = asyncHandler(async (req: Request, res: Response) => {
+  const data = await membershipPlanService.deletePlan(req.params.plan_id as string);
+  return sendSuccess(res, data);
+});
+
+export const updateVendorPromotion = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminVendorService.updatePromotion(
+    req.params.vendor_id as string,
+    (req.body as { is_sponsored: boolean }).is_sponsored,
     req.user!.id,
     req
   );

@@ -368,6 +368,98 @@ async function seedVendorsAndProducts(): Promise<void> {
   logger.info(`  Vendor password: ${SEED_VENDOR_PASSWORD}`);
 }
 
+const DEFAULT_MEMBERSHIP_PLANS = [
+  {
+    name: "Free",
+    slug: "free",
+    description: "Map listing, self pickup, and basic shop dashboard.",
+    price: 0,
+    billing_period: "lifetime",
+    features: ["Map Listing", "Self Pickup", "Shop Dashboard", "Product Views Dashboard"],
+    product_limit: 10,
+    daily_order_limit: 5,
+    commission_rate: 5,
+    includes_sponsorship: false,
+    sort_order: 1,
+  },
+  {
+    name: "Smart",
+    slug: "smart",
+    description: "Grow your reach with basic analytics and better visibility.",
+    price: 99,
+    billing_period: "monthly",
+    features: [
+      "Store Views Count",
+      "Basic Sales Summary",
+      "Better Search Visibility",
+    ],
+    product_limit: 50,
+    daily_order_limit: 25,
+    commission_rate: 4,
+    includes_sponsorship: false,
+    sort_order: 2,
+  },
+  {
+    name: "Premium",
+    slug: "premium",
+    description: "Advanced analytics and priority search ranking.",
+    price: 199,
+    billing_period: "monthly",
+    features: [
+      "Customer Analytics",
+      "New vs Repeat Customers",
+      "Last Purchase History",
+      "Top Selling Products",
+      "Priority Search Ranking"
+    ],
+    product_limit: 200,
+    daily_order_limit: 100,
+    commission_rate: 3,
+    includes_sponsorship: true,
+    sort_order: 3,
+  },
+  {
+    name: "Business",
+    slug: "business",
+    description: "Unlimited potential with offers, coupons, and festival promotions.",
+    price: 499,
+    billing_period: "monthly",
+    features: [
+      "Unlimited Products",
+      "Unlimited Orders Per Day",
+      "Offers & Coupons",
+      "Festival Promotions",
+    ],
+    product_limit: 0,
+    daily_order_limit: 0,
+    commission_rate: 2,
+    includes_sponsorship: true,
+    sort_order: 4,
+  },
+];
+
+async function seedMembershipPlans(): Promise<void> {
+  for (const plan of DEFAULT_MEMBERSHIP_PLANS) {
+    await prisma.vendorMembershipPlan.upsert({
+      where: { slug: plan.slug },
+      create: plan,
+      update: {
+        name: plan.name,
+        description: plan.description,
+        price: plan.price,
+        billing_period: plan.billing_period,
+        features: plan.features,
+        product_limit: plan.product_limit,
+        daily_order_limit: plan.daily_order_limit,
+        commission_rate: plan.commission_rate,
+        includes_sponsorship: plan.includes_sponsorship,
+        sort_order: plan.sort_order,
+      },
+    });
+  }
+  logger.info("✔ Seeded vendor membership plans.");
+}
+
 async function main(): Promise<void> {
   logger.info("Seeding VegaMart database...");
   await seedRolesAndPermissions();
@@ -375,6 +467,7 @@ async function main(): Promise<void> {
   await seedSuperAdmin();
   await seedCategories();
   await seedVendorsAndProducts();
+  await seedMembershipPlans();
   logger.info("✔ Seeding complete.");
 }
 

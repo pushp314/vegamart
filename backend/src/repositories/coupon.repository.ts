@@ -18,6 +18,7 @@ const baseSelect = {
   applies_to_vendor_ids: true,
   applies_to_product_ids: true,
   applies_to_category_ids: true,
+  created_by_vendor_id: true,
   created_at: true,
   updated_at: true,
 } as const;
@@ -38,6 +39,7 @@ export type CouponRow = {
   applies_to_vendor_ids: string | null;
   applies_to_product_ids: string | null;
   applies_to_category_ids: string | null;
+  created_by_vendor_id: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -91,6 +93,33 @@ export async function listCoupons(
   return { rows: rows.map(mapRow), total };
 }
 
+export async function listByVendor(
+  vendorId: string,
+  filter: CouponListFilter,
+  skip: number,
+  take: number
+): Promise<{ rows: CouponRow[]; total: number }> {
+  const where: Prisma.CouponWhereInput = {
+    deleted_at: null,
+    created_by_vendor_id: vendorId,
+  };
+  if (filter.isActive !== undefined) where.is_active = filter.isActive;
+  if (filter.type) where.type = filter.type as Prisma.CouponWhereInput["type"];
+  if (filter.q) where.code = { contains: filter.q, mode: "insensitive" };
+
+  const [rows, total] = await Promise.all([
+    prisma.coupon.findMany({
+      where,
+      select: baseSelect,
+      orderBy: { created_at: "desc" },
+      skip,
+      take,
+    }),
+    prisma.coupon.count({ where }),
+  ]);
+  return { rows: rows.map(mapRow), total };
+}
+
 export async function listActiveBetween(from: Date, until: Date): Promise<CouponRow[]> {
   const rows = await prisma.coupon.findMany({
     where: { deleted_at: null, is_active: true, valid_from: { lte: until }, valid_until: { gte: from } },
@@ -122,6 +151,7 @@ export async function createCoupon(data: {
   applies_to_vendor_ids?: string[] | null;
   applies_to_product_ids?: string[] | null;
   applies_to_category_ids?: string[] | null;
+  created_by_vendor_id?: string | null;
 }): Promise<CouponRow> {
   const row = await prisma.coupon.create({
     data: {
@@ -138,6 +168,7 @@ export async function createCoupon(data: {
       applies_to_vendor_ids: data.applies_to_vendor_ids?.length ? data.applies_to_vendor_ids.join(",") : null,
       applies_to_product_ids: data.applies_to_product_ids?.length ? data.applies_to_product_ids.join(",") : null,
       applies_to_category_ids: data.applies_to_category_ids?.length ? data.applies_to_category_ids.join(",") : null,
+      created_by_vendor_id: data.created_by_vendor_id ?? null,
     },
     select: baseSelect,
   });

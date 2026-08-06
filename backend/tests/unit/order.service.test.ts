@@ -135,10 +135,15 @@ describe("order service", () => {
 
   it("transitions status and consumes inventory on delivery", async () => {
     vendorServiceMock.getMyVendor.mockResolvedValue({ id: "v1" } as any);
-    repo.findById.mockResolvedValue(makeOrder());
+    repo.findById.mockResolvedValue(makeOrder({ otp_code: "123456" }));
     repo.updateOrderStatus.mockResolvedValue(makeOrder({ status: "DELIVERED", delivered_at: new Date() }));
 
-    const updated = await orderService.transitionStatus("u-vendor", "order-1", { status: "DELIVERED" }, mockReq);
+    const updated = await orderService.transitionStatus(
+      "u-vendor",
+      "order-1",
+      { status: "DELIVERED", otp_code: "123456" },
+      mockReq
+    );
     expect(updated.status).toBe("DELIVERED");
     expect(invRepo.consumeQuantityForOrder).toHaveBeenCalledWith("order-1");
   });

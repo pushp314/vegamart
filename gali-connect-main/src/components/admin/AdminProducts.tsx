@@ -48,15 +48,19 @@ export function AdminProducts() {
   const [page, setPage] = useState(1);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
+  const vendorIdFromUrl = new URLSearchParams(window.location.search).get("vendor_id");
+  const [vendorId] = useState(vendorIdFromUrl || "");
+
   const {
     data: productsRes,
     isLoading,
     isError: productsError,
   } = useQuery({
-    queryKey: ["adminProducts", search, page],
+    queryKey: ["adminProducts", search, page, vendorId],
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
+      if (vendorId) params.set("vendor_id", vendorId);
       params.set("page", String(page));
       params.set("per_page", "20");
       return api.get<any>(`/admin/products?${params.toString()}`);
@@ -102,7 +106,14 @@ export function AdminProducts() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Product Management</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold">Product Management</h2>
+          {vendorId && (
+            <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 border-indigo-200">
+              Filtered by Vendor
+            </Badge>
+          )}
+        </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

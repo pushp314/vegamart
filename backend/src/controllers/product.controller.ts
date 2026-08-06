@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { productService } from "../services/product.service";
+import { analyticsService } from "../services/analytics.service";
 import { sendCreated, sendNoContent, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
@@ -100,6 +101,7 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
  */
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
   const product = await productService.getById(req.params.product_id as string);
+  await analyticsService.trackProductView(product.id);
   return sendSuccess(res, product);
 });
 

@@ -55,15 +55,29 @@ function statusLabel(status: string): string {
 
 function Orders() {
   const matchRoute = useMatchRoute();
-  const isChildRoute = matchRoute({ to: "/orders/$orderId/track", fuzzy: true });
+  const isChildRoute =
+    matchRoute({ to: "/orders/$orderId/track", fuzzy: true }) ||
+    matchRoute({ to: "/orders/history" });
 
-  // If a child route is active (e.g., order tracking), render only the child
+  // If a child route is active (tracking or history), render only the child
   if (isChildRoute) {
     return <Outlet />;
   }
 
   return <OrdersList />;
 }
+
+const ACTIVE_STATUSES = [
+  "pending",
+  "confirmed",
+  "preparing",
+  "packed",
+  "ready_for_pickup",
+  "picked_up",
+  "out_for_delivery",
+];
+
+const PAST_STATUSES = ["delivered", "cancelled", "refunded", "returned", "failed"];
 
 function OrdersList() {
   const refresh = () => new Promise<void>((res) => setTimeout(res, 700));
@@ -127,7 +141,13 @@ function OrdersList() {
     enabled: !!user && !isGuest,
   });
 
-  const orders = res?.data || [];
+  const allOrders = res?.data || [];
+  const orders =
+    role === "vendor"
+      ? allOrders
+      : allOrders.filter((o: any) =>
+          ACTIVE_STATUSES.includes(String(o.status || "pending").toLowerCase()),
+        );
 
   const toggleTracking = (id: string) => {
     setExpandedTracking((prev) => (prev === id ? null : id));
@@ -161,9 +181,21 @@ function OrdersList() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        title="Your orders"
-        subtitle={isLoading ? "Loading..." : `${orders.length} orders`}
+        title="Active Orders"
+        subtitle={
+          isLoading
+            ? "Loading..."
+            : `${orders.length} active order${orders.length === 1 ? "" : "s"}`
+        }
         back={false}
+        right={
+          <Link
+            to="/orders/history"
+            className="inline-flex items-center gap-1 rounded-full bg-card border px-3 py-2 text-xs font-bold text-primary hover:bg-muted transition-colors"
+          >
+            History
+          </Link>
+        }
       />
       <PullToRefresh onRefresh={refresh}>
         <main className="mx-auto max-w-4xl px-4 md:px-6 pt-4 md:pt-8 pb-28 md:pb-16">
@@ -176,10 +208,16 @@ function OrdersList() {
               <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-emerald-50 text-primary">
                 <ShoppingBag className="h-8 w-8" />
               </div>
-              <h1 className="mt-6 font-display text-2xl font-bold">No orders yet</h1>
+              <h1 className="mt-6 font-display text-2xl font-bold">No active orders</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                You haven't placed any orders. Start exploring vendors near you!
+                You don't have any orders in progress. Start exploring vendors near you!
               </p>
+              <Link
+                to="/orders/history"
+                className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
+              >
+                View order history →
+              </Link>
             </div>
           ) : (
             <div className="space-y-4">
@@ -234,6 +272,21 @@ function OrdersList() {
                         Trace Delivery
                       </Link>
                     </div>
+
+                    {o.otp_code && (
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-3">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-bold text-rose-700">Delivery OTP</div>
+                          <div className="text-[11px] text-muted-foreground leading-snug">
+                            Share this code with the delivery partner to receive your order.
+                            Delivery cannot be completed without it.
+                          </div>
+                        </div>
+                        <div className="shrink-0 bg-rose-600 text-white font-black text-xl tracking-[0.2em] px-4 py-2 rounded-xl shadow-sm">
+                          {o.otp_code}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="pt-3 border-t flex items-center justify-end gap-2">
                       {canCancel && (

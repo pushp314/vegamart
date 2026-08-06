@@ -27,6 +27,59 @@ export interface RazorpayPayment {
   created_at: number;
 }
 
+export interface RazorpayPlan {
+  id: string;
+  entity: string;
+  period: string;
+  interval: number;
+  item: { name: string; amount: number; currency: string; description?: string };
+  created_at: number;
+}
+
+export interface RazorpaySubscription {
+  id: string;
+  entity: string;
+  plan_id: string;
+  status: string; // created, authenticated, active, pending, halted, cancelled, completed, expired
+  current_start?: number | null;
+  current_end?: number | null;
+  ended_at?: number | null;
+  quantity: number;
+  notes?: Record<string, string>;
+  charge_at?: number | null;
+  start_at?: number | null;
+  end_at?: number | null;
+  total_count: number;
+  paid_count: number;
+  remaining_count: number;
+  customer_notify: boolean;
+  short_url?: string | null;
+  created_at: number;
+}
+
+export interface SubscriptionSchedule {
+  period: "daily" | "weekly" | "monthly" | "yearly";
+  interval: number;
+  totalCount: number;
+}
+
+export function subscriptionScheduleFor(billingPeriod: string): SubscriptionSchedule {
+  switch (billingPeriod) {
+    case "yearly":
+      return { period: "yearly", interval: 1, totalCount: 0 };
+    case "quarterly":
+      return { period: "monthly", interval: 3, totalCount: 0 };
+    case "lifetime":
+      return { period: "monthly", interval: 1, totalCount: 1 };
+    case "weekly":
+      return { period: "weekly", interval: 1, totalCount: 0 };
+    case "daily":
+      return { period: "daily", interval: 1, totalCount: 0 };
+    default:
+      return { period: "monthly", interval: 1, totalCount: 0 };
+  }
+}
+
 export function isRazorpayConfigured(): boolean {
   return Boolean(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET);
 }
@@ -90,6 +143,53 @@ export const razorpayGateway = {
     const payload = `${input.orderId}|${input.paymentId}`;
     const expected = hmacSha256Hex(payload, secret);
     return safeEqualHashes(expected, input.signature);
+  },
+
+  verifySubscriptionSignature(input: { paymentId: string; subscriptionId: string; signature: string }): boolean {
+    const secret = env.RAZORPAY_WEBHOOK_SECRET || env.RAZORPAY_KEY_SECRET;
+    if (!secret) {
+      return false;
+    }
+    const payload = `${input.paymentId}|${input.subscriptionId}`;
+    const expected = hmacSha256Hex(payload, secret);
+    return safeEqualHashes(expected, input.signature);
+  },
+
+  async createPlan(input: { name: string; amountPaise: number; period: string; interval: number; description?: string }): Promise<RazorpayPlan> {
+    return request<RazorpayPlan>("/plans", {
+      method: "POST",
+      body: {
+        period: input.period,
+        interval: input.interval,
+        item: {
+          name: input.name,
+          amount: input.amountPaise,
+          currency: "INR",
+          description: input.description,
+        },
+      },
+    });
+  },
+
+  async createSubscription(input: { planId: string; totalCount: number; notes?: Record<string, string>; quantity?: number }): Promise<RazorpaySubscription> {
+    return request<RazorpaySubscription>("/subscriptions", {
+      method: "POST",
+      body: {
+        plan_id: input.planId,
+        total_count: input.totalCount,
+        quantity: input.quantity ?? 1,
+        customer_notify: 1,
+        notes: input.notes,
+      },
+    });
+  },
+
+  async fetchSubscription(id: string): Promise<RazorpaySubscription> {
+    return request<RazorpaySubscription>(`/subscriptions/${id}`);
+  },
+
+  async cancelSubscription(id: string): Promise<RazorpaySubscription> {
+    return request<RazorpaySubscription>(`/subscriptions/${id}/cancel`, { method: "POST" });
   },
 
   verifyWebhookSignature(input: { body: string; signature: string }): boolean {

@@ -32,6 +32,8 @@ import type { VendorKycBody, RingBellBody } from "../validators/integration.vali
 import type { CreateReviewBody } from "../validators/product.validators";
 import * as dailyLocationRepo from "../repositories/vendor-daily-location.repository";
 import { ROLES } from "../constants/roles";
+import { membershipPlanService } from "./membership-plan.service";
+import { subscriptionPaymentService } from "./subscription-payment.service";
 
 export interface NearbyVendor {
   vendor: Omit<vendorRepo.VendorRow, "latitude" | "longitude">;
@@ -96,6 +98,7 @@ export const vendorService = {
       min_order: input.min_order ?? 0,
       delivery_fee: input.delivery_fee ?? 0,
       free_delivery_min_order: input.free_delivery_min_order ?? null,
+      provides_delivery: input.provides_delivery ?? false,
       owner_name: input.owner_name ?? null,
       phone: input.phone ?? null,
       available_from: input.available_from ?? null,
@@ -157,6 +160,7 @@ export const vendorService = {
     if (input.min_order !== undefined) data.min_order = input.min_order;
     if (input.delivery_fee !== undefined) data.delivery_fee = input.delivery_fee;
     if (input.free_delivery_min_order !== undefined) data.free_delivery_min_order = input.free_delivery_min_order;
+    if (input.provides_delivery !== undefined) data.provides_delivery = input.provides_delivery;
     if (input.owner_name !== undefined) data.owner_name = input.owner_name || null;
     if (input.phone !== undefined) data.phone = input.phone || null;
     if (input.available_from !== undefined) data.available_from = input.available_from || null;
@@ -390,6 +394,118 @@ export const vendorService = {
     return vendor as vendorRepo.VendorRow;
   },
 
+  async getMyMembership(userId: string) {
+    const vendor = await this.getMyVendor(userId);
+    return membershipPlanService.getMyMembership(vendor.id);
+  },
+
+  async purchaseMembership(userId: string, planId: string, req: Request) {
+    const vendor = await this.getMyVendor(userId);
+    if (vendor.status !== VendorStatus.APPROVED) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved before purchasing a membership.", {
+        code: "VENDOR_NOT_APPROVED",
+      });
+    }
+
+    const plan = await membershipPlanService.getPlan(planId);
+    if (!plan.is_active) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "This membership plan is not available.", {
+        code: "PLAN_INACTIVE",
+      });
+    }
+
+    const isFree = Number(plan.price) === 0;
+    if (!isFree) {
+      const checkout = await subscriptionPaymentService.initiate(vendor.id, plan);
+      await auditService.record(
+        {
+          userId,
+          action: "VENDOR_MEMBERSHIP_CHECKOUT_INITIATED",
+          entityType: "vendor",
+          entityId: vendor.id,
+          newValues: { membership_plan_id: plan.id, membership_tier: plan.slug },
+        },
+        req
+      );
+      return { checkout, plan: { id: plan.id, name: plan.name, slug: plan.slug, price: Number(plan.price) } };
+    }
+
+    await membershipPlanService.applyPlanToVendor(vendor.id, plan.id, {});
+    await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
+
+    const membership = await membershipPlanService.getMyMembership(vendor.id);
+    const expiryLabel = membership.expires_at
+      ? ` until ${new Date(membership.expires_at).toLocaleDateString()}`
+      : "";
+    await notificationService.vendor(
+      vendor.user_id,
+      `Membership activated: ${plan.name}`,
+      `Your ${plan.name} plan is now active${expiryLabel}. Enjoy your new features.`,
+      {
+        vendor_id: vendor.id,
+        plan_id: plan.id,
+        tier: plan.slug,
+        expires_at: membership.expires_at?.toISOString() ?? null,
+      }
+    );
+
+    await auditService.record(
+      {
+        userId,
+        action: "VENDOR_MEMBERSHIP_PURCHASED",
+        entityType: "vendor",
+        entityId: vendor.id,
+        newValues: { membership_plan_id: plan.id, membership_tier: plan.slug },
+      },
+      req
+    );
+
+    return { membership };
+  },
+
+  async verifyMembershipPayment(
+    userId: string,
+    input: { razorpay_subscription_id: string; razorpay_payment_id: string; razorpay_signature: string },
+    req: Request
+  ) {
+    const vendor = await this.getMyVendor(userId);
+    return subscriptionPaymentService.verifyAndActivate(vendor.id, input, req);
+  },
+
+  async cancelMembership(userId: string, req: Request) {
+    const vendor = await this.getMyVendor(userId);
+    if (vendor.status !== VendorStatus.APPROVED) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved.", {
+        code: "VENDOR_NOT_APPROVED",
+      });
+    }
+
+    await subscriptionPaymentService.cancelPaidSubscription(vendor.id);
+    await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
+
+    await notificationService.vendor(
+      vendor.user_id,
+      "Membership canceled",
+      "Your paid membership has been canceled. Your store is now on the basic plan.",
+      { vendor_id: vendor.id, plan_id: null, tier: "basic" }
+    );
+
+    await auditService.record(
+      {
+        userId,
+        action: "VENDOR_MEMBERSHIP_CANCELED",
+        entityType: "vendor",
+        entityId: vendor.id,
+        newValues: { membership_plan_id: null, membership_tier: "basic" },
+      },
+      req
+    );
+
+    return membershipPlanService.getMyMembership(vendor.id);
+  },
+
   async review(userId: string, vendorId: string, decision: "approve" | "reject", reason: string | null, req: Request): Promise<vendorRepo.VendorRow> {
     const vendor = await vendorRepo.findById(vendorId);
     if (!vendor) {
@@ -593,6 +709,7 @@ export const vendorService = {
 
   async getMyDashboard(userId: string) {
     const vendor = await this.getMyVendor(userId);
+    const membership = await membershipPlanService.getMyMembership(vendor.id);
 
     const now = new Date();
     const startOfDay = new Date(now);
@@ -615,6 +732,7 @@ export const vendorService = {
       monthlyRevenueAgg,
       recentOrders,
       topProducts,
+      todayOrderCounter,
     ] = await Promise.all([
       prisma.order.count({
         where: { vendor_id: vendor.id, created_at: { gte: startOfDay }, deleted_at: null },
@@ -701,6 +819,14 @@ export const vendorService = {
         orderBy: { _count: { id: "desc" } },
         take: 5,
       }),
+      prisma.dailyOrderCounter.findUnique({
+        where: {
+          vendor_id_date: {
+            vendor_id: vendor.id,
+            date: startOfDay
+          }
+        }
+      })
     ]);
 
     const topProductIds = topProducts.map((tp) => tp.product_id);
@@ -741,6 +867,7 @@ export const vendorService = {
         active_orders: activeOrders,
         total_products: totalProducts,
         low_stock_products: lowStockProducts,
+        daily_order_count: todayOrderCounter?.count || 0,
       },
       recent_orders: recentOrders.map((o) => ({
         id: o.id,
@@ -751,6 +878,57 @@ export const vendorService = {
         created_at: o.created_at,
       })),
       top_products: topProductsWithStats,
+      membership,
+    };
+  },
+
+  async getVendorAnalytics(userId: string) {
+    const vendor = await this.getMyVendor(userId);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [customerStats, storeViews, productStats] = await Promise.all([
+      prisma.customerAnalytics.aggregate({
+        where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
+        _sum: { new_customers: true, repeat_customers: true }
+      }),
+      prisma.storeAnalytics.aggregate({
+        where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
+        _sum: { store_views: true, total_revenue: true, total_orders: true }
+      }),
+      prisma.productAnalytics.groupBy({
+        by: ['product_id'],
+        where: { product: { vendor_id: vendor.id }, date: { gte: thirtyDaysAgo } },
+        _sum: { views: true, sales: true, revenue: true },
+        orderBy: { _sum: { sales: 'desc' } },
+        take: 10
+      })
+    ]);
+
+    const productIds = productStats.map(p => p.product_id);
+    const products = productIds.length ? await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true }
+    }) : [];
+
+    const topSellingProducts = productStats.map(ps => ({
+      product_id: ps.product_id,
+      name: products.find(p => p.id === ps.product_id)?.name || 'Unknown',
+      views: ps._sum.views || 0,
+      sales: ps._sum.sales || 0,
+      revenue: Number(ps._sum.revenue || 0)
+    }));
+
+    return {
+      overview: {
+        new_customers: customerStats._sum.new_customers || 0,
+        repeat_customers: customerStats._sum.repeat_customers || 0,
+        store_views: storeViews._sum.store_views || 0,
+        total_revenue: Number(storeViews._sum.total_revenue || 0),
+        total_orders: storeViews._sum.total_orders || 0,
+      },
+      top_selling_products: topSellingProducts
     };
   },
 
@@ -885,9 +1063,9 @@ export const vendorService = {
     return kyc;
   },
 
-  async getVendorEarnings(userId: string) {
+  async getVendorEarnings(userId: string, monthFilter?: string) {
     const vendor = await this.getMyVendor(userId);
-    const stats = await vendorRepo.getVendorStats(vendor.id);
+    const stats = await vendorRepo.getVendorStats(vendor.id, monthFilter);
     const commission = stats.total_earnings.toNumber();
     const revenue = stats.total_revenue.toNumber();
     const [recent] = await Promise.all([
@@ -905,7 +1083,12 @@ export const vendorService = {
       }),
     ]);
     return {
-      today_earnings: 0,
+      today_earnings: Math.round(stats.today_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+      weekly_earnings: Math.round(stats.weekly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+      monthly_earnings: Math.round(stats.monthly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+      today_revenue: Math.round(stats.today_revenue.toNumber() * 100) / 100,
+      weekly_revenue: Math.round(stats.weekly_revenue.toNumber() * 100) / 100,
+      monthly_revenue: Math.round(stats.monthly_revenue.toNumber() * 100) / 100,
       total_orders: stats.total_orders,
       active_orders: stats.active_orders,
       total_revenue: Math.round(revenue * 100) / 100,

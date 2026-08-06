@@ -196,6 +196,7 @@ export const adminProductsQuerySchema = z.object({
   q: z.string().trim().max(160).optional(),
   is_active: z.enum(["true", "false"]).optional(),
   is_featured: z.enum(["true", "false"]).optional(),
+  vendor_id: z.string().uuid("vendor_id must be a valid UUID.").optional(),
 }).strict();
 
 export const heroSlideIdParamsSchema = z.object({
@@ -232,11 +233,42 @@ export const updateHeroSlideSchema = z.object({
 }).strict();
 
 export const updateVendorMembershipSchema = z.object({
-  commission_rate: z.number().min(0).max(100).optional(),
-  membership_tier: z.string().trim().max(50).optional(),
+  membership_plan_id: z.string().uuid("Invalid plan ID format").optional().nullable(),
+  commission_rate: z.number().min(0).max(100).optional().nullable(),
+  membership_tier: z.string().trim().max(50).optional().nullable(),
   membership_expires_at: z.string().datetime().optional().nullable(),
 }).strict();
 export type UpdateVendorMembershipBody = z.infer<typeof updateVendorMembershipSchema>;
+
+export const updateVendorPromotionSchema = z.object({
+  is_sponsored: z.boolean(),
+}).strict();
+export type UpdateVendorPromotionBody = z.infer<typeof updateVendorPromotionSchema>;
+
+const billingPeriodSchema = z.enum(["monthly", "quarterly", "yearly", "lifetime"]);
+
+export const createMembershipPlanSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  slug: z.string().trim().max(80).optional(),
+  description: z.string().trim().max(2000).optional().nullable(),
+  price: z.coerce.number().min(0),
+  billing_period: billingPeriodSchema,
+  features: z.array(z.string().trim().min(1).max(200)).default([]),
+  product_limit: z.coerce.number().int().min(0).max(100000).default(20),
+  daily_order_limit: z.coerce.number().int().min(0).max(100000).default(5),
+  commission_rate: z.coerce.number().min(0).max(100).default(5),
+  includes_sponsorship: z.boolean().default(false),
+  is_active: z.boolean().default(true),
+  sort_order: z.coerce.number().int().default(0),
+}).strict();
+export type CreateMembershipPlanBody = z.infer<typeof createMembershipPlanSchema>;
+
+export const updateMembershipPlanSchema = createMembershipPlanSchema.partial();
+export type UpdateMembershipPlanBody = z.infer<typeof updateMembershipPlanSchema>;
+
+export const membershipPlanIdParamsSchema = z.object({
+  plan_id: z.string().uuid("Invalid plan ID format"),
+}).strict();
 
 
 export const ticketIdParamsSchema = z.object({

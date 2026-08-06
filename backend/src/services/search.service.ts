@@ -4,32 +4,51 @@ import { boundingBox, haversineDistanceKm } from "../utils/geo";
 
 const MAX_RESULTS = 50;
 
-function rankProduct(query: string, product: { name: string; description: string | null; tag: string | null }): number {
+function getPlanBoost(vendor?: { membership_tier?: string | null; is_sponsored?: boolean | null }): number {
+  if (!vendor) return 0;
+  if (vendor.is_sponsored) return -3;
+  switch (vendor.membership_tier) {
+    case "business": return -2;
+    case "premium": return -1;
+    case "smart": return -0.5;
+    default: return 0;
+  }
+}
+
+function rankProduct(query: string, product: { name: string; description: string | null; tag: string | null; vendor?: any }): number {
   const q = query.toLowerCase();
   const name = product.name.toLowerCase();
   const description = product.description?.toLowerCase() ?? "";
   const tag = product.tag?.toLowerCase() ?? "";
+  
+  const boost = getPlanBoost(product.vendor);
 
-  if (name === q) return 0;
-  if (name.startsWith(q)) return 1;
-  if (name.includes(q)) return 2;
-  if (tag.includes(q)) return 3;
-  if (description.includes(q)) return 4;
-  return 5;
+  let baseRank = 5;
+  if (name === q) baseRank = 0;
+  else if (name.startsWith(q)) baseRank = 1;
+  else if (name.includes(q)) baseRank = 2;
+  else if (tag.includes(q)) baseRank = 3;
+  else if (description.includes(q)) baseRank = 4;
+
+  return baseRank + boost;
 }
 
-function rankVendor(query: string, vendor: { business_name: string; description: string | null; city: string }): number {
+function rankVendor(query: string, vendor: { business_name: string; description: string | null; city: string; membership_tier?: string | null; is_sponsored?: boolean | null }): number {
   const q = query.toLowerCase();
   const name = vendor.business_name.toLowerCase();
   const description = vendor.description?.toLowerCase() ?? "";
   const city = vendor.city.toLowerCase();
 
-  if (name === q) return 0;
-  if (name.startsWith(q)) return 1;
-  if (name.includes(q)) return 2;
-  if (city.includes(q)) return 3;
-  if (description.includes(q)) return 4;
-  return 5;
+  const boost = getPlanBoost(vendor);
+
+  let baseRank = 5;
+  if (name === q) baseRank = 0;
+  else if (name.startsWith(q)) baseRank = 1;
+  else if (name.includes(q)) baseRank = 2;
+  else if (city.includes(q)) baseRank = 3;
+  else if (description.includes(q)) baseRank = 4;
+
+  return baseRank + boost;
 }
 
 export const searchService = {

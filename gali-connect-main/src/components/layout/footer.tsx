@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles } from "lucide-react";
+import { Logo } from "@/components/system/logo";
 
 export function Footer() {
   return (
@@ -7,10 +7,8 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-glow">
-                <Sparkles className="h-5 w-5" />
-              </div>
+            <div className="flex items-center gap-3">
+              <Logo className="h-10 w-10" />
               <div>
                 <div className="font-bold font-display text-lg">Vegamart</div>
                 <div className="text-xs text-muted-foreground">Discover Everything Around You</div>

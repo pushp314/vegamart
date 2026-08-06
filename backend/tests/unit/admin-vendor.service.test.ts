@@ -96,6 +96,9 @@ describe("admin vendor service", () => {
     repo.getVendorStats.mockResolvedValue({
       total_orders: 5,
       active_orders: 2,
+      today_revenue: new Prisma.Decimal(100),
+      weekly_revenue: new Prisma.Decimal(500),
+      monthly_revenue: new Prisma.Decimal(900),
       total_revenue: new Prisma.Decimal(1000),
       total_earnings: new Prisma.Decimal(50),
       pending_earnings: new Prisma.Decimal(20),

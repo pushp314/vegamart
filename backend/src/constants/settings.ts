@@ -13,6 +13,7 @@ export const SETTING_KEYS = {
   ANNOUNCEMENT_ENABLED: "notifications.announcement_enabled",
   SUPPORT_EMAIL: "support.email",
   SUPPORT_PHONE: "support.phone",
+  MULTI_STORE_CHECKOUT_ENABLED: "platform.multi_store_checkout_enabled",
 } as const;
 
 export type SettingValue =
@@ -126,6 +127,13 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "string",
     default: "+91 00000 00000",
     description: "Public support phone number.",
+    is_public: true,
+  },
+  [SETTING_KEYS.MULTI_STORE_CHECKOUT_ENABLED]: {
+    key: SETTING_KEYS.MULTI_STORE_CHECKOUT_ENABLED,
+    type: "boolean",
+    default: false,
+    description: "Allow customers to checkout items from multiple stores simultaneously.",
     is_public: true,
   },
 };

@@ -1,13 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Home, Compass, ShoppingBag, Bell, User } from "lucide-react";
+import { Home, Compass, ShoppingBag, User } from "lucide-react";
 import { useCart } from "@/context/cart-context";
-import { useNotifications } from "@/hooks/use-notifications";
 
 export function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { itemCount } = useCart();
-  const { unreadCount } = useNotifications();
 
   const TABS = [
     { id: "home", label: "Home", icon: Home, to: "/", match: (p: string) => p === "/" },
@@ -25,16 +23,7 @@ export function BottomNav() {
       icon: ShoppingBag,
       to: "/orders",
       match: (p: string) =>
-        p.startsWith("/orders") || p.startsWith("/checkout") || p.startsWith("/order"),
-      badge: itemCount,
-    },
-    {
-      id: "notifications",
-      label: "Updates",
-      icon: Bell,
-      to: "/notifications",
-      match: (p: string) => p.startsWith("/notifications"),
-      badge: unreadCount,
+        p.startsWith("/orders") || p.startsWith("/order") || p.startsWith("/track"),
     },
     {
       id: "profile",
@@ -57,65 +46,56 @@ export function BottomNav() {
       aria-label="Primary"
       className="md:hidden fixed inset-x-0 bottom-0 z-[120] pointer-events-none"
     >
-      <div className="pb-safe px-3 pb-3">
-        <div className="pointer-events-auto mx-auto max-w-md rounded-3xl bg-card/95 backdrop-blur border shadow-[0_10px_30px_-10px_rgba(0,0,0,0.15)]">
-          <ul className="grid grid-cols-5 px-2 py-2">
-            {TABS.map((t) => {
-              const active = t.match(pathname);
-              const Icon = t.icon;
-              return (
-                <li key={t.id} className="min-w-0">
-                  <Link
-                    to={t.to}
-                    aria-current={active ? "page" : undefined}
-                    aria-label={t.label}
-                    className="flex flex-col items-center justify-center gap-1 py-1.5 tap-highlight-none"
-                  >
-                    <span
-                      className={`relative grid h-10 w-10 place-items-center rounded-full transition-colors ${
-                        active ? "text-primary" : "text-foreground/70"
-                      }`}
-                    >
-                      <motion.span
-                        layout
-                        transition={{ type: "spring", stiffness: 400, damping: 24 }}
-                        className={`absolute inset-0 rounded-full ${
-                          active ? "bg-primary/10" : "bg-transparent"
-                        }`}
-                      />
-                      <motion.span
-                        key={t.id + (active ? "-on" : "-off")}
-                        initial={active ? { scale: 0.6 } : { scale: 1 }}
-                        animate={{ scale: active ? [0.7, 1.15, 1] : 1 }}
-                        transition={{ duration: active ? 0.45 : 0.2, ease: "easeOut" }}
-                        className="relative"
-                      >
-                        <Icon className="h-[21px] w-[21px]" strokeWidth={active ? 2.4 : 2} />
-                      </motion.span>
-                      {t.badge && t.badge > 0 ? (
-                        <span className="absolute -top-0.5 -right-0.5 grid h-[17px] min-w-[17px] px-1 place-items-center rounded-full bg-saffron text-[10px] font-bold text-primary-foreground ring-2 ring-card">
-                          {t.badge > 99 ? "99+" : t.badge}
-                        </span>
-                      ) : null}
-                      {active && (
-                        <motion.span
-                          layoutId="bottom-nav-dot"
-                          className="absolute -bottom-1 h-1 w-1 rounded-full bg-primary"
-                        />
-                      )}
-                    </span>
-                    <span
-                      className={`text-[10px] font-semibold transition-colors ${
-                        active ? "text-primary" : "text-muted-foreground"
-                      }`}
-                    >
-                      {t.label}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+      <div className="pointer-events-auto fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border pb-safe">
+        <div className="flex justify-around items-center h-20 px-4">
+          {TABS.map((t) => {
+            const active = t.match(pathname);
+            const Icon = t.icon;
+            return (
+              <Link
+                key={t.id}
+                to={t.to}
+                aria-current={active ? "page" : undefined}
+                aria-label={t.label}
+                className={`flex flex-col items-center gap-1.5 w-16 transition-colors tap-highlight-none ${
+                  active ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <span className="relative">
+                  <Icon className="h-6 w-6" strokeWidth={active ? 2.4 : 2} />
+                  {active && (
+                    <motion.span
+                      layoutId="customer-bottom-nav-dot"
+                      className="absolute -bottom-2 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
+                    />
+                  )}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider">{t.label}</span>
+              </Link>
+            );
+          })}
+
+          <Link
+            to="/cart"
+            aria-label="Cart"
+            className="pointer-events-auto relative -top-4 bg-gradient-to-br from-saffron to-primary text-white h-16 w-16 rounded-full flex flex-col items-center justify-center gap-0.5 shadow-[0_10px_30px_-6px_rgba(0,0,0,0.4)] border-4 border-background tap-highlight-none"
+          >
+            <ShoppingBag className="h-6 w-6" strokeWidth={2.4} />
+            <span className="text-[8px] font-black uppercase tracking-wider leading-none">
+              Cart
+            </span>
+            {itemCount > 0 && (
+              <motion.span
+                key={itemCount}
+                initial={{ scale: 0.4 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 14 }}
+                className="absolute -top-1 -right-1 bg-rose-600 text-white h-5 min-w-5 px-1 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-background shadow-lg"
+              >
+                {itemCount > 99 ? "99+" : itemCount}
+              </motion.span>
+            )}
+          </Link>
         </div>
       </div>
     </nav>

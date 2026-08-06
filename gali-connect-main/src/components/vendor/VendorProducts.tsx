@@ -131,6 +131,19 @@ export function VendorProducts({
                   ₹{p.price}{" "}
                   <span className="text-muted-foreground font-normal text-[11px]">/ {p.unit}</span>
                 </div>
+                <div className="mt-1 flex items-center gap-1.5 text-[10.5px] font-semibold">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      (p.stock ?? 0) > 0 ? "bg-emerald-500" : "bg-rose-500"
+                    }`}
+                  />
+                  <span className={p.stock > 0 ? "text-emerald-700" : "text-rose-600"}>
+                    {p.stock ?? 0} in stock
+                  </span>
+                  {typeof p.total_stock === "number" && (
+                    <span className="text-muted-foreground">· {p.total_stock} total</span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2 pt-2 border-t">
                 <button

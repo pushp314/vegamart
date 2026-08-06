@@ -34,6 +34,98 @@ export const couponService = {
     return couponRepo.listActiveBetween(new Date(0), now);
   },
 
+  async listVendor(vendorId: string, query: { page?: number; per_page?: number; is_active?: string; q?: string; type?: string }) {
+    const page = Math.max(1, query.page ?? 1);
+    const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
+    const { rows, total } = await couponRepo.listByVendor(
+      vendorId,
+      {
+        isActive: query.is_active === "true" ? true : query.is_active === "false" ? false : undefined,
+        q: query.q,
+        type: query.type,
+      },
+      (page - 1) * perPage,
+      perPage
+    );
+    return { rows, total, page, perPage };
+  },
+
+  async assertVendorOwns(vendorId: string, couponId: string): Promise<couponRepo.CouponRow> {
+    const existing = await couponRepo.findById(couponId);
+    if (!existing || existing.created_by_vendor_id !== vendorId) {
+      throw new NotFoundError("Coupon not found.");
+    }
+    return existing;
+  },
+
+  async createForVendor(vendorId: string, input: CreateCouponBody, req: Request): Promise<couponRepo.CouponRow> {
+    const existing = await couponRepo.findByCode(input.code.toUpperCase());
+    if (existing) {
+      throw new ApiError(HttpStatus.CONFLICT, "Coupon code already exists.", { code: "CONFLICT" });
+    }
+    const coupon = await couponRepo.createCoupon({
+      code: input.code.toUpperCase(),
+      type: input.type,
+      value: input.value,
+      max_discount: input.max_discount ?? null,
+      min_order_value: input.min_order_value ?? null,
+      usage_limit: input.usage_limit ?? 0,
+      per_user_limit: input.per_user_limit ?? 1,
+      valid_from: input.valid_from,
+      valid_until: input.valid_until,
+      is_active: input.is_active ?? true,
+      applies_to_vendor_ids: [vendorId],
+      applies_to_product_ids: input.applies_to_product_ids ?? null,
+      applies_to_category_ids: input.applies_to_category_ids ?? null,
+      created_by_vendor_id: vendorId,
+    });
+    await auditService.record(
+      { userId: req.user?.id, action: AUDIT_ACTIONS.COUPON_CREATED, entityType: "coupon", entityId: coupon.id, newValues: { code: coupon.code, type: coupon.type, value: coupon.value.toNumber(), created_by_vendor_id: vendorId } },
+      req
+    );
+    return coupon;
+  },
+
+  async updateForVendor(vendorId: string, id: string, input: UpdateCouponBody, req: Request): Promise<couponRepo.CouponRow> {
+    const existing = await this.assertVendorOwns(vendorId, id);
+    if (input.code && input.code.toUpperCase() !== existing.code) {
+      const dup = await couponRepo.findByCode(input.code.toUpperCase());
+      if (dup) {
+        throw new ApiError(HttpStatus.CONFLICT, "Coupon code already exists.", { code: "CONFLICT" });
+      }
+    }
+
+    const data: Record<string, unknown> = {};
+    if (input.code !== undefined) data.code = input.code.toUpperCase();
+    if (input.type !== undefined) data.type = input.type;
+    if (input.value !== undefined) data.value = input.value;
+    if (input.max_discount !== undefined) data.max_discount = input.max_discount;
+    if (input.min_order_value !== undefined) data.min_order_value = input.min_order_value;
+    if (input.usage_limit !== undefined) data.usage_limit = input.usage_limit;
+    if (input.per_user_limit !== undefined) data.per_user_limit = input.per_user_limit;
+    if (input.valid_from !== undefined) data.valid_from = input.valid_from;
+    if (input.valid_until !== undefined) data.valid_until = input.valid_until;
+    if (input.is_active !== undefined) data.is_active = input.is_active;
+    if (input.applies_to_product_ids !== undefined) data.applies_to_product_ids = input.applies_to_product_ids?.length ? input.applies_to_product_ids.join(",") : null;
+    if (input.applies_to_category_ids !== undefined) data.applies_to_category_ids = input.applies_to_category_ids?.length ? input.applies_to_category_ids.join(",") : null;
+
+    const updated = await couponRepo.updateCoupon(id, data as never);
+    await auditService.record(
+      { userId: req.user?.id, action: AUDIT_ACTIONS.COUPON_UPDATED, entityType: "coupon", entityId: id, oldValues: { code: existing.code }, newValues: data },
+      req
+    );
+    return updated;
+  },
+
+  async removeForVendor(vendorId: string, id: string, req: Request): Promise<void> {
+    await this.assertVendorOwns(vendorId, id);
+    await couponRepo.softDelete(id);
+    await auditService.record(
+      { userId: req.user?.id, action: AUDIT_ACTIONS.COUPON_DELETED, entityType: "coupon", entityId: id, oldValues: { id } },
+      req
+    );
+  },
+
   async create(input: CreateCouponBody, req: Request): Promise<couponRepo.CouponRow> {
     const existing = await couponRepo.findByCode(input.code.toUpperCase());
     if (existing) {
@@ -130,6 +222,7 @@ export const couponService = {
         mrp: true,
         is_active: true,
         is_available: true,
+        stock: true,
         vendor_id: true,
         category_id: true,
       },

@@ -31,8 +31,14 @@ import {
   suspendVendorAdmin,
   updateOrderStatus,
   updateVendorMembership,
+  updateVendorPromotion,
   listSupportTickets,
   updateSupportTicketStatus,
+  listMembershipPlans,
+  getMembershipPlan,
+  createMembershipPlan,
+  updateMembershipPlan,
+  deleteMembershipPlan,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -103,8 +109,12 @@ import {
   vendorDecisionSchema,
   vendorIdParamsSchema,
   updateVendorMembershipSchema,
+  updateVendorPromotionSchema,
   ticketIdParamsSchema,
   updateTicketStatusSchema,
+  createMembershipPlanSchema,
+  updateMembershipPlanSchema,
+  membershipPlanIdParamsSchema,
 } from "../../validators/admin.validators";
 
 import { productIdParamsSchema } from "../../validators/product.validators";
@@ -134,6 +144,14 @@ router.post("/vendors/:vendor_id/review", validate({ params: vendorIdParamsSchem
 router.post("/vendors/:vendor_id/suspend", validate({ params: vendorIdParamsSchema, body: suspendVendorSchema }), suspendVendorAdmin);
 router.post("/vendors/:vendor_id/restore", validate({ params: vendorIdParamsSchema }), restoreVendorAdmin);
 router.patch("/vendors/:vendor_id/membership", validate({ params: vendorIdParamsSchema, body: updateVendorMembershipSchema }), updateVendorMembership);
+router.patch("/vendors/:vendor_id/promote", validate({ params: vendorIdParamsSchema, body: updateVendorPromotionSchema }), updateVendorPromotion);
+
+// Membership plans
+router.get("/membership-plans", listMembershipPlans);
+router.get("/membership-plans/:plan_id", validate({ params: membershipPlanIdParamsSchema }), getMembershipPlan);
+router.post("/membership-plans", validate({ body: createMembershipPlanSchema }), createMembershipPlan);
+router.patch("/membership-plans/:plan_id", validate({ params: membershipPlanIdParamsSchema, body: updateMembershipPlanSchema }), updateMembershipPlan);
+router.delete("/membership-plans/:plan_id", validate({ params: membershipPlanIdParamsSchema }), deleteMembershipPlan);
 router.get("/vendors/:vendor_id/earnings", validate({ params: vendorIdParamsSchema }), getVendorEarnings);
 
 // Delivery partner management

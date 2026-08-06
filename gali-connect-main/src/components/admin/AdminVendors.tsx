@@ -1,9 +1,11 @@
-import { Store, CheckCircle2, Ban, Radio, Sparkles, Search } from "lucide-react";
+import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown } from "lucide-react";
 import { useState, useMemo } from "react";
 import { KYCReviewModal } from "./KYCReviewModal";
 import { VendorMembershipModal } from "./VendorMembershipModal";
+import { VendorEarningsModal } from "./VendorEarningsModal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 interface AdminVendorsProps {
@@ -12,6 +14,8 @@ interface AdminVendorsProps {
   onReject: (id: string, reason: string) => void;
   onSuspend: (id: string) => void;
   onRestore: (id: string) => void;
+  onPromote: (id: string) => void;
+  onUnpromote: (id: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
 }
@@ -22,6 +26,8 @@ export function AdminVendors({
   onReject,
   onSuspend,
   onRestore,
+  onPromote,
+  onUnpromote,
   isApproving,
   isRejecting,
 }: AdminVendorsProps) {
@@ -29,6 +35,7 @@ export function AdminVendors({
   const [typeFilter, setTypeFilter] = useState<"all" | "shop" | "roaming">("all");
   const [query, setQuery] = useState("");
   const [editingSettingsVendor, setEditingSettingsVendor] = useState<any>(null);
+  const [earningsVendor, setEarningsVendor] = useState<any>(null);
 
   const queryClient = useQueryClient();
 
@@ -173,12 +180,30 @@ export function AdminVendors({
                           )}
                         </div>
                         <div>
-                          <p className="font-bold text-[15px] text-foreground">
+                          <p className="font-bold text-[15px] text-foreground flex items-center gap-2">
                             {v.business_name || "Unnamed Vendor"}
+                            {v.is_sponsored && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                                <Crown className="h-3 w-3" /> Sponsored
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {v.user?.email || v.city || "—"}
                           </p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                              <Crown className="h-2.5 w-2.5" />
+                              {v.membership_plan?.name || v.membership_tier || "Basic"}
+                            </span>
+                            {v.membership_expires_at && (
+                              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                                {new Date(v.membership_expires_at).getTime() <= Date.now()
+                                  ? "Expired"
+                                  : "Active"}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -235,6 +260,46 @@ export function AdminVendors({
                             >
                               Settings
                             </button>
+                            <button
+                              onClick={() => setEarningsVendor(v)}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 border border-border transition-all active:scale-95"
+                            >
+                              Earnings
+                            </button>
+                            <Link
+                              to="/admin/products"
+                              search={{ vendor_id: v.id }}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 border border-border transition-all active:scale-95 text-center flex items-center justify-center"
+                            >
+                              Products
+                            </Link>
+                            <Link
+                              to="/admin/orders"
+                              search={{ vendor_id: v.id }}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-border transition-all active:scale-95 text-center flex items-center justify-center"
+                            >
+                              Orders
+                            </Link>
+                            {v.is_sponsored ? (
+                              <button
+                                onClick={() => {
+                                  if (confirm("Remove the Sponsored badge from this vendor?"))
+                                    onUnpromote(v.id);
+                                }}
+                                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-all active:scale-95"
+                              >
+                                Unpromote
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  if (confirm("Promote this vendor to Sponsored?")) onPromote(v.id);
+                                }}
+                                className="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-rose-500 to-saffron text-white hover:opacity-90 shadow-sm transition-all active:scale-95"
+                              >
+                                Promote
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 if (confirm("Suspend this vendor?")) onSuspend(v.id);
@@ -304,6 +369,13 @@ export function AdminVendors({
           onClose={() => setEditingSettingsVendor(null)}
           onSave={(id, data) => updateMembershipMutation.mutate({ id, data })}
           isSaving={updateMembershipMutation.isPending}
+        />
+      )}
+
+      {earningsVendor && (
+        <VendorEarningsModal
+          vendor={earningsVendor}
+          onClose={() => setEarningsVendor(null)}
         />
       )}
     </div>

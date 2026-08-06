@@ -42,6 +42,16 @@ export interface RegisterInput {
 
 const SELF_SERVICE_ROLES = new Set(["customer", "vendor", "delivery"]);
 
+function sendRoleWelcomeEmail(role: string, email: string, name: string): void {
+  if (role === "vendor") {
+    void emailService.sendVendorWelcomeEmail(email, { name, businessName: name });
+  } else if (role === "delivery") {
+    void emailService.sendDeliveryWelcomeEmail(email, name);
+  } else {
+    void emailService.sendWelcomeEmail(email, name);
+  }
+}
+
 async function getUserProfile(userId: string): Promise<SerializedUser> {
   const user = await findUserById(userId, { role: true, vendor: true, delivery: true });
   if (!user) {
@@ -51,7 +61,7 @@ async function getUserProfile(userId: string): Promise<SerializedUser> {
 }
 
 function userToAuthUser(user: UserWithRoleAndPermissions): AuthUser {
-  return {
+    return {
     id: user.id,
     email: user.email,
     name: user.name,
@@ -175,7 +185,7 @@ export const authService = {
 
     const session = await createSessionAndTokens(user.id, req);
 
-    void emailService.sendWelcomeEmail(user.email, user.name);
+    sendRoleWelcomeEmail(role, user.email, user.name);
 
     if (env.EMAIL_VERIFICATION_REQUIRED) {
       await this.sendEmailVerification(user.id, email, req);

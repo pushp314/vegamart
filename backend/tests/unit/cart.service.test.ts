@@ -58,6 +58,7 @@ function makeCart(overrides: Partial<cartRepo.CartRow> = {}): cartRepo.CartRow {
           mrp: makeDecimal(60),
           is_active: true,
           is_available: true,
+          stock: 10,
           vendor_id: "v1",
           category_id: "c1",
           images: [],
@@ -103,6 +104,7 @@ describe("cart service", () => {
       created_at: new Date(),
       updated_at: new Date(),
       images: [],
+      vendor: { is_open: true, status: "APPROVED" },
     } as any);
     invRepo.findByProductId.mockResolvedValue({ quantity: 10, reserved: 2 } as any);
     repo.getOrCreate.mockResolvedValue(makeCart());
@@ -113,7 +115,14 @@ describe("cart service", () => {
   });
 
   it("rejects when quantity exceeds the available stock", async () => {
-    prodRepo.findById.mockResolvedValue({ id: "p1", is_active: true, is_available: true, price: makeDecimal(50) } as any);
+    prodRepo.findById.mockResolvedValue({
+      id: "p1",
+      is_active: true,
+      is_available: true,
+      stock: 3,
+      price: makeDecimal(50),
+      vendor: { is_open: true, status: "APPROVED" },
+    } as any);
     invRepo.findByProductId.mockResolvedValue({ quantity: 3, reserved: 0 } as any);
     repo.getOrCreate.mockResolvedValue(makeCart());
 

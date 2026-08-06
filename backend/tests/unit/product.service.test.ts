@@ -3,6 +3,7 @@ import { productService } from "../../src/services/product.service";
 jest.mock("../../src/repositories/product.repository", () => ({
   findById: jest.fn(),
   listSlugs: jest.fn(),
+  countForVendor: jest.fn(),
   createProduct: jest.fn(),
   updateProduct: jest.fn(),
   softDelete: jest.fn(),
@@ -118,6 +119,7 @@ describe("product service — vendor approval guard", () => {
     (vendorService.getMyVendor as jest.Mock).mockResolvedValue(makeVendor({ status: "APPROVED" }));
     catRepo.existsById.mockResolvedValue(true);
     repo.listSlugs.mockResolvedValue(new Set());
+    repo.countForVendor.mockResolvedValue(0);
     repo.createProduct.mockResolvedValue(makeProductRow());
 
     const created = await productService.create("u1", {

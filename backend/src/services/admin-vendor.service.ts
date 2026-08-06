@@ -4,6 +4,7 @@ import { VendorStatus } from "@prisma/client";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
+import { membershipPlanService } from "./membership-plan.service";
 import * as vendorRepo from "../repositories/vendor.repository";
 import { cacheService } from "../database/cache";
 import { ApiError } from "../utils/ApiError";
@@ -136,16 +137,23 @@ export const adminVendorService = {
     return updated;
   },
 
-  async earnings(vendorId: string) {
-    await this.getById(vendorId);
-    const rows = await vendorRepo.getVendorStats(vendorId);
-    return rows;
+  async earnings(vendorId: string, monthFilter?: string) {
+    const vendorData = await this.getById(vendorId);
+    const vendor = vendorData.vendor;
+    const rows = await vendorRepo.getVendorStats(vendorId, monthFilter);
+    return {
+      ...rows,
+      today_earnings: Math.round(rows.today_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+      weekly_earnings: Math.round(rows.weekly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+      monthly_earnings: Math.round(rows.monthly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+    };
   },
   async updateMembership(
     vendorId: string,
     input: {
-      commission_rate?: number;
-      membership_tier?: string;
+      membership_plan_id?: string | null;
+      commission_rate?: number | null;
+      membership_tier?: string | null;
       membership_expires_at?: string | null;
     },
     adminId: string,
@@ -159,15 +167,14 @@ export const adminVendorService = {
       throw new ApiError(HttpStatus.NOT_FOUND, "Vendor not found.", { code: "NOT_FOUND" });
     }
 
-    const updated = await prisma.vendorProfile.update({
-      where: { id: vendorId },
-      data: {
-        commission_rate: input.commission_rate !== undefined ? input.commission_rate : vendor.commission_rate,
-        membership_tier: input.membership_tier !== undefined ? input.membership_tier : vendor.membership_tier,
-        membership_expires_at: input.membership_expires_at !== undefined ? (input.membership_expires_at ? new Date(input.membership_expires_at) : null) : vendor.membership_expires_at,
-      },
-      include: { user: { select: { id: true, name: true, email: true, phone: true } } },
+    const updated = await membershipPlanService.applyPlanToVendor(vendorId, input.membership_plan_id, {
+      membership_expires_at: input.membership_expires_at,
+      commission_rate: input.commission_rate,
+      membership_tier: input.membership_tier,
     });
+
+    await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
 
     await auditService.record(
       {
@@ -176,10 +183,43 @@ export const adminVendorService = {
         entityType: "vendor",
         entityId: vendorId,
         newValues: {
-          commission_rate: updated.commission_rate,
+          membership_plan_id: updated.membership_plan_id,
           membership_tier: updated.membership_tier,
+          commission_rate: updated.commission_rate,
           membership_expires_at: updated.membership_expires_at,
         }
+      },
+      req
+    );
+
+    return updated;
+  },
+  async updatePromotion(
+    vendorId: string,
+    isSponsored: boolean,
+    adminId: string,
+    req: Request
+  ) {
+    const vendor = await prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+    });
+    if (!vendor) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Vendor not found.", { code: "NOT_FOUND" });
+    }
+
+    const updated = await prisma.vendorProfile.update({
+      where: { id: vendorId },
+      data: { is_sponsored: isSponsored },
+      select: { id: true, business_name: true, is_sponsored: true },
+    });
+
+    await auditService.record(
+      {
+        userId: adminId,
+        action: isSponsored ? "VENDOR_PROMOTED" : "VENDOR_UNPROMOTED",
+        entityType: "vendor",
+        entityId: vendorId,
+        newValues: { is_sponsored: updated.is_sponsored },
       },
       req
     );

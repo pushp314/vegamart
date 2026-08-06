@@ -5,7 +5,7 @@ import {
   MapPin,
   ChevronDown,
   Search,
-  Gift,
+  ShoppingCart,
   ArrowRight,
   Star,
   Clock,
@@ -25,6 +25,7 @@ import {
   Heart,
 } from "lucide-react";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
+import { Logo } from "@/components/system/logo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, getFeaturedProducts } from "@/lib/api";
 import { homePathForRole } from "@/lib/utils";
@@ -78,7 +79,7 @@ const CATS: Cat[] = [
     Icon: Carrot,
     bg: "bg-emerald-100",
     fg: "text-emerald-700",
-    to: "/vendors?category=Fruits%20%26%20Vegetables",
+    to: "/products?category=Fruits%20%26%20Vegetables",
   },
   {
     id: "fruits",
@@ -86,7 +87,7 @@ const CATS: Cat[] = [
     Icon: Apple,
     bg: "bg-rose-100",
     fg: "text-rose-700",
-    to: "/vendors?category=Fruits%20%26%20Vegetables",
+    to: "/products?category=Fruits%20%26%20Vegetables",
   },
   {
     id: "dairy",
@@ -94,7 +95,7 @@ const CATS: Cat[] = [
     Icon: Milk,
     bg: "bg-sky-100",
     fg: "text-sky-700",
-    to: "/vendors?category=Dairy%20%26%20Eggs",
+    to: "/products?category=Dairy%20%26%20Eggs",
   },
   {
     id: "grocery",
@@ -102,7 +103,7 @@ const CATS: Cat[] = [
     Icon: ShoppingBasket,
     bg: "bg-amber-100",
     fg: "text-amber-700",
-    to: "/vendors",
+    to: "/products",
   },
   {
     id: "meat",
@@ -110,7 +111,7 @@ const CATS: Cat[] = [
     Icon: Drumstick,
     bg: "bg-orange-100",
     fg: "text-orange-700",
-    to: "/vendors",
+    to: "/products",
   },
   {
     id: "fish",
@@ -118,7 +119,7 @@ const CATS: Cat[] = [
     Icon: Fish,
     bg: "bg-cyan-100",
     fg: "text-cyan-700",
-    to: "/vendors",
+    to: "/products",
   },
   {
     id: "eggs",
@@ -126,7 +127,7 @@ const CATS: Cat[] = [
     Icon: Egg,
     bg: "bg-yellow-100",
     fg: "text-yellow-700",
-    to: "/vendors?category=Dairy%20%26%20Eggs",
+    to: "/products?category=Dairy%20%26%20Eggs",
   },
   {
     id: "bakery",
@@ -134,7 +135,7 @@ const CATS: Cat[] = [
     Icon: Croissant,
     bg: "bg-amber-100",
     fg: "text-amber-700",
-    to: "/vendors?category=Bakery%20%26%20Snacks",
+    to: "/products?category=Bakery%20%26%20Snacks",
   },
   {
     id: "chai",
@@ -142,7 +143,7 @@ const CATS: Cat[] = [
     Icon: Coffee,
     bg: "bg-orange-100",
     fg: "text-orange-700",
-    to: "/vendors",
+    to: "/products",
   },
   {
     id: "hardware",
@@ -150,7 +151,7 @@ const CATS: Cat[] = [
     Icon: Wrench,
     bg: "bg-slate-200",
     fg: "text-slate-700",
-    to: "/vendors",
+    to: "/products",
   },
   {
     id: "electronics",
@@ -158,7 +159,7 @@ const CATS: Cat[] = [
     Icon: Plug,
     bg: "bg-violet-100",
     fg: "text-violet-700",
-    to: "/vendors",
+    to: "/products",
   },
 ];
 
@@ -203,31 +204,30 @@ function Home() {
 }
 
 function Header({ displayLocation }: { displayLocation: string }) {
+  const { itemCount } = useCart();
   return (
     <div className="pt-4 pb-3 flex items-center gap-3">
-      <div className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
-        V
-      </div>
+      <Link to="/" aria-label="Vegamart home" className="shrink-0">
+        <Logo className="h-11 w-11" />
+      </Link>
       <Link to="/addresses" className="flex-1 min-w-0 text-left tap-highlight-none">
         <div className="flex items-center gap-1 text-[11px] font-semibold text-primary">
           <MapPin className="h-3 w-3" /> Deliver to <ChevronDown className="h-3 w-3" />
         </div>
         <div className="mt-0.5 text-[15px] font-bold truncate">{displayLocation}</div>
       </Link>
-      <button
-        aria-label="Offers"
-        onClick={() => {
-          const el = document.getElementById("offers-section");
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-          } else {
-            toast.info("No active offers right now");
-          }
-        }}
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-50 text-primary"
+      <Link
+        to="/cart"
+        aria-label="Cart"
+        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-50 text-primary tap-highlight-none"
       >
-        <Gift className="h-5 w-5" />
-      </button>
+        <ShoppingCart className="h-5 w-5" />
+        {itemCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 grid h-[18px] min-w-[18px] px-1 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-2 ring-background">
+            {itemCount > 99 ? "99+" : itemCount}
+          </span>
+        )}
+      </Link>
     </div>
   );
 }
@@ -495,14 +495,30 @@ function Categories() {
 }
 
 function LiveBanner() {
-  const { data: res } = useQuery({
+  const { data: res, isLoading } = useQuery({
     queryKey: ["banners"],
     queryFn: () => api.get<any[]>("/banners"),
   });
   const banners = res?.data || [];
   const activeBanner = banners.find((b) => b.type === "LiveNow") || {
-    title: "7 vendors moving near you",
+    title: "Vendors moving near you right now",
   };
+
+  if (isLoading) {
+    return (
+      <section className="px-4 md:px-0 pt-6 md:pt-10">
+        <div className="flex items-center gap-3 md:gap-4 rounded-2xl md:rounded-3xl bg-muted/70 border border-border/60 px-4 md:px-6 py-4 md:py-5 animate-pulse">
+          <span className="grid h-10 w-10 md:h-12 md:w-12 shrink-0 place-items-center rounded-full bg-foreground/10">
+            <MapPin className="h-5 w-5 text-foreground/30" />
+          </span>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-2.5 w-16 rounded-full bg-foreground/10" />
+            <div className="h-3.5 w-48 max-w-full rounded-full bg-foreground/15" />
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">

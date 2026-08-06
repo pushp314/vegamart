@@ -46,6 +46,7 @@ function Profile() {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [iosInstallHint, setIosInstallHint] = useState(false);
+  const [showInstallSteps, setShowInstallSteps] = useState(false);
   const { canInstall, isIOS, showInstallOption, install } = usePwaInstall();
 
   const handleInstallApp = async () => {
@@ -53,7 +54,18 @@ function Profile() {
       const outcome = await install();
       if (outcome === "accepted") toast.success("Vegamart installed!");
     } else if (isIOS) {
+      setShowInstallSteps(false);
       setIosInstallHint(true);
+    }
+  };
+
+  const handleModalInstall = async () => {
+    const outcome = await install();
+    if (outcome === "accepted") {
+      toast.success("Vegamart installed!");
+      setIosInstallHint(false);
+    } else {
+      setShowInstallSteps(true);
     }
   };
 
@@ -434,16 +446,43 @@ function Profile() {
             </div>
             <div>
               <h3 className="font-display text-base font-bold">Install Vegamart</h3>
-              <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                Tap the <span className="font-semibold">Share</span> button in Safari and select{" "}
-                <span className="font-semibold">Add to Home Screen</span>.
+              <p className="mt-1 text-sm italic text-muted-foreground">
+                Your neighbourhood, delivered.
               </p>
             </div>
             <button
-              onClick={() => setIosInstallHint(false)}
-              className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground"
+              onClick={handleModalInstall}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98] transition"
             >
-              Got it
+              <Download className="h-4 w-4" /> Install App
+            </button>
+            {showInstallSteps && (
+              <ol className="space-y-2 text-left text-[13px] text-muted-foreground">
+                <li className="flex gap-2 rounded-xl bg-muted px-3 py-2.5">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] font-black text-primary">
+                    1
+                  </span>
+                  Tap the <span className="font-semibold">Share</span> button in Safari.
+                </li>
+                <li className="flex gap-2 rounded-xl bg-muted px-3 py-2.5">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] font-black text-primary">
+                    2
+                  </span>
+                  Select <span className="font-semibold">Add to Home Screen</span>.
+                </li>
+                <li className="flex gap-2 rounded-xl bg-muted px-3 py-2.5">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] font-black text-primary">
+                    3
+                  </span>
+                  Open Vegamart from your Home screen.
+                </li>
+              </ol>
+            )}
+            <button
+              onClick={() => setIosInstallHint(false)}
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Not now
             </button>
           </div>
         </div>

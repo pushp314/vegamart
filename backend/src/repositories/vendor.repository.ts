@@ -25,10 +25,12 @@ const baseSelect = {
   min_order: true,
   delivery_fee: true,
   free_delivery_min_order: true,
+  provides_delivery: true,
   rating: true,
   review_count: true,
   is_open: true,
   is_verified: true,
+  is_sponsored: true,
   status: true,
   owner_name: true,
   phone: true,
@@ -36,6 +38,23 @@ const baseSelect = {
   available_from: true,
   available_to: true,
   roaming: true,
+  commission_rate: true,
+  membership_tier: true,
+  membership_plan_id: true,
+  membership_expires_at: true,
+  membership_plan: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      price: true,
+      billing_period: true,
+      features: true,
+      product_limit: true,
+      commission_rate: true,
+      includes_sponsorship: true,
+    },
+  },
   created_at: true,
   updated_at: true,
 } as const;
@@ -63,10 +82,12 @@ export type VendorRow = {
   min_order: import("@prisma/client").Prisma.Decimal;
   delivery_fee: import("@prisma/client").Prisma.Decimal;
   free_delivery_min_order: import("@prisma/client").Prisma.Decimal | null;
+  provides_delivery: boolean;
   rating: number;
   review_count: number;
   is_open: boolean;
   is_verified: boolean;
+  is_sponsored: boolean;
   status: import("@prisma/client").VendorStatus;
   owner_name: string | null;
   phone: string | null;
@@ -74,6 +95,21 @@ export type VendorRow = {
   available_from: string | null;
   available_to: string | null;
   roaming: boolean;
+  commission_rate: import("@prisma/client").Prisma.Decimal;
+  membership_tier: string;
+  membership_plan_id: string | null;
+  membership_expires_at: Date | null;
+  membership_plan: {
+    id: string;
+    name: string;
+    slug: string;
+    price: import("@prisma/client").Prisma.Decimal;
+    billing_period: string;
+    features: import("@prisma/client").Prisma.JsonValue;
+    product_limit: number;
+    commission_rate: import("@prisma/client").Prisma.Decimal;
+    includes_sponsorship: boolean;
+  } | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -132,6 +168,7 @@ export async function createVendor(data: {
   min_order?: number;
   delivery_fee?: number;
   free_delivery_min_order?: number | null;
+  provides_delivery?: boolean;
   owner_name?: string | null;
   phone?: string | null;
   available_from?: string | null;
@@ -161,6 +198,7 @@ export async function createVendor(data: {
       min_order: data.min_order ?? 0,
       delivery_fee: data.delivery_fee ?? 0,
       free_delivery_min_order: data.free_delivery_min_order ?? null,
+      provides_delivery: data.provides_delivery ?? false,
       owner_name: data.owner_name ?? null,
       phone: data.phone ?? null,
       available_from: data.available_from ?? null,
@@ -229,7 +267,7 @@ export async function listVendors(
     prisma.vendorProfile.findMany({
       where,
       select: baseSelect,
-      orderBy: [{ is_open: "desc" }, { rating: "desc" }, { created_at: "desc" }],
+      orderBy: [{ is_sponsored: "desc" }, { is_open: "desc" }, { rating: "desc" }, { created_at: "desc" }],
       skip,
       take,
     }),
@@ -289,7 +327,7 @@ export async function listVendorsAdmin(
           },
         },
       },
-      orderBy: [{ is_open: "desc" }, { rating: "desc" }, { created_at: "desc" }],
+      orderBy: [{ is_sponsored: "desc" }, { is_open: "desc" }, { rating: "desc" }, { created_at: "desc" }],
       skip,
       take,
     }),
@@ -321,7 +359,7 @@ export async function listWithinBoundingBox(
   const rows = await prisma.vendorProfile.findMany({
     where,
     select: baseSelect,
-    orderBy: [{ rating: "desc" }, { review_count: "desc" }],
+    orderBy: [{ is_sponsored: "desc" }, { rating: "desc" }, { review_count: "desc" }],
   });
   return rows as unknown as VendorRow[];
 }
@@ -354,34 +392,74 @@ export interface AdminVendorStats {
   pending_earnings: import("@prisma/client").Prisma.Decimal;
   product_count: number;
   out_of_stock_count: number;
+  today_revenue: import("@prisma/client").Prisma.Decimal;
+  weekly_revenue: import("@prisma/client").Prisma.Decimal;
+  monthly_revenue: import("@prisma/client").Prisma.Decimal;
 }
 
-export async function getVendorStats(id: string): Promise<AdminVendorStats> {
-  const [totalOrders, activeOrders, revenueAgg, earningsAgg, pendingEarnings, productCount, outOfStock] =
-    await Promise.all([
-      prisma.order.count({
-        where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] } },
-      }),
-      prisma.order.count({
-        where: { vendor_id: id, status: { in: ["PENDING", "CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"] } },
-      }),
-      prisma.order.aggregate({
-        where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] } },
-        _sum: { total: true },
-      }),
-      prisma.vendorEarning.aggregate({
-        where: { vendor_id: id },
-        _sum: { amount: true },
-      }),
-      prisma.vendorEarning.aggregate({
-        where: { vendor_id: id, status: "PENDING" },
-        _sum: { amount: true },
-      }),
-      prisma.product.count({ where: { vendor_id: id, deleted_at: null } }),
-      prisma.product.count({
-        where: { vendor_id: id, deleted_at: null, inventory: { some: { quantity: { lte: 0 } } } },
-      }),
-    ]);
+export async function getVendorStats(id: string, monthFilter?: string): Promise<AdminVendorStats> {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+  
+  let startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  let endOfMonth: Date | undefined;
+  
+  if (monthFilter) {
+    const parts = monthFilter.split("-");
+    const yearStr = parts[0] || "";
+    const monthStr = parts[1] || "";
+    startOfMonth = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1);
+    endOfMonth = new Date(parseInt(yearStr), parseInt(monthStr), 0, 23, 59, 59, 999);
+  }
+
+  const [
+    totalOrders,
+    activeOrders,
+    revenueAgg,
+    earningsAgg,
+    pendingEarnings,
+    productCount,
+    outOfStock,
+    todayRevenueAgg,
+    weeklyRevenueAgg,
+    monthlyRevenueAgg,
+  ] = await Promise.all([
+    prisma.order.count({
+      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] } },
+    }),
+    prisma.order.count({
+      where: { vendor_id: id, status: { in: ["PENDING", "CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"] } },
+    }),
+    prisma.order.aggregate({
+      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] } },
+      _sum: { total: true },
+    }),
+    prisma.vendorEarning.aggregate({
+      where: { vendor_id: id },
+      _sum: { amount: true },
+    }),
+    prisma.vendorEarning.aggregate({
+      where: { vendor_id: id, status: "PENDING" },
+      _sum: { amount: true },
+    }),
+    prisma.product.count({ where: { vendor_id: id, deleted_at: null } }),
+    prisma.product.count({
+      where: { vendor_id: id, deleted_at: null, inventory: { some: { quantity: { lte: 0 } } } },
+    }),
+    prisma.order.aggregate({
+      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: monthFilter ? startOfMonth : startOfToday, lte: endOfMonth } },
+      _sum: { total: true },
+    }),
+    prisma.order.aggregate({
+      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: monthFilter ? startOfMonth : startOfWeek, lte: endOfMonth } },
+      _sum: { total: true },
+    }),
+    prisma.order.aggregate({
+      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { total: true },
+    }),
+  ]);
 
   return {
     total_orders: totalOrders,
@@ -391,6 +469,9 @@ export async function getVendorStats(id: string): Promise<AdminVendorStats> {
     pending_earnings: pendingEarnings._sum.amount ?? new Prisma.Decimal(0),
     product_count: productCount,
     out_of_stock_count: outOfStock,
+    today_revenue: todayRevenueAgg._sum.total ?? new Prisma.Decimal(0),
+    weekly_revenue: weeklyRevenueAgg._sum.total ?? new Prisma.Decimal(0),
+    monthly_revenue: monthlyRevenueAgg._sum.total ?? new Prisma.Decimal(0),
   };
 }
 

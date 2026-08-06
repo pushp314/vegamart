@@ -20,6 +20,7 @@ interface Settings {
   "platform.default_delivery_radius_km"?: number;
   "platform.deliveries_active"?: boolean;
   "platform.maintenance_mode"?: boolean;
+  "platform.multi_store_checkout_enabled"?: boolean;
   "platform.logo_url"?: string;
   "support.email"?: string;
   "support.phone"?: string;
@@ -293,10 +294,22 @@ export function AdminSettings() {
             <CardDescription>System configuration</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between border-b pb-4">
+              <div>
+                <Label>Multi-Store Checkout</Label>
+                <p className="text-xs text-muted-foreground">Allow customers to combine products from multiple stores in a single cart (Disabled by default)</p>
+              </div>
+              <Switch
+                checked={settings["platform.multi_store_checkout_enabled"] ?? false}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, "platform.multi_store_checkout_enabled": checked })
+                }
+              />
+            </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>Maintenance Mode</Label>
-                <p className="text-sm text-muted-foreground">Temporarily disable the platform</p>
+                <p className="text-xs text-muted-foreground">Temporarily disable the platform for updates</p>
               </div>
               <Switch
                 checked={settings["platform.maintenance_mode"] ?? false}

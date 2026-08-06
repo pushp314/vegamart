@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, KeyRound, Lock, Sparkles, Loader2, CheckCircle2, Mail } from "lucide-react";
+import { ArrowLeft, KeyRound, Lock, Loader2, CheckCircle2, Mail } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { Logo } from "@/components/system/logo";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/reset-password")({
@@ -63,9 +64,7 @@ function ResetPassword() {
         </Link>
 
         <div className="flex items-center gap-2 font-display text-lg font-bold">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
+          <Logo className="h-9 w-9" />
           Vegamart
         </div>
 

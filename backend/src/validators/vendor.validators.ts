@@ -30,6 +30,7 @@ export const createVendorSchema = z.object({
   min_order: z.coerce.number().min(0).optional(),
   delivery_fee: z.coerce.number().min(0).optional(),
   free_delivery_min_order: z.coerce.number().min(0).optional().nullable(),
+  provides_delivery: z.boolean().optional(),
   owner_name: z.string().trim().max(120).optional().nullable(),
   phone: z
     .string()
@@ -49,6 +50,16 @@ export const updateVendorSchema = createVendorSchema.partial().extend({
 
 export const vendorAvailabilitySchema = z.object({
   is_open: z.boolean(),
+}).strict();
+
+export const purchaseMembershipSchema = z.object({
+  plan_id: z.string().uuid("plan_id must be a valid UUID."),
+}).strict();
+
+export const verifyMembershipPaymentSchema = z.object({
+  razorpay_subscription_id: z.string().min(1, "razorpay_subscription_id is required.").max(64),
+  razorpay_payment_id: z.string().min(1, "razorpay_payment_id is required.").max(64),
+  razorpay_signature: z.string().min(1, "razorpay_signature is required.").max(255),
 }).strict();
 
 export const vendorLocationSchema = z.object({

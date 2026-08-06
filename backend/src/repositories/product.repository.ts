@@ -21,6 +21,7 @@ const baseSelect = {
   rating: true,
   review_count: true,
   stock: true,
+  total_stock: true,
   is_available: true,
   created_at: true,
   updated_at: true,
@@ -29,7 +30,7 @@ const baseSelect = {
     orderBy: { sort_order: "asc" as const },
   },
   vendor: {
-    select: { id: true, business_name: true, logo_url: true, status: true, free_delivery_min_order: true },
+    select: { id: true, business_name: true, logo_url: true, status: true, is_sponsored: true, free_delivery_min_order: true, is_open: true, provides_delivery: true },
   },
 } as const;
 
@@ -52,6 +53,7 @@ export type ProductRow = {
   rating: number;
   review_count: number;
   stock: number;
+  total_stock: number;
   is_available: boolean;
   created_at: Date;
   updated_at: Date;
@@ -67,7 +69,10 @@ export type ProductRow = {
     business_name: string;
     logo_url: string | null;
     status: import("@prisma/client").VendorStatus;
+    is_sponsored?: boolean;
     free_delivery_min_order?: import("@prisma/client").Prisma.Decimal | null;
+    is_open?: boolean;
+    provides_delivery?: boolean;
   } | null;
 };
 
@@ -103,6 +108,12 @@ export async function listSlugs(vendorId: string, exceptId?: string): Promise<Se
   return new Set(rows.map((r) => r.slug));
 }
 
+export async function countForVendor(vendorId: string): Promise<number> {
+  return prisma.product.count({
+    where: { vendor_id: vendorId, deleted_at: null },
+  });
+}
+
 export interface ProductListFilter {
   q?: string;
   vendorId?: string;
@@ -129,6 +140,7 @@ export async function listProducts(
   if (!filter.includeInactive) {
     where.is_active = true;
     where.is_available = true;
+    where.vendor = { is_open: true, status: "APPROVED", deleted_at: null };
   }
   if (filter.vendorId) where.vendor_id = filter.vendorId;
   if (filter.categoryId) where.category_id = filter.categoryId;
@@ -243,6 +255,7 @@ export async function listByVendorIds(
     deleted_at: null,
     is_active: true,
     is_available: true,
+    vendor: { is_open: true, status: "APPROVED", deleted_at: null },
   };
   if (options.categoryId) where.category_id = options.categoryId;
   if (options.q) {
@@ -280,8 +293,10 @@ export async function createProduct(data: {
   is_featured?: boolean;
   is_vegetarian?: boolean | null;
   stock?: number;
+  total_stock?: number;
   is_available?: boolean;
 }): Promise<ProductRow> {
+  const stock = data.stock ?? 0;
   const row = await prisma.product.create({
     data: {
       vendor_id: data.vendor_id,
@@ -297,7 +312,8 @@ export async function createProduct(data: {
       is_active: data.is_active ?? true,
       is_featured: data.is_featured ?? false,
       is_vegetarian: data.is_vegetarian ?? null,
-      stock: data.stock ?? 0,
+      stock,
+      total_stock: data.total_stock ?? stock,
       is_available: data.is_available ?? true,
     },
     select: baseSelect,
@@ -380,6 +396,11 @@ function buildOrderBy(sort?: string): Prisma.ProductOrderByWithRelationInput[] {
     case "popularity":
       return [{ review_count: "desc" }, { rating: "desc" }];
     default:
-      return [{ is_featured: "desc" }, { rating: "desc" }, { created_at: "desc" }];
+      return [
+        { vendor: { is_sponsored: "desc" } },
+        { is_featured: "desc" },
+        { rating: "desc" },
+        { created_at: "desc" },
+      ];
   }
 }

@@ -13,7 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as R500RouteImport } from './routes/500'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AddressesRouteImport } from './routes/addresses'
-import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as BecomeDeliveryRouteImport } from './routes/become-delivery'
 import { Route as BecomeVendorRouteImport } from './routes/become-vendor'
 import { Route as CartRouteImport } from './routes/cart'
@@ -28,6 +28,7 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OrderSuccessRouteImport } from './routes/order-success'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ProductsRouteImport } from './routes/products'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -37,14 +38,46 @@ import { Route as StreetVendorsRouteImport } from './routes/street-vendors'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VendorRouteImport } from './routes/vendor'
 import { Route as WishlistRouteImport } from './routes/wishlist'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminAuditLogsRouteImport } from './routes/admin/audit-logs'
+import { Route as AdminCategoriesRouteImport } from './routes/admin/categories'
+import { Route as AdminCmsRouteImport } from './routes/admin/cms'
+import { Route as AdminCouponsRouteImport } from './routes/admin/coupons'
+import { Route as AdminCreatePartnerRouteImport } from './routes/admin/create-partner'
+import { Route as AdminDeliveryRouteImport } from './routes/admin/delivery'
+import { Route as AdminFaqsRouteImport } from './routes/admin/faqs'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AdminMembershipPlansRouteImport } from './routes/admin/membership-plans'
+import { Route as AdminNotificationsRouteImport } from './routes/admin/notifications'
+import { Route as AdminOrdersRouteImport } from './routes/admin/orders'
+import { Route as AdminProductsRouteImport } from './routes/admin/products'
+import { Route as AdminRefundsRouteImport } from './routes/admin/refunds'
+import { Route as AdminReportsRouteImport } from './routes/admin/reports'
+import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminSubscriptionsRouteImport } from './routes/admin/subscriptions'
+import { Route as AdminSupportTicketsRouteImport } from './routes/admin/support-tickets'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminVendorsRouteImport } from './routes/admin/vendors'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as DeliveryLoginRouteImport } from './routes/delivery.login'
+import { Route as OrdersHistoryRouteImport } from './routes/orders.history'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
+import { Route as VendorIndexRouteImport } from './routes/vendor.index'
+import { Route as VendorAnalyticsRouteImport } from './routes/vendor.analytics'
+import { Route as VendorCouponsRouteImport } from './routes/vendor.coupons'
+import { Route as VendorEarningsRouteImport } from './routes/vendor.earnings'
+import { Route as VendorLocationRouteImport } from './routes/vendor.location'
 import { Route as VendorLoginRouteImport } from './routes/vendor.login'
+import { Route as VendorMembershipRouteImport } from './routes/vendor.membership'
+import { Route as VendorOrdersRouteImport } from './routes/vendor.orders'
+import { Route as VendorProductsRouteImport } from './routes/vendor.products'
+import { Route as VendorReviewsRouteImport } from './routes/vendor.reviews'
+import { Route as VendorSettingsRouteImport } from './routes/vendor.settings'
 import { Route as VendorsIndexRouteImport } from './routes/vendors.index'
 import { Route as VendorsVendorIdRouteImport } from './routes/vendors.$vendorId'
 import { Route as OrdersOrderIdTrackRouteImport } from './routes/orders.$orderId.track'
+import { Route as VendorMembershipIndexRouteImport } from './routes/vendor.membership.index'
+import { Route as VendorMembershipUpgradeRouteImport } from './routes/vendor.membership.upgrade'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -66,7 +99,7 @@ const AddressesRoute = AddressesRouteImport.update({
   path: '/addresses',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
+const AdminRouteRoute = AdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => rootRouteImport,
@@ -141,6 +174,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -186,10 +224,105 @@ const WishlistRoute = WishlistRouteImport.update({
   path: '/wishlist',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminAuditLogsRoute = AdminAuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCmsRoute = AdminCmsRouteImport.update({
+  id: '/cms',
+  path: '/cms',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCouponsRoute = AdminCouponsRouteImport.update({
+  id: '/coupons',
+  path: '/coupons',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCreatePartnerRoute = AdminCreatePartnerRouteImport.update({
+  id: '/create-partner',
+  path: '/create-partner',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminDeliveryRoute = AdminDeliveryRouteImport.update({
+  id: '/delivery',
+  path: '/delivery',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminFaqsRoute = AdminFaqsRouteImport.update({
+  id: '/faqs',
+  path: '/faqs',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => AdminRoute,
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminMembershipPlansRoute = AdminMembershipPlansRouteImport.update({
+  id: '/membership-plans',
+  path: '/membership-plans',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminOrdersRoute = AdminOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminProductsRoute = AdminProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminRefundsRoute = AdminRefundsRouteImport.update({
+  id: '/refunds',
+  path: '/refunds',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminSubscriptionsRoute = AdminSubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminSupportTicketsRoute = AdminSupportTicketsRouteImport.update({
+  id: '/support-tickets',
+  path: '/support-tickets',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminVendorsRoute = AdminVendorsRouteImport.update({
+  id: '/vendors',
+  path: '/vendors',
+  getParentRoute: () => AdminRouteRoute,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
@@ -201,14 +334,69 @@ const DeliveryLoginRoute = DeliveryLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => DeliveryRoute,
 } as any)
+const OrdersHistoryRoute = OrdersHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => OrdersRoute,
+} as any)
 const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
-  id: '/products/$productId',
-  path: '/products/$productId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$productId',
+  path: '/$productId',
+  getParentRoute: () => ProductsRoute,
+} as any)
+const VendorIndexRoute = VendorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorAnalyticsRoute = VendorAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorCouponsRoute = VendorCouponsRouteImport.update({
+  id: '/coupons',
+  path: '/coupons',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorEarningsRoute = VendorEarningsRouteImport.update({
+  id: '/earnings',
+  path: '/earnings',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorLocationRoute = VendorLocationRouteImport.update({
+  id: '/location',
+  path: '/location',
+  getParentRoute: () => VendorRoute,
 } as any)
 const VendorLoginRoute = VendorLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorMembershipRoute = VendorMembershipRouteImport.update({
+  id: '/membership',
+  path: '/membership',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorOrdersRoute = VendorOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorProductsRoute = VendorProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorReviewsRoute = VendorReviewsRouteImport.update({
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorSettingsRoute = VendorSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => VendorRoute,
 } as any)
 const VendorsIndexRoute = VendorsIndexRouteImport.update({
@@ -226,13 +414,23 @@ const OrdersOrderIdTrackRoute = OrdersOrderIdTrackRouteImport.update({
   path: '/$orderId/track',
   getParentRoute: () => OrdersRoute,
 } as any)
+const VendorMembershipIndexRoute = VendorMembershipIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => VendorMembershipRoute,
+} as any)
+const VendorMembershipUpgradeRoute = VendorMembershipUpgradeRouteImport.update({
+  id: '/upgrade',
+  path: '/upgrade',
+  getParentRoute: () => VendorMembershipRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/500': typeof R500Route
   '/about': typeof AboutRoute
   '/addresses': typeof AddressesRoute
-  '/admin': typeof AdminRouteWithChildren
   '/become-delivery': typeof BecomeDeliveryRoute
   '/become-vendor': typeof BecomeVendorRoute
   '/cart': typeof CartRoute
@@ -247,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/order-success': typeof OrderSuccessRoute
   '/orders': typeof OrdersRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/products': typeof ProductsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -256,21 +455,52 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/vendor': typeof VendorRouteWithChildren
   '/wishlist': typeof WishlistRoute
+  '/admin/audit-logs': typeof AdminAuditLogsRoute
+  '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/cms': typeof AdminCmsRoute
+  '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/create-partner': typeof AdminCreatePartnerRoute
+  '/admin/delivery': typeof AdminDeliveryRoute
+  '/admin/faqs': typeof AdminFaqsRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/membership-plans': typeof AdminMembershipPlansRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
+  '/admin/orders': typeof AdminOrdersRoute
+  '/admin/products': typeof AdminProductsRoute
+  '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
+  '/admin/support-tickets': typeof AdminSupportTicketsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/delivery/login': typeof DeliveryLoginRoute
+  '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/vendor/analytics': typeof VendorAnalyticsRoute
+  '/vendor/coupons': typeof VendorCouponsRoute
+  '/vendor/earnings': typeof VendorEarningsRoute
+  '/vendor/location': typeof VendorLocationRoute
   '/vendor/login': typeof VendorLoginRoute
+  '/vendor/membership': typeof VendorMembershipRouteWithChildren
+  '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/products': typeof VendorProductsRoute
+  '/vendor/reviews': typeof VendorReviewsRoute
+  '/vendor/settings': typeof VendorSettingsRoute
   '/vendors/$vendorId': typeof VendorsVendorIdRoute
+  '/admin/': typeof AdminIndexRoute
+  '/vendor/': typeof VendorIndexRoute
   '/vendors/': typeof VendorsIndexRoute
   '/orders/$orderId/track': typeof OrdersOrderIdTrackRoute
+  '/vendor/membership/upgrade': typeof VendorMembershipUpgradeRoute
+  '/vendor/membership/': typeof VendorMembershipIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/500': typeof R500Route
   '/about': typeof AboutRoute
   '/addresses': typeof AddressesRoute
-  '/admin': typeof AdminRouteWithChildren
   '/become-delivery': typeof BecomeDeliveryRoute
   '/become-vendor': typeof BecomeVendorRoute
   '/cart': typeof CartRoute
@@ -285,6 +515,7 @@ export interface FileRoutesByTo {
   '/order-success': typeof OrderSuccessRoute
   '/orders': typeof OrdersRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/products': typeof ProductsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -292,24 +523,54 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/street-vendors': typeof StreetVendorsRoute
   '/terms': typeof TermsRoute
-  '/vendor': typeof VendorRouteWithChildren
   '/wishlist': typeof WishlistRoute
+  '/admin/audit-logs': typeof AdminAuditLogsRoute
+  '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/cms': typeof AdminCmsRoute
+  '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/create-partner': typeof AdminCreatePartnerRoute
+  '/admin/delivery': typeof AdminDeliveryRoute
+  '/admin/faqs': typeof AdminFaqsRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/membership-plans': typeof AdminMembershipPlansRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
+  '/admin/orders': typeof AdminOrdersRoute
+  '/admin/products': typeof AdminProductsRoute
+  '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
+  '/admin/support-tickets': typeof AdminSupportTicketsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/delivery/login': typeof DeliveryLoginRoute
+  '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/vendor/analytics': typeof VendorAnalyticsRoute
+  '/vendor/coupons': typeof VendorCouponsRoute
+  '/vendor/earnings': typeof VendorEarningsRoute
+  '/vendor/location': typeof VendorLocationRoute
   '/vendor/login': typeof VendorLoginRoute
+  '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/products': typeof VendorProductsRoute
+  '/vendor/reviews': typeof VendorReviewsRoute
+  '/vendor/settings': typeof VendorSettingsRoute
   '/vendors/$vendorId': typeof VendorsVendorIdRoute
+  '/admin': typeof AdminIndexRoute
+  '/vendor': typeof VendorIndexRoute
   '/vendors': typeof VendorsIndexRoute
   '/orders/$orderId/track': typeof OrdersOrderIdTrackRoute
+  '/vendor/membership/upgrade': typeof VendorMembershipUpgradeRoute
+  '/vendor/membership': typeof VendorMembershipIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/500': typeof R500Route
   '/about': typeof AboutRoute
   '/addresses': typeof AddressesRoute
-  '/admin': typeof AdminRouteWithChildren
   '/become-delivery': typeof BecomeDeliveryRoute
   '/become-vendor': typeof BecomeVendorRoute
   '/cart': typeof CartRoute
@@ -324,6 +585,7 @@ export interface FileRoutesById {
   '/order-success': typeof OrderSuccessRoute
   '/orders': typeof OrdersRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/products': typeof ProductsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -333,23 +595,55 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/vendor': typeof VendorRouteWithChildren
   '/wishlist': typeof WishlistRoute
+  '/admin/audit-logs': typeof AdminAuditLogsRoute
+  '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/cms': typeof AdminCmsRoute
+  '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/create-partner': typeof AdminCreatePartnerRoute
+  '/admin/delivery': typeof AdminDeliveryRoute
+  '/admin/faqs': typeof AdminFaqsRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/membership-plans': typeof AdminMembershipPlansRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
+  '/admin/orders': typeof AdminOrdersRoute
+  '/admin/products': typeof AdminProductsRoute
+  '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
+  '/admin/support-tickets': typeof AdminSupportTicketsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/delivery/login': typeof DeliveryLoginRoute
+  '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/vendor/analytics': typeof VendorAnalyticsRoute
+  '/vendor/coupons': typeof VendorCouponsRoute
+  '/vendor/earnings': typeof VendorEarningsRoute
+  '/vendor/location': typeof VendorLocationRoute
   '/vendor/login': typeof VendorLoginRoute
+  '/vendor/membership': typeof VendorMembershipRouteWithChildren
+  '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/products': typeof VendorProductsRoute
+  '/vendor/reviews': typeof VendorReviewsRoute
+  '/vendor/settings': typeof VendorSettingsRoute
   '/vendors/$vendorId': typeof VendorsVendorIdRoute
+  '/admin/': typeof AdminIndexRoute
+  '/vendor/': typeof VendorIndexRoute
   '/vendors/': typeof VendorsIndexRoute
   '/orders/$orderId/track': typeof OrdersOrderIdTrackRoute
+  '/vendor/membership/upgrade': typeof VendorMembershipUpgradeRoute
+  '/vendor/membership/': typeof VendorMembershipIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/500'
     | '/about'
     | '/addresses'
-    | '/admin'
     | '/become-delivery'
     | '/become-vendor'
     | '/cart'
@@ -364,6 +658,7 @@ export interface FileRouteTypes {
     | '/order-success'
     | '/orders'
     | '/privacy'
+    | '/products'
     | '/profile'
     | '/refund-policy'
     | '/reset-password'
@@ -373,21 +668,52 @@ export interface FileRouteTypes {
     | '/terms'
     | '/vendor'
     | '/wishlist'
+    | '/admin/audit-logs'
+    | '/admin/categories'
+    | '/admin/cms'
+    | '/admin/coupons'
+    | '/admin/create-partner'
+    | '/admin/delivery'
+    | '/admin/faqs'
     | '/admin/login'
+    | '/admin/membership-plans'
+    | '/admin/notifications'
+    | '/admin/orders'
+    | '/admin/products'
+    | '/admin/refunds'
+    | '/admin/reports'
+    | '/admin/settings'
+    | '/admin/subscriptions'
+    | '/admin/support-tickets'
+    | '/admin/users'
+    | '/admin/vendors'
     | '/auth/callback'
     | '/delivery/login'
+    | '/orders/history'
     | '/products/$productId'
+    | '/vendor/analytics'
+    | '/vendor/coupons'
+    | '/vendor/earnings'
+    | '/vendor/location'
     | '/vendor/login'
+    | '/vendor/membership'
+    | '/vendor/orders'
+    | '/vendor/products'
+    | '/vendor/reviews'
+    | '/vendor/settings'
     | '/vendors/$vendorId'
+    | '/admin/'
+    | '/vendor/'
     | '/vendors/'
     | '/orders/$orderId/track'
+    | '/vendor/membership/upgrade'
+    | '/vendor/membership/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/500'
     | '/about'
     | '/addresses'
-    | '/admin'
     | '/become-delivery'
     | '/become-vendor'
     | '/cart'
@@ -402,6 +728,7 @@ export interface FileRouteTypes {
     | '/order-success'
     | '/orders'
     | '/privacy'
+    | '/products'
     | '/profile'
     | '/refund-policy'
     | '/reset-password'
@@ -409,23 +736,53 @@ export interface FileRouteTypes {
     | '/signup'
     | '/street-vendors'
     | '/terms'
-    | '/vendor'
     | '/wishlist'
+    | '/admin/audit-logs'
+    | '/admin/categories'
+    | '/admin/cms'
+    | '/admin/coupons'
+    | '/admin/create-partner'
+    | '/admin/delivery'
+    | '/admin/faqs'
     | '/admin/login'
+    | '/admin/membership-plans'
+    | '/admin/notifications'
+    | '/admin/orders'
+    | '/admin/products'
+    | '/admin/refunds'
+    | '/admin/reports'
+    | '/admin/settings'
+    | '/admin/subscriptions'
+    | '/admin/support-tickets'
+    | '/admin/users'
+    | '/admin/vendors'
     | '/auth/callback'
     | '/delivery/login'
+    | '/orders/history'
     | '/products/$productId'
+    | '/vendor/analytics'
+    | '/vendor/coupons'
+    | '/vendor/earnings'
+    | '/vendor/location'
     | '/vendor/login'
+    | '/vendor/orders'
+    | '/vendor/products'
+    | '/vendor/reviews'
+    | '/vendor/settings'
     | '/vendors/$vendorId'
+    | '/admin'
+    | '/vendor'
     | '/vendors'
     | '/orders/$orderId/track'
+    | '/vendor/membership/upgrade'
+    | '/vendor/membership'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/500'
     | '/about'
     | '/addresses'
-    | '/admin'
     | '/become-delivery'
     | '/become-vendor'
     | '/cart'
@@ -440,6 +797,7 @@ export interface FileRouteTypes {
     | '/order-success'
     | '/orders'
     | '/privacy'
+    | '/products'
     | '/profile'
     | '/refund-policy'
     | '/reset-password'
@@ -449,22 +807,54 @@ export interface FileRouteTypes {
     | '/terms'
     | '/vendor'
     | '/wishlist'
+    | '/admin/audit-logs'
+    | '/admin/categories'
+    | '/admin/cms'
+    | '/admin/coupons'
+    | '/admin/create-partner'
+    | '/admin/delivery'
+    | '/admin/faqs'
     | '/admin/login'
+    | '/admin/membership-plans'
+    | '/admin/notifications'
+    | '/admin/orders'
+    | '/admin/products'
+    | '/admin/refunds'
+    | '/admin/reports'
+    | '/admin/settings'
+    | '/admin/subscriptions'
+    | '/admin/support-tickets'
+    | '/admin/users'
+    | '/admin/vendors'
     | '/auth/callback'
     | '/delivery/login'
+    | '/orders/history'
     | '/products/$productId'
+    | '/vendor/analytics'
+    | '/vendor/coupons'
+    | '/vendor/earnings'
+    | '/vendor/location'
     | '/vendor/login'
+    | '/vendor/membership'
+    | '/vendor/orders'
+    | '/vendor/products'
+    | '/vendor/reviews'
+    | '/vendor/settings'
     | '/vendors/$vendorId'
+    | '/admin/'
+    | '/vendor/'
     | '/vendors/'
     | '/orders/$orderId/track'
+    | '/vendor/membership/upgrade'
+    | '/vendor/membership/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
   R500Route: typeof R500Route
   AboutRoute: typeof AboutRoute
   AddressesRoute: typeof AddressesRoute
-  AdminRoute: typeof AdminRouteWithChildren
   BecomeDeliveryRoute: typeof BecomeDeliveryRoute
   BecomeVendorRoute: typeof BecomeVendorRoute
   CartRoute: typeof CartRoute
@@ -479,6 +869,7 @@ export interface RootRouteChildren {
   OrderSuccessRoute: typeof OrderSuccessRoute
   OrdersRoute: typeof OrdersRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
+  ProductsRoute: typeof ProductsRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -489,7 +880,6 @@ export interface RootRouteChildren {
   VendorRoute: typeof VendorRouteWithChildren
   WishlistRoute: typeof WishlistRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
-  ProductsProductIdRoute: typeof ProductsProductIdRoute
   VendorsVendorIdRoute: typeof VendorsVendorIdRoute
   VendorsIndexRoute: typeof VendorsIndexRoute
 }
@@ -528,7 +918,7 @@ declare module '@tanstack/react-router' {
       id: '/admin'
       path: '/admin'
       fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
+      preLoaderRoute: typeof AdminRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/become-delivery': {
@@ -629,6 +1019,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -692,12 +1089,145 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WishlistRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/audit-logs': {
+      id: '/admin/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/admin/audit-logs'
+      preLoaderRoute: typeof AdminAuditLogsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/categories': {
+      id: '/admin/categories'
+      path: '/categories'
+      fullPath: '/admin/categories'
+      preLoaderRoute: typeof AdminCategoriesRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/cms': {
+      id: '/admin/cms'
+      path: '/cms'
+      fullPath: '/admin/cms'
+      preLoaderRoute: typeof AdminCmsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/coupons': {
+      id: '/admin/coupons'
+      path: '/coupons'
+      fullPath: '/admin/coupons'
+      preLoaderRoute: typeof AdminCouponsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/create-partner': {
+      id: '/admin/create-partner'
+      path: '/create-partner'
+      fullPath: '/admin/create-partner'
+      preLoaderRoute: typeof AdminCreatePartnerRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/delivery': {
+      id: '/admin/delivery'
+      path: '/delivery'
+      fullPath: '/admin/delivery'
+      preLoaderRoute: typeof AdminDeliveryRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/faqs': {
+      id: '/admin/faqs'
+      path: '/faqs'
+      fullPath: '/admin/faqs'
+      preLoaderRoute: typeof AdminFaqsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/login': {
       id: '/admin/login'
       path: '/login'
       fullPath: '/admin/login'
       preLoaderRoute: typeof AdminLoginRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/membership-plans': {
+      id: '/admin/membership-plans'
+      path: '/membership-plans'
+      fullPath: '/admin/membership-plans'
+      preLoaderRoute: typeof AdminMembershipPlansRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/notifications': {
+      id: '/admin/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AdminNotificationsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/orders': {
+      id: '/admin/orders'
+      path: '/orders'
+      fullPath: '/admin/orders'
+      preLoaderRoute: typeof AdminOrdersRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/products': {
+      id: '/admin/products'
+      path: '/products'
+      fullPath: '/admin/products'
+      preLoaderRoute: typeof AdminProductsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/refunds': {
+      id: '/admin/refunds'
+      path: '/refunds'
+      fullPath: '/admin/refunds'
+      preLoaderRoute: typeof AdminRefundsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/subscriptions': {
+      id: '/admin/subscriptions'
+      path: '/subscriptions'
+      fullPath: '/admin/subscriptions'
+      preLoaderRoute: typeof AdminSubscriptionsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/support-tickets': {
+      id: '/admin/support-tickets'
+      path: '/support-tickets'
+      fullPath: '/admin/support-tickets'
+      preLoaderRoute: typeof AdminSupportTicketsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/vendors': {
+      id: '/admin/vendors'
+      path: '/vendors'
+      fullPath: '/admin/vendors'
+      preLoaderRoute: typeof AdminVendorsRouteImport
+      parentRoute: typeof AdminRouteRoute
     }
     '/auth/callback': {
       id: '/auth/callback'
@@ -713,18 +1243,95 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeliveryLoginRouteImport
       parentRoute: typeof DeliveryRoute
     }
+    '/orders/history': {
+      id: '/orders/history'
+      path: '/history'
+      fullPath: '/orders/history'
+      preLoaderRoute: typeof OrdersHistoryRouteImport
+      parentRoute: typeof OrdersRoute
+    }
     '/products/$productId': {
       id: '/products/$productId'
-      path: '/products/$productId'
+      path: '/$productId'
       fullPath: '/products/$productId'
       preLoaderRoute: typeof ProductsProductIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ProductsRoute
+    }
+    '/vendor/': {
+      id: '/vendor/'
+      path: '/'
+      fullPath: '/vendor/'
+      preLoaderRoute: typeof VendorIndexRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/analytics': {
+      id: '/vendor/analytics'
+      path: '/analytics'
+      fullPath: '/vendor/analytics'
+      preLoaderRoute: typeof VendorAnalyticsRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/coupons': {
+      id: '/vendor/coupons'
+      path: '/coupons'
+      fullPath: '/vendor/coupons'
+      preLoaderRoute: typeof VendorCouponsRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/earnings': {
+      id: '/vendor/earnings'
+      path: '/earnings'
+      fullPath: '/vendor/earnings'
+      preLoaderRoute: typeof VendorEarningsRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/location': {
+      id: '/vendor/location'
+      path: '/location'
+      fullPath: '/vendor/location'
+      preLoaderRoute: typeof VendorLocationRouteImport
+      parentRoute: typeof VendorRoute
     }
     '/vendor/login': {
       id: '/vendor/login'
       path: '/login'
       fullPath: '/vendor/login'
       preLoaderRoute: typeof VendorLoginRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/membership': {
+      id: '/vendor/membership'
+      path: '/membership'
+      fullPath: '/vendor/membership'
+      preLoaderRoute: typeof VendorMembershipRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/orders': {
+      id: '/vendor/orders'
+      path: '/orders'
+      fullPath: '/vendor/orders'
+      preLoaderRoute: typeof VendorOrdersRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/products': {
+      id: '/vendor/products'
+      path: '/products'
+      fullPath: '/vendor/products'
+      preLoaderRoute: typeof VendorProductsRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/reviews': {
+      id: '/vendor/reviews'
+      path: '/reviews'
+      fullPath: '/vendor/reviews'
+      preLoaderRoute: typeof VendorReviewsRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/settings': {
+      id: '/vendor/settings'
+      path: '/settings'
+      fullPath: '/vendor/settings'
+      preLoaderRoute: typeof VendorSettingsRouteImport
       parentRoute: typeof VendorRoute
     }
     '/vendors/': {
@@ -748,18 +1355,72 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrdersOrderIdTrackRouteImport
       parentRoute: typeof OrdersRoute
     }
+    '/vendor/membership/': {
+      id: '/vendor/membership/'
+      path: '/'
+      fullPath: '/vendor/membership/'
+      preLoaderRoute: typeof VendorMembershipIndexRouteImport
+      parentRoute: typeof VendorMembershipRoute
+    }
+    '/vendor/membership/upgrade': {
+      id: '/vendor/membership/upgrade'
+      path: '/upgrade'
+      fullPath: '/vendor/membership/upgrade'
+      preLoaderRoute: typeof VendorMembershipUpgradeRouteImport
+      parentRoute: typeof VendorMembershipRoute
+    }
   }
 }
 
-interface AdminRouteChildren {
+interface AdminRouteRouteChildren {
+  AdminAuditLogsRoute: typeof AdminAuditLogsRoute
+  AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminCmsRoute: typeof AdminCmsRoute
+  AdminCouponsRoute: typeof AdminCouponsRoute
+  AdminCreatePartnerRoute: typeof AdminCreatePartnerRoute
+  AdminDeliveryRoute: typeof AdminDeliveryRoute
+  AdminFaqsRoute: typeof AdminFaqsRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  AdminMembershipPlansRoute: typeof AdminMembershipPlansRoute
+  AdminNotificationsRoute: typeof AdminNotificationsRoute
+  AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminProductsRoute: typeof AdminProductsRoute
+  AdminRefundsRoute: typeof AdminRefundsRoute
+  AdminReportsRoute: typeof AdminReportsRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
+  AdminSupportTicketsRoute: typeof AdminSupportTicketsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  AdminVendorsRoute: typeof AdminVendorsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
 }
 
-const AdminRouteChildren: AdminRouteChildren = {
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminAuditLogsRoute: AdminAuditLogsRoute,
+  AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminCmsRoute: AdminCmsRoute,
+  AdminCouponsRoute: AdminCouponsRoute,
+  AdminCreatePartnerRoute: AdminCreatePartnerRoute,
+  AdminDeliveryRoute: AdminDeliveryRoute,
+  AdminFaqsRoute: AdminFaqsRoute,
   AdminLoginRoute: AdminLoginRoute,
+  AdminMembershipPlansRoute: AdminMembershipPlansRoute,
+  AdminNotificationsRoute: AdminNotificationsRoute,
+  AdminOrdersRoute: AdminOrdersRoute,
+  AdminProductsRoute: AdminProductsRoute,
+  AdminRefundsRoute: AdminRefundsRoute,
+  AdminReportsRoute: AdminReportsRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
+  AdminSubscriptionsRoute: AdminSubscriptionsRoute,
+  AdminSupportTicketsRoute: AdminSupportTicketsRoute,
+  AdminUsersRoute: AdminUsersRoute,
+  AdminVendorsRoute: AdminVendorsRoute,
+  AdminIndexRoute: AdminIndexRoute,
 }
 
-const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
 
 interface DeliveryRouteChildren {
   DeliveryLoginRoute: typeof DeliveryLoginRoute
@@ -774,22 +1435,69 @@ const DeliveryRouteWithChildren = DeliveryRoute._addFileChildren(
 )
 
 interface OrdersRouteChildren {
+  OrdersHistoryRoute: typeof OrdersHistoryRoute
   OrdersOrderIdTrackRoute: typeof OrdersOrderIdTrackRoute
 }
 
 const OrdersRouteChildren: OrdersRouteChildren = {
+  OrdersHistoryRoute: OrdersHistoryRoute,
   OrdersOrderIdTrackRoute: OrdersOrderIdTrackRoute,
 }
 
 const OrdersRouteWithChildren =
   OrdersRoute._addFileChildren(OrdersRouteChildren)
 
+interface ProductsRouteChildren {
+  ProductsProductIdRoute: typeof ProductsProductIdRoute
+}
+
+const ProductsRouteChildren: ProductsRouteChildren = {
+  ProductsProductIdRoute: ProductsProductIdRoute,
+}
+
+const ProductsRouteWithChildren = ProductsRoute._addFileChildren(
+  ProductsRouteChildren,
+)
+
+interface VendorMembershipRouteChildren {
+  VendorMembershipUpgradeRoute: typeof VendorMembershipUpgradeRoute
+  VendorMembershipIndexRoute: typeof VendorMembershipIndexRoute
+}
+
+const VendorMembershipRouteChildren: VendorMembershipRouteChildren = {
+  VendorMembershipUpgradeRoute: VendorMembershipUpgradeRoute,
+  VendorMembershipIndexRoute: VendorMembershipIndexRoute,
+}
+
+const VendorMembershipRouteWithChildren =
+  VendorMembershipRoute._addFileChildren(VendorMembershipRouteChildren)
+
 interface VendorRouteChildren {
+  VendorAnalyticsRoute: typeof VendorAnalyticsRoute
+  VendorCouponsRoute: typeof VendorCouponsRoute
+  VendorEarningsRoute: typeof VendorEarningsRoute
+  VendorLocationRoute: typeof VendorLocationRoute
   VendorLoginRoute: typeof VendorLoginRoute
+  VendorMembershipRoute: typeof VendorMembershipRouteWithChildren
+  VendorOrdersRoute: typeof VendorOrdersRoute
+  VendorProductsRoute: typeof VendorProductsRoute
+  VendorReviewsRoute: typeof VendorReviewsRoute
+  VendorSettingsRoute: typeof VendorSettingsRoute
+  VendorIndexRoute: typeof VendorIndexRoute
 }
 
 const VendorRouteChildren: VendorRouteChildren = {
+  VendorAnalyticsRoute: VendorAnalyticsRoute,
+  VendorCouponsRoute: VendorCouponsRoute,
+  VendorEarningsRoute: VendorEarningsRoute,
+  VendorLocationRoute: VendorLocationRoute,
   VendorLoginRoute: VendorLoginRoute,
+  VendorMembershipRoute: VendorMembershipRouteWithChildren,
+  VendorOrdersRoute: VendorOrdersRoute,
+  VendorProductsRoute: VendorProductsRoute,
+  VendorReviewsRoute: VendorReviewsRoute,
+  VendorSettingsRoute: VendorSettingsRoute,
+  VendorIndexRoute: VendorIndexRoute,
 }
 
 const VendorRouteWithChildren =
@@ -797,10 +1505,10 @@ const VendorRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
   R500Route: R500Route,
   AboutRoute: AboutRoute,
   AddressesRoute: AddressesRoute,
-  AdminRoute: AdminRouteWithChildren,
   BecomeDeliveryRoute: BecomeDeliveryRoute,
   BecomeVendorRoute: BecomeVendorRoute,
   CartRoute: CartRoute,
@@ -815,6 +1523,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrderSuccessRoute: OrderSuccessRoute,
   OrdersRoute: OrdersRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
+  ProductsRoute: ProductsRouteWithChildren,
   ProfileRoute: ProfileRoute,
   RefundPolicyRoute: RefundPolicyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
@@ -825,7 +1534,6 @@ const rootRouteChildren: RootRouteChildren = {
   VendorRoute: VendorRouteWithChildren,
   WishlistRoute: WishlistRoute,
   AuthCallbackRoute: AuthCallbackRoute,
-  ProductsProductIdRoute: ProductsProductIdRoute,
   VendorsVendorIdRoute: VendorsVendorIdRoute,
   VendorsIndexRoute: VendorsIndexRoute,
 }

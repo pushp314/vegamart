@@ -14,6 +14,7 @@ import {
   Bike,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/system/logo";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useAuth } from "@/context/auth-context";
@@ -47,9 +48,7 @@ export function Navbar() {
     <header className="sticky top-0 z-40 hidden md:block w-full bg-background/85 backdrop-blur border-b">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2 shrink-0">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <Sparkles className="h-4 w-4" />
-          </div>
+          <Logo className="h-9 w-9" />
           <div className="min-w-0">
             <div className="text-sm font-bold leading-none font-display">Vegamart</div>
             <div className="text-[10px] text-muted-foreground leading-none mt-0.5">

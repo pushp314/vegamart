@@ -31,7 +31,7 @@ function valueToJson(value: SettingValue): string | number | boolean | null {
 
 export const settingsService = {
   async getPublicSettings() {
-    return cacheService.remember<Record<string, SettingValue>>("settings", "public", async () => {
+    const cached = await cacheService.remember<Record<string, SettingValue>>("settings", "public", async () => {
       const stored = await settingsRepo.getPublicSettings();
       const merged: Record<string, SettingValue> = {};
       for (const [key, def] of Object.entries(DEFAULT_SETTINGS)) {
@@ -43,6 +43,23 @@ export const settingsService = {
       }
       return merged;
     });
+
+    // Check if any delivery partners are currently online & available
+    let hasActiveDeliveryPartners = false;
+    try {
+      const prisma = (await import("../database/prisma")).default;
+      const count = await prisma.deliveryProfile.count({
+        where: { is_available: true },
+      });
+      hasActiveDeliveryPartners = count > 0;
+    } catch {
+      hasActiveDeliveryPartners = false;
+    }
+
+    return {
+      ...cached,
+      has_active_delivery_partners: hasActiveDeliveryPartners,
+    };
   },
 
   async getAllSettings() {

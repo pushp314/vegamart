@@ -15,6 +15,7 @@ import {
 } from "../../controllers/product.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
+import { checkProductLimit } from "../../middlewares/subscription.middleware";
 import { validate } from "../../middlewares/validate";
 import { ROLES } from "../../constants/roles";
 import {
@@ -35,7 +36,14 @@ router.get("/products", validate({ query: listProductsQuerySchema }), listProduc
 router.get("/products/me", authenticate, validate({ query: vendorProductsQuerySchema }), listMyProducts);
 router.get("/products/:product_id", validate({ params: productIdParamsSchema }), getProduct);
 
-router.post("/products", authenticate, requireRole(ROLES.VENDOR), validate({ body: createProductSchema }), createProduct);
+router.post(
+  "/products", 
+  authenticate, 
+  requireRole(ROLES.VENDOR), 
+  checkProductLimit,
+  validate({ body: createProductSchema }), 
+  createProduct
+);
 router.patch("/products/:product_id", authenticate, validate({ params: productIdParamsSchema, body: updateProductSchema }), updateProduct);
 router.delete("/products/:product_id", authenticate, validate({ params: productIdParamsSchema }), deleteProduct);
 router.post(

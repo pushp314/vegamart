@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, CreditCard, FileText, Phone } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { Save, Loader2, FileText, Phone, Bike, ExternalLink, Crown, ShieldCheck } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,25 +9,41 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
-export function VendorSettings({ vendorProfile }: any) {
+export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   const queryClient = useQueryClient();
-  const [gstin, setGstin] = useState(vendorProfile.gstin || "");
+
+  // If vendorProfile is not passed directly, fetch it
+  const { data: fetchedRes, isLoading } = useQuery({
+    queryKey: ["vendorProfile"],
+    queryFn: () => api.get<{ data: any }>("/vendors/me"),
+    enabled: !vendorProfile,
+  });
+
+  const profile = vendorProfile || fetchedRes?.data?.data || fetchedRes?.data || {};
+
+  const [gstin, setGstin] = useState(profile.gstin || "");
   const [freeDeliveryMin, setFreeDeliveryMin] = useState(
-    vendorProfile.free_delivery_min_order ? String(vendorProfile.free_delivery_min_order) : ""
+    profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : ""
   );
-  const [subscriptionPlan, setSubscriptionPlan] = useState(
-    vendorProfile.subscription_plan || "basic",
-  );
-  const [contactPhone, setContactPhone] = useState(vendorProfile.phone || "");
+  const [contactPhone, setContactPhone] = useState(profile.phone || "");
+  const [providesDelivery, setProvidesDelivery] = useState(profile.provides_delivery ?? false);
+
+  useEffect(() => {
+    if (profile.gstin !== undefined) setGstin(profile.gstin || "");
+    if (profile.free_delivery_min_order !== undefined)
+      setFreeDeliveryMin(profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : "");
+    if (profile.phone !== undefined) setContactPhone(profile.phone || "");
+    if (profile.provides_delivery !== undefined) setProvidesDelivery(!!profile.provides_delivery);
+  }, [profile]);
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => api.put("/vendors/me", data),
     onSuccess: () => {
-      toast.success("Settings updated successfully");
+      toast.success("Business settings saved successfully! ✨");
       queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Failed to update settings");
+      toast.error(err?.message || "Failed to save settings");
     },
   });
 
@@ -34,67 +51,137 @@ export function VendorSettings({ vendorProfile }: any) {
     e.preventDefault();
     updateMutation.mutate({
       gstin: gstin,
-      subscription_plan: subscriptionPlan,
+      provides_delivery: providesDelivery,
       free_delivery_min_order: freeDeliveryMin ? Number(freeDeliveryMin) : null,
       phone: contactPhone || null,
     });
   };
 
+  if (isLoading && !vendorProfile) {
+    return (
+      <div className="flex justify-center p-12 text-muted-foreground gap-2">
+        <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
+        <span>Loading settings...</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <h2 className="font-display text-lg font-bold">Business Settings</h2>
+    <div className="space-y-6 max-w-4xl">
+      <div>
+        <h2 className="font-display text-2xl font-bold tracking-tight">Business Settings</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Configure tax compliance, delivery rules, and public store contact details.
+        </p>
+      </div>
 
       <form onSubmit={handleSave} className="space-y-6">
-        <Card>
+        <Card className="rounded-3xl border-border shadow-xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="h-5 w-5 text-emerald-600" />
               Tax & Compliance
             </CardTitle>
-            <CardDescription>Manage your GST settings and compliance information.</CardDescription>
+            <CardDescription className="text-xs">
+              Manage your GSTIN tax registration and minimum order thresholds.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5 max-w-sm">
-              <Label htmlFor="gstin" className="text-xs font-medium">
-                GSTIN (Optional)
+            <div className="space-y-1.5 max-w-md">
+              <Label htmlFor="gstin" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                GSTIN Number (Optional)
               </Label>
               <Input
                 id="gstin"
                 placeholder="e.g. 22AAAAA0000A1Z5"
                 value={gstin}
                 onChange={(e) => setGstin(e.target.value)}
-                className="h-9 text-sm uppercase"
+                className="h-10 rounded-2xl text-xs uppercase bg-muted/40"
               />
             </div>
-            <div className="space-y-1.5 max-w-sm">
-              <Label htmlFor="freeDeliveryMin" className="text-xs font-medium">
-                Free Delivery Minimum Order Amount (₹)
+            <div className="space-y-1.5 max-w-md">
+              <Label htmlFor="freeDeliveryMin" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Free Delivery Order Threshold (₹)
               </Label>
               <Input
                 id="freeDeliveryMin"
                 type="number"
                 min="0"
-                placeholder="e.g. 199 or leave blank for global default"
+                placeholder="e.g. 199 or leave blank"
                 value={freeDeliveryMin}
                 onChange={(e) => setFreeDeliveryMin(e.target.value)}
-                className="h-9 text-sm"
+                className="h-10 rounded-2xl text-xs bg-muted/40"
               />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-3xl border-border shadow-xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5 text-emerald-600" />
-              Contact Information
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Bike className="h-5 w-5 text-blue-600" />
+              Delivery Options
             </CardTitle>
-            <CardDescription>Set your store phone number so customers can call you directly.</CardDescription>
+            <CardDescription className="text-xs">
+              Configure whether your store offers vendor-fulfilled delivery at checkout.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5 max-w-sm">
-              <Label htmlFor="contactPhone" className="text-xs font-medium">
-                Store Phone Number
+            <button
+              type="button"
+              role="switch"
+              aria-checked={providesDelivery}
+              onClick={() => setProvidesDelivery((v: boolean) => !v)}
+              className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-all ${
+                providesDelivery
+                  ? "border-emerald-500/50 bg-emerald-500/10 shadow-sm"
+                  : "border-border hover:border-primary/40"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors ${
+                    providesDelivery ? "bg-emerald-500 text-slate-950 font-bold" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Bike className="h-5 w-5" />
+                </span>
+                <div>
+                  <div className="text-xs font-bold text-foreground">Offer Store Delivery</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                    When enabled, customers will see "Vendor Delivery" as an option for your products during checkout.
+                  </div>
+                </div>
+              </div>
+              <span
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  providesDelivery ? "bg-emerald-500" : "bg-muted"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    providesDelivery ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </span>
+            </button>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl border-border shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Phone className="h-5 w-5 text-purple-600" />
+              Store Contact Information
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Provide a direct contact number for customer inquiries.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5 max-w-md">
+              <Label htmlFor="contactPhone" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Public Store Phone Number
               </Label>
               <Input
                 id="contactPhone"
@@ -102,90 +189,36 @@ export function VendorSettings({ vendorProfile }: any) {
                 placeholder="e.g. +919876543210"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
-                className="h-9 text-sm"
+                className="h-10 rounded-2xl text-xs bg-muted/40"
               />
-              <p className="text-[11px] text-muted-foreground">
-                This number will appear on your store page for customers to call.
-              </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-3xl border-border shadow-xl bg-gradient-to-r from-amber-500/10 via-card to-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-emerald-600" />
-              Membership Plan
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Crown className="h-5 w-5 text-amber-500" />
+              Membership & Growth
             </CardTitle>
-            <CardDescription>Upgrade your plan to unlock more features.</CardDescription>
+            <CardDescription className="text-xs">
+              Upgrade your vendor membership to unlock 0% commission tiers and sponsored placement.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Basic Plan */}
-              <div
-                className={`relative rounded-2xl border-2 p-5 cursor-pointer transition-all ${subscriptionPlan === "basic" ? "border-emerald-500 bg-emerald-50/50" : "border-border hover:border-emerald-200"}`}
-                onClick={() => setSubscriptionPlan("basic")}
-              >
-                {subscriptionPlan === "basic" && (
-                  <div className="absolute -top-3 -right-3 h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={3}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                )}
-                <div className="font-display font-bold text-lg mb-1">Basic</div>
-                <div className="text-2xl font-black text-emerald-700 mb-3">Free</div>
-                <ul className="text-xs text-muted-foreground space-y-2">
-                  <li>• Upto 100 products</li>
-                  <li>• 5% Platform fee</li>
-                  <li>• Basic Support</li>
-                </ul>
-              </div>
-
-              {/* Premium Plan */}
-              <div
-                className={`relative rounded-2xl border-2 p-5 cursor-pointer transition-all ${subscriptionPlan === "premium" ? "border-emerald-500 bg-emerald-50/50" : "border-border hover:border-emerald-200"}`}
-                onClick={() => setSubscriptionPlan("premium")}
-              >
-                {subscriptionPlan === "premium" && (
-                  <div className="absolute -top-3 -right-3 h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={3}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                )}
-                <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-xl">
-                  POPULAR
-                </div>
-                <div className="font-display font-bold text-lg mb-1">Premium</div>
-                <div className="text-2xl font-black text-emerald-700 mb-3">
-                  ₹499<span className="text-sm font-normal text-muted-foreground">/mo</span>
-                </div>
-                <ul className="text-xs text-muted-foreground space-y-2">
-                  <li>• Unlimited products</li>
-                  <li>• 2% Platform fee</li>
-                  <li>• Priority Support</li>
-                  <li>• Featured Listings</li>
-                </ul>
-              </div>
-            </div>
+            <Link
+              to="/vendor/membership"
+              className="inline-flex items-center gap-2 rounded-2xl bg-amber-500 text-slate-950 px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-md hover:bg-amber-400 transition-colors"
+            >
+              Manage Subscription <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
           </CardContent>
         </Card>
 
         <Button
           type="submit"
           disabled={updateMutation.isPending}
-          className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white"
+          className="rounded-2xl bg-emerald-500 text-slate-950 font-bold hover:bg-emerald-400 h-11 px-8 shadow-lg"
         >
           {updateMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

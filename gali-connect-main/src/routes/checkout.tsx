@@ -28,13 +28,6 @@ export const Route = createFileRoute("/checkout")({
   component: Checkout,
 });
 
-const DELIVERY_OPTIONS = [
-  { label: "Self Pickup", desc: "Pick up from store" },
-  { label: "Shop Delivery", desc: "Delivered by vendor" },
-  { label: "Vendor Delivery", desc: "Delivered by vendor fleet" },
-  { label: "VegaMart Delivery Partner", desc: "Delivered by our fleet" },
-];
-
 const PAYMENTS = [
   { v: "upi", icon: Smartphone, label: "UPI", desc: "PhonePe, GPay, Paytm" },
   { v: "card", icon: CreditCard, label: "Card", desc: "Visa, Mastercard, RuPay" },
@@ -61,6 +54,40 @@ function Checkout() {
   const [deliveryOption, setDeliveryOption] = useState(0);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
+
+  const { data: publicSettingsRes } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<any>("/settings/public"),
+  });
+  const publicSettings = publicSettingsRes?.data || {};
+  const hasActiveDeliveryPartners = !!publicSettings.has_active_delivery_partners;
+
+  // Delivery options logic according to store capabilities & live delivery partners
+  const shopDeliveryEnabled = items.some(
+    (i) => !!(i.product.vendor?.provides_delivery || (i.product as any).vendor_provides_delivery)
+  );
+  const vendorComesToMeEnabled = items.some(
+    (i) =>
+      (i.product.vendor as any)?.vendor_type === "roaming" ||
+      !!(i.product.vendor as any)?.provides_vendor_comes_to_me
+  );
+
+  const DELIVERY_OPTIONS = [
+    { id: "self_pickup", label: "Self Pickup", desc: "Pick up directly from store" },
+    ...(shopDeliveryEnabled
+      ? [{ id: "shop_delivery", label: "Shop Delivery", desc: "Delivered by store owner" }]
+      : []),
+    ...(vendorComesToMeEnabled
+      ? [{ id: "vendor_comes_to_me", label: "Vendor Comes to Me", desc: "Vendor visits your location" }]
+      : []),
+    ...(hasActiveDeliveryPartners
+      ? [{ id: "delivery_partner", label: "VegaMart Delivery Partner", desc: "Delivered by our active rider fleet" }]
+      : []),
+  ];
+
+  useEffect(() => {
+    setDeliveryOption((i) => Math.min(i, Math.max(0, DELIVERY_OPTIONS.length - 1)));
+  }, [shopDeliveryEnabled, vendorComesToMeEnabled, hasActiveDeliveryPartners]);
 
   const { data: offersRes } = useQuery({
     queryKey: ["availableOffers"],
@@ -349,7 +376,9 @@ function Checkout() {
                 })}
               </div>
               <p className="mt-3 text-[11px] text-muted-foreground">
-                Delivery boy should show when item will be delivered in after order acceptance.
+                {shopDeliveryEnabled
+                  ? "Estimated delivery timeline will be provided after order acceptance."
+                  : "Pick up your order in-store or choose from available live delivery options above."}
               </p>
             </section>
 
@@ -432,7 +461,9 @@ function Checkout() {
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
                       {AVAILABLE_OFFERS.length === 0 && (
-                        <div className="text-[11px] text-muted-foreground py-2">No offers available currently.</div>
+                        <div className="text-[11px] text-muted-foreground py-2">
+                          No offers available currently.
+                        </div>
                       )}
                       {AVAILABLE_OFFERS.map((offer: any) => (
                         <button

@@ -125,6 +125,14 @@ export async function consumeReserved(productId: string, quantity: number): Prom
       quantity: { decrement: quantity },
     },
   });
+  await prisma.product.updateMany({
+    where: { id: productId, stock: { gte: quantity } },
+    data: { stock: { decrement: quantity } },
+  });
+  await prisma.product.updateMany({
+    where: { id: productId, stock: { lte: 0 } },
+    data: { is_available: false },
+  });
 }
 
 export async function listByOrder(orderId: string): Promise<Array<{ product_id: string; quantity: number }>> {

@@ -11,6 +11,7 @@ import * as inventoryRepo from "../repositories/inventory.repository";
 import * as transactionRepo from "../repositories/transaction.repository";
 import { findById as findOrderById } from "../repositories/order.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
+import { subscriptionPaymentService } from "./subscription-payment.service";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -96,11 +97,43 @@ export const paymentService = {
       payload?: {
         payment?: { entity?: Record<string, unknown> };
         order?: { entity?: Record<string, unknown> };
+        subscription?: { entity?: Record<string, unknown> };
       };
     };
 
     const event = payload.event ?? "";
     const paymentEntity = payload.payload?.payment?.entity;
+    const subscriptionEntity = payload.payload?.subscription?.entity;
+
+    const SUBSCRIPTION_EVENTS = new Set([
+      "subscription.charged",
+      "subscription.activated",
+      "subscription.completed",
+      "subscription.cancelled",
+      "subscription.paused",
+      "subscription.resumed",
+    ]);
+
+    if (SUBSCRIPTION_EVENTS.has(event)) {
+      const handled = await subscriptionPaymentService.handleSubscriptionWebhook(event, subscriptionEntity ?? {}, paymentEntity);
+      await auditService.record(
+        { actorType: "system", action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "webhook", newValues: { event, subscription: handled } },
+        req
+      );
+      return { handled: event };
+    }
+
+    if (event === "payment.failed" && paymentEntity?.subscription_id) {
+      await subscriptionPaymentService.markPaymentFailed(
+        paymentEntity.subscription_id as string,
+        (paymentEntity.error_description as string) ?? null
+      );
+      await auditService.record(
+        { actorType: "system", action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "webhook", newValues: { event } },
+        req
+      );
+      return { handled: event };
+    }
 
     if (event === "payment.captured" && paymentEntity) {
       const dedupeKey = `${event}:${(paymentEntity.id as string) ?? payload.event_id ?? "unknown"}`;
