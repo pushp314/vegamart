@@ -89,6 +89,20 @@ export const deliveryDecisionSchema = z.object({
   reason: z.string().trim().max(1000).optional().nullable(),
 }).strict();
 
+export const createDeliveryPartnerSchema = z.object({
+  name: z.string().trim().min(1, "Name is required.").max(120),
+  email: z.string().trim().email("A valid email is required.").max(255),
+  password: z
+    .string()
+    .min(PASSWORD_RULES.MIN_LENGTH, `Password must be at least ${PASSWORD_RULES.MIN_LENGTH} characters.`)
+    .max(PASSWORD_RULES.MAX_LENGTH),
+  phone: z.string().trim().max(20).optional().nullable(),
+  vehicle_type: z.string().trim().min(1, "Vehicle type is required.").max(60),
+  vehicle_number: z.string().trim().max(30).optional().nullable(),
+  license_number: z.string().trim().max(60).optional().nullable(),
+}).strict();
+export type CreateDeliveryPartnerBody = z.infer<typeof createDeliveryPartnerSchema>;
+
 export const suspendVendorSchema = z.object({
   reason: z.string().trim().max(1000).optional().nullable(),
 }).strict();

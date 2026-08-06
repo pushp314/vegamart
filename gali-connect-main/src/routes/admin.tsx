@@ -49,7 +49,7 @@ export const Route = createFileRoute("/admin")({
 function AdminDashboard() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
@@ -209,6 +209,24 @@ function AdminDashboard() {
     onError: () => toast.error("Failed to reject delivery partner"),
   });
 
+  const suspendDeliveryMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/admin/delivery-partners/${id}/suspend`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminDelivery"] });
+      toast.success("Delivery partner suspended");
+    },
+    onError: () => toast.error("Failed to suspend delivery partner"),
+  });
+
+  const restoreDeliveryMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/admin/delivery-partners/${id}/restore`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminDelivery"] });
+      toast.success("Delivery partner restored");
+    },
+    onError: () => toast.error("Failed to restore delivery partner"),
+  });
+
   const navItems = [
     {
       id: "overview",
@@ -232,7 +250,7 @@ function AdminDashboard() {
     { id: "users", title: "Users", icon: Users, onClick: () => setActiveTab("users") },
     {
       id: "delivery",
-      title: "Delivery Fleet",
+      title: "Delivery Boys",
       icon: Bike,
       onClick: () => setActiveTab("delivery"),
     },
@@ -293,6 +311,10 @@ function AdminDashboard() {
       activeItemId={activeTab}
       portalName="Admin"
       userEmail={user?.email}
+      onLogout={() => {
+        logout();
+        navigate({ to: "/login" });
+      }}
     >
       {activeTab === "overview" && <AdminOverview stats={stats} />}
       {activeTab === "orders" && <AdminOrders />}
@@ -319,8 +341,13 @@ function AdminDashboard() {
           deliveryList={deliveryList}
           onApprove={(id) => approveDeliveryMutation.mutate(id)}
           onReject={(id) => rejectDeliveryMutation.mutate(id)}
+          onSuspend={(id) => suspendDeliveryMutation.mutate(id)}
+          onRestore={(id) => restoreDeliveryMutation.mutate(id)}
           isApproving={approveDeliveryMutation.isPending}
           isRejecting={rejectDeliveryMutation.isPending}
+          isSuspending={suspendDeliveryMutation.isPending}
+          isRestoring={restoreDeliveryMutation.isPending}
+          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["adminDelivery"] })}
         />
       )}
       {activeTab === "categories" && <AdminCategories />}

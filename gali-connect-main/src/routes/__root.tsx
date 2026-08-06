@@ -163,10 +163,18 @@ function AnimatedOutlet() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
     registerServiceWorker();
   }, []);
+
+  // Portal routes (vendor / delivery / admin) have their own chrome — hide the
+  // customer-facing navbar & bottom nav so other roles only see their portal.
+  const isPortalRoute =
+    pathname.startsWith("/vendor") ||
+    pathname.startsWith("/delivery") ||
+    pathname.startsWith("/admin");
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -177,12 +185,12 @@ function RootComponent() {
               <SplashScreen />
               <NetworkIndicator />
             </ClientOnly>
-            <Navbar />
+            {!isPortalRoute && <Navbar />}
             <AnimatedOutlet />
             <ClientOnly>
               <InstallAppBanner />
             </ClientOnly>
-            <BottomNav />
+            {!isPortalRoute && <BottomNav />}
             <Toaster position="top-center" />
           </WishlistProvider>
         </CartProvider>

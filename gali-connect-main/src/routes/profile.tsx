@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useAuth } from "@/context/auth-context";
+import { homePathForRole } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -56,6 +57,13 @@ function Profile() {
       navigate({ to: "/login" });
     }
   }, [isLoading, isAuthenticated, navigate]);
+
+  // Non-customer roles don't get the customer profile — send them to their portal.
+  useEffect(() => {
+    if (!isLoading && user && user.role !== "customer") {
+      navigate({ to: homePathForRole(user.role) });
+    }
+  }, [user, isLoading, navigate]);
 
   const handleLogout = () => {
     logout();

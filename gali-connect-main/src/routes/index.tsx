@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
   MapPin,
@@ -27,6 +27,7 @@ import {
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, getFeaturedProducts } from "@/lib/api";
+import { homePathForRole } from "@/lib/utils";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
@@ -164,6 +165,15 @@ const CATS: Cat[] = [
 function Home() {
   const { activeAddress, displayLocation } = useLocation();
   const queryClient = useQueryClient();
+  const { user, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Non-customer roles must never see the marketplace — send them to their portal.
+  useEffect(() => {
+    if (!authLoading && user && user.role !== "customer") {
+      navigate({ to: homePathForRole(user.role) });
+    }
+  }, [user, authLoading, navigate]);
 
   const refresh = async () => {
     await queryClient.invalidateQueries();

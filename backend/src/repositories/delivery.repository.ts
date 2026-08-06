@@ -54,9 +54,28 @@ export interface DeliveryPartnerDetail extends DeliveryPartnerRow {
   stats: {
     total_deliveries: number;
     active_deliveries: number;
+    assigned_deliveries: number;
+    pending_deliveries: number;
     total_earnings: import("@prisma/client").Prisma.Decimal;
     pending_earnings: import("@prisma/client").Prisma.Decimal;
   };
+  by_vendor: {
+    vendor_id: string;
+    vendor_name: string;
+    assigned: number;
+    delivered: number;
+  }[];
+  recent_orders: {
+    id: string;
+    order_number: string;
+    status: import("@prisma/client").OrderStatus;
+    total: import("@prisma/client").Prisma.Decimal;
+    delivery_fee: import("@prisma/client").Prisma.Decimal;
+    vendor_name: string;
+    customer_name: string;
+    delivered_at: Date | null;
+    updated_at: Date;
+  }[];
 }
 
 export async function findById(id: string): Promise<DeliveryPartnerRow | null> {
@@ -148,30 +167,114 @@ export async function getDetail(id: string): Promise<DeliveryPartnerDetail | nul
   });
   if (!row) return null;
 
-  const [deliveries, activeDeliveries, earnings, pendingEarnings] = await Promise.all([
-    prisma.order.count({ where: { delivery_partner_id: id, status: "DELIVERED" } }),
-    prisma.order.count({
-      where: {
-        delivery_partner_id: id,
-        status: { in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
-      },
+  const assignedWhere: Prisma.OrderWhereInput = { delivery_partner_id: id, deleted_at: null };
+  const completedWhere: Prisma.OrderWhereInput = {
+    delivery_partner_id: id,
+    status: "DELIVERED",
+    deleted_at: null,
+  };
+  const inProgressWhere: Prisma.OrderWhereInput = {
+    delivery_partner_id: id,
+    status: { in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
+    deleted_at: null,
+  };
+
+  const [
+    assignedCount,
+    completedCount,
+    inProgressCount,
+    earnings,
+    pendingEarnings,
+    assignedByVendor,
+    completedByVendor,
+    recentOrders,
+  ] = await Promise.all([
+    prisma.order.count({ where: assignedWhere }),
+    prisma.order.count({ where: completedWhere }),
+    prisma.order.count({ where: inProgressWhere }),
+    prisma.deliveryEarning.aggregate({
+      where: { delivery_partner_id: id },
+      _sum: { amount: true },
     }),
-    prisma.deliveryEarning.aggregate({ where: { delivery_partner_id: id }, _sum: { amount: true } }),
     prisma.deliveryEarning.aggregate({
       where: { delivery_partner_id: id, status: "PENDING" },
       _sum: { amount: true },
     }),
+    prisma.order.groupBy({
+      by: ["vendor_id"],
+      where: assignedWhere,
+      _count: { _all: true },
+    }),
+    prisma.order.groupBy({
+      by: ["vendor_id"],
+      where: completedWhere,
+      _count: { _all: true },
+    }),
+    prisma.order.findMany({
+      where: assignedWhere,
+      orderBy: { updated_at: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        order_number: true,
+        status: true,
+        total: true,
+        delivery_fee: true,
+        delivered_at: true,
+        updated_at: true,
+        vendor: { select: { id: true, business_name: true } },
+        customer: { select: { name: true } },
+      },
+    }),
   ]);
+
+  const vendorIds = [
+    ...new Set(
+      [
+        ...assignedByVendor.map((g) => g.vendor_id),
+        ...completedByVendor.map((g) => g.vendor_id),
+      ].filter((v): v is string => Boolean(v)),
+    ),
+  ];
+  const vendors = vendorIds.length
+    ? await prisma.vendorProfile.findMany({
+        where: { id: { in: vendorIds } },
+        select: { id: true, business_name: true },
+      })
+    : [];
+  const vendorNameMap = new Map(vendors.map((v) => [v.id, v.business_name]));
+  const completedMap = new Map(completedByVendor.map((g) => [g.vendor_id, g._count._all]));
+
+  const byVendor = assignedByVendor.map((g) => ({
+    vendor_id: g.vendor_id,
+    vendor_name: vendorNameMap.get(g.vendor_id) ?? "Vendor",
+    assigned: g._count._all,
+    delivered: completedMap.get(g.vendor_id) ?? 0,
+  }));
 
   return {
     ...(row as unknown as DeliveryPartnerRow),
     user: row.user,
     stats: {
-      total_deliveries: deliveries,
-      active_deliveries: activeDeliveries,
+      total_deliveries: completedCount,
+      active_deliveries: inProgressCount,
+      assigned_deliveries: assignedCount,
+      pending_deliveries: Math.max(0, assignedCount - completedCount),
       total_earnings: earnings._sum.amount ?? new Prisma.Decimal(0),
       pending_earnings: pendingEarnings._sum.amount ?? new Prisma.Decimal(0),
     },
+    by_vendor: byVendor,
+    recent_orders: recentOrders.map((o) => ({
+      id: o.id,
+      order_number: o.order_number,
+      status: o.status,
+      total: o.total,
+      delivery_fee: o.delivery_fee,
+      vendor_name: o.vendor?.business_name ?? "Vendor",
+      customer_name: o.customer?.name ?? "Customer",
+      delivered_at: o.delivered_at,
+      updated_at: o.updated_at,
+    })),
   };
 }
 

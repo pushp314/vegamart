@@ -1,22 +1,47 @@
-import { Bike, CheckCircle2, Ban, Search, ShieldCheck, Clock, UserX } from "lucide-react";
+import {
+  Bike,
+  CheckCircle2,
+  Ban,
+  Search,
+  ShieldCheck,
+  Clock,
+  UserPlus,
+  RotateCcw,
+  Loader2,
+  FileBarChart,
+} from "lucide-react";
 import { useMemo, useState } from "react";
+import { CreateDeliveryBoyModal } from "./CreateDeliveryBoyModal";
+import { DeliveryBoyDetailModal } from "./DeliveryBoyDetailModal";
 
 interface AdminDeliveryProps {
   deliveryList: any[];
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onSuspend: (id: string) => void;
+  onRestore: (id: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
+  isSuspending: boolean;
+  isRestoring: boolean;
+  onRefresh: () => void;
 }
 
 export function AdminDelivery({
   deliveryList,
   onApprove,
   onReject,
+  onSuspend,
+  onRestore,
   isApproving,
   isRejecting,
+  isSuspending,
+  isRestoring,
+  onRefresh,
 }: AdminDeliveryProps) {
   const [query, setQuery] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [detailDeliveryId, setDetailDeliveryId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<
     "all" | "approved" | "pending" | "rejected" | "suspended"
   >("all");
@@ -45,10 +70,18 @@ export function AdminDelivery({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
-            Delivery Fleet Management
+            Delivery Boy Management
           </h2>
-          <p className="text-muted-foreground text-sm mt-1">Review and manage delivery partners.</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Create, review and manage delivery partners.
+          </p>
         </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-5 h-11 font-bold text-xs text-white hover:bg-sky-500 shadow-lg shadow-sky-500/20 transition-all active:scale-95"
+        >
+          <UserPlus className="h-4 w-4" /> Create Delivery Boy
+        </button>
       </div>
 
       {/* Stats Summary */}
@@ -127,7 +160,7 @@ export function AdminDelivery({
                   <tr key={partner.id} className="hover:bg-muted/50 transition-colors group">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-2xl bg-muted border border-border text-muted-foreground flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 group-hover:border-emerald-200 transition-all">
+                        <div className="h-12 w-12 rounded-2xl bg-muted border border-border text-muted-foreground flex items-center justify-center group-hover:bg-sky-50 group-hover:text-sky-600 group-hover:border-sky-200 transition-all">
                           <Bike className="h-6 w-6" />
                         </div>
                         <div>
@@ -168,6 +201,14 @@ export function AdminDelivery({
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-3">
+                        {(status === "approved" || status === "suspended") && (
+                          <button
+                            onClick={() => setDetailDeliveryId(partner.id)}
+                            className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-sky-600 hover:bg-sky-50 hover:border-sky-200 border border-border transition-all active:scale-95"
+                          >
+                            <FileBarChart className="h-3.5 w-3.5 inline mr-1" /> Work Report
+                          </button>
+                        )}
                         {status === "pending" && (
                           <>
                             <button
@@ -186,6 +227,34 @@ export function AdminDelivery({
                             </button>
                           </>
                         )}
+                        {status === "approved" && (
+                          <button
+                            onClick={() => onSuspend(partner.id)}
+                            disabled={isSuspending}
+                            className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-violet-600 hover:bg-violet-50 hover:border-violet-200 border border-border transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isSuspending ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              "Suspend"
+                            )}
+                          </button>
+                        )}
+                        {status === "suspended" && (
+                          <button
+                            onClick={() => onRestore(partner.id)}
+                            disabled={isRestoring}
+                            className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 border border-border transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isRestoring ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <RotateCcw className="h-3.5 w-3.5 inline mr-1" /> Restore
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -196,7 +265,13 @@ export function AdminDelivery({
                   <td colSpan={4} className="px-8 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Bike className="h-12 w-12 text-muted-foreground/40 mb-4" />
-                      <p className="text-foreground font-medium">No delivery partners found.</p>
+                      <p className="text-foreground font-medium">No delivery boys found.</p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-5 py-3 font-bold text-xs text-white hover:bg-sky-500 transition-all"
+                      >
+                        <UserPlus className="h-4 w-4" /> Create your first delivery boy
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -215,6 +290,17 @@ export function AdminDelivery({
           </table>
         </div>
       </div>
+
+      <CreateDeliveryBoyModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={onRefresh}
+      />
+      <DeliveryBoyDetailModal
+        open={!!detailDeliveryId}
+        onClose={() => setDetailDeliveryId(null)}
+        deliveryId={detailDeliveryId}
+      />
     </div>
   );
 }

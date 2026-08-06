@@ -294,6 +294,54 @@ function DeliveryDashboard() {
       </div>
 
       <main className="p-4 space-y-6">
+        {/* RIDER PERFORMANCE STRIP */}
+        {partner.status === "approved" && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Successful
+                </div>
+              </div>
+              <div className="text-2xl font-black font-display text-emerald-600 mt-1">
+                {deliveryStats.stats?.total_deliveries ?? completedOrders.length}
+              </div>
+              <div className="text-[10px] font-semibold text-muted-foreground mt-0.5">
+                deliveries completed
+              </div>
+            </div>
+            <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+              <div className="flex items-center gap-2">
+                <Navigation className="h-4 w-4 text-sky-600" />
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Active
+                </div>
+              </div>
+              <div className="text-2xl font-black font-display text-sky-600 mt-1">
+                {activeOrders.length}
+              </div>
+              <div className="text-[10px] font-semibold text-muted-foreground mt-0.5">
+                on the go
+              </div>
+            </div>
+            <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-amber-600" />
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Today
+                </div>
+              </div>
+              <div className="text-2xl font-black font-display text-amber-600 mt-1">
+                ₹{deliveryStats.stats?.today_earnings ?? 0}
+              </div>
+              <div className="text-[10px] font-semibold text-muted-foreground mt-0.5">
+                today's earnings
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* RADAR TAB */}
         {activeTab === "requests" && (
           <div className="space-y-4">

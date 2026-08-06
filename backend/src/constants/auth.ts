@@ -81,6 +81,7 @@ export const AUDIT_ACTIONS = {
   USER_PASSWORD_RESET_BY_ADMIN: "user.password_reset_by_admin",
   USER_FORCE_LOGGED_OUT: "user.force_logged_out",
   VENDOR_RESTORED: "vendor.restored",
+  DELIVERY_CREATED: "delivery.created",
   DELIVERY_APPROVED: "delivery.approved",
   DELIVERY_REJECTED: "delivery.rejected",
   DELIVERY_SUSPENDED: "delivery.suspended",

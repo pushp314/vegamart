@@ -11,6 +11,7 @@ import { adminOrderService } from "../services/admin-order.service";
 import { productService } from "../services/product.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
+import { HttpStatus } from "../utils/httpStatus";
 import { buildPaginationMeta } from "../utils/pagination";
 
 /**
@@ -460,6 +461,37 @@ export const listDeliveryPartners = asyncHandler(async (req: Request, res: Respo
   return sendSuccess(res, result.rows, {
     pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
   });
+});
+
+/**
+ * @swagger
+ * /admin/delivery-partners:
+ *   post:
+ *     summary: Create a delivery partner (delivery boy) directly
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, password, vehicle_type]
+ *             properties:
+ *               name: { type: string }
+ *               email: { type: string, format: email }
+ *               password: { type: string }
+ *               phone: { type: string }
+ *               vehicle_type: { type: string }
+ *               vehicle_number: { type: string }
+ *               license_number: { type: string }
+ *     responses:
+ *       201:
+ *         description: Delivery partner created and approved.
+ */
+export const createDeliveryPartner = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminDeliveryService.create(req.user!.id, req.body, req);
+  return sendSuccess(res, data, { status: HttpStatus.CREATED });
 });
 
 /**

@@ -1,12 +1,92 @@
 import type { Request } from "express";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
+import { ROLES } from "../constants/roles";
 import { auditService } from "./audit.service";
 import * as deliveryRepo from "../repositories/delivery.repository";
+import { findByEmail, findByPhone, create as createUser } from "../repositories/user.repository";
+import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
+import { prisma } from "../database/prisma";
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
+import { hashPassword } from "../utils/password";
+import type { CreateDeliveryPartnerBody } from "../validators/admin.validators";
 
 export const adminDeliveryService = {
+  async create(adminUserId: string, input: CreateDeliveryPartnerBody, req: Request) {
+    const email = input.email.trim().toLowerCase();
+
+    const existingEmail = await findByEmail(email);
+    if (existingEmail) {
+      throw new ApiError(HttpStatus.CONFLICT, "An account with this email already exists.", {
+        code: "EMAIL_TAKEN",
+      });
+    }
+    if (input.phone) {
+      const existingPhone = await findByPhone(input.phone);
+      if (existingPhone) {
+        throw new ApiError(HttpStatus.CONFLICT, "Phone number is already in use.", {
+          code: "PHONE_TAKEN",
+        });
+      }
+    }
+
+    const role = await findRoleBySlug(ROLES.DELIVERY_PARTNER);
+    if (!role) {
+      throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, 'Role "delivery" is not configured.', {
+        code: "ROLE_NOT_FOUND",
+        expose: false,
+      });
+    }
+
+    const password_hash = await hashPassword(input.password);
+    const user = await createUser({
+      name: input.name.trim(),
+      email,
+      phone: input.phone || undefined,
+      password_hash,
+      role: { connect: { id: role.id } },
+      is_verified: true,
+      provider: "local",
+    });
+
+    const profile = await prisma.deliveryProfile.create({
+      data: {
+        user_id: user.id,
+        vehicle_type: input.vehicle_type,
+        vehicle_number: input.vehicle_number?.trim() || "NA",
+        license_number: input.license_number?.trim() || "",
+        status: "APPROVED",
+        is_verified: true,
+        is_available: false,
+        availability_status: "OFFLINE",
+      },
+    });
+
+    await auditService.record(
+      {
+        userId: adminUserId,
+        action: AUDIT_ACTIONS.DELIVERY_CREATED,
+        entityType: "delivery",
+        entityId: profile.id,
+        newValues: { email, vehicle_type: input.vehicle_type },
+      },
+      req
+    );
+
+    return {
+      ...profile,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        status: user.status,
+        is_verified: user.is_verified,
+      },
+    };
+  },
+
   async list(query: {
     page?: number;
     per_page?: number;

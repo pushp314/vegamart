@@ -76,7 +76,7 @@ type VendorTab =
 function VendorDashboard() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
 
   useEffect(() => {
     if (user && user.role !== "vendor") {
@@ -651,6 +651,10 @@ function VendorDashboard() {
       activeItemId={activeTab}
       portalName="Vendor"
       userEmail={vendor.business_name}
+      onLogout={() => {
+        logout();
+        navigate({ to: "/login" });
+      }}
     >
       <div className="space-y-6">
         {/* Status Bar */}

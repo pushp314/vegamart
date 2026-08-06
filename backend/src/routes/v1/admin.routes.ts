@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   activateUser,
   changeUserRole,
+  createDeliveryPartner,
   deleteUser,
   forceLogoutUser,
   getAuditLog,
@@ -82,6 +83,7 @@ import {
   auditLogQuerySchema,
   changeRoleSchema,
   createAnnouncementSchema,
+  createDeliveryPartnerSchema,
   createHeroSlideSchema,
   customReportQuerySchema,
   deliveryDecisionSchema,
@@ -135,6 +137,11 @@ router.patch("/vendors/:vendor_id/membership", validate({ params: vendorIdParams
 router.get("/vendors/:vendor_id/earnings", validate({ params: vendorIdParamsSchema }), getVendorEarnings);
 
 // Delivery partner management
+router.post(
+  "/delivery-partners",
+  validate({ body: createDeliveryPartnerSchema }),
+  createDeliveryPartner
+);
 router.get("/delivery-partners", validate({ query: adminPaginationQuerySchema }), listDeliveryPartners);
 router.get("/delivery-partners/:delivery_id", validate({ params: deliveryIdParamsSchema }), getDeliveryPartner);
 router.post(
