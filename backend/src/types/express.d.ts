@@ -1,4 +1,5 @@
 import type { AuthUser } from "./index";
+import type { DeveloperIdentity } from "../modules/maintenance/maintenance.types";
 
 declare global {
   namespace Express {
@@ -6,6 +7,7 @@ declare global {
       requestId: string;
       user?: AuthUser;
       correlationId?: string;
+      maintenanceDeveloper?: DeveloperIdentity;
     }
   }
 }

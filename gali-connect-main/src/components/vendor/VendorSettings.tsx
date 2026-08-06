@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { Save, Loader2, FileText, Phone, Bike, ExternalLink, Crown, ShieldCheck } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Save, Loader2, FileText, Phone, Bike, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,7 +22,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
 
   const [gstin, setGstin] = useState(profile.gstin || "");
   const [freeDeliveryMin, setFreeDeliveryMin] = useState(
-    profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : ""
+    profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : "",
   );
   const [contactPhone, setContactPhone] = useState(profile.phone || "");
   const [providesDelivery, setProvidesDelivery] = useState(profile.provides_delivery ?? false);
@@ -31,7 +30,9 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   useEffect(() => {
     if (profile.gstin !== undefined) setGstin(profile.gstin || "");
     if (profile.free_delivery_min_order !== undefined)
-      setFreeDeliveryMin(profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : "");
+      setFreeDeliveryMin(
+        profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : "",
+      );
     if (profile.phone !== undefined) setContactPhone(profile.phone || "");
     if (profile.provides_delivery !== undefined) setProvidesDelivery(!!profile.provides_delivery);
   }, [profile]);
@@ -88,7 +89,10 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5 max-w-md">
-              <Label htmlFor="gstin" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="gstin"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              >
                 GSTIN Number (Optional)
               </Label>
               <Input
@@ -100,7 +104,10 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
               />
             </div>
             <div className="space-y-1.5 max-w-md">
-              <Label htmlFor="freeDeliveryMin" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="freeDeliveryMin"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              >
                 Free Delivery Order Threshold (₹)
               </Label>
               <Input
@@ -141,7 +148,9 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
               <div className="flex items-start gap-3">
                 <span
                   className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors ${
-                    providesDelivery ? "bg-emerald-500 text-slate-950 font-bold" : "bg-muted text-muted-foreground"
+                    providesDelivery
+                      ? "bg-emerald-500 text-slate-950 font-bold"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   <Bike className="h-5 w-5" />
@@ -149,7 +158,8 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 <div>
                   <div className="text-xs font-bold text-foreground">Offer Store Delivery</div>
                   <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                    When enabled, customers will see "Vendor Delivery" as an option for your products during checkout.
+                    When enabled, customers will see "Vendor Delivery" as an option for your
+                    products during checkout.
                   </div>
                 </div>
               </div>
@@ -180,7 +190,10 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5 max-w-md">
-              <Label htmlFor="contactPhone" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="contactPhone"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              >
                 Public Store Phone Number
               </Label>
               <Input
@@ -192,26 +205,6 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 className="h-10 rounded-2xl text-xs bg-muted/40"
               />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl border-border shadow-xl bg-gradient-to-r from-amber-500/10 via-card to-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Crown className="h-5 w-5 text-amber-500" />
-              Membership & Growth
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Upgrade your vendor membership to unlock 0% commission tiers and sponsored placement.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link
-              to="/vendor/membership"
-              className="inline-flex items-center gap-2 rounded-2xl bg-amber-500 text-slate-950 px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-md hover:bg-amber-400 transition-colors"
-            >
-              Manage Subscription <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
           </CardContent>
         </Card>
 

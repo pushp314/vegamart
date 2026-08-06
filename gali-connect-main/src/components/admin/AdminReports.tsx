@@ -12,6 +12,59 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Download, TrendingUp, DollarSign, ShoppingCart, Users } from "lucide-react";
 
+type Column = { key: string; label: string; type?: "currency" | "number" | "date" | "text" };
+
+const COLUMNS: Record<string, Column[]> = {
+  revenue: [
+    { key: "period_start", label: "Period Start", type: "date" },
+    { key: "orders", label: "Orders", type: "number" },
+    { key: "revenue", label: "Revenue (₹)", type: "currency" },
+    { key: "avg_order_value", label: "Avg Order Value (₹)", type: "currency" },
+  ],
+  vendors: [
+    { key: "business_name", label: "Vendor Name" },
+    { key: "city", label: "City" },
+    { key: "status", label: "Status" },
+    { key: "orders", label: "Orders", type: "number" },
+    { key: "revenue", label: "Revenue (₹)", type: "currency" },
+    { key: "products", label: "Products", type: "number" },
+  ],
+  products: [
+    { key: "product_name", label: "Product" },
+    { key: "category", label: "Category" },
+    { key: "units_sold", label: "Units Sold", type: "number" },
+    { key: "revenue", label: "Revenue (₹)", type: "currency" },
+  ],
+  orders: [
+    { key: "order_number", label: "Order Number" },
+    { key: "customer_name", label: "Customer" },
+    { key: "vendor_name", label: "Vendor" },
+    { key: "status", label: "Status" },
+    { key: "total", label: "Total (₹)", type: "currency" },
+    { key: "created_at", label: "Created At", type: "date" },
+  ],
+};
+
+function formatCell(col: Column, value: any): string {
+  if (value === null || value === undefined || value === "") return "—";
+  switch (col.type) {
+    case "currency":
+      return `₹${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    case "number":
+      return Number(value).toLocaleString();
+    case "date":
+      return new Date(value).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    default:
+      return String(value);
+  }
+}
+
 export function AdminReports() {
   const [reportType, setReportType] = useState("revenue");
   const [period, setPeriod] = useState("30");
@@ -166,31 +219,46 @@ export function AdminReports() {
                 <table className="w-full text-sm text-left">
                   <thead className="text-xs uppercase bg-muted text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3 rounded-tl-lg">Period Start</th>
-                      <th className="px-4 py-3">Orders</th>
-                      <th className="px-4 py-3">Revenue (₹)</th>
-                      <th className="px-4 py-3 rounded-tr-lg">Avg Order Value (₹)</th>
+                      {COLUMNS[reportType]?.map((c) => (
+                        <th
+                          key={c.key}
+                          className="px-4 py-3 first:rounded-tl-lg last:rounded-tr-lg"
+                        >
+                          {c.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                        <td
+                          colSpan={COLUMNS[reportType]?.length ?? 1}
+                          className="px-4 py-8 text-center text-muted-foreground"
+                        >
                           No data available for this period.
                         </td>
                       </tr>
                     ) : (
                       rows.map((row: any, i: number) => (
-                        <tr key={i} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                          <td className="px-4 py-3 font-medium">
-                            {new Date(row.period_start).toLocaleDateString(undefined, { 
-                              year: 'numeric', month: 'short', day: 'numeric',
-                              hour: '2-digit', minute: '2-digit'
-                            })}
-                          </td>
-                          <td className="px-4 py-3">{row.orders}</td>
-                          <td className="px-4 py-3 font-semibold text-emerald-600">₹{Number(row.revenue).toFixed(2)}</td>
-                          <td className="px-4 py-3">₹{Number(row.avg_order_value).toFixed(2)}</td>
+                        <tr
+                          key={i}
+                          className="border-b last:border-0 hover:bg-muted/50 transition-colors"
+                        >
+                          {(COLUMNS[reportType] ?? []).map((c) => (
+                            <td
+                              key={c.key}
+                              className={`px-4 py-3 ${
+                                c.type === "currency"
+                                  ? "font-semibold text-emerald-600"
+                                  : c.key === "business_name" || c.key === "vendor_name"
+                                    ? "font-medium"
+                                    : ""
+                              }`}
+                            >
+                              {formatCell(c, row[c.key])}
+                            </td>
+                          ))}
                         </tr>
                       ))
                     )}

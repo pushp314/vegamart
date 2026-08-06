@@ -1,0 +1,127 @@
+{
+  "info": {
+    "name": "VegaMart — Remote Maintenance Control",
+    "description": "Developer-only API to control VegaMart maintenance mode remotely.\n\nAuth:\n  * X-API-Key header with the developer API key, OR\n  * Bearer token obtained from POST /system/developer/token.\n\nSet collection variables:\n  baseUrl = https://api.vegamart.in  (or http://localhost:8080)\n  apiKey  = your MAINTENANCE_DEV_API_KEY\n\nThe /system namespace and /health endpoints are excluded from the maintenance gate.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "apiKey", "value": "dev_vgmart_maint_a3f9c21e8b47d65a", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Public maintenance status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/system/maintenance/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "system", "maintenance", "status"]
+        },
+        "description": "Publicly readable maintenance flag and message. No auth required. Served even while maintenance mode is active."
+      }
+    },
+    {
+      "name": "Issue developer token",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"apiKey\": \"{{apiKey}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/system/developer/token",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "system", "developer", "token"]
+        },
+        "description": "Exchange the developer API key for a short-lived JWT (default 900s). Copy the returned data.token into the collection variable 'token' for subsequent calls."
+      }
+    },
+    {
+      "name": "Enable maintenance mode",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"Scheduled maintenance from 2 AM to 4 AM IST.\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/system/maintenance/enable",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "system", "maintenance", "enable"]
+        },
+        "description": "Turns on maintenance mode across the API. All requests except /health, /metrics, /docs and /system/* will receive HTTP 503 with { maintenance: true, message }."
+      }
+    },
+    {
+      "name": "Disable maintenance mode",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/system/maintenance/disable",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "system", "maintenance", "disable"]
+        },
+        "description": "Turns off maintenance mode and restores normal API access."
+      }
+    },
+    {
+      "name": "Update maintenance message",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"Maintenance extended until 6 AM IST.\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/system/maintenance/update",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "system", "maintenance", "update"]
+        },
+        "description": "Updates the banner message while maintenance mode stays enabled."
+      }
+    },
+    {
+      "name": "Full maintenance state",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/system/maintenance",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "system", "maintenance"]
+        },
+        "description": "Full maintenance state including the last updater identity and timestamp."
+      }
+    },
+    {
+      "name": "List maintenance audit logs",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/system/maintenance/audit-logs?limit=50",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "system", "maintenance", "audit-logs"],
+          "query": [{ "key": "limit", "value": "50", "description": "Max entries (1-100), default 50." }]
+        },
+        "description": "Recent maintenance control actions (enabled/disabled/updated/token_issued)."
+      }
+    }
+  ]
+}

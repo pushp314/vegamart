@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Home, Compass, ShoppingBag, User } from "lucide-react";
+import { Home, Compass, ShoppingBag, User, ShoppingCart } from "lucide-react";
 import { useCart } from "@/context/cart-context";
 
 export function BottomNav() {
@@ -24,6 +24,13 @@ export function BottomNav() {
       to: "/orders",
       match: (p: string) =>
         p.startsWith("/orders") || p.startsWith("/order") || p.startsWith("/track"),
+    },
+    {
+      id: "cart",
+      label: "Cart",
+      icon: ShoppingCart,
+      to: "/cart",
+      match: (p: string) => p.startsWith("/cart") || p.startsWith("/checkout"),
     },
     {
       id: "profile",
@@ -63,6 +70,17 @@ export function BottomNav() {
               >
                 <span className="relative">
                   <Icon className="h-6 w-6" strokeWidth={active ? 2.4 : 2} />
+                  {t.id === "cart" && itemCount > 0 && (
+                    <motion.span
+                      key={itemCount}
+                      initial={{ scale: 0.4 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 14 }}
+                      className="absolute -top-1.5 -right-2 bg-rose-600 text-white h-4 min-w-4 px-1 rounded-full flex items-center justify-center text-[9px] font-black border-2 border-background shadow-lg"
+                    >
+                      {itemCount > 99 ? "99+" : itemCount}
+                    </motion.span>
+                  )}
                   {active && (
                     <motion.span
                       layoutId="customer-bottom-nav-dot"
@@ -74,28 +92,6 @@ export function BottomNav() {
               </Link>
             );
           })}
-
-          <Link
-            to="/cart"
-            aria-label="Cart"
-            className="pointer-events-auto relative -top-4 bg-gradient-to-br from-saffron to-primary text-white h-16 w-16 rounded-full flex flex-col items-center justify-center gap-0.5 shadow-[0_10px_30px_-6px_rgba(0,0,0,0.4)] border-4 border-background tap-highlight-none"
-          >
-            <ShoppingBag className="h-6 w-6" strokeWidth={2.4} />
-            <span className="text-[8px] font-black uppercase tracking-wider leading-none">
-              Cart
-            </span>
-            {itemCount > 0 && (
-              <motion.span
-                key={itemCount}
-                initial={{ scale: 0.4 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 14 }}
-                className="absolute -top-1 -right-1 bg-rose-600 text-white h-5 min-w-5 px-1 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-background shadow-lg"
-              >
-                {itemCount > 99 ? "99+" : itemCount}
-              </motion.span>
-            )}
-          </Link>
         </div>
       </div>
     </nav>

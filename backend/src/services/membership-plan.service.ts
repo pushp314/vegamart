@@ -237,9 +237,7 @@ export const membershipPlanService = {
 
       let action = "created";
       if (activeSub) {
-        if (activeSub.status === "pending") {
-          action = "created";
-        } else if (activeSub.plan_id === plan.id) {
+        if (activeSub.plan_id === plan.id) {
           action = "renewed";
         } else {
           const previousTier = activeSub.plan?.sort_order ?? 0;

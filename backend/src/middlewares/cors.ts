@@ -14,7 +14,7 @@ const ALLOWED_ORIGINS = new Set<string>(
 );
 
 const ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
-const ALLOWED_HEADERS = ["Content-Type", "Authorization", "X-Request-ID"];
+const ALLOWED_HEADERS = ["Content-Type", "Authorization", "X-Request-ID", "X-API-Key"];
 const EXPOSED_HEADERS = ["X-Request-ID"];
 const MAX_AGE = 86400;
 

@@ -28,12 +28,14 @@ import membershipPlanRoutes from "./membership-plan.routes";
 import deliveryRoutes from "./delivery.routes";
 import contactRoutes from "./contact.routes";
 import { faqRoutes } from "./faq.routes";
+import maintenanceRoutes from "../../modules/maintenance/maintenance.routes";
 
 const v1Router = Router();
 
 v1Router.use(healthRoutes);
 v1Router.use(metricsRoutes);
 v1Router.use(integrationRoutes);
+v1Router.use("/system", maintenanceRoutes);
 v1Router.use(authRoutes);
 v1Router.use("/users", userRoutes);
 v1Router.use(categoryRoutes);

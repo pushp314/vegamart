@@ -1,10 +1,12 @@
 import type { Request } from "express";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
+import { SETTING_KEYS } from "../constants/settings";
 import { auditService } from "./audit.service";
 import * as cartRepo from "../repositories/cart.repository";
 import { findByProductId } from "../repositories/inventory.repository";
 import { findById as findProductById } from "../repositories/product.repository";
+import { settingsService } from "./settings.service";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -25,6 +27,23 @@ export const cartService = {
     }
 
     const cart = await cartRepo.getOrCreate(userId);
+
+    const settings = await settingsService.getAllSettings();
+    const multiStoreEnabled = settings[SETTING_KEYS.MULTI_STORE_CHECKOUT_ENABLED] === true;
+    const currentVendorIds = Array.from(
+      new Set(cart.items.map((item) => item.product.vendor_id).filter(Boolean))
+    );
+    if (
+      !multiStoreEnabled &&
+      currentVendorIds.length > 0 &&
+      product.vendor_id &&
+      !currentVendorIds.includes(product.vendor_id)
+    ) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Your cart already contains items from another store. Complete or clear that order before adding items from a new store.", {
+        code: "MULTI_STORE_NOT_ALLOWED",
+      });
+    }
+
     const existing = cart.items.find((item) => item.product_id === input.product_id);
     const targetQuantity = (existing?.quantity ?? 0) + input.quantity;
     if (targetQuantity > CART_MAX_QUANTITY) {

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -23,6 +23,7 @@ import { AuthProvider } from "../context/auth-context";
 import { CartProvider } from "../context/cart-context";
 import { WishlistProvider } from "../context/wishlist-context";
 import { Toaster } from "../components/ui/sonner";
+import { checkMaintenanceStatus } from "../lib/api";
 
 function NotFoundComponent() {
   return (
@@ -177,10 +178,13 @@ function RootComponent() {
 
   // Portal routes (vendor / delivery / admin) have their own chrome — hide the
   // customer-facing navbar & bottom nav so other roles only see their portal.
+  // The /search page is a full-screen overlay with its own search header, so it
+  // also hides the desktop navbar to avoid showing two search bars.
   const isPortalRoute =
     pathname.startsWith("/vendor") ||
     pathname.startsWith("/delivery") ||
     pathname.startsWith("/admin");
+  const isFullScreenRoute = isPortalRoute || pathname.startsWith("/search");
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -190,8 +194,9 @@ function RootComponent() {
             <ClientOnly>
               <SplashScreen />
               <NetworkIndicator />
+              <MaintenanceWatcher />
             </ClientOnly>
-            {!isPortalRoute && <Navbar />}
+            {!isFullScreenRoute && <Navbar />}
             <AnimatedOutlet />
             <ClientOnly>
               <InstallAppBanner />
@@ -203,4 +208,25 @@ function RootComponent() {
       </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+function MaintenanceWatcher() {
+  const { data: statusRes } = useQuery({
+    queryKey: ["maintenanceStatus"],
+    queryFn: () => checkMaintenanceStatus(),
+    refetchInterval: 30000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (
+      statusRes?.success === true &&
+      statusRes.data?.maintenance === true &&
+      !window.location.pathname.startsWith("/maintenance")
+    ) {
+      window.location.assign("/maintenance");
+    }
+  }, [statusRes]);
+
+  return null;
 }

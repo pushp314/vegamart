@@ -87,7 +87,7 @@ export function PortalLayout({
                           asChild
                           isActive={!!isActive}
                           tooltip={item.title}
-                          className={`transition-all duration-300 py-6 px-4 rounded-xl ${
+                          className={`transition-all duration-300 py-2.5 px-4 rounded-xl ${
                             isActive
                               ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_15px_rgba(16,185,129,0.05)] font-bold"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent font-medium"
@@ -188,14 +188,11 @@ export function PortalLayout({
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 <span className="sr-only">Toggle theme</span>
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative text-muted-foreground hover:text-foreground hover:bg-accent rounded-full h-10 w-10"
-              >
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-primary animate-pulse border border-background"></span>
-                <span className="sr-only">Toggle notifications</span>
+              <Button asChild variant="ghost" size="icon" aria-label="Notifications">
+                <Link to="/notifications">
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-primary animate-pulse border border-background"></span>
+                </Link>
               </Button>
             </div>
           </header>

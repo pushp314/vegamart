@@ -116,6 +116,27 @@ class ApiClient {
 
       // Handle service unavailable gracefully
       if (res.status === 503) {
+        const bodyText = await res.text();
+        try {
+          const body = JSON.parse(bodyText) as { maintenance?: boolean; message?: string };
+          if (body && body.maintenance === true) {
+            if (
+              typeof window !== "undefined" &&
+              !window.location.pathname.startsWith("/maintenance")
+            ) {
+              window.location.assign("/maintenance");
+            }
+            return {
+              success: false,
+              error: {
+                code: "MAINTENANCE_MODE",
+                message: body.message ?? "This site is currently undergoing maintenance.",
+              },
+            };
+          }
+        } catch {
+          // fall through to the generic 503 handling below
+        }
         return {
           success: false,
           error: {
@@ -272,6 +293,14 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+export interface MaintenanceStatusPayload {
+  maintenance: boolean;
+  message: string | null;
+}
+
+export const checkMaintenanceStatus = () =>
+  api.get<MaintenanceStatusPayload>("/system/maintenance/status");
 
 // ── Vendor Status & Nearby APIs ────────────────────────────────────────────
 export const toggleVendorStatus = (isOpen: boolean) =>

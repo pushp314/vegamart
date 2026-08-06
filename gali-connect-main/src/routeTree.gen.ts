@@ -23,6 +23,7 @@ import { Route as DeliveryRouteImport } from './routes/delivery'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OrderSuccessRouteImport } from './routes/order-success'
@@ -147,6 +148,11 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MaintenanceRoute = MaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -440,6 +446,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/maintenance': typeof MaintenanceRoute
   '/notifications': typeof NotificationsRoute
   '/offline': typeof OfflineRoute
   '/order-success': typeof OrderSuccessRoute
@@ -510,6 +517,7 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/maintenance': typeof MaintenanceRoute
   '/notifications': typeof NotificationsRoute
   '/offline': typeof OfflineRoute
   '/order-success': typeof OrderSuccessRoute
@@ -580,6 +588,7 @@ export interface FileRoutesById {
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/maintenance': typeof MaintenanceRoute
   '/notifications': typeof NotificationsRoute
   '/offline': typeof OfflineRoute
   '/order-success': typeof OrderSuccessRoute
@@ -653,6 +662,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/forgot-password'
     | '/login'
+    | '/maintenance'
     | '/notifications'
     | '/offline'
     | '/order-success'
@@ -723,6 +733,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/forgot-password'
     | '/login'
+    | '/maintenance'
     | '/notifications'
     | '/offline'
     | '/order-success'
@@ -792,6 +803,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/forgot-password'
     | '/login'
+    | '/maintenance'
     | '/notifications'
     | '/offline'
     | '/order-success'
@@ -864,6 +876,7 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
+  MaintenanceRoute: typeof MaintenanceRoute
   NotificationsRoute: typeof NotificationsRoute
   OfflineRoute: typeof OfflineRoute
   OrderSuccessRoute: typeof OrderSuccessRoute
@@ -982,6 +995,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/maintenance': {
+      id: '/maintenance'
+      path: '/maintenance'
+      fullPath: '/maintenance'
+      preLoaderRoute: typeof MaintenanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -1518,6 +1538,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
+  MaintenanceRoute: MaintenanceRoute,
   NotificationsRoute: NotificationsRoute,
   OfflineRoute: OfflineRoute,
   OrderSuccessRoute: OrderSuccessRoute,

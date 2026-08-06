@@ -192,6 +192,7 @@ function Home() {
           <Categories />
           <LiveBanner />
           <LiveVendors defaultAddress={activeAddress} />
+          <ShopsNearYou defaultAddress={activeAddress} />
           <Offers />
           <Recommended />
           <RecentlyViewed />
@@ -541,6 +542,15 @@ function LiveBanner() {
   );
 }
 
+function isRoamingVendor(v: any): boolean {
+  return (
+    v.roaming === true ||
+    v.vendor?.roaming === true ||
+    v.profile?.roaming === true ||
+    v.vendor_type === "roaming"
+  );
+}
+
 function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
   const { data: res, isLoading } = useQuery({
     queryKey: ["vendors", "live", defaultAddress?.latitude, defaultAddress?.longitude],
@@ -553,13 +563,13 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
     },
   });
 
-  const list = res?.data?.slice(0, 6) || [];
+  const list = (res?.data || []).filter(isRoamingVendor).slice(0, 6);
 
   return (
     <section className="pt-6 md:pt-10">
       <div className="flex items-end justify-between">
         <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
-          Live vendors near you
+          Live street vendors near you
         </h2>
         <Link to="/street-vendors" className="text-sm md:text-base font-semibold text-primary">
           See map →
@@ -569,7 +579,9 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
       {isLoading ? (
         <div className="mt-5">Loading live vendors...</div>
       ) : list.length === 0 ? (
-        <div className="mt-5 text-muted-foreground text-sm">No live vendors found nearby.</div>
+        <div className="mt-5 text-muted-foreground text-sm">
+          No live street vendors found nearby.
+        </div>
       ) : (
         <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar pb-1 md:pb-0 snap-x snap-mandatory">
           {list.map((v) => {
@@ -640,6 +652,107 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                       {hasEta && (
                         <span className="inline-flex items-center gap-0.5 text-muted-foreground">
                           <Clock className="h-3 w-3" /> {eta} min
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
+  const { data: res, isLoading } = useQuery({
+    queryKey: ["vendors", "shops", defaultAddress?.latitude, defaultAddress?.longitude],
+    queryFn: () => {
+      let url = "/vendors";
+      if (defaultAddress?.latitude && defaultAddress?.longitude) {
+        url = `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}`;
+      }
+      return api.get<any[]>(url);
+    },
+  });
+
+  const list = (res?.data || []).filter((v) => !isRoamingVendor(v)).slice(0, 6);
+
+  if (!isLoading && list.length === 0) return null;
+
+  return (
+    <section className="pt-6 md:pt-10">
+      <div className="flex items-end justify-between">
+        <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
+          Local shops near you
+        </h2>
+        <Link to="/vendors" className="text-sm md:text-base font-semibold text-primary">
+          See all →
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-5">Loading shops...</div>
+      ) : (
+        <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar pb-1 md:pb-0 snap-x snap-mandatory">
+          {list.map((v) => {
+            const imageUrl =
+              v.logo_url ||
+              v.banner_url ||
+              "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
+            let tags = ["Local vendor"];
+            const rawTags = v.tags;
+            if (Array.isArray(rawTags) && rawTags.length > 0) {
+              tags = rawTags;
+            } else if (typeof rawTags === "string" && rawTags.trim()) {
+              try {
+                const parsed = JSON.parse(rawTags);
+                if (Array.isArray(parsed) && parsed.length > 0) tags = parsed;
+                else tags = [];
+              } catch (e) {}
+              if (tags.length === 0) {
+                tags = rawTags
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter(Boolean);
+              }
+            }
+
+            return (
+              <Link
+                key={v.id}
+                to="/vendors/$vendorId"
+                params={{ vendorId: v.id }}
+                className="snap-start shrink-0 md:shrink w-[78%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
+              >
+                <div className="flex gap-3 p-3">
+                  <div className="relative h-20 w-20 md:h-24 md:w-24 shrink-0 overflow-hidden rounded-xl bg-muted">
+                    <img
+                      src={imageUrl}
+                      alt={v.business_name}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1">
+                      <h3 className="font-semibold text-[15px] truncate">{v.business_name}</h3>
+                      {v.is_verified && (
+                        <span className="grid h-4 w-4 place-items-center rounded-full bg-primary text-primary-foreground text-[9px]">
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
+                    <div className="mt-1.5 flex items-center gap-2 text-[11.5px]">
+                      <span className="inline-flex items-center gap-0.5 font-semibold">
+                        <Star className="h-3 w-3 fill-primary text-primary" /> {v.rating || "0.0"}
+                      </span>
+                      {typeof v.distance_km === "number" && (
+                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                          <MapPin className="h-3 w-3" /> {v.distance_km.toFixed(1)} km
                         </span>
                       )}
                     </div>

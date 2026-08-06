@@ -1422,3 +1422,27 @@ model DailyOrderCounter {
   @@unique([vendor_id, date])
   @@map("daily_order_counters")
 }
+
+model SystemSetting {
+  id                   String   @id @map("id") @db.Uuid
+  maintenanceEnabled   Boolean  @default(false) @map("maintenance_enabled")
+  maintenanceMessage   String?  @map("maintenance_message")
+  updatedBy            String?  @map("updated_by")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@map("system_settings")
+}
+
+model MaintenanceAuditLog {
+  id          String    @id @default(uuid()) @map("id") @db.Uuid
+  action      String    @map("action")
+  developerId String?   @map("developer_id")
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  message     String?   @map("message")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([action, createdAt])
+  @@map("maintenance_audit_logs")
+}

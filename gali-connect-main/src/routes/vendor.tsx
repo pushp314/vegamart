@@ -16,10 +16,12 @@ import {
   Power,
   Ban,
   Clock,
-  Ticket
+  Ticket,
+  Crown,
 } from "lucide-react";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { VendorKYCForm } from "@/components/vendor/shared";
+import { VendorPlanOnboarding } from "@/components/vendor/VendorPlanOnboarding";
 
 export const Route = createFileRoute("/vendor")({
   component: VendorParentLayout,
@@ -29,8 +31,8 @@ function VendorParentLayout() {
   const { pathname } = Route.useMatch();
 
   // If we are exactly on these sub-routes, render them without the PortalLayout
-  // because they have their own full-page UI (like login or membership wrapper)
-  if (pathname === "/vendor/login" || pathname.startsWith("/vendor/membership")) {
+  // because they have their own full-page UI (like login)
+  if (pathname === "/vendor/login") {
     return <Outlet />;
   }
 
@@ -42,6 +44,11 @@ function VendorDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate({ to: "/" });
+  };
 
   useEffect(() => {
     if (user && user.role !== "vendor") {
@@ -75,6 +82,15 @@ function VendorDashboard() {
 
   const kyc = kycRes?.data?.data || kycRes?.data;
 
+  const { data: membershipRes } = useQuery({
+    queryKey: ["vendorMembership"],
+    queryFn: () => api.get<{ tier: string; plan: { id: string } | null }>("/vendors/me/membership"),
+    enabled: !!vendor?.id,
+  });
+  const membership = membershipRes?.data;
+  const hasChosenPlan = !!membership?.plan;
+  const membershipTier = membership?.tier;
+
   const toggleAvailabilityMutation = useMutation({
     mutationFn: (isOpen: boolean) => api.put("/vendors/me/availability", { is_open: isOpen }),
     onSuccess: (_, isOpen) => {
@@ -88,6 +104,7 @@ function VendorDashboard() {
     { id: "products", title: "Products", icon: StoreIcon, url: "/vendor/products" },
     { id: "orders", title: "Orders", icon: ClipboardList, url: "/vendor/orders" },
     { id: "earnings", title: "Earnings", icon: Wallet, url: "/vendor/earnings" },
+    { id: "membership", title: "Membership", icon: Crown, url: "/vendor/membership" },
     { id: "location", title: "Location", icon: MapPin, url: "/vendor/location" },
     { id: "reviews", title: "Reviews", icon: Star, url: "/vendor/reviews" },
     { id: "analytics", title: "Analytics", icon: BarChart3, url: "/vendor/analytics" },
@@ -99,9 +116,7 @@ function VendorDashboard() {
   let activeTab = "overview";
   if (currentPath === "/vendor") activeTab = "overview";
   else {
-    const matchedNav = navigation.find(
-      (n) => n.url !== "/vendor" && currentPath.startsWith(n.url)
-    );
+    const matchedNav = navigation.find((n) => n.url !== "/vendor" && currentPath.startsWith(n.url));
     if (matchedNav) activeTab = matchedNav.id;
   }
 
@@ -153,7 +168,7 @@ function VendorDashboard() {
               </div>
             </div>
             <button
-              onClick={() => logout()}
+              onClick={handleLogout}
               className="mt-8 w-full rounded-2xl border border-border/50 bg-muted/50 px-4 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               Sign out
@@ -169,17 +184,21 @@ function VendorDashboard() {
               </div>
               <h2 className="font-display text-2xl font-bold">KYC Under Review</h2>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Your documents have been submitted successfully and are currently being reviewed by our team. This usually takes 1-2 business days.
+                Your documents have been submitted successfully and are currently being reviewed by
+                our team. This usually takes 1-2 business days.
               </p>
             </div>
           ) : vendor.status === "rejected" ? (
-             <div className="rounded-3xl border border-border bg-card p-10 text-center shadow-2xl space-y-4 max-w-xl">
+            <div className="rounded-3xl border border-border bg-card p-10 text-center shadow-2xl space-y-4 max-w-xl">
               <div className="grid h-20 w-20 mx-auto place-items-center rounded-full bg-rose-500/10 text-rose-500">
                 <Ban className="h-10 w-10" />
               </div>
-              <h2 className="font-display text-2xl font-bold text-rose-600">Application Rejected</h2>
+              <h2 className="font-display text-2xl font-bold text-rose-600">
+                Application Rejected
+              </h2>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Unfortunately, your application to become a vendor has been rejected. Please contact support for more details.
+                Unfortunately, your application to become a vendor has been rejected. Please contact
+                support for more details.
               </p>
             </div>
           ) : (
@@ -196,13 +215,18 @@ function VendorDashboard() {
     );
   }
 
+  // First-time approved vendors: ask them to pick a plan before they start.
+  if (isApproved && !hasChosenPlan) {
+    return <VendorPlanOnboarding />;
+  }
+
   return (
     <PortalLayout
       portalName="Vendor Hub"
       navItems={navigation}
       activeItemId={activeTab}
       userEmail={user?.email}
-      onLogout={logout}
+      onLogout={handleLogout}
     >
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-2xl relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -223,7 +247,9 @@ function VendorDashboard() {
               <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border border-border/50">
                 {vendor?.profile?.vendor_type || vendor?.vendor_type || "Vendor"}
               </span>
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${vendor?.is_open ? "text-emerald-500" : "text-rose-500"}`}>
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wider ${vendor?.is_open ? "text-emerald-500" : "text-rose-500"}`}
+              >
                 {vendor?.is_open ? "Accepting Orders" : "Store Closed"}
               </span>
             </div>

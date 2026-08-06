@@ -21,6 +21,12 @@ jest.mock("../../src/services/audit.service", () => ({
   auditService: { record: jest.fn().mockResolvedValue(undefined) },
 }));
 
+jest.mock("../../src/services/settings.service", () => ({
+  settingsService: {
+    getAllSettings: jest.fn().mockResolvedValue({ "platform.multi_store_checkout_enabled": false }),
+  },
+}));
+
 import * as cartRepo from "../../src/repositories/cart.repository";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
 import * as productRepo from "../../src/repositories/product.repository";

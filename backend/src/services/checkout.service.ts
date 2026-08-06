@@ -14,6 +14,7 @@ import * as orderRepo from "../repositories/order.repository";
 import * as paymentRepo from "../repositories/payment.repository";
 import { findById as findAddressById } from "../repositories/address.repository";
 import { settingsService } from "./settings.service";
+import { SETTING_KEYS } from "../constants/settings";
 import { findById as findVendorById } from "../repositories/vendor.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
@@ -116,6 +117,16 @@ export const checkoutService = {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Your cart is empty.", { code: "EMPTY_CART" });
     }
 
+    const settings = await settingsService.getAllSettings();
+    const multiStoreEnabled = settings[SETTING_KEYS.MULTI_STORE_CHECKOUT_ENABLED] === true;
+    if (!multiStoreEnabled && groups.length > 1) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Multi-store checkout is disabled. Only one store per order is allowed.",
+        { code: "MULTI_STORE_NOT_ALLOWED" }
+      );
+    }
+
     const summaryGroups: CheckoutGroup[] = [];
     let itemsSubtotal = 0;
     let deliveryFee = 0;
@@ -180,7 +191,6 @@ export const checkoutService = {
       couponInfo = { id: coupon.id, code: coupon.code, type: coupon.type, discount };
     }
 
-    const settings = await settingsService.getAllSettings();
     const taxRatePercent = (settings["pricing.tax_rate"] as number) || TAX_RATE_PERCENT;
 
     const taxable = Math.max(0, itemsSubtotal - discount);

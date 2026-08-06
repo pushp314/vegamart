@@ -13,6 +13,7 @@ import { securityHeaders, ipAbuseGuard } from "./middlewares/security";
 import { apiVersion } from "./middlewares/version";
 import { metricsMiddleware } from "./monitoring/metrics";
 import { errorHandler, notFoundHandler } from "./middlewares/error-handler";
+import { checkMaintenanceMode } from "./modules/maintenance/maintenance.middleware";
 import v1Routes from "./routes/v1";
 
 const app: Application = express();
@@ -59,6 +60,18 @@ app.get("/", (_req: Request, res: Response) => {
     },
   });
 });
+
+app.use(
+  checkMaintenanceMode({
+    excludedPathPrefixes: [
+      "/",
+      `${apiPrefix}/docs`,
+      `${apiPrefix}/health`,
+      `${apiPrefix}/metrics`,
+      `${apiPrefix}/system`,
+    ],
+  })
+);
 
 app.use(apiPrefix, apiVersion("v1"), v1Routes);
 

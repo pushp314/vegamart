@@ -63,20 +63,22 @@ export interface SubscriptionSchedule {
   totalCount: number;
 }
 
+const MAX_SUBSCRIPTION_YEARS = 100;
+
 export function subscriptionScheduleFor(billingPeriod: string): SubscriptionSchedule {
   switch (billingPeriod) {
     case "yearly":
-      return { period: "yearly", interval: 1, totalCount: 0 };
+      return { period: "yearly", interval: 1, totalCount: MAX_SUBSCRIPTION_YEARS };
     case "quarterly":
-      return { period: "monthly", interval: 3, totalCount: 0 };
+      return { period: "monthly", interval: 3, totalCount: MAX_SUBSCRIPTION_YEARS * 4 };
     case "lifetime":
       return { period: "monthly", interval: 1, totalCount: 1 };
     case "weekly":
-      return { period: "weekly", interval: 1, totalCount: 0 };
+      return { period: "weekly", interval: 1, totalCount: MAX_SUBSCRIPTION_YEARS * 52 };
     case "daily":
-      return { period: "daily", interval: 1, totalCount: 0 };
+      return { period: "daily", interval: 1, totalCount: MAX_SUBSCRIPTION_YEARS * 365 };
     default:
-      return { period: "monthly", interval: 1, totalCount: 0 };
+      return { period: "monthly", interval: 1, totalCount: MAX_SUBSCRIPTION_YEARS * 12 };
   }
 }
 
