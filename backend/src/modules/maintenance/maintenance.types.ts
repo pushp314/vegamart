@@ -14,20 +14,11 @@ export type PublicMaintenanceStatus = {
   message: string | null;
 };
 
-export type DeveloperIdentity = {
-  developerId: string;
-  method: "api_key" | "jwt";
-  ip: string;
-};
-
-export type DeveloperTokenPayload = {
-  sub: string;
-  role: string;
-  scope: string;
-  iat?: number;
-  exp?: number;
-  iss?: string;
-  aud?: string;
+export type MaintenanceStateDto = {
+  maintenanceEnabled: boolean;
+  maintenanceMessage: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
 };
 
 export interface MaintenanceGateOptions {
@@ -37,13 +28,7 @@ export interface MaintenanceGateOptions {
   cacheTtlMs?: number;
 }
 
-export type MaintenanceAuditAction =
-  | "enabled"
-  | "disabled"
-  | "updated"
-  | "token_issued"
-  | "auth_failed"
-  | "rate_limited";
+export type MaintenanceAuditAction = "enabled" | "disabled";
 
 export interface MaintenanceAuditEntry {
   action: MaintenanceAuditAction;
@@ -54,12 +39,6 @@ export interface MaintenanceAuditEntry {
 }
 
 export interface MaintenanceModuleConfig {
-  devApiKey: string;
-  devJwtSecret: string;
-  devJwtTtlSeconds: number;
-  devJwtIssuer: string;
-  devJwtAudience: string;
-  devAllowedIps: string[];
   rateLimitWindowMs: number;
   rateLimitMax: number;
   cacheTtlMs: number;

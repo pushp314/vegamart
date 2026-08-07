@@ -1,60 +1,21 @@
 import { Router } from "express";
 
-import { validate } from "../../middlewares/validate";
 import {
-  disableMaintenance,
-  enableMaintenance,
-  getMaintenanceAuditLogs,
-  getMaintenanceStatus,
   getPublicMaintenanceStatus,
-  issueDeveloperToken,
-  updateMaintenanceMessage,
+  quickDisableMaintenance,
+  quickEnableMaintenance,
 } from "./maintenance.controller";
-import {
-  enableMaintenanceSchema,
-  issueDeveloperTokenSchema,
-  listAuditLogsSchema,
-  updateMaintenanceMessageSchema,
-} from "./maintenance.validator";
-import { maintenanceApiLimiter, maintenanceAuthLimiter, requireDeveloper } from "./maintenance.middleware";
+import { maintenanceApiLimiter, requireLoopback } from "./maintenance.middleware";
 
 const router = Router();
 
 router.get("/maintenance/status", getPublicMaintenanceStatus);
 
-const developerRouter = Router();
-developerRouter.post(
-  "/developer/token",
-  maintenanceAuthLimiter,
-  validate({ body: issueDeveloperTokenSchema }),
-  issueDeveloperToken
-);
+const quickToggleRouter = Router();
+quickToggleRouter.use(maintenanceApiLimiter, requireLoopback);
+quickToggleRouter.post("/maintenance/on", quickEnableMaintenance);
+quickToggleRouter.post("/maintenance/off", quickDisableMaintenance);
 
-const protectedRouter = Router();
-protectedRouter.use(maintenanceApiLimiter, requireDeveloper);
-
-protectedRouter.post(
-  "/maintenance/enable",
-  validate({ body: enableMaintenanceSchema }),
-  enableMaintenance
-);
-protectedRouter.post(
-  "/maintenance/disable",
-  disableMaintenance
-);
-protectedRouter.post(
-  "/maintenance/update",
-  validate({ body: updateMaintenanceMessageSchema }),
-  updateMaintenanceMessage
-);
-protectedRouter.get("/maintenance", getMaintenanceStatus);
-protectedRouter.get(
-  "/maintenance/audit-logs",
-  validate({ query: listAuditLogsSchema }),
-  getMaintenanceAuditLogs
-);
-
-router.use(developerRouter);
-router.use(protectedRouter);
+router.use(quickToggleRouter);
 
 export default router;

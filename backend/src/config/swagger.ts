@@ -49,18 +49,6 @@ const options: swaggerJSDoc.Options = {
           name: "refresh_token",
           description: "HTTP-only refresh token cookie.",
         },
-        developerApiKey: {
-          type: "apiKey",
-          in: "header",
-          name: "X-API-Key",
-          description: "Developer API key for maintenance control endpoints.",
-        },
-        developerBearer: {
-          type: "http",
-          scheme: "bearer",
-          bearerFormat: "JWT",
-          description: "Short-lived developer JWT issued via POST /system/developer/token.",
-        },
       },
       responses: {
         Unauthorized: {
@@ -178,7 +166,7 @@ const options: swaggerJSDoc.Options = {
       { name: "Notifications", description: "In-app notifications." },
       { name: "Uploads", description: "File uploads to Cloudflare R2 storage." },
       { name: "Admin", description: "Administration: dashboard, users, vendors, delivery partners, reports, analytics, audit logs, settings and announcements." },
-      { name: "Maintenance", description: "Remote maintenance control for developers: enable/disable maintenance mode, update messages and audit developer actions." },
+      { name: "Maintenance", description: "Maintenance mode control: public status plus localhost-only enable/disable toggles." },
     ],
   },
   apis: ["src/routes/**/*.ts", "src/controllers/**/*.ts", "src/modules/**/*.ts"],

@@ -6,7 +6,7 @@ import type { SendCommandFn } from "rate-limit-redis";
 import log from "../../config/logger";
 import { isRedisAvailable, redis } from "../../database/redis";
 import { HttpStatus } from "../../utils/httpStatus";
-import { MAINTENANCE_AUDIT_ACTIONS, maintenanceModuleConfig } from "./maintenance.constants";
+import { maintenanceModuleConfig } from "./maintenance.constants";
 import { maintenanceService } from "./maintenance.service";
 import type { MaintenanceGateOptions } from "./maintenance.types";
 
@@ -49,11 +49,26 @@ export const maintenanceApiLimiter = createMaintenanceLimiter(
   "Too many maintenance control requests, please slow down."
 );
 
-export const maintenanceAuthLimiter = createMaintenanceLimiter(
-  config.rateLimitWindowMs,
-  config.rateLimitMax,
-  "Too many maintenance developer token requests, please slow down."
-);
+const LOOPBACK_ADDRESSES = new Set([
+  "127.0.0.1",
+  "::1",
+  "::ffff:127.0.0.1",
+]);
+
+export function requireLoopback(req: Request, res: Response, next: NextFunction): void {
+  const remoteAddress = req.socket?.remoteAddress ?? "";
+  if (!LOOPBACK_ADDRESSES.has(remoteAddress)) {
+    res.status(HttpStatus.FORBIDDEN).json({
+      success: false,
+      error: {
+        code: "FORBIDDEN",
+        message: "This endpoint is only reachable from the server (localhost).",
+      },
+    });
+    return;
+  }
+  next();
+}
 
 function isPathExcluded(url: string, paths: string[]): boolean {
   const pathname = url.split("?")[0] ?? url;
@@ -93,38 +108,6 @@ export function checkMaintenanceMode(options: MaintenanceGateOptions = {}): Requ
       next();
     }
   };
-}
-
-export function requireDeveloper(req: Request, _res: Response, next: NextFunction): void {
-  const ip = req.ip ?? "";
-  const audit = maintenanceService.extractAuditContext(req);
-
-  (async () => {
-    if (!maintenanceService.isDeveloperIpAllowed(ip)) {
-      await maintenanceService.logAudit(
-        MAINTENANCE_AUDIT_ACTIONS.AUTH_FAILED,
-        "developer",
-        audit,
-        "Developer IP not allowed."
-      );
-      const error = new Error("Developer IP not allowed.");
-      (error as Error & { statusCode: number; code: string }).statusCode = HttpStatus.FORBIDDEN;
-      (error as Error & { statusCode: number; code: string }).code = "FORBIDDEN";
-      throw error;
-    }
-
-    const identity = await maintenanceService.buildDeveloperIdentity(req);
-    req.maintenanceDeveloper = identity;
-    next();
-  })().catch((error: unknown) => {
-    maintenanceService.logAudit(
-      MAINTENANCE_AUDIT_ACTIONS.AUTH_FAILED,
-      "developer",
-      audit,
-      error instanceof Error ? error.message : "Developer authentication failed."
-    );
-    next(error);
-  });
 }
 
 function logMaintenanceError(error: unknown): void {

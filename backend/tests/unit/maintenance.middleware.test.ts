@@ -2,9 +2,6 @@ jest.mock("../../src/modules/maintenance/maintenance.service", () => ({
   maintenanceService: {
     isMaintenanceEnabled: jest.fn(),
     getPublicStatus: jest.fn(),
-    isDeveloperIpAllowed: jest.fn(),
-    buildDeveloperIdentity: jest.fn(),
-    logAudit: jest.fn(),
     extractAuditContext: jest.fn(() => ({ ip: "10.0.0.1", userAgent: "jest" })),
   },
 }));
@@ -16,13 +13,10 @@ jest.mock("../../src/config/logger", () => ({
 
 import type { Request, Response } from "express";
 import { maintenanceService } from "../../src/modules/maintenance/maintenance.service";
-import { checkMaintenanceMode, requireDeveloper } from "../../src/modules/maintenance/maintenance.middleware";
+import { checkMaintenanceMode, requireLoopback } from "../../src/modules/maintenance/maintenance.middleware";
 
 const mockIsEnabled = maintenanceService.isMaintenanceEnabled as jest.Mock;
 const mockGetPublicStatus = maintenanceService.getPublicStatus as jest.Mock;
-const mockIsIpAllowed = maintenanceService.isDeveloperIpAllowed as jest.Mock;
-const mockBuildIdentity = maintenanceService.buildDeveloperIdentity as jest.Mock;
-const mockLogAudit = maintenanceService.logAudit as jest.Mock;
 
 function mockRes() {
   return {
@@ -36,6 +30,7 @@ function mockReq(overrides: Record<string, unknown> = {}) {
     originalUrl: "/api/v1/products",
     ip: "10.0.0.1",
     headers: {},
+    socket: { remoteAddress: "10.0.0.1" },
     ...overrides,
   } as unknown as Request;
 }
@@ -57,13 +52,13 @@ describe("checkMaintenanceMode", () => {
 
   it("returns 503 with the maintenance payload when enabled", async () => {
     mockIsEnabled.mockResolvedValue(true);
-    mockGetPublicStatus.mockResolvedValue({ maintenance: true, message: "Down for upgrade." });
+    mockGetPublicStatus.mockResolvedValue({ maintenance: true, message: "Contact the developer" });
     const req = mockReq();
     const res = mockRes();
     const next = jest.fn();
     await checkMaintenanceMode()(req, res, next);
     expect(res.status).toHaveBeenCalledWith(503);
-    expect(res.json).toHaveBeenCalledWith({ maintenance: true, message: "Down for upgrade." });
+    expect(res.json).toHaveBeenCalledWith({ maintenance: true, message: "Contact the developer" });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -106,61 +101,27 @@ describe("checkMaintenanceMode", () => {
   });
 });
 
-describe("requireDeveloper", () => {
+describe("requireLoopback", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockIsIpAllowed.mockReturnValue(true);
   });
 
-  it("attaches the identity and calls next on success", async () => {
-    mockBuildIdentity.mockResolvedValue({ developerId: "developer", method: "jwt", ip: "10.0.0.1" });
-    const req = mockReq({ headers: { authorization: "Bearer x" } }) as Request & { maintenanceDeveloper?: unknown };
+  it("passes through when the request comes from loopback", () => {
+    const req = mockReq({ socket: { remoteAddress: "127.0.0.1" } });
     const res = mockRes();
     const next = jest.fn();
-    await new Promise<void>((resolve) => {
-      requireDeveloper(req, res, (err?: unknown) => {
-        next(err);
-        resolve();
-      });
-    });
-    expect(req.maintenanceDeveloper).toEqual({ developerId: "developer", method: "jwt", ip: "10.0.0.1" });
+    requireLoopback(req, res, next);
     expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
   });
 
-  it("rejects with 403 when the IP is not allowed", async () => {
-    mockIsIpAllowed.mockReturnValue(false);
-    const req = mockReq();
+  it("rejects with 403 when the request comes from a remote address", () => {
+    const req = mockReq({ socket: { remoteAddress: "10.0.0.1" } });
     const res = mockRes();
     const next = jest.fn();
-    await new Promise<void>((resolve) => {
-      requireDeveloper(req, res, (err) => {
-        next(err);
-        resolve();
-      });
-    });
-    const error = next.mock.calls[0][0] as Error & { statusCode?: number };
-    expect(error).toBeInstanceOf(Error);
-    expect(error.statusCode).toBe(403);
-    expect(mockLogAudit).toHaveBeenCalled();
-  });
-
-  it("forwards auth failures to next and logs an audit entry", async () => {
-    mockBuildIdentity.mockRejectedValue(new Error("Invalid developer API key."));
-    const req = mockReq();
-    const res = mockRes();
-    const next = jest.fn();
-    await new Promise<void>((resolve) => {
-      requireDeveloper(req, res, (err) => {
-        next(err);
-        resolve();
-      });
-    });
-    expect(next.mock.calls[0][0]).toEqual(new Error("Invalid developer API key."));
-    expect(mockLogAudit).toHaveBeenCalledWith(
-      expect.any(String),
-      "developer",
-      expect.objectContaining({ ip: "10.0.0.1" }),
-      "Invalid developer API key."
-    );
+    requireLoopback(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
   });
 });

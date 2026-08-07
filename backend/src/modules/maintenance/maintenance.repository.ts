@@ -42,11 +42,4 @@ export const maintenanceRepository = {
       },
     });
   },
-
-  async listAuditLogs(limit = 50) {
-    return prisma.maintenanceAuditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: Math.min(100, Math.max(1, limit)),
-    });
-  },
 };
