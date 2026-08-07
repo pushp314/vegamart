@@ -49,7 +49,7 @@ function VendorOrdersPage() {
     if (statusFilter === "ALL") return matchesSearch;
     if (statusFilter === "LIVE") return matchesSearch && isLive;
     if (statusFilter === "DELIVERED") return matchesSearch && o.status?.toUpperCase() === "DELIVERED";
-    if (statusFilter === "CANCELLED") return matchesSearch && o.status?.toUpperCase() === "CANCELLED";
+    if (statusFilter === "CANCELLED") return matchesSearch && (o.status?.toUpperCase() === "CANCELLED" || o.status?.toUpperCase() === "REFUNDED");
     return matchesSearch;
   });
 
@@ -254,10 +254,10 @@ function VendorOrdersPage() {
                       </div>
                       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
                         o.status?.toUpperCase() === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                        o.status?.toUpperCase() === 'CANCELLED' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
+                        (o.status?.toUpperCase() === 'CANCELLED' || o.status?.toUpperCase() === 'REFUNDED') ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
                         'bg-amber-500/10 text-amber-600 border-amber-500/20'
                       }`}>
-                        {o.status?.toUpperCase() === 'DELIVERED' ? <CheckCircle2 className="h-3 w-3" /> : o.status?.toUpperCase() === 'CANCELLED' ? <X className="h-3 w-3" /> : <Clock className="h-3 w-3" />} {o.status}
+                        {o.status?.toUpperCase() === 'DELIVERED' ? <CheckCircle2 className="h-3 w-3" /> : (o.status?.toUpperCase() === 'CANCELLED' || o.status?.toUpperCase() === 'REFUNDED') ? <X className="h-3 w-3" /> : <Clock className="h-3 w-3" />} {o.status}
                       </span>
                     </div>
                   </div>
@@ -382,9 +382,9 @@ function VendorOrdersPage() {
                           {ns.label}
                         </button>
                       ))
-                    ) : o.status?.toUpperCase() === "CANCELLED" ? (
+                    ) : (o.status?.toUpperCase() === "CANCELLED" || o.status?.toUpperCase() === "REFUNDED") ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600">
-                        <X className="h-4 w-4" /> Order Cancelled
+                        <X className="h-4 w-4" /> Order {o.status?.toUpperCase() === "REFUNDED" ? "Refunded" : "Cancelled"}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
