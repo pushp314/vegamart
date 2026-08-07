@@ -136,6 +136,39 @@ function VendorDashboard() {
   const vendorStatus = (vendor?.status || "").toLowerCase();
   const kycStatus = (kyc?.status || "").toLowerCase();
   const isApproved = vendorStatus === "approved" || kycStatus === "approved";
+  const isSuspended = vendorStatus === "suspended";
+
+  // Handle Suspended Vendor
+  if (vendor && isSuspended) {
+    return (
+      <div className="min-h-screen bg-background/50 p-6 flex items-center justify-center">
+        <div className="rounded-3xl border border-border bg-card p-10 text-center shadow-2xl space-y-6 max-w-xl">
+          <div className="grid h-20 w-20 mx-auto place-items-center rounded-full bg-rose-500/10 text-rose-500">
+            <Ban className="h-10 w-10" />
+          </div>
+          <h2 className="font-display text-2xl font-bold text-rose-600">
+            Account Suspended
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            Your vendor account has been temporarily suspended. Please contact our support team to resolve this issue and restore your account access.
+          </p>
+          <a
+            href="mailto:support@vegamart.com"
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Ticket className="h-4 w-4" />
+            Contact Support
+          </a>
+          <button
+            onClick={handleLogout}
+            className="mt-4 w-full rounded-2xl border border-border/50 bg-muted/50 px-4 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Handle KYC or Pending Approval
   if (vendor && !isApproved) {
