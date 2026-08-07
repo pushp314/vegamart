@@ -525,8 +525,8 @@ function LiveBanner() {
     queryFn: () => api.get<any[]>("/banners"),
   });
   const banners = res?.data || [];
-  const activeBanner = banners.find((b) => b.type === "LiveNow") || {
-    title: "Vendors moving near you right now",
+  const activeBanner = banners.find((b) => b.type === "LiveNow" || b.position === "LiveNow") || {
+    title: "🔥 Live vendors near you - Order fresh now!",
   };
 
   if (isLoading) {
