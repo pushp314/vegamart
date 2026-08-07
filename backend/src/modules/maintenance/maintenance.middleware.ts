@@ -6,6 +6,7 @@ import type { SendCommandFn } from "rate-limit-redis";
 import log from "../../config/logger";
 import { isRedisAvailable, redis } from "../../database/redis";
 import { HttpStatus } from "../../utils/httpStatus";
+import { safeEqual } from "../../utils/crypto";
 import { maintenanceModuleConfig } from "./maintenance.constants";
 import { maintenanceService } from "./maintenance.service";
 import type { MaintenanceGateOptions } from "./maintenance.types";
@@ -55,19 +56,38 @@ const LOOPBACK_ADDRESSES = new Set([
   "::ffff:127.0.0.1",
 ]);
 
-export function requireLoopback(req: Request, res: Response, next: NextFunction): void {
-  const remoteAddress = req.socket?.remoteAddress ?? "";
-  if (!LOOPBACK_ADDRESSES.has(remoteAddress)) {
-    res.status(HttpStatus.FORBIDDEN).json({
+function isLoopbackAddress(remoteAddress: string): boolean {
+  return LOOPBACK_ADDRESSES.has(remoteAddress);
+}
+
+export function requireToggleAccess(req: Request, res: Response, next: NextFunction): void {
+  if (config.toggleToken) {
+    const provided = typeof req.query.token === "string" ? req.query.token : "";
+    if (provided && safeEqual(provided, config.toggleToken)) {
+      next();
+      return;
+    }
+    res.status(HttpStatus.UNAUTHORIZED).json({
       success: false,
       error: {
-        code: "FORBIDDEN",
-        message: "This endpoint is only reachable from the server (localhost).",
+        code: "UNAUTHORIZED",
+        message: "Invalid or missing toggle token.",
       },
     });
     return;
   }
-  next();
+  const remoteAddress = req.socket?.remoteAddress ?? "";
+  if (isLoopbackAddress(remoteAddress)) {
+    next();
+    return;
+  }
+  res.status(HttpStatus.FORBIDDEN).json({
+    success: false,
+    error: {
+      code: "FORBIDDEN",
+      message: "This endpoint is only reachable from the server (localhost) unless a toggle token is configured.",
+    },
+  });
 }
 
 function isPathExcluded(url: string, paths: string[]): boolean {

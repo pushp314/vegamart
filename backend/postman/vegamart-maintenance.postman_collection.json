@@ -1,11 +1,12 @@
 {
   "info": {
     "name": "VegaMart — Maintenance Control",
-    "description": "Control VegaMart maintenance mode.\n\nEndpoints:\n  * GET  /api/v1/system/maintenance/status — public flag + message (no auth)\n  * POST /api/v1/system/maintenance/on     — enable maintenance (loopback only, message 'Contact the developer')\n  * POST /api/v1/system/maintenance/off    — disable maintenance (loopback only)\n\nThe /on and /off toggles are restricted to requests originating from the server itself (localhost). The /system namespace and /health endpoints are excluded from the maintenance gate.",
+    "description": "Control VegaMart maintenance mode with browser links.\n\nEndpoints:\n  * GET  /api/v1/system/maintenance/status — public flag + message (no auth)\n  * GET  /api/v1/system/maintenance/on?token=...     — enable maintenance (message 'Contact the developer')\n  * GET  /api/v1/system/maintenance/off?token=...    — disable maintenance\n\nIf MAINTENANCE_TOGGLE_TOKEN is not configured, the toggles are restricted to requests from the server itself (localhost). The /system namespace and /health endpoints are excluded from the maintenance gate.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" }
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "token", "value": "", "type": "string", "description": "Your MAINTENANCE_TOGGLE_TOKEN (required when configured)" }
   ],
   "item": [
     {
@@ -24,27 +25,29 @@
     {
       "name": "Enable maintenance mode",
       "request": {
-        "method": "POST",
+        "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/v1/system/maintenance/on",
+          "raw": "{{baseUrl}}/api/v1/system/maintenance/on?token={{token}}",
           "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "system", "maintenance", "on"]
+          "path": ["api", "v1", "system", "maintenance", "on"],
+          "query": [{ "key": "token", "value": "{{token}}", "description": "MAINTENANCE_TOGGLE_TOKEN (required when configured)" }]
         },
-        "description": "Turns on maintenance mode with the message 'Contact the developer'. Only reachable from the server (loopback) — run over SSH with curl. All requests except /health, /metrics, /docs and /system/* will receive HTTP 503 with { maintenance: true, message }."
+        "description": "Turns on maintenance mode with the message 'Contact the developer'. Pasteable in a browser. All requests except /health, /metrics, /docs and /system/* will receive HTTP 503 with { maintenance: true, message }."
       }
     },
     {
       "name": "Disable maintenance mode",
       "request": {
-        "method": "POST",
+        "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/v1/system/maintenance/off",
+          "raw": "{{baseUrl}}/api/v1/system/maintenance/off?token={{token}}",
           "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "system", "maintenance", "off"]
+          "path": ["api", "v1", "system", "maintenance", "off"],
+          "query": [{ "key": "token", "value": "{{token}}", "description": "MAINTENANCE_TOGGLE_TOKEN (required when configured)" }]
         },
-        "description": "Turns off maintenance mode and restores normal API access. Only reachable from the server (loopback) — run over SSH with curl."
+        "description": "Turns off maintenance mode and restores normal API access. Pasteable in a browser."
       }
     }
   ]

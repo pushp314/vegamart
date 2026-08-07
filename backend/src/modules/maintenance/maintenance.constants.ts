@@ -17,6 +17,7 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 
 export function maintenanceModuleConfig(): MaintenanceModuleConfig {
   return {
+    toggleToken: process.env.MAINTENANCE_TOGGLE_TOKEN ?? "",
     rateLimitWindowMs: parsePositiveInt(process.env.MAINTENANCE_RATE_LIMIT_WINDOW_MS, 60_000),
     rateLimitMax: parsePositiveInt(process.env.MAINTENANCE_RATE_LIMIT_MAX, 20),
     cacheTtlMs: parsePositiveInt(process.env.MAINTENANCE_CACHE_TTL_MS, 10_000),

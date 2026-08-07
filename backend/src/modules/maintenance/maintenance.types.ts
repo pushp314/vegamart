@@ -39,6 +39,7 @@ export interface MaintenanceAuditEntry {
 }
 
 export interface MaintenanceModuleConfig {
+  toggleToken: string;
   rateLimitWindowMs: number;
   rateLimitMax: number;
   cacheTtlMs: number;

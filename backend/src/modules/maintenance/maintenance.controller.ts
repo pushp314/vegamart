@@ -40,13 +40,21 @@ export const getPublicMaintenanceStatus = asyncHandler(async (_req: Request, res
 /**
  * @swagger
  * /system/maintenance/on:
- *   post:
- *     summary: Enable maintenance mode (localhost only)
- *     description: Turns on maintenance mode with the "Contact the developer" message. Only reachable from the server itself (loopback); no API key required.
+ *   get:
+ *     summary: Enable maintenance mode (browser link)
+ *     description: Turns on maintenance mode with the "Contact the developer" message. Pasteable browser link. Requires ?token=<MAINTENANCE_TOGGLE_TOKEN> when a toggle token is configured; otherwise only reachable from the server (loopback).
  *     tags: [Maintenance]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         schema:
+ *           type: string
+ *         description: Toggle token matching MAINTENANCE_TOGGLE_TOKEN (required when configured).
  *     responses:
  *       200:
  *         description: Maintenance enabled.
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
  *       403:
  *         $ref: "#/components/responses/Forbidden"
  */
@@ -63,13 +71,21 @@ export const quickEnableMaintenance = asyncHandler(async (req: Request, res: Res
 /**
  * @swagger
  * /system/maintenance/off:
- *   post:
- *     summary: Disable maintenance mode (localhost only)
- *     description: Turns off maintenance mode. Only reachable from the server itself (loopback); no API key required.
+ *   get:
+ *     summary: Disable maintenance mode (browser link)
+ *     description: Turns off maintenance mode. Pasteable browser link. Requires ?token=<MAINTENANCE_TOGGLE_TOKEN> when a toggle token is configured; otherwise only reachable from the server (loopback).
  *     tags: [Maintenance]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         schema:
+ *           type: string
+ *         description: Toggle token matching MAINTENANCE_TOGGLE_TOKEN (required when configured).
  *     responses:
  *       200:
  *         description: Maintenance disabled.
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
  *       403:
  *         $ref: "#/components/responses/Forbidden"
  */

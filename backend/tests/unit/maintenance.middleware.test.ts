@@ -13,7 +13,7 @@ jest.mock("../../src/config/logger", () => ({
 
 import type { Request, Response } from "express";
 import { maintenanceService } from "../../src/modules/maintenance/maintenance.service";
-import { checkMaintenanceMode, requireLoopback } from "../../src/modules/maintenance/maintenance.middleware";
+import { checkMaintenanceMode, requireToggleAccess } from "../../src/modules/maintenance/maintenance.middleware";
 
 const mockIsEnabled = maintenanceService.isMaintenanceEnabled as jest.Mock;
 const mockGetPublicStatus = maintenanceService.getPublicStatus as jest.Mock;
@@ -31,6 +31,7 @@ function mockReq(overrides: Record<string, unknown> = {}) {
     ip: "10.0.0.1",
     headers: {},
     socket: { remoteAddress: "10.0.0.1" },
+    query: {},
     ...overrides,
   } as unknown as Request;
 }
@@ -101,27 +102,44 @@ describe("checkMaintenanceMode", () => {
   });
 });
 
-describe("requireLoopback", () => {
+describe("requireToggleAccess", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it("passes through when the request comes from loopback", () => {
+  it("passes through for loopback when no token is configured", () => {
     const req = mockReq({ socket: { remoteAddress: "127.0.0.1" } });
     const res = mockRes();
     const next = jest.fn();
-    requireLoopback(req, res, next);
+    requireToggleAccess(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it("rejects with 403 when the request comes from a remote address", () => {
+  it("rejects with 403 for a remote address when no token is configured", () => {
     const req = mockReq({ socket: { remoteAddress: "10.0.0.1" } });
     const res = mockRes();
     const next = jest.fn();
-    requireLoopback(req, res, next);
+    requireToggleAccess(req, res, next);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects with 401 when a token is configured but missing", () => {
+    process.env.MAINTENANCE_TOGGLE_TOKEN = "correct_horse_battery_staple";
+    jest.resetModules();
+    const { requireToggleAccess: freshGuard } =
+      jest.requireActual<typeof import("../../src/modules/maintenance/maintenance.middleware")>(
+        "../../src/modules/maintenance/maintenance.middleware"
+      );
+    const req = mockReq({ socket: { remoteAddress: "10.0.0.1" }, query: {} });
+    const res = mockRes();
+    const next = jest.fn();
+    freshGuard(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    delete process.env.MAINTENANCE_TOGGLE_TOKEN;
   });
 });

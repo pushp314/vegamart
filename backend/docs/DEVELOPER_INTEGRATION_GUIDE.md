@@ -1,30 +1,45 @@
 # Maintenance Mode Control — Integration Guide
 
-How to control VegaMart **maintenance mode**. There is no API key and no token —
-enable/disable is done with two localhost-only endpoints from the server itself,
-and the public status endpoint lets clients detect downtime.
+Control VegaMart **maintenance mode** with two browser links. No API keys, no tokens
+to exchange — just set one secret value and paste the URLs.
 
 ---
 
-## 1. Endpoints
+## 1. The two links
 
-| Method | Path | Reachable from | Description |
-| ------ | ---- | -------------- | ----------- |
-| GET | `/api/v1/system/maintenance/status` | anywhere | Public maintenance flag + message |
-| POST | `/api/v1/system/maintenance/on` | localhost only | Enable maintenance (message: "Contact the developer") |
-| POST | `/api/v1/system/maintenance/off` | localhost only | Disable maintenance |
+| Action | URL |
+| ------ | --- |
+| Enable | `https://api.vegamart.in/api/v1/system/maintenance/on?token=<TOKEN>` |
+| Disable | `https://api.vegamart.in/api/v1/system/maintenance/off?token=<TOKEN>` |
 
-The `/on` and `/off` toggles are rejected with `403 FORBIDDEN` for any request that
-does not originate from the server itself (`127.0.0.1` / `::1`). Run them over SSH.
+Paste them into any browser (or bookmark them). Enabling uses the message
+**"Contact the developer"**.
+
+There is also a public status endpoint:
+`GET https://api.vegamart.in/api/v1/system/maintenance/status` (no token needed).
 
 ---
 
-## 2. Enable maintenance
+## 2. Setting the token
 
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/system/maintenance/on
+Add one variable to the backend `.env` and restart the API:
+
+```
+MAINTENANCE_TOGGLE_TOKEN=some_long_random_string
 ```
 
+Generate one with `openssl rand -hex 32`. Anyone with this URL can toggle
+maintenance, so keep it secret (don't share/bookmark in public browsers).
+
+If `MAINTENANCE_TOGGLE_TOKEN` is left empty, the links only work when called from
+the server itself (loopback) — e.g. over SSH with curl — and return `403` for
+remote requests.
+
+---
+
+## 3. What the toggle responses look like
+
+Enabling:
 ```json
 {
   "success": true,
@@ -38,24 +53,13 @@ curl -X POST http://127.0.0.1:8080/api/v1/system/maintenance/on
 }
 ```
 
-## 3. Disable maintenance
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/system/maintenance/off
-```
-
+Disabling:
 ```json
 { "success": true, "data": { "maintenanceEnabled": false }, "message": "Maintenance mode disabled." }
 ```
 
-> Adjust the port if the API is not listening on `8080` (check `pm2 describe vegamart-api`).
-
-## 4. Public status (no auth)
-
-```bash
-curl http://127.0.0.1:8080/api/v1/system/maintenance/status
-# { "success": true, "data": { "maintenance": false, "message": null } }
-```
+Missing or wrong token: `401 UNAUTHORIZED`. Remote request with no token configured:
+`403 FORBIDDEN`.
 
 ---
 
@@ -88,6 +92,7 @@ The web app redirects to `/maintenance` whenever it detects maintenance:
 
 | Variable | Default | Notes |
 | -------- | ------- | ----- |
+| `MAINTENANCE_TOGGLE_TOKEN` | empty | Enables the toggle links from anywhere; empty = loopback-only |
 | `MAINTENANCE_RATE_LIMIT_WINDOW_MS` | `60000` | Rate limit window for toggle/status endpoints |
 | `MAINTENANCE_RATE_LIMIT_MAX` | `20` | Max requests per window |
 | `MAINTENANCE_CACHE_TTL_MS` | `10000` | State cache TTL before re-reading the database |
