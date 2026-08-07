@@ -217,6 +217,15 @@ function VendorDashboard() {
 
   // First-time approved vendors: ask them to pick a plan before they start.
   if (isApproved && !hasChosenPlan) {
+    if (currentPath === "/vendor/membership/upgrade") {
+      return (
+        <div className="min-h-screen bg-background py-10">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Outlet />
+          </div>
+        </div>
+      );
+    }
     return <VendorPlanOnboarding />;
   }
 
