@@ -262,3 +262,8 @@ export const transitionOrderStatus = asyncHandler(async (req: Request, res: Resp
   const order = await orderService.transitionStatus(req.user!.id, req.params.order_id as string, req.body as TransitionOrderStatusBody, req);
   return sendSuccess(res, order);
 });
+
+export const rejectOrderItem = asyncHandler(async (req: Request, res: Response) => {
+  const result = await orderService.rejectOrderItem(req.user!.id, req.params.order_id, req.params.item_id, req);
+  return sendSuccess(res, result, "Order item rejected successfully");
+});

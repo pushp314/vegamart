@@ -1,0 +1,17 @@
+--- src/routes/v1/order.routes.ts
++++ src/routes/v1/order.routes.ts
+@@ -10,6 +10,7 @@
+   listVendorOrders,
+   transitionOrderStatus,
+   requestRefund,
++  rejectOrderItem,
+ } from "../../controllers/order.controller";
+ import { authenticate, blockGuest } from "../../middlewares/auth.middleware";
+ import { requireRole } from "../../middlewares/rbac.middleware";
+@@ -37,5 +38,6 @@
+ router.get("/vendors/orders", authenticate, requireRole(ROLES.VENDOR), validate({ query: listOrdersQuerySchema }), listVendorOrders);
+ router.get("/vendors/orders/:order_id", authenticate, requireRole(ROLES.VENDOR), validate({ params: orderIdParamsSchema }), getVendorOrder);
+ router.patch("/vendors/orders/:order_id/status", authenticate, requireRole(ROLES.VENDOR), validate({ params: orderIdParamsSchema, body: transitionOrderStatusSchema }), transitionOrderStatus);
++router.post("/vendors/orders/:order_id/items/:item_id/reject", authenticate, requireRole(ROLES.VENDOR), rejectOrderItem);
+ 
+ export default router;

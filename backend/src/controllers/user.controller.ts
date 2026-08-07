@@ -126,3 +126,8 @@ export const revokeAllSessions = asyncHandler(async (req: Request, res: Response
   await userService.revokeAllSessions(req.user!.id, req);
   return sendNoContent(res);
 });
+
+export const toggleVendorSubscription = asyncHandler(async (req: Request, res: Response) => {
+  const result = await userService.toggleVendorSubscription(req.user!.id, req.body.vendor_id);
+  return sendSuccess(res, result, "Subscription updated");
+});

@@ -1,0 +1,34 @@
+--- src/services/vendor.service.ts
++++ src/services/vendor.service.ts
+@@ -888,7 +888,7 @@
+     const thirtyDaysAgo = new Date();
+     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+ 
+-    const [customerStats, storeViews, productStats] = await Promise.all([
++    const [customerStats, storeViews, productStats, dailyData] = await Promise.all([
+       prisma.customerAnalytics.aggregate({
+         where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
+         _sum: { new_customers: true, repeat_customers: true }
+@@ -902,6 +902,10 @@
+         where: { product: { vendor_id: vendor.id }, date: { gte: thirtyDaysAgo } },
+         _sum: { views: true, sales: true, revenue: true },
+         orderBy: { _sum: { sales: 'desc' } },
+         take: 10
++      }),
++      prisma.storeAnalytics.findMany({
++        where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
++        orderBy: { date: 'asc' }
+       })
+     ]);
+ 
+@@ -922,6 +926,11 @@
+         sales: p._sum.sales || 0,
+         revenue: p._sum.revenue ? Number(p._sum.revenue) : 0
+       })),
++      dailyData: dailyData.map(d => ({
++        date: d.date.toISOString().split('T')[0],
++        revenue: Number(d.total_revenue),
++        orders: d.total_orders,
++      }))
+     };
+   },

@@ -1,0 +1,20 @@
+--- src/services/user.service.ts
++++ src/services/user.service.ts
+@@ -107,4 +107,18 @@
+     await redis.del(`user:sessions:${userId}`);
+     await redis.del(`auth:token:${sessionId}`);
+   },
++
++  async toggleVendorSubscription(userId: string, vendorId: string) {
++    const existing = await prisma.userSubscription.findFirst({
++      where: { user_id: userId, vendor_id: vendorId }
++    });
++    if (existing) {
++      await prisma.userSubscription.delete({ where: { id: existing.id } });
++      return { subscribed: false };
++    } else {
++      await prisma.userSubscription.create({ data: { user_id: userId, vendor_id: vendorId } });
++      return { subscribed: true };
++    }
++  },
+ };

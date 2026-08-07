@@ -109,4 +109,17 @@ export const userService = {
   async touchSession(sessionId: string): Promise<void> {
     await updateLastActivity(sessionId);
   },
+
+  async toggleVendorSubscription(userId: string, vendorId: string) {
+    const existing = await prisma.userSubscription.findFirst({
+      where: { user_id: userId, vendor_id: vendorId }
+    });
+    if (existing) {
+      await prisma.userSubscription.delete({ where: { id: existing.id } });
+      return { subscribed: false };
+    } else {
+      await prisma.userSubscription.create({ data: { user_id: userId, vendor_id: vendorId } });
+      return { subscribed: true };
+    }
+  },
 };

@@ -59,6 +59,31 @@ function VendorProductsPage() {
   const [isBulkActing, setIsBulkActing] = useState(false);
   const [isUploadingBulk, setIsUploadingBulk] = useState(false);
 
+  const handleBulkImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBulk(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/v1/vendors/products/bulk-upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to upload CSV");
+      const data = await res.json();
+      toast.success(`Successfully imported ${data.data.count} products!`);
+      queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to import products");
+    } finally {
+      setIsUploadingBulk(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const imageUploadRef = useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -329,7 +354,7 @@ function VendorProductsPage() {
           <input
             type="file"
             ref={fileInputRef}
-            onChange={handleBulkUpload}
+            onChange={handleBulkImport}
             accept=".csv"
             className="hidden"
           />

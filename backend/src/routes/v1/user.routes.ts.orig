@@ -7,7 +7,6 @@ import {
   revokeAllSessions,
   revokeSession,
   updateMe,
-  toggleVendorSubscription,
 } from "../../controllers/user.controller";
 import { authenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate";
@@ -24,7 +23,5 @@ router.delete("/me", blockGuest, deactivateMe);
 router.get("/me/sessions", listMySessions);
 router.delete("/me/sessions/:session_id", validate({ params: sessionParamsSchema }), revokeSession);
 router.delete("/me/sessions", revokeAllSessions);
-
-router.post("/me/subscriptions", blockGuest, toggleVendorSubscription);
 
 export default router;

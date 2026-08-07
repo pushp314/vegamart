@@ -34,6 +34,7 @@ import {
   updateVendorHours,
   updateVendorLocation,
   upsertDailyLocation,
+  bulkUploadProducts,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
 import { requirePlan } from "../../middlewares/subscription.middleware";
@@ -58,6 +59,7 @@ import {
 } from "../../validators/vendor.validators";
 import { vendorKycSchema, ringBellSchema } from "../../validators/integration.validators";
 import { createReviewSchema } from "../../validators/product.validators";
+import { upload } from "../../middlewares/upload.middleware";
 
 const router = Router();
 
@@ -114,6 +116,15 @@ router.put(
   validate({ body: vendorLocationSchema }),
   updateVendorLocation
 );
+
+router.post(
+  "/vendors/products/bulk-upload",
+  authenticate,
+  requireRole(ROLES.VENDOR),
+  upload.single("file"),
+  bulkUploadProducts
+);
+
 router.put("/vendors/me/hours", authenticate, validate({ body: vendorHoursSchema }), updateVendorHours);
 router.get("/vendors/me/dashboard", authenticate, requireRole(ROLES.VENDOR), getMyDashboard);
 router.get(

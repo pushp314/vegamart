@@ -1,0 +1,71 @@
+--- src/routes/vendor.orders.tsx
++++ src/routes/vendor.orders.tsx
+@@ -2,7 +2,7 @@
+ import { Link } from "@tanstack/react-router";
+ import {
+   Package, CheckCircle2, Clock, Truck, MapPin, X,
+-  AlertCircle, Phone, Navigation, Loader2, Check, ShoppingBag
++  AlertCircle, Phone, Navigation, Loader2, Check, ShoppingBag, XCircle
+ } from "lucide-react";
+ import { toast } from "sonner";
+ 
+@@ -58,6 +58,23 @@
+       toast.success("Order status updated successfully");
+       setOtpTarget(null);
+     },
++    onError: (err: any) => {
++      toast.error(err?.message || "Failed to update order status");
++    },
++  });
++
++  const rejectItemMutation = useMutation({
++    mutationFn: async ({ orderId, itemId }: { orderId: string; itemId: string }) => {
++      const token = localStorage.getItem("token");
++      const res = await fetch(`/api/v1/vendors/orders/${orderId}/items/${itemId}/reject`, {
++        method: "POST",
++        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
++      });
++      if (!res.ok) throw new Error("Failed to reject item");
++    },
++    onSuccess: () => {
++      toast.success("Item rejected successfully");
++      refetch();
++    },
+     onError: (err: any) => {
+       toast.error(err?.message || "Failed to update order status");
+     },
+@@ -288,7 +305,7 @@
+                     </div>
+                     <div className="divide-y divide-border/50">
+                       {o.items.map((item: any, idx: number) => (
+-                        <div key={idx} className="flex justify-between items-center p-3 text-xs bg-card hover:bg-muted/30 transition-colors">
++                        <div key={idx} className={`flex justify-between items-center p-3 text-xs bg-card hover:bg-muted/30 transition-colors ${item.status === 'rejected' ? 'opacity-50' : ''}`}>
+                           <div className="flex items-center gap-3">
+                             <div className="h-9 w-9 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
+                               {item.image_url || item.product?.images?.[0]?.url ? (
+@@ -298,13 +315,22 @@
+                               )}
+                             </div>
+                             <div className="flex flex-col">
+-                              <span className="font-bold text-foreground">
++                              <span className={`font-bold text-foreground ${item.status === 'rejected' ? 'line-through' : ''}`}>
+                                 {item.quantity}x <span className="text-muted-foreground font-medium ml-1">{item.product_name || item.name || item.product?.name || "Item"}</span>
+                               </span>
+                               {item.unit && <span className="text-[10px] text-muted-foreground">{item.unit}</span>}
++                              {item.status === 'rejected' && <span className="text-[10px] text-rose-600 font-bold mt-0.5">Rejected (Refunded)</span>}
+                             </div>
+                           </div>
+-                          <div className="font-semibold text-foreground">₹{(item.total_price || item.unit_price * item.quantity || 0).toLocaleString("en-IN")}</div>
++                          <div className="flex flex-col items-end gap-1">
++                            <span className={`font-semibold text-foreground ${item.status === 'rejected' ? 'line-through text-muted-foreground' : ''}`}>₹{(item.total_price || item.unit_price * item.quantity || 0).toLocaleString("en-IN")}</span>
++                            {item.status !== 'rejected' && (o.status?.toUpperCase() === 'PENDING' || o.status?.toUpperCase() === 'CONFIRMED') && (
++                              <button onClick={() => {
++                                if (window.confirm(`Are you sure you want to reject ${item.product_name}? This will refund the item's cost to the customer.`)) {
++                                  rejectItemMutation.mutate({ orderId: o.id, itemId: item.id });
++                                }
++                              }} className="text-[10px] flex items-center gap-1 text-rose-600 hover:text-rose-700 font-bold" disabled={rejectItemMutation.isPending}><XCircle className="h-3 w-3"/> Reject</button>
++                            )}
++                          </div>
+                         </div>
+                       ))}
+                     </div>

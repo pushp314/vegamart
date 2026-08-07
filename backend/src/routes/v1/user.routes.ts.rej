@@ -1,0 +1,16 @@
+@@ -1,7 +1,7 @@
+ import { Router } from "express";
+ 
+ import { ROLES } from "../../constants/roles";
+-import { getMyProfile, updateMyProfile, updatePassword, uploadAvatar } from "../../controllers/user.controller";
++import { getMyProfile, updateMyProfile, updatePassword, uploadAvatar, toggleVendorSubscription } from "../../controllers/user.controller";
+ import { authenticate } from "../../middlewares/auth.middleware";
+ import { requireRole } from "../../middlewares/rbac.middleware";
+ import { upload } from "../../middlewares/upload.middleware";
+@@ -21,5 +21,6 @@
+ 
+ // Users update avatar
+ router.post("/users/me/avatar", authenticate, requireRole(ROLES.CUSTOMER), upload.single("avatar"), uploadAvatar);
++router.post("/users/subscriptions", authenticate, requireRole(ROLES.CUSTOMER), toggleVendorSubscription);
+ 
+ export default router;

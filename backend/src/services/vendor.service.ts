@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { VendorStatus, Prisma } from "@prisma/client";
+import { parse } from 'csv-parse/sync';
 
 import log from "../config/logger";
 import { AUDIT_ACTIONS } from "../constants/auth";
@@ -658,6 +659,18 @@ export const vendorService = {
 
     if (location.is_active) {
       realtime.publishRoamingVendor(vendor.id, location.latitude, location.longitude);
+      // @ts-ignore - Prisma types might be stale in IDE
+      const subscribers = await prisma.userSubscription.findMany({
+        where: { vendor_id: vendor.id },
+      });
+      for (const sub of subscribers) {
+        await notificationService.vendor(
+          sub.user_id,
+          "Your Favorite Vendor is Live! 🔔",
+          `${vendor.business_name || 'A vendor you follow'} just went live at ${location.area}. Check out their fresh produce now!`,
+          { vendor_id: vendor.id, location_id: location.id }
+        );
+      }
     }
 
     await auditService.record(
@@ -888,7 +901,7 @@ export const vendorService = {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const [customerStats, storeViews, productStats] = await Promise.all([
+    const [customerStats, storeViews, productStats, dailyData] = await Promise.all([
       prisma.customerAnalytics.aggregate({
         where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
         _sum: { new_customers: true, repeat_customers: true }
@@ -903,6 +916,10 @@ export const vendorService = {
         _sum: { views: true, sales: true, revenue: true },
         orderBy: { _sum: { sales: 'desc' } },
         take: 10
+      }),
+      prisma.storeAnalytics.findMany({
+        where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
+        orderBy: { date: 'asc' }
       })
     ]);
 
@@ -928,8 +945,42 @@ export const vendorService = {
         total_revenue: Number(storeViews._sum.total_revenue || 0),
         total_orders: storeViews._sum.total_orders || 0,
       },
-      top_selling_products: topSellingProducts
+      top_selling_products: topSellingProducts,
+      dailyData: dailyData.map(d => ({
+        date: d.date.toISOString().split('T')[0],
+        revenue: Number(d.total_revenue),
+        orders: d.total_orders,
+      }))
     };
+  },
+
+  async bulkUploadProducts(userId: string, fileBuffer: Buffer) {
+    const vendor = await this.getMyVendor(userId);
+    
+    // Parse CSV
+    const records: any[] = parse(fileBuffer, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    let inserted = 0;
+    for (const record of records) {
+      if (!record.name || !record.price) continue;
+      await prisma.product.create({
+        data: {
+          vendor_id: vendor.id,
+          category_id: record.category_id || undefined,
+          name: record.name,
+          slug: record.name.toLowerCase().replace(/\s+/g, '-'),
+          price: Number(record.price),
+          mrp: record.mrp ? Number(record.mrp) : Number(record.price),
+          unit: record.unit || "kg",
+        }
+      });
+      inserted++;
+    }
+    return { count: inserted };
   },
 
   async getMyReviews(userId: string) {

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -23,6 +23,30 @@ function VendorOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const playDing = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
+      
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+      
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 0.5);
+    } catch (e) {}
+  };
+
+  const prevOrdersRef = useRef<Set<string>>(new Set());
+
   const { data: vendorRes } = useQuery({
     queryKey: ["vendorProfile"],
     queryFn: () => api.get<{ data: any }>("/vendors/me"),
@@ -35,6 +59,18 @@ function VendorOrdersPage() {
     enabled: !!vendor?.id,
   });
   const vendorOrders = ordersRes?.data || [];
+
+  useEffect(() => {
+    if (vendorOrders.length > 0) {
+      const currentPendingIds = vendorOrders.filter((o: any) => o.status?.toUpperCase() === 'PENDING').map((o: any) => o.id);
+      const hasNewPending = currentPendingIds.some((id: string) => !prevOrdersRef.current.has(id));
+      if (hasNewPending && prevOrdersRef.current.size > 0) {
+        playDing();
+        toast.success("New order arrived!", { icon: "🔔" });
+      }
+      prevOrdersRef.current = new Set(currentPendingIds);
+    }
+  }, [vendorOrders]);
 
   // Filter orders
   const filteredOrders = vendorOrders.filter((o: any) => {
@@ -80,10 +116,32 @@ function VendorOrdersPage() {
       queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
       setOtpTarget(null);
       setOtpInput("");
-      toast.success("Order status updated successfully! 🚀");
+      toast.success("Order status updated successfully");
+      setOtpTarget(null);
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to update order status");
+    },
+  });
+
+  const rejectItemMutation = useMutation({
+    mutationFn: async ({ orderId, itemId }: { orderId: string; itemId: string }) => {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/v1/vendors/orders/${orderId}/items/${itemId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || "Failed to reject item");
+      }
+    },
+    onSuccess: () => {
+      toast.success("Item rejected successfully");
+      queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to reject item");
     },
   });
 
@@ -297,7 +355,7 @@ function VendorOrdersPage() {
                     </div>
                     <div className="divide-y divide-border/50">
                       {o.items.map((item: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center p-3 text-xs bg-card hover:bg-muted/30 transition-colors">
+                        <div key={idx} className={`flex justify-between items-center p-3 text-xs bg-card hover:bg-muted/30 transition-colors ${item.status === 'rejected' ? 'opacity-50' : ''}`}>
                           <div className="flex items-center gap-3">
                             <div className="h-9 w-9 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
                               {item.image_url || item.product?.images?.[0]?.url ? (
@@ -307,13 +365,23 @@ function VendorOrdersPage() {
                               )}
                             </div>
                             <div className="flex flex-col">
-                              <span className="font-bold text-foreground">
+                              <span className={`font-bold text-foreground ${item.status === 'rejected' ? 'line-through' : ''}`}>
                                 {item.quantity}x <span className="text-muted-foreground font-medium ml-1">{item.product_name || item.name || item.product?.name || "Item"}</span>
                               </span>
                               {item.unit && <span className="text-[10px] text-muted-foreground">{item.unit}</span>}
+                              {item.status === 'rejected' && <span className="text-[10px] text-rose-600 font-bold mt-0.5">Rejected (Refunded)</span>}
                             </div>
                           </div>
-                          <div className="font-semibold text-foreground">₹{(item.total_price || item.unit_price * item.quantity || 0).toLocaleString("en-IN")}</div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`font-semibold text-foreground ${item.status === 'rejected' ? 'line-through text-muted-foreground' : ''}`}>₹{(item.total_price || item.unit_price * item.quantity || 0).toLocaleString("en-IN")}</span>
+                            {item.status !== 'rejected' && (o.status?.toUpperCase() === 'PENDING' || o.status?.toUpperCase() === 'CONFIRMED') && (
+                              <button onClick={() => {
+                                if (window.confirm(`Are you sure you want to reject ${item.product_name}? This will refund the item's cost to the customer.`)) {
+                                  rejectItemMutation.mutate({ orderId: o.id, itemId: item.id });
+                                }
+                              }} className="text-[10px] flex items-center gap-1 text-rose-600 hover:text-rose-700 font-bold" disabled={rejectItemMutation.isPending}><X className="h-3 w-3"/> Reject</button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

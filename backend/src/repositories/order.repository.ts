@@ -80,6 +80,7 @@ export interface OrderDetail extends OrderRow {
     unit_price: import("@prisma/client").Prisma.Decimal;
     total_price: import("@prisma/client").Prisma.Decimal;
     image_url: string | null;
+    status: string;
   }>;
   events: Array<{
     id: string;
@@ -133,6 +134,7 @@ const detailSelect = {
       unit_price: true,
       total_price: true,
       image_url: true,
+      status: true,
     },
     orderBy: { created_at: "asc" as const },
   },

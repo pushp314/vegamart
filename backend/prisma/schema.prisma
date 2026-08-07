@@ -215,6 +215,7 @@ model User {
   vendor_follows        VendorFollower[]
   nearby_search_history NearbySearchHistory[]
   vendor_reviews        VendorReview[]
+  userSubscriptions     UserSubscription[]
 
   @@index([email])
   @@index([phone])
@@ -438,6 +439,7 @@ model VendorProfile {
   customer_analytics CustomerAnalytics[]
   daily_orders       DailyOrderCounter[]
   created_coupons    Coupon[]                @relation("VendorCoupons")
+  userSubscriptions  UserSubscription[]
 
   @@index([user_id])
   @@index([slug])
@@ -884,6 +886,7 @@ model OrderItem {
   product_name  String   @db.VarChar(160)
   unit          String   @db.VarChar(50)
   quantity      Int      @default(1)
+  status        String   @default("active") @db.VarChar(50) // active, rejected
   selected_unit String?  @db.VarChar(50)
   unit_price    Decimal  @db.Decimal(10, 2)
   total_price   Decimal  @db.Decimal(10, 2)
@@ -1424,25 +1427,37 @@ model DailyOrderCounter {
 }
 
 model SystemSetting {
-  id                   String   @id @map("id") @db.Uuid
-  maintenanceEnabled   Boolean  @default(false) @map("maintenance_enabled")
-  maintenanceMessage   String?  @map("maintenance_message")
-  updatedBy            String?  @map("updated_by")
-  updatedAt            DateTime @updatedAt @map("updated_at")
-  createdAt            DateTime @default(now()) @map("created_at")
+  id                 String   @id @map("id") @db.Uuid
+  maintenanceEnabled Boolean  @default(false) @map("maintenance_enabled")
+  maintenanceMessage String?  @map("maintenance_message")
+  updatedBy          String?  @map("updated_by")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   @@map("system_settings")
 }
 
 model MaintenanceAuditLog {
-  id          String    @id @default(uuid()) @map("id") @db.Uuid
-  action      String    @map("action")
-  developerId String?   @map("developer_id")
-  ipAddress   String?   @map("ip_address")
-  userAgent   String?   @map("user_agent")
-  message     String?   @map("message")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  action      String   @map("action")
+  developerId String?  @map("developer_id")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  message     String?  @map("message")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([action, createdAt])
   @@map("maintenance_audit_logs")
+}
+
+model UserSubscription {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  vendor_id  String   @db.Uuid
+  created_at DateTime @default(now())
+
+  user   User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  vendor VendorProfile @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, vendor_id])
 }

@@ -1,6 +1,7 @@
 import type { Request } from "express";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
+import { prisma } from "../database/prisma";
 import { auditService } from "./audit.service";
 import { notificationService } from "./notification.service";
 import { vendorService } from "./vendor.service";
@@ -235,5 +236,37 @@ export const orderService = {
     });
 
     return updated;
+  },
+
+  async rejectOrderItem(userId: string, orderId: string, itemId: string, req: Request) {
+    const vendor = await vendorService.getMyVendor(userId);
+    const order = await orderRepo.findById(orderId);
+    if (!order) throw new NotFoundError("Order not found");
+    if (order.vendor_id !== vendor.id) throw new ForbiddenError("Not your order");
+
+    if (!CUSTOMER_CANCELABLE.has(order.status)) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, `Cannot modify order in status ${order.status}`);
+    }
+
+    const item = order.items?.find((i: any) => i.id === itemId);
+    if (!item) throw new NotFoundError("Item not found in order");
+    // @ts-ignore - Prisma types might be stale in IDE
+    if (item.status === "rejected") throw new ApiError(HttpStatus.BAD_REQUEST, "Item is already rejected");
+
+    // Update item status in DB
+    await prisma.orderItem.update({
+      where: { id: itemId },
+      // @ts-ignore - Prisma types might be stale in IDE
+      data: { status: "rejected" }
+    });
+
+    // If order was paid, issue partial refund for the item's total_price
+    if (order.payment_status === "PAID") {
+      // Passing amount for partial refund
+      await paymentService.refund(userId, order.id, { reason: `Item out of stock: ${item.product_name}`, amount: Number(item.total_price) }, req);
+    }
+
+    await notificationService.orderStatus(order.user_id, order.order_number, "Item Rejected", `The vendor rejected an item (${item.product_name}) from your order. A partial refund will be processed if paid online.`, { order_id: order.id });
+    return { success: true, item_id: itemId };
   },
 };

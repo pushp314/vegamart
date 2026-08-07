@@ -1,0 +1,41 @@
+--- src/services/vendor.service.ts
++++ src/services/vendor.service.ts
+@@ -1,4 +1,5 @@
+ import type { Prisma, VendorProfile } from "@prisma/client";
++import { parse } from 'csv-parse/sync';
+ import { v4 as uuidv4 } from "uuid";
+ import type { Request } from "express";
+ 
+@@ -933,4 +934,31 @@
+     };
+   },
+ 
++  async bulkUploadProducts(userId: string, fileBuffer: Buffer) {
++    const vendor = await this.getMyVendor(userId);
++    
++    // Parse CSV
++    const records = parse(fileBuffer, {
++      columns: true,
++      skip_empty_lines: true,
++      trim: true
++    });
++
++    let inserted = 0;
++    for (const record of records) {
++      if (!record.name || !record.price) continue;
++      await prisma.product.create({
++        data: {
++          vendor_id: vendor.id,
++          category_id: record.category_id || undefined,
++          name: record.name,
++          slug: record.name.toLowerCase().replace(/\s+/g, '-'),
++          price: Number(record.price),
++          mrp: record.mrp ? Number(record.mrp) : Number(record.price),
++          unit: record.unit || "kg",
++        }
++      });
++      inserted++;
++    }
++    return { count: inserted };
++  },
+ };

@@ -15,7 +15,7 @@ import {
   BellRing,
   Loader2,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
 import type { Vendor, Product } from "@/types";
@@ -60,17 +60,33 @@ function VendorDetail() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
 
-  const handleNotifyMe = () => {
-    setIsSubscribing(true);
-    setTimeout(() => {
-      setIsSubscribing(false);
-      setIsSubscribed(!isSubscribed);
-      if (!isSubscribed) {
-        toast.success(`You will now receive notifications when ${vendor.business_name} is nearby! 🔔`);
+  const toggleSubscriptionMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Please login to subscribe");
+      const res = await fetch("/api/v1/users/me/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ vendor_id: vendor.id })
+      });
+      if (!res.ok) throw new Error("Failed to subscribe");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setIsSubscribed(data.data?.subscribed);
+      if (data.data?.subscribed) {
+        toast.success(`You will now receive notifications when ${vendor.business_name || 'the vendor'} is nearby! 🔔`);
       } else {
-        toast.info(`Unsubscribed from ${vendor.business_name}'s alerts.`);
+        toast.info(`Unsubscribed from ${vendor.business_name || 'the vendor'}'s alerts.`);
       }
-    }, 800);
+    },
+    onError: (err: any) => {
+      toast.error(err.message);
+    }
+  });
+
+  const handleNotifyMe = () => {
+    toggleSubscriptionMutation.mutate();
   };
 
   const { data: productsRes, isLoading } = useQuery({
@@ -213,15 +229,15 @@ function VendorDetail() {
               )}
               <button
                 onClick={handleNotifyMe}
-                disabled={isSubscribing}
-                className={`flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl border font-bold text-xs h-11 px-5 shadow-sm transition-colors ${
+                disabled={toggleSubscriptionMutation.isPending}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
                   isSubscribed 
-                    ? "bg-amber-100 border-amber-200 text-amber-800 hover:bg-amber-200" 
-                    : "bg-card border-border hover:bg-muted text-foreground"
+                    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
+                    : 'bg-white text-foreground border-border hover:bg-muted'
                 }`}
               >
-                {isSubscribing ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                {toggleSubscriptionMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : isSubscribed ? (
                   <>
                     <BellRing className="h-4 w-4 text-amber-600 animate-pulse" /> Subscribed

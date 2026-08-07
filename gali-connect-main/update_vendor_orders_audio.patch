@@ -1,0 +1,59 @@
+--- src/routes/vendor.orders.tsx
++++ src/routes/vendor.orders.tsx
+@@ -1,4 +1,4 @@
+-import { useState, useMemo } from "react";
++import { useState, useMemo, useEffect, useRef } from "react";
+ import { createFileRoute } from "@tanstack/react-router";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+ import { Link } from "@tanstack/react-router";
+@@ -35,6 +35,27 @@
+     return data;
+   };
+ 
++  const playDing = () => {
++    try {
++      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
++      const oscillator = audioCtx.createOscillator();
++      const gainNode = audioCtx.createGain();
++      
++      oscillator.connect(gainNode);
++      gainNode.connect(audioCtx.destination);
++      
++      oscillator.type = 'sine';
++      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
++      oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
++      
++      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
++      gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05);
++      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
++      
++      oscillator.start(audioCtx.currentTime);
++      oscillator.stop(audioCtx.currentTime + 0.5);
++    } catch (e) {}
++  };
++
+   const { data: orders = [], isLoading, refetch } = useQuery({
+     queryKey: ["vendorOrders"],
+     queryFn: fetchOrders,
+@@ -43,6 +64,19 @@
+   const queryClient = useQueryClient();
+   const [statusFilter, setStatusFilter] = useState("LIVE");
+   const [searchQuery, setSearchQuery] = useState("");
+   const [otpTarget, setOtpTarget] = useState<any>(null);
+   const [otpInput, setOtpInput] = useState("");
++  const prevOrdersRef = useRef<Set<string>>(new Set());
++
++  useEffect(() => {
++    if (orders.length > 0) {
++      const currentPendingIds = orders.filter((o: any) => o.status?.toUpperCase() === 'PENDING').map((o: any) => o.id);
++      const hasNewPending = currentPendingIds.some((id: string) => !prevOrdersRef.current.has(id));
++      
++      if (hasNewPending && prevOrdersRef.current.size > 0) {
++        playDing();
++        toast.success("New order arrived!", { icon: "🔔" });
++      }
++      prevOrdersRef.current = new Set(currentPendingIds);
++    }
++  }, [orders]);
+ 
+   // Derived filtered orders

@@ -1,0 +1,25 @@
+--- src/routes/v1/vendor.routes.ts
++++ src/routes/v1/vendor.routes.ts
+@@ -6,6 +6,7 @@
+   updateVendorProfile,
+   uploadVendorDocuments,
+   upsertDailyLocation,
++  bulkUploadProducts,
+ } from "../../controllers/vendor.controller";
+ import { authenticate } from "../../middlewares/auth.middleware";
+ import { requireRole } from "../../middlewares/rbac.middleware";
+@@ -107,6 +108,12 @@
+   uploadVendorDocuments,
+ );
+ 
++router.post(
++  "/vendors/products/bulk-upload",
++  authenticate,
++  requireRole(ROLES.VENDOR),
++  upload.single("file"),
++  bulkUploadProducts
++);
++
+ // ---------------------------------------------------------------------------
+ // Analytics & Content
+ // ---------------------------------------------------------------------------

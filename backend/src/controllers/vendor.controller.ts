@@ -782,3 +782,9 @@ export const createVendorReview = asyncHandler(async (req: Request, res: Respons
   const review = await vendorService.createReview(req.user!.id, vendor_id, body, req);
   return sendCreated(res, review, "Vendor review submitted successfully.");
 });
+
+export const bulkUploadProducts = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw new Error("No file uploaded");
+  const result = await vendorService.bulkUploadProducts(req.user!.id, req.file.buffer);
+  return sendSuccess(res, result, "Products uploaded successfully");
+});

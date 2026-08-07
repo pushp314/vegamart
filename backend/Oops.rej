@@ -1,0 +1,12 @@
+@@ -922,6 +926,11 @@
+         sales: p._sum.sales || 0,
+         revenue: p._sum.revenue ? Number(p._sum.revenue) : 0
+       })),
++      dailyData: dailyData.map(d => ({
++        date: d.date.toISOString().split('T')[0],
++        revenue: Number(d.total_revenue),
++        orders: d.total_orders,
++      }))
+     };
+   },
+ 

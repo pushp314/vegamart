@@ -1,0 +1,20 @@
+--- src/routes/vendor.orders.tsx
++++ src/routes/vendor.orders.tsx
+@@ -60,6 +60,17 @@
+   });
+   const vendorOrders = ordersRes?.data || [];
+ 
++  useEffect(() => {
++    if (vendorOrders.length > 0) {
++      const currentPendingIds = vendorOrders.filter((o: any) => o.status?.toUpperCase() === 'PENDING').map((o: any) => o.id);
++      const hasNewPending = currentPendingIds.some((id: string) => !prevOrdersRef.current.has(id));
++      if (hasNewPending && prevOrdersRef.current.size > 0) {
++        playDing();
++        toast.success("New order arrived!", { icon: "🔔" });
++      }
++      prevOrdersRef.current = new Set(currentPendingIds);
++    }
++  }, [vendorOrders]);
++
+   // Filter orders
+   const filteredOrders = vendorOrders.filter((o: any) => {
