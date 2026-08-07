@@ -24,7 +24,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "types": ["node", "jest"],
-    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
 
     "paths": {
