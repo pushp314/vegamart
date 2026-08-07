@@ -38,6 +38,10 @@ export function ProductCard({ product }: { product: Product }) {
         params={{ productId: product.id }}
         className="absolute inset-0 z-[1] rounded-2xl"
         aria-label={product.name}
+        onClick={(e) => {
+          console.log('Product clicked:', product.id, product.name);
+          console.log('Navigating to:', `/products/${product.id}`);
+        }}
       />
 
       <div className="relative aspect-square overflow-hidden rounded-xl bg-muted">

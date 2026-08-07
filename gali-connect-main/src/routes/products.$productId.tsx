@@ -28,8 +28,13 @@ import { ReviewModal } from "@/components/marketplace/review-modal";
 
 export const Route = createFileRoute("/products/$productId")({
   loader: async ({ params }) => {
+    console.log('Loading product:', params.productId);
     const res = await api.get<Product>(`/products/${params.productId}`);
-    if (!res.success || !res.data) throw notFound();
+    console.log('Product API response:', res);
+    if (!res.success || !res.data) {
+      console.log('Product not found or API failed');
+      throw notFound();
+    }
     return { product: res.data };
   },
   head: ({ loaderData }) => {

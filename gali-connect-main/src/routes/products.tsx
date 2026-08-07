@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch, Outlet } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Category, Product, ProductImage } from "@/types";
 import { ProductCard } from "@/components/marketplace/product-card";
+import { useRouterState } from "@tanstack/react-router";
 
 type ProductRow = {
   id: string;
@@ -37,6 +38,12 @@ function ProductsPage() {
   const navigate = useNavigate();
   const { category, q } = useSearch({ from: "/products" });
   const [input, setInput] = useState(q || "");
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  
+  // If we're on a child route (e.g., /products/$productId), render the outlet
+  if (pathname.match(/^\/products\/[^/]+$/)) {
+    return <Outlet />;
+  }
 
   const { data: catsRes } = useQuery({
     queryKey: ["categories"],
