@@ -17,13 +17,14 @@ function MaintenancePage() {
     refetchInterval: 15000,
   });
 
-  const maintenanceOn = statusRes?.success === true && statusRes.data?.maintenance === true;
+  const maintenanceKnown = statusRes?.success === true;
+  const maintenanceOn = maintenanceKnown && statusRes.data?.maintenance === true;
 
   useEffect(() => {
-    if (maintenanceOn === false) {
+    if (maintenanceKnown && maintenanceOn === false) {
       window.location.replace("/");
     }
-  }, [maintenanceOn]);
+  }, [maintenanceKnown, maintenanceOn]);
 
   const message =
     maintenanceOn && statusRes?.data?.message
@@ -45,7 +46,7 @@ function MaintenancePage() {
             {message}
           </p>
           <p className="mt-3 text-[11px] text-muted-foreground/80">
-            This page refreshes automatically every few seconds.
+            You'll be redirected back automatically once maintenance is complete.
           </p>
         </div>
 
