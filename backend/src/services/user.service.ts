@@ -1,5 +1,6 @@
 import type { Request } from "express";
 
+import { prisma } from "../database/prisma";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { findByUserId, findActiveById, revoke, revokeAllForUser, updateLastActivity } from "../repositories/session.repository";
