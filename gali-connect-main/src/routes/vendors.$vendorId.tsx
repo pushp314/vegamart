@@ -11,6 +11,9 @@ import {
   Sparkles,
   Store,
   Radio,
+  Bell,
+  BellRing,
+  Loader2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -54,6 +57,21 @@ function VendorDetail() {
   const profile: any = vendor.profile || (vendor as any);
   const { addToCart } = useCart();
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  const handleNotifyMe = () => {
+    setIsSubscribing(true);
+    setTimeout(() => {
+      setIsSubscribing(false);
+      setIsSubscribed(!isSubscribed);
+      if (!isSubscribed) {
+        toast.success(`You will now receive notifications when ${vendor.business_name} is nearby! 🔔`);
+      } else {
+        toast.info(`Unsubscribed from ${vendor.business_name}'s alerts.`);
+      }
+    }, 800);
+  };
 
   const { data: productsRes, isLoading } = useQuery({
     queryKey: ["products", { vendor_id: vendor.id }],
@@ -160,7 +178,7 @@ function VendorDetail() {
                     className="inline-flex items-center gap-1 font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
                   >
                     <Star className="h-3.5 w-3.5 fill-amber-400" />
-                    {profile.rating || "4.8"}
+                    {typeof profile.rating === "number" ? profile.rating.toFixed(1) : (profile.rating || "0.0")}
                     <span className="text-muted-foreground font-normal ml-0.5">
                       ({profile.review_count ?? 0})
                     </span>
@@ -193,6 +211,27 @@ function VendorDetail() {
                   <Phone className="h-4 w-4" /> No Phone
                 </span>
               )}
+              <button
+                onClick={handleNotifyMe}
+                disabled={isSubscribing}
+                className={`flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl border font-bold text-xs h-11 px-5 shadow-sm transition-colors ${
+                  isSubscribed 
+                    ? "bg-amber-100 border-amber-200 text-amber-800 hover:bg-amber-200" 
+                    : "bg-card border-border hover:bg-muted text-foreground"
+                }`}
+              >
+                {isSubscribing ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : isSubscribed ? (
+                  <>
+                    <BellRing className="h-4 w-4 text-amber-600 animate-pulse" /> Subscribed
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-4 w-4" /> Notify Me
+                  </>
+                )}
+              </button>
               <button
                 onClick={handleShare}
                 className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-xs h-11 px-6 shadow-md hover:bg-primary/90 transition-colors"

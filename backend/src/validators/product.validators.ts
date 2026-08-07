@@ -12,7 +12,7 @@ export const createProductSchema = z.object({
   subcategory_id: z.string().uuid("subcategory_id must be a valid UUID.").optional().nullable(),
   description: z.string().max(5000).optional().nullable(),
   price: z.coerce.number().min(0),
-  mrp: z.coerce.number().min(0),
+  mrp: z.coerce.number().min(0).optional().nullable(),
   unit: z.string().trim().min(1).max(50),
   tag: z.string().trim().max(60).optional().nullable(),
   is_active: z.boolean().optional(),

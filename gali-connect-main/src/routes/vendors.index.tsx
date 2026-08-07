@@ -255,9 +255,12 @@ function VendorsPage() {
                           </p>
                         )}
                         <div className="mt-2 flex items-center gap-3 text-[11px]">
-                          <span className="inline-flex items-center gap-1 font-bold">
-                            <Star className="h-3 w-3 fill-primary text-primary" />
-                            {profile?.rating || "0.0"}
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
+                            <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                            {typeof profile?.rating === "number" && profile.rating > 0 ? profile.rating.toFixed(1) : "New"}
+                            {typeof profile?.review_count === "number" && profile.review_count > 0 && (
+                              <span className="font-semibold text-amber-600 ml-0.5">({profile.review_count})</span>
+                            )}
                           </span>
                           {hasDistance && (
                             <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">

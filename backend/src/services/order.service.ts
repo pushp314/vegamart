@@ -4,6 +4,7 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { notificationService } from "./notification.service";
 import { vendorService } from "./vendor.service";
+import { paymentService } from "./payment.service";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
 import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
@@ -87,7 +88,12 @@ export const orderService = {
     });
 
     if (order.payment_status === "PAID") {
-      await inventoryRepo.releaseQuantityForOrder(order.id);
+      try {
+        await paymentService.refund(userId, order.id, { reason: input.reason }, req);
+      } catch (err) {
+        await inventoryRepo.releaseQuantityForOrder(order.id);
+        throw err;
+      }
     }
 
     await notificationService.orderStatus(userId, order.order_number, "Order cancelled", `Your order ${order.order_number} has been cancelled.`, {
@@ -137,6 +143,9 @@ export const orderService = {
         timestamps.delivered_at = new Date();
         await inventoryRepo.consumeQuantityForOrder(order.id);
         break;
+      case "CANCELLED":
+        timestamps.cancelled_at = new Date();
+        break;
       default:
         throw new ApiError(HttpStatus.BAD_REQUEST, `Unsupported status transition: ${input.status}.`, {
           code: "INVALID_STATUS",
@@ -150,6 +159,15 @@ export const orderService = {
       actorId: userId,
       timestamps,
     });
+
+    if (input.status === "CANCELLED" && order.payment_status === "PAID") {
+      try {
+        await paymentService.refund(userId, order.id, { reason: input.note }, req);
+      } catch (err) {
+        await inventoryRepo.releaseQuantityForOrder(order.id);
+        throw err;
+      }
+    }
 
     if (input.status === "DELIVERED") {
       await notificationService.orderStatus(order.user_id, order.order_number, "Order delivered", `Your order ${order.order_number} has been delivered. Enjoy!`, {

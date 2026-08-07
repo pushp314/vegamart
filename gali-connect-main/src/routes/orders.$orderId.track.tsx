@@ -10,8 +10,9 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
-
-import { useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
@@ -23,6 +24,22 @@ export const Route = createFileRoute("/orders/$orderId/track")({
 function OrderIdTrackingPage() {
   const { orderId } = Route.useParams();
   const navigate = useNavigate();
+  
+  const queryClient = useQueryClient();
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+
+  const cancelMutation = useMutation({
+    mutationFn: () => api.post(`/orders/${orderId}/cancel`, { reason: cancelReason }),
+    onSuccess: () => {
+      toast.success("Order cancelled successfully");
+      setCancelModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to cancel order");
+    },
+  });
   const { user, isAuthenticated, isGuest, role, isLoading: authLoading } = useAuth();
 
   const {
@@ -198,6 +215,48 @@ function OrderIdTrackingPage() {
               </div>
             )}
 
+            {/* Live Tracking Map Placeholder */}
+            {isOutForDelivery && (
+              <div className="rounded-3xl border bg-card overflow-hidden shadow-soft">
+                <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-sm font-bold text-emerald-900">Live GPS Tracking Active</span>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-700">~ 5 mins away</span>
+                </div>
+                <div className="relative h-64 bg-muted w-full flex items-center justify-center overflow-hidden">
+                  <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                  
+                  <div className="relative z-10 flex flex-col items-center gap-4">
+                    <div className="flex items-center justify-between w-48 relative">
+                      <div className="flex flex-col items-center z-10">
+                        <div className="h-10 w-10 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/40 animate-bounce">
+                          🛒
+                        </div>
+                      </div>
+                      
+                      <div className="absolute top-5 left-8 right-8 h-1 bg-emerald-500/30 overflow-hidden rounded-full">
+                        <div className="h-full bg-emerald-500 w-1/2 rounded-full animate-pulse" />
+                      </div>
+
+                      <div className="flex flex-col items-center z-10">
+                        <div className="h-10 w-10 bg-card border-2 border-primary rounded-full flex items-center justify-center text-primary shadow-lg">
+                          <MapPin className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-card/90 backdrop-blur-sm border px-4 py-2 rounded-full text-xs font-bold shadow-sm">
+                      Connecting to vendor's live radar...
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Status Timeline */}
             <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
               <h3 className="font-display font-black text-base text-foreground">
@@ -324,7 +383,25 @@ function OrderIdTrackingPage() {
           </>
         )}
 
-        <div className="flex justify-center">
+        {/* Cancel Order Section */}
+        {order && !isDelivered && (statusLabel === "PENDING" || statusLabel === "CONFIRMED") && (
+          <div className="rounded-3xl border bg-card p-6 shadow-soft text-center space-y-3 max-w-6xl mx-auto mt-6">
+            <h3 className="font-display font-black text-sm text-foreground">
+              Need to cancel your order?
+            </h3>
+            <p className="text-xs text-muted-foreground mx-auto max-w-sm">
+              Orders can only be cancelled before they are prepared. If you've already paid online, a refund will be initiated automatically.
+            </p>
+            <button
+              onClick={() => setCancelModalOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 font-bold text-xs px-5 py-2 hover:bg-rose-100 transition-colors dark:bg-rose-950/20 dark:border-rose-900"
+            >
+              <PackageX className="h-4 w-4" /> Cancel Order
+            </button>
+          </div>
+        )}
+
+        <div className="flex justify-center mt-6">
           <Link
             to="/orders"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
@@ -333,6 +410,57 @@ function OrderIdTrackingPage() {
           </Link>
         </div>
       </main>
+
+      {/* Cancel Confirmation Modal */}
+      {order && (
+        <Dialog open={cancelModalOpen} onOpenChange={setCancelModalOpen}>
+          <DialogContent className="rounded-3xl max-w-md border-border">
+            <DialogHeader>
+              <DialogTitle className="font-display flex items-center gap-2 text-rose-600">
+                <PackageX className="h-5 w-5" /> Cancel Order
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Are you sure you want to cancel this order? This action cannot be undone.
+                {String(order?.payment_status).toUpperCase() === "PAID" && (
+                  <span className="block mt-3 font-bold text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-left">
+                    ✓ Your payment of ₹{order?.total} will be automatically refunded to your original payment method.
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 pt-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Reason (Optional)
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Why are you cancelling?"
+                rows={3}
+                className="w-full rounded-2xl border border-border bg-card p-3 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
+              <button
+                onClick={() => setCancelModalOpen(false)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted"
+              >
+                Keep Order
+              </button>
+              <button
+                onClick={() => cancelMutation.mutate()}
+                disabled={cancelMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2 text-xs font-bold text-white hover:bg-rose-600 shadow-sm disabled:opacity-50"
+              >
+                {cancelMutation.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                Confirm Cancellation
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

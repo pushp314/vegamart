@@ -12,6 +12,8 @@ import {
   Loader2,
   Search,
   Check,
+  CheckSquare,
+  Square,
   X,
   Sparkles,
   Image as ImageIcon,
@@ -38,9 +40,9 @@ type Product = {
   mrp?: number;
   unit: string;
   stock?: number;
-  total_stock?: number;
   description?: string;
   is_active: boolean;
+  is_vegetarian?: boolean | null;
   category_id?: string;
   category?: Category;
   images?: { id: string; url: string }[];
@@ -48,16 +50,22 @@ type Product = {
 
 function VendorProductsPage() {
   const queryClient = useQueryClient();
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [isBulkActing, setIsBulkActing] = useState(false);
   const [isUploadingBulk, setIsUploadingBulk] = useState(false);
+
+  const imageUploadRef = useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Modal States
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [galleryModalOpen, setGalleryModalOpen] = useState(false);
 
   // Form Fields
   const [prodName, setProdName] = useState("");
@@ -65,8 +73,8 @@ function VendorProductsPage() {
   const [prodMrp, setProdMrp] = useState("");
   const [prodUnit, setProdUnit] = useState("1 kg");
   const [prodStock, setProdStock] = useState("");
-  const [prodTotalStock, setProdTotalStock] = useState("");
   const [prodCategoryId, setProdCategoryId] = useState("");
+  const [prodIsVegetarian, setProdIsVegetarian] = useState<boolean | null>(null);
   const [prodDescription, setProdDescription] = useState("");
   const [prodImageUrl, setProdImageUrl] = useState("");
 
@@ -89,6 +97,13 @@ function VendorProductsPage() {
   });
   const categoriesList: Category[] = categoriesRes?.data || [];
 
+  const { data: galleryRes, isLoading: galleryLoading } = useQuery({
+    queryKey: ["productGallery"],
+    queryFn: () => api.get<string[]>("/products/gallery"),
+    enabled: galleryModalOpen,
+  });
+  const galleryImages: string[] = galleryRes?.data || [];
+
   // Filtered list
   const filteredProducts = productList.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -96,6 +111,44 @@ function VendorProductsPage() {
       selectedCategory === "ALL" || p.category_id === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  // Bulk Selection Helpers
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedProductIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedProductIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedProductIds.size === filteredProducts.length && filteredProducts.length > 0) {
+      setSelectedProductIds(new Set());
+    } else {
+      setSelectedProductIds(new Set(filteredProducts.map(p => p.id)));
+    }
+  };
+
+  const handleBulkAction = async (action: 'delete' | 'active' | 'inactive') => {
+    if (selectedProductIds.size === 0) return;
+    setIsBulkActing(true);
+    try {
+      const promises = Array.from(selectedProductIds).map(async (id) => {
+        if (action === 'delete') {
+          return api.delete(`/products/${id}`);
+        } else {
+          return api.patch(`/products/${id}`, { is_active: action === 'active' });
+        }
+      });
+      await Promise.allSettled(promises);
+      toast.success(`Successfully updated ${selectedProductIds.size} products!`);
+      setSelectedProductIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
+    } catch (e) {
+      toast.error("Bulk action encountered some errors.");
+    } finally {
+      setIsBulkActing(false);
+    }
+  };
 
   // Open Modal helpers
   const handleOpenAdd = () => {
@@ -105,8 +158,8 @@ function VendorProductsPage() {
     setProdMrp("");
     setProdUnit("1 kg");
     setProdStock("10");
-    setProdTotalStock("10");
     setProdCategoryId(categoriesList[0]?.id || "");
+    setProdIsVegetarian(null);
     setProdDescription("");
     setProdImageUrl("");
     setProductModalOpen(true);
@@ -119,22 +172,12 @@ function VendorProductsPage() {
     setProdMrp(p.mrp ? String(p.mrp) : "");
     setProdUnit(p.unit || "1 kg");
     setProdStock(String(p.stock ?? 0));
-    setProdTotalStock(String(p.total_stock ?? p.stock ?? 0));
     setProdCategoryId(p.category_id || "");
+    setProdIsVegetarian(p.is_vegetarian ?? null);
     setProdDescription(p.description || "");
     setProdImageUrl(p.images?.[0]?.url || "");
     setProductModalOpen(true);
   };
-
-  // Toggle Stock Mutation
-  const toggleStockMutation = useMutation({
-    mutationFn: (p: Product) =>
-      api.patch(`/products/${p.id}`, { is_active: !p.is_active }),
-    onSuccess: (_, p) => {
-      toast.success(p.is_active ? "Product marked out of stock" : "Product marked in stock");
-      queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
-    },
-  });
 
   // Delete Mutation
   const deleteMutation = useMutation({
@@ -152,23 +195,53 @@ function VendorProductsPage() {
   // Save Product Mutation
   const saveProductMutation = useMutation({
     mutationFn: async () => {
+      if (prodMrp && Number(prodMrp) < Number(prodPrice)) {
+        throw new Error("Original MRP cannot be less than the Selling Price");
+      }
+
       const payload: any = {
         name: prodName,
         price: Number(prodPrice),
         mrp: prodMrp ? Number(prodMrp) : undefined,
         unit: prodUnit,
         stock: Number(prodStock),
-        total_stock: prodTotalStock ? Number(prodTotalStock) : Number(prodStock),
         category_id: prodCategoryId || undefined,
+        is_vegetarian: prodIsVegetarian,
         description: prodDescription || undefined,
-        images: prodImageUrl ? [{ url: prodImageUrl }] : [],
       };
 
+      let res: any;
       if (editingProduct) {
-        return api.patch(`/products/${editingProduct.id}`, payload);
+        res = await api.patch(`/products/${editingProduct.id}`, payload);
       } else {
-        return api.post("/products", payload);
+        res = await api.post("/products", payload);
       }
+
+      if (!res.success) {
+        throw new Error(res.error?.message || "Failed to save product details");
+      }
+
+      const productId = editingProduct?.id || res?.data?.id;
+
+      if (productId) {
+        // Sync Inventory
+        try {
+          await api.put(`/inventory/${productId}`, { quantity: Number(prodStock) });
+        } catch (e) {
+          console.warn("Inventory sync failed:", e);
+        }
+
+        // Add Image
+        if (prodImageUrl) {
+          try {
+            await api.post(`/products/${productId}/images`, { images: [{ url: prodImageUrl, is_primary: true }] });
+          } catch (e) {
+            console.warn("Image linking failed:", e);
+          }
+        }
+      }
+
+      return res;
     },
     onSuccess: () => {
       toast.success(editingProduct ? "Product updated!" : "Product created!");
@@ -204,6 +277,40 @@ function VendorProductsPage() {
     } finally {
       setIsUploadingBulk(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "products");
+
+    try {
+      const res: any = await api.post("/uploads", formData);
+      
+      if (!res.success) {
+        if (res.error?.message?.includes("8192px") || res.error?.code === "IMAGE_TOO_LARGE" || res.error?.code === "FILE_TOO_LARGE") {
+          throw new Error("Image file exceeds the 10 MB limit. Please upload a smaller image.");
+        }
+        throw new Error(res.error?.message || "Failed to upload image");
+      }
+
+      const uploadedUrl = res?.data?.data?.url || res?.data?.url || res?.url || res?.data?.fileUrl;
+      if (uploadedUrl) {
+        setProdImageUrl(uploadedUrl);
+        toast.success("Image uploaded successfully!");
+      } else {
+        toast.error("Failed to parse image URL from response.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload image");
+    } finally {
+      setIsUploadingImage(false);
+      if (imageUploadRef.current) imageUploadRef.current.value = "";
     }
   };
 
@@ -258,6 +365,21 @@ function VendorProductsPage() {
 
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           <button
+            onClick={toggleSelectAll}
+            className={`px-3 py-2 text-xs rounded-xl font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              selectedProductIds.size === filteredProducts.length && filteredProducts.length > 0
+                ? "bg-emerald-500 text-black shadow-sm"
+                : "bg-muted border border-border text-foreground hover:bg-accent"
+            }`}
+          >
+            {selectedProductIds.size === filteredProducts.length && filteredProducts.length > 0 ? (
+              <CheckSquare className="h-3.5 w-3.5" />
+            ) : (
+              <Square className="h-3.5 w-3.5" />
+            )}
+            {selectedProductIds.size > 0 ? `Selected (${selectedProductIds.size})` : "Select All"}
+          </button>
+          <button
             onClick={() => setSelectedCategory("ALL")}
             className={`px-4 py-2 text-xs rounded-xl font-bold whitespace-nowrap transition-all ${
               selectedCategory === "ALL"
@@ -308,8 +430,19 @@ function VendorProductsPage() {
                 key={p.id}
                 className={`group relative flex flex-col rounded-3xl border border-border bg-card p-4 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${
                   !p.is_active ? "opacity-75 bg-muted/20" : ""
-                }`}
+                } ${selectedProductIds.has(p.id) ? "ring-2 ring-emerald-500 bg-emerald-500/5" : ""}`}
               >
+                <div 
+                  className="absolute top-3 left-3 z-20 cursor-pointer p-1 hover:scale-110 transition-transform"
+                  onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}
+                >
+                  {selectedProductIds.has(p.id) ? (
+                    <CheckSquare className="h-6 w-6 text-emerald-500 bg-white rounded-md shadow-sm" />
+                  ) : (
+                    <Square className="h-6 w-6 text-muted-foreground bg-white/50 backdrop-blur-sm rounded-md shadow-sm" />
+                  )}
+                </div>
+
                 {!p.is_active && (
                   <span className="absolute top-3 right-3 z-10 rounded-full bg-rose-500/90 text-white text-[10px] font-bold px-2.5 py-0.5 shadow-sm backdrop-blur-sm">
                     Out of Stock
@@ -317,7 +450,7 @@ function VendorProductsPage() {
                 )}
 
                 {hasMrp && (
-                  <span className="absolute top-3 left-3 z-10 rounded-full bg-emerald-500 text-black text-[10px] font-black uppercase px-2.5 py-0.5 shadow-sm">
+                  <span className="absolute top-12 left-3 z-10 rounded-full bg-emerald-500 text-black text-[10px] font-black uppercase px-2.5 py-0.5 shadow-sm">
                     {discountPct}% OFF
                   </span>
                 )}
@@ -354,9 +487,7 @@ function VendorProductsPage() {
                   <div className="text-[11px] text-muted-foreground pt-1 flex items-center gap-2 font-medium">
                     <span className={`h-2 w-2 rounded-full ${(p.stock ?? 0) > 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
                     <span>{p.stock ?? 0} remaining</span>
-                    {typeof p.total_stock === "number" && (
-                      <span className="text-muted-foreground/60">• Total: {p.total_stock}</span>
-                    )}
+
                   </div>
                 </div>
 
@@ -377,6 +508,41 @@ function VendorProductsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Bulk Action Sticky Footer */}
+      {selectedProductIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <div className="bg-slate-900 text-white rounded-full shadow-2xl px-6 py-3 flex items-center gap-4 border border-slate-700/50">
+            <span className="text-xs font-bold whitespace-nowrap">
+              {selectedProductIds.size} selected
+            </span>
+            <div className="h-4 w-px bg-slate-700"></div>
+            <button
+              onClick={() => handleBulkAction('active')}
+              disabled={isBulkActing}
+              className="text-xs font-bold hover:text-emerald-400 transition-colors whitespace-nowrap flex items-center gap-1.5"
+            >
+              <Check className="h-3.5 w-3.5" /> In Stock
+            </button>
+            <button
+              onClick={() => handleBulkAction('inactive')}
+              disabled={isBulkActing}
+              className="text-xs font-bold hover:text-amber-400 transition-colors whitespace-nowrap flex items-center gap-1.5"
+            >
+              <X className="h-3.5 w-3.5" /> Out of Stock
+            </button>
+            <div className="h-4 w-px bg-slate-700"></div>
+            <button
+              onClick={() => handleBulkAction('delete')}
+              disabled={isBulkActing}
+              className="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors whitespace-nowrap flex items-center gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </button>
+            {isBulkActing && <Loader2 className="h-4 w-4 animate-spin ml-2 text-muted-foreground" />}
+          </div>
         </div>
       )}
 
@@ -444,7 +610,7 @@ function VendorProductsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                   Unit *
@@ -472,28 +638,16 @@ function VendorProductsPage() {
                   className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Total Stock
-                </label>
-                <input
-                  type="number"
-                  value={prodTotalStock}
-                  onChange={(e) => setProdTotalStock(e.target.value)}
-                  placeholder="20"
-                  className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                />
-              </div>
             </div>
 
             <div className="space-y-1">
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Category
+                Category *
               </label>
               <select
                 value={prodCategoryId}
                 onChange={(e) => setProdCategoryId(e.target.value)}
+                required
                 className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
                 <option value="">Select Category</option>
@@ -507,15 +661,68 @@ function VendorProductsPage() {
 
             <div className="space-y-1">
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Image URL
+                Dietary Preference
               </label>
-              <input
-                type="text"
-                value={prodImageUrl}
-                onChange={(e) => setProdImageUrl(e.target.value)}
-                placeholder="https://..."
+              <select
+                value={prodIsVegetarian === null ? "" : prodIsVegetarian ? "true" : "false"}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setProdIsVegetarian(val === "" ? null : val === "true");
+                }}
                 className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
+              >
+                <option value="">Not Applicable / Unknown</option>
+                <option value="true">Vegetarian (Veg)</option>
+                <option value="false">Non-Vegetarian</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Image URL
+                </label>
+                <span className="text-[10px] text-muted-foreground font-medium">Max size: 10 MB</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={prodImageUrl}
+                  onChange={(e) => setProdImageUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="flex-1 rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <input
+                  type="file"
+                  ref={imageUploadRef}
+                  onChange={handleImageUpload}
+                  accept="image/jpeg, image/png, image/webp, image/avif, image/gif"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => imageUploadRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="rounded-2xl border border-border bg-card px-4 py-2.5 text-xs font-bold hover:bg-muted whitespace-nowrap inline-flex items-center justify-center gap-1.5"
+                >
+                  {isUploadingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGalleryModalOpen(true)}
+                  className="rounded-2xl border border-border bg-card px-4 py-2.5 text-xs font-bold hover:bg-muted whitespace-nowrap inline-flex items-center justify-center gap-1.5"
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Gallery
+                </button>
+              </div>
+              {prodImageUrl && (
+                <div className="mt-3 relative h-32 w-32 rounded-xl overflow-hidden border border-border bg-muted/30">
+                  <img src={prodImageUrl} alt="Preview" className="h-full w-full object-cover" />
+                  <div className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase backdrop-blur-sm tracking-wider">Preview</div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -555,7 +762,7 @@ function VendorProductsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Modal */}
+      {/* Delete Confirmation Modal */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent className="rounded-3xl border-border max-w-sm">
           <DialogHeader>
@@ -585,6 +792,50 @@ function VendorProductsPage() {
                 "Delete"
               )}
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Gallery Modal */}
+      <Dialog open={galleryModalOpen} onOpenChange={setGalleryModalOpen}>
+        <DialogContent className="rounded-3xl border-border max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-emerald-600" /> Image Gallery
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select a previously uploaded image for your product.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {galleryLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
+              </div>
+            ) : galleryImages.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-xs">
+                No images found in your gallery.
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[60vh] overflow-y-auto pr-2">
+                {galleryImages.map((url, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setProdImageUrl(url);
+                      setGalleryModalOpen(false);
+                    }}
+                    className="relative aspect-square rounded-xl overflow-hidden border border-border hover:border-emerald-500 group focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <img src={url} alt={`Gallery image ${i}`} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Check className="h-6 w-6 text-white" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

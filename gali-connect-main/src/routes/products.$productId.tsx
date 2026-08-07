@@ -261,11 +261,14 @@ function ProductDetail() {
           {/* Info card */}
           <section className="rounded-2xl bg-card border p-5 shadow-sm">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary text-[10.5px] font-bold px-2 py-0.5">
-                <Star className="h-3 w-3 fill-current" /> {product.rating || "0.0"}
-                <span className="text-muted-foreground font-normal ml-1">
-                  ({reviewCount.toLocaleString("en-IN")})
-                </span>
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-2 py-0.5 text-[10.5px] font-black text-amber-700">
+                <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                {typeof product.rating === "number" && product.rating > 0 ? product.rating.toFixed(1) : "New"}
+                {reviewCount > 0 && (
+                  <span className="font-semibold text-amber-600 ml-1">
+                    ({reviewCount.toLocaleString("en-IN")})
+                  </span>
+                )}
               </span>
               <button
                 onClick={() => setReviewOpen(true)}

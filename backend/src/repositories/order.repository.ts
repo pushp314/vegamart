@@ -156,11 +156,18 @@ const detailSelect = {
   },
   coupon: { select: { id: true, code: true, type: true } },
   vendor: { select: { id: true, business_name: true } },
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+    },
+  },
   address: {
     select: {
       id: true,
-      label: true,
-      full_address: true,
+      street: true,
       city: true,
       state: true,
       pincode: true,

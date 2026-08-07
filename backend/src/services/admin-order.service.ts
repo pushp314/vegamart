@@ -80,6 +80,9 @@ export const adminOrderService = {
             },
           },
           _count: { select: { items: true } },
+          items: {
+            select: { product_name: true, quantity: true },
+          },
         },
       }),
       prisma.order.count({ where }),
@@ -108,6 +111,7 @@ export const adminOrderService = {
           ? { id: o.delivery_partner.id, name: o.delivery_partner.user?.name ?? "Partner" }
           : null,
         item_count: o._count.items,
+        items: o.items.map((i) => ({ product_name: i.product_name, quantity: i.quantity })),
       })),
       total,
       page,

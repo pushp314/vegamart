@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Eye, Loader2 } from "lucide-react";
+import { Search, Eye, Loader2, ShoppingBag, MapPin, User, Store } from "lucide-react";
 import { format } from "date-fns";
 
 interface Order {
@@ -34,6 +35,8 @@ interface Order {
   customer: { id: string; name: string; email: string } | null;
   vendor: { id: string; business_name: string } | null;
   item_count: number;
+  items?: { product_name: string; quantity: number; unit_price?: number; total_price?: number; image_url?: string }[];
+  address?: any;
 }
 
 const statusColors: Record<string, string> = {
@@ -52,6 +55,7 @@ export function AdminOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const vendorIdFromUrl = new URLSearchParams(window.location.search).get("vendor_id");
   const [vendorId] = useState(vendorIdFromUrl || "");
@@ -143,11 +147,20 @@ export function AdminOrders() {
                   </TableRow>
                 ) : (
                   orders.map((order) => (
-                    <TableRow key={order.id}>
+                    <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setSelectedOrder(order)}>
                       <TableCell className="font-mono text-sm">{order.order_number}</TableCell>
                       <TableCell>{order.customer?.name ?? "N/A"}</TableCell>
                       <TableCell>{order.vendor?.business_name ?? "N/A"}</TableCell>
-                      <TableCell>{order.item_count}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{order.item_count} Items</span>
+                          {order.items && order.items.length > 0 && (
+                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                              {order.items.map((i) => `${i.quantity}x ${i.product_name}`).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-semibold">₹{order.total.toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge className={statusColors[order.status] ?? "bg-gray-100"}>
@@ -196,6 +209,89 @@ export function AdminOrders() {
           </div>
         </div>
       )}
+
+      {/* Order Details Modal */}
+      <Dialog open={!!selectedOrder} onOpenChange={(o) => !o && setSelectedOrder(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex justify-between items-center pr-6">
+              <span>Order Details</span>
+              <Badge className={statusColors[selectedOrder?.status || ""] || "bg-gray-100"}>
+                {selectedOrder?.status}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              ID: {selectedOrder?.id} | No: {selectedOrder?.order_number}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-6 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                    <User className="h-4 w-4" /> Customer
+                  </div>
+                  <div className="rounded-xl border border-border bg-muted/20 p-4">
+                    <p className="font-semibold">{selectedOrder.customer?.name || "N/A"}</p>
+                    <p className="text-sm text-muted-foreground">{selectedOrder.customer?.email}</p>
+                    {selectedOrder.address && (
+                      <div className="mt-2 text-sm flex gap-2 text-muted-foreground items-start">
+                        <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>
+                          {selectedOrder.address.street}, {selectedOrder.address.city}, {selectedOrder.address.state} {selectedOrder.address.pincode}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                    <Store className="h-4 w-4" /> Vendor
+                  </div>
+                  <div className="rounded-xl border border-border bg-muted/20 p-4">
+                    <p className="font-semibold">{selectedOrder.vendor?.business_name || "N/A"}</p>
+                    <p className="text-sm text-muted-foreground">{selectedOrder.vendor?.id}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                  <ShoppingBag className="h-4 w-4" /> Items ({selectedOrder.item_count})
+                </div>
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <div className="divide-y divide-border/50 bg-card">
+                    {(selectedOrder.items || []).map((item: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center p-4 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className="h-10 w-10 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
+                            {item.image_url ? (
+                              <img src={item.image_url} alt="Item" className="h-full w-full object-cover" />
+                            ) : (
+                              <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-semibold">{item.quantity}x {item.product_name}</p>
+                            <p className="text-xs text-muted-foreground">₹{item.unit_price} each</p>
+                          </div>
+                        </div>
+                        <p className="font-bold">₹{item.total_price}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-muted/30 p-4 border-t border-border flex justify-between items-center font-bold text-lg">
+                    <span>Total</span>
+                    <span className="text-emerald-600">₹{selectedOrder.total}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

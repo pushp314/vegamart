@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Image, Megaphone, Trash2, CheckCircle2 } from "lucide-react";
+import { Plus, Image, Megaphone, Trash2, CheckCircle2, UploadCloud, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,6 +12,10 @@ export function AdminCMS() {
   const [activeSubTab, setActiveSubTab] = useState<"banners" | "announcements">("banners");
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+
+  const imageUploadRef = useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [cmsImageUrl, setCmsImageUrl] = useState("");
 
   // Queries
   const { data: slidesRes, isLoading: slidesLoading } = useQuery({
@@ -46,6 +50,40 @@ export function AdminCMS() {
     },
     onError: (err: any) => toast.error(err?.message || "Failed to delete banner"),
   });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "cms");
+
+    try {
+      const res: any = await api.post("/uploads", formData);
+      
+      if (!res.success) {
+        if (res.error?.message?.includes("8192px") || res.error?.code === "IMAGE_TOO_LARGE" || res.error?.code === "FILE_TOO_LARGE") {
+          throw new Error("Image file exceeds the 10 MB limit. Please upload a smaller image.");
+        }
+        throw new Error(res.error?.message || "Failed to upload image");
+      }
+
+      const uploadedUrl = res?.data?.data?.url || res?.data?.url || res?.url || res?.data?.fileUrl;
+      if (uploadedUrl) {
+        setCmsImageUrl(uploadedUrl);
+        toast.success("Image uploaded successfully!");
+      } else {
+        toast.error("Failed to parse image URL from response.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload image");
+    } finally {
+      setIsUploadingImage(false);
+      if (imageUploadRef.current) imageUploadRef.current.value = "";
+    }
+  };
 
   const createAnnouncementMutation = useMutation({
     mutationFn: (data: any) => api.post("/admin/announcements", data),
@@ -216,7 +254,10 @@ export function AdminCMS() {
       )}
 
       {/* Banner Create Modal */}
-      <Dialog open={isBannerModalOpen} onOpenChange={setIsBannerModalOpen}>
+      <Dialog open={isBannerModalOpen} onOpenChange={(open) => {
+        setIsBannerModalOpen(open);
+        if (!open) setCmsImageUrl("");
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Hero Banner</DialogTitle>
@@ -247,10 +288,46 @@ export function AdminCMS() {
               <Input name="subtitle" />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">
-                Image URL (Optional)
-              </label>
-              <Input name="image_url" type="url" />
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Image URL (Optional)
+                </label>
+                <span className="text-[10px] text-muted-foreground font-medium">Max size: 10 MB</span>
+              </div>
+              <div className="flex gap-2">
+                <Input 
+                  name="image_url" 
+                  type="url" 
+                  value={cmsImageUrl} 
+                  onChange={(e) => setCmsImageUrl(e.target.value)} 
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={imageUploadRef}
+                  onChange={handleImageUpload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => imageUploadRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="shrink-0"
+                >
+                  {isUploadingImage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UploadCloud className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {cmsImageUrl && (
+                <div className="mt-3 relative h-24 w-full rounded-xl overflow-hidden border border-border bg-muted/30">
+                  <img src={cmsImageUrl} alt="Preview" className="h-full w-full object-cover" />
+                  <div className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase backdrop-blur-sm tracking-wider">Preview</div>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Trash2, Edit2, Layers } from "lucide-react";
+import { Loader2, Plus, Trash2, Edit2, Layers, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -11,6 +11,18 @@ export function AdminCategories() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
+
+  const imageUploadRef = useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [categoryImageUrl, setCategoryImageUrl] = useState("");
+
+  useEffect(() => {
+    if (editingCategory) {
+      setCategoryImageUrl(editingCategory.image_url || "");
+    } else {
+      setCategoryImageUrl("");
+    }
+  }, [editingCategory]);
 
   const { data: categoriesRes, isLoading } = useQuery({
     queryKey: ["adminCategories"],
@@ -52,6 +64,40 @@ export function AdminCategories() {
   const openEditModal = (cat: any) => {
     setEditingCategory(cat);
     setIsModalOpen(true);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "categories");
+
+    try {
+      const res: any = await api.post("/uploads", formData);
+      
+      if (!res.success) {
+        if (res.error?.message?.includes("8192px") || res.error?.code === "IMAGE_TOO_LARGE" || res.error?.code === "FILE_TOO_LARGE") {
+          throw new Error("Image file exceeds the 10 MB limit. Please upload a smaller image.");
+        }
+        throw new Error(res.error?.message || "Failed to upload image");
+      }
+
+      const uploadedUrl = res?.data?.data?.url || res?.data?.url || res?.url || res?.data?.fileUrl;
+      if (uploadedUrl) {
+        setCategoryImageUrl(uploadedUrl);
+        toast.success("Image uploaded successfully!");
+      } else {
+        toast.error("Failed to parse image URL from response.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload image");
+    } finally {
+      setIsUploadingImage(false);
+      if (imageUploadRef.current) imageUploadRef.current.value = "";
+    }
   };
 
   return (
@@ -144,7 +190,13 @@ export function AdminCategories() {
         </div>
       )}
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <Dialog open={isModalOpen} onOpenChange={(open) => {
+        setIsModalOpen(open);
+        if (!open) {
+          setEditingCategory(null);
+          setCategoryImageUrl("");
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingCategory ? "Edit Category" : "Create Category"}</DialogTitle>
@@ -180,9 +232,39 @@ export function AdminCategories() {
               </label>
               <Input name="description" defaultValue={editingCategory?.description} />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Image URL</label>
-              <Input name="image_url" type="url" defaultValue={editingCategory?.image_url} />
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Image URL</label>
+                <span className="text-[10px] text-muted-foreground font-medium">Max size: 10 MB</span>
+              </div>
+              <div className="flex gap-2">
+                <Input 
+                  name="image_url" 
+                  type="url" 
+                  value={categoryImageUrl} 
+                  onChange={(e) => setCategoryImageUrl(e.target.value)} 
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={imageUploadRef}
+                  onChange={handleImageUpload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => imageUploadRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="shrink-0"
+                >
+                  {isUploadingImage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UploadCloud className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-2 mt-4">
               <input

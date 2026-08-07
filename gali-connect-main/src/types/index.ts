@@ -78,6 +78,7 @@ export type Product = {
   variants?: { unit: string; price: number; mrp: number }[];
   is_active: boolean;
   is_featured: boolean;
+  is_vegetarian?: boolean | null;
   is_available?: boolean;
   rating: number;
   review_count: number;

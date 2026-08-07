@@ -247,11 +247,6 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                 {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
             </div>
-            {debounced && !hasResults && (
-              <div className="absolute -bottom-5 left-0 right-0 flex justify-center">
-                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-              </div>
-            )}
           </div>
         </div>
       </header>
@@ -325,26 +320,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
               </section>
             )}
 
-            <section>
-              <div className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold">
-                <TrendingUp className="h-4 w-4 text-primary" /> Trending near you
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {TRENDING.map((t, i) => (
-                  <button
-                    key={t}
-                    onClick={() => submit(t)}
-                    className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-sm hover:border-primary/50 hover:bg-emerald-50 transition-colors animate-fade-in"
-                    style={{ animationDelay: `${i * 40}ms` }}
-                  >
-                    <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-100 text-primary text-[10px] font-bold tabular-nums">
-                      {i + 1}
-                    </span>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </section>
+
 
             <section>
               <div className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold">
@@ -354,7 +330,12 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                 {categories.slice(0, 8).map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => submit(c.name)}
+                    onClick={() => {
+                      push(c.name);
+                      onClose();
+                      setQ("");
+                      navigate({ to: "/products", search: { category: c.name } });
+                    }}
                     className="rounded-2xl bg-card border p-3 text-left hover:border-primary/50 hover:bg-emerald-50 transition-colors"
                   >
                     <div className="mb-2 grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-primary">
@@ -386,7 +367,12 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   {categorySug.map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => submit(c.name)}
+                      onClick={() => {
+                        push(c.name);
+                        onClose();
+                        setQ("");
+                        navigate({ to: "/products", search: { category: c.name } });
+                      }}
                       className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-sm hover:border-primary/50 hover:bg-emerald-50 transition-colors"
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -407,15 +393,15 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                       "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
                     return (
                       <li key={p.id}>
-                        <Link
-                          to="/products/$productId"
-                          params={{ productId: p.id }}
+                        <button
                           onClick={() => {
                             push(p.name);
-                            onClose();
                             setQ("");
+                            navigate({ to: "/products/$productId", params: { productId: p.id } }).then(() => {
+                              onClose();
+                            });
                           }}
-                          className="group flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                          className="w-full group flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
                         >
                           <img
                             src={imgUrl}
@@ -431,7 +417,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                             </div>
                           </div>
                           <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition" />
-                        </Link>
+                        </button>
                       </li>
                     );
                   })}
@@ -498,16 +484,16 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                         p.images?.[0]?.url ||
                         "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
                       return (
-                        <Link
+                        <button
                           key={p.id}
-                          to="/products/$productId"
-                          params={{ productId: p.id }}
                           onClick={() => {
                             push(p.name);
-                            onClose();
                             setQ("");
+                            navigate({ to: "/products/$productId", params: { productId: p.id } }).then(() => {
+                              onClose();
+                            });
                           }}
-                          className="group flex flex-col justify-between rounded-2xl bg-card border p-3 hover:border-emerald-500/50 hover:shadow-soft transition-all"
+                          className="w-full text-left group flex flex-col justify-between rounded-2xl bg-card border p-3 hover:border-emerald-500/50 hover:shadow-soft transition-all"
                         >
                           <div className="aspect-square w-full rounded-xl overflow-hidden bg-muted mb-2">
                             <img
@@ -524,7 +510,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                               ₹{p.price}
                             </div>
                           </div>
-                        </Link>
+                        </button>
                       );
                     })}
                   </div>

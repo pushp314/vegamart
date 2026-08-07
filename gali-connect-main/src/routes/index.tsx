@@ -467,6 +467,16 @@ function FeaturedProducts() {
 }
 
 function Categories() {
+  const { data: res } = useQuery({
+    queryKey: ["publicCategories"],
+    queryFn: () => api.get<any[]>("/categories"),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const dbCats = res?.data || [];
+  // Ensure we only show active categories
+  const activeCats = dbCats.filter((c: any) => c.is_active !== false);
+
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">
       <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
@@ -474,16 +484,30 @@ function Categories() {
       </h2>
       <p className="text-[13px] md:text-sm text-muted-foreground">Everything your gali offers</p>
       <div className="mt-4 grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
-        {CATS.map((c) => (
+        <Link
+          to="/street-vendors"
+          className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
+        >
+          <div className="grid aspect-square w-full place-items-center rounded-2xl bg-emerald-700 text-white">
+            <MapPin className="h-7 w-7 md:h-8 md:w-8" strokeWidth={1.75} />
+          </div>
+          <span className="text-[11.5px] md:text-[13px] font-medium text-center leading-tight">
+            Live Vendor
+          </span>
+        </Link>
+        {activeCats.map((c: any) => (
           <Link
             key={c.id}
-            to={c.to}
+            to="/products"
+            search={{ category: c.id }}
             className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
           >
-            <div
-              className={`grid aspect-square w-full place-items-center rounded-2xl ${c.bg} ${c.fg}`}
-            >
-              <c.Icon className="h-7 w-7 md:h-8 md:w-8" strokeWidth={1.75} />
+            <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted text-muted-foreground overflow-hidden">
+              {c.image_url ? (
+                <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
+              ) : (
+                <ShoppingBasket className="h-7 w-7 md:h-8 md:w-8" strokeWidth={1.75} />
+              )}
             </div>
             <span className="text-[11.5px] md:text-[13px] font-medium text-center leading-tight">
               {c.name}
@@ -641,8 +665,12 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                     </div>
                     <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
                     <div className="mt-1.5 flex items-center gap-2 text-[11.5px]">
-                      <span className="inline-flex items-center gap-0.5 font-semibold">
-                        <Star className="h-3 w-3 fill-primary text-primary" /> {v.rating || "0.0"}
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
+                        <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                        {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "New"}
+                        {typeof v.review_count === "number" && v.review_count > 0 && (
+                          <span className="font-semibold text-amber-600 ml-0.5">({v.review_count})</span>
+                        )}
                       </span>
                       {hasDistance && (
                         <span className="inline-flex items-center gap-0.5 text-muted-foreground">
@@ -747,8 +775,12 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
                     </div>
                     <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
                     <div className="mt-1.5 flex items-center gap-2 text-[11.5px]">
-                      <span className="inline-flex items-center gap-0.5 font-semibold">
-                        <Star className="h-3 w-3 fill-primary text-primary" /> {v.rating || "0.0"}
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
+                        <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                        {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "New"}
+                        {typeof v.review_count === "number" && v.review_count > 0 && (
+                          <span className="font-semibold text-amber-600 ml-0.5">({v.review_count})</span>
+                        )}
                       </span>
                       {typeof v.distance_km === "number" && (
                         <span className="inline-flex items-center gap-0.5 text-muted-foreground">

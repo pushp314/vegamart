@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Package, ClipboardList, Wallet, Sparkles } from "lucide-react";
+import { Package, ClipboardList, Wallet, Sparkles, MapPin, Store, Settings, PlusCircle, CheckCircle2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { VendorMembershipCard } from "@/components/vendor/shared";
+import { LiveBroadcaster } from "@/components/vendor/LiveBroadcaster";
 
 export const Route = createFileRoute("/vendor/")({
   component: VendorOverviewPage,
@@ -14,6 +17,19 @@ function VendorOverviewPage() {
     queryFn: () => api.get<{ data: any }>("/vendors/me"),
   });
   const vendor = vendorRes?.data?.data || vendorRes?.data;
+
+  const queryClient = useQueryClient();
+
+  const toggleAvailabilityMutation = useMutation({
+    mutationFn: (isOpen: boolean) => api.put("/vendors/me/availability", { is_open: isOpen }),
+    onSuccess: (_, isOpen) => {
+      queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
+      toast.success(isOpen ? "Your store is now ONLINE 🟢" : "Your store is now OFFLINE 🔴");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update store status");
+    },
+  });
 
   const { data: dashboardRes } = useQuery({
     queryKey: ["vendorDashboard"],
@@ -52,7 +68,57 @@ function VendorOverviewPage() {
             Here's what's happening with your store today.
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+            Status: {vendor?.is_open ? <span className="text-emerald-500">Online</span> : <span className="text-rose-500">Offline</span>}
+          </span>
+          <button
+            onClick={() => toggleAvailabilityMutation.mutate(!vendor?.is_open)}
+            disabled={toggleAvailabilityMutation.isPending}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+              vendor?.is_open ? "bg-emerald-500" : "bg-muted-foreground/30"
+            }`}
+            aria-checked={vendor?.is_open}
+            role="switch"
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                vendor?.is_open ? "translate-x-6" : "translate-x-1"
+              } shadow-sm`}
+            />
+          </button>
+        </div>
       </div>
+
+      {/* Quick Actions */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <Link
+          to="/vendor/products"
+          className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all shadow-sm"
+        >
+          <PlusCircle className="h-4 w-4 text-emerald-500" /> Add Product
+        </Link>
+        <Link
+          to="/vendor/orders"
+          className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground hover:border-amber-500/30 hover:bg-amber-500/5 transition-all shadow-sm"
+        >
+          <ClipboardList className="h-4 w-4 text-amber-500" /> Manage Orders
+        </Link>
+        <Link
+          to="/vendor/location"
+          className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground hover:border-blue-500/30 hover:bg-blue-500/5 transition-all shadow-sm"
+        >
+          <MapPin className="h-4 w-4 text-blue-500" /> Update Location
+        </Link>
+        <Link
+          to="/vendor/settings"
+          className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground hover:border-border/80 hover:bg-muted/50 transition-all shadow-sm"
+        >
+          <Settings className="h-4 w-4 text-muted-foreground" /> Store Settings
+        </Link>
+      </div>
+
+      <LiveBroadcaster isRoaming={vendor?.roaming === true || vendor?.profile?.roaming === true} defaultIsOpen={vendor?.is_open === true} />
 
       <div className="grid sm:grid-cols-3 gap-4">
         <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl relative overflow-hidden group">

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2 } from "lucide-react";
+import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -175,6 +175,11 @@ function VendorOrdersPage() {
                     label: "Accept Order",
                     color: "bg-emerald-500 text-black hover:bg-emerald-400 font-bold",
                   },
+                  {
+                    status: "CANCELLED",
+                    label: "Cancel Order",
+                    color: "bg-rose-100 text-rose-600 hover:bg-rose-200 font-bold border border-rose-200",
+                  }
                 ],
                 CONFIRMED: [
                   {
@@ -182,6 +187,11 @@ function VendorOrdersPage() {
                     label: "Start Preparing",
                     color: "bg-blue-600 text-white hover:bg-blue-500 font-bold",
                   },
+                  {
+                    status: "CANCELLED",
+                    label: "Cancel Order",
+                    color: "bg-rose-100 text-rose-600 hover:bg-rose-200 font-bold border border-rose-200",
+                  }
                 ],
                 PREPARING: [
                   {
@@ -224,15 +234,15 @@ function VendorOrdersPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 font-black text-sm">
-                      #{o.order_number || o.id.slice(0, 5)}
+                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 font-black text-sm uppercase">
+                      #{o.order_number?.slice(-4) || o.id.slice(0, 4)}
                     </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-foreground">
-                        Order #{o.order_number || o.id.slice(0, 8)}
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-sm text-foreground truncate uppercase">
+                        Order #{o.order_number || `ORD-${o.id.slice(0, 6)}`}
                       </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Customer: <span className="font-semibold text-foreground">{o.customer_name || "Customer"}</span> • {new Date(o.created_at || Date.now()).toLocaleString()}
+                      <p className="text-xs text-muted-foreground truncate">
+                        {new Date(o.created_at || Date.now()).toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -242,25 +252,99 @@ function VendorOrdersPage() {
                       <div className="font-display text-lg font-black text-emerald-600">
                         ₹{Number(o.total || 0).toLocaleString("en-IN")}
                       </div>
-                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                        <Clock className="h-3 w-3" /> {o.status}
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
+                        o.status?.toUpperCase() === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                        o.status?.toUpperCase() === 'CANCELLED' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
+                        'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                      }`}>
+                        {o.status?.toUpperCase() === 'DELIVERED' ? <CheckCircle2 className="h-3 w-3" /> : o.status?.toUpperCase() === 'CANCELLED' ? <X className="h-3 w-3" /> : <Clock className="h-3 w-3" />} {o.status}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Items List */}
-                {Array.isArray(o.items) && o.items.length > 0 && (
-                  <div className="rounded-2xl bg-muted/40 p-3 text-xs space-y-1.5">
+                {/* Customer Details */}
+                {(o.user || o.address) && (
+                  <div className="rounded-2xl bg-muted/30 p-3.5 text-xs space-y-2 border border-border/50">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Ordered Items ({o.items.length})
+                      Customer & Delivery Details
                     </span>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <p className="font-semibold text-foreground">{o.user?.name || o.customer_name || "Customer"}</p>
+                        {o.user?.phone && <p className="text-muted-foreground">{o.user.phone}</p>}
+                        {o.user?.email && <p className="text-muted-foreground">{o.user.email}</p>}
+                      </div>
+                      {o.address && (
+                        <div>
+                          <p className="font-medium text-foreground">{o.address.label || "Delivery Address"}</p>
+                          <p className="text-muted-foreground">
+                            {o.address.street}, {o.address.city}, {o.address.state} {o.address.pincode}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Items & Summary */}
+                {Array.isArray(o.items) && o.items.length > 0 && (
+                  <div className="rounded-2xl border border-border overflow-hidden">
+                    <div className="bg-muted/40 p-3 border-b border-border">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Order Items ({o.items.length})
+                      </span>
+                    </div>
+                    <div className="divide-y divide-border/50">
                       {o.items.map((item: any, idx: number) => (
-                        <span key={idx} className="inline-flex items-center gap-1 rounded-xl bg-card border border-border px-2.5 py-1 text-xs font-semibold">
-                          {item.quantity}x {item.product_name || item.name || "Item"}
-                        </span>
+                        <div key={idx} className="flex justify-between items-center p-3 text-xs bg-card hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
+                              {item.image_url || item.product?.images?.[0]?.url ? (
+                                <img src={item.image_url || item.product?.images?.[0]?.url} alt="Item" className="h-full w-full object-cover" />
+                              ) : (
+                                <ShoppingBag className="h-4 w-4 text-muted-foreground/50" />
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-foreground">
+                                {item.quantity}x <span className="text-muted-foreground font-medium ml-1">{item.product_name || item.name || item.product?.name || "Item"}</span>
+                              </span>
+                              {item.unit && <span className="text-[10px] text-muted-foreground">{item.unit}</span>}
+                            </div>
+                          </div>
+                          <div className="font-semibold text-foreground">₹{(item.total_price || item.unit_price * item.quantity || 0).toLocaleString("en-IN")}</div>
+                        </div>
                       ))}
+                    </div>
+                    
+                    <div className="bg-muted/10 p-3 space-y-1.5 border-t border-border/50 text-xs">
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Items Subtotal</span>
+                        <span>₹{Number(o.items_subtotal || o.total || 0).toLocaleString("en-IN")}</span>
+                      </div>
+                      {Number(o.delivery_fee) > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Delivery Fee</span>
+                          <span>+ ₹{Number(o.delivery_fee).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {Number(o.tax) > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Taxes</span>
+                          <span>+ ₹{Number(o.tax).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {Number(o.discount) > 0 && (
+                        <div className="flex justify-between text-emerald-600 font-medium">
+                          <span>Discount</span>
+                          <span>- ₹{Number(o.discount).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-bold text-foreground pt-1 border-t border-border/50 mt-1">
+                        <span>Total Paid</span>
+                        <span className="text-emerald-600">₹{Number(o.total || 0).toLocaleString("en-IN")}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -276,7 +360,14 @@ function VendorOrdersPage() {
                         <button
                           key={ns.status}
                           onClick={() => {
-                            if (ns.status === "delivered") {
+                            if (ns.status === "CANCELLED") {
+                              if (window.confirm("Are you sure you want to cancel this order? This action cannot be undone and will automatically initiate a refund if paid online.")) {
+                                updateOrderStatusMutation.mutate({
+                                  orderId: o.id,
+                                  status: ns.status,
+                                });
+                              }
+                            } else if (ns.status === "delivered") {
                               setOtpTarget(o);
                               setOtpInput("");
                             } else {
@@ -291,6 +382,10 @@ function VendorOrdersPage() {
                           {ns.label}
                         </button>
                       ))
+                    ) : o.status?.toUpperCase() === "CANCELLED" ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600">
+                        <X className="h-4 w-4" /> Order Cancelled
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
                         <CheckCircle2 className="h-4 w-4" /> Order Completed

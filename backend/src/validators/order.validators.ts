@@ -15,7 +15,7 @@ export const cancelOrderSchema = z.object({
 }).strict();
 
 export const transitionOrderStatusSchema = z.object({
-  status: z.enum(["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY", "DELIVERED"]),
+  status: z.enum(["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"]),
   note: z.string().trim().max(500).optional(),
   otp_code: z.string().trim().length(6).optional(),
 }).strict();

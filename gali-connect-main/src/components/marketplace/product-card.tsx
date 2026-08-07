@@ -102,8 +102,14 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="relative mt-3">
         <h4 className="text-sm font-semibold truncate">{product.name}</h4>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Star className="h-3 w-3 fill-warning text-warning" /> {product.rating || "0.0"} •{" "}
-          {product.unit}
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
+            <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+            {typeof product.rating === "number" && product.rating > 0 ? product.rating.toFixed(1) : "New"}
+            {typeof product.review_count === "number" && product.review_count > 0 && (
+              <span className="font-semibold text-amber-600 ml-0.5">({product.review_count})</span>
+            )}
+          </span>
+          <span>•</span> <span>{product.unit}</span>
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <div>

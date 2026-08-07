@@ -80,7 +80,7 @@ export const productService = {
       slug,
       description: input.description ?? null,
       price: input.price,
-      mrp: input.mrp,
+      mrp: input.mrp ?? input.price,
       unit: input.unit.trim(),
       tag: input.tag ?? null,
       is_active: input.is_active ?? true,
