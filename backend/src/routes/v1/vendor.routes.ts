@@ -35,6 +35,7 @@ import {
   updateVendorLocation,
   upsertDailyLocation,
   bulkUploadProducts,
+  createSuspensionAppeal,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
 import { requirePlan } from "../../middlewares/subscription.middleware";
@@ -96,6 +97,12 @@ router.post(
   authenticate,
   requireRole(ROLES.VENDOR),
   cancelMembership
+);
+router.post(
+  "/vendors/me/suspension-appeal",
+  authenticate,
+  requireRole(ROLES.VENDOR),
+  createSuspensionAppeal
 );
 router.get("/vendors/location", authenticate, getMyLocation);
 router.patch(

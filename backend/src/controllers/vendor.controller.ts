@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { vendorService } from "../services/vendor.service";
 import { discoveryService } from "../services/discovery.service";
 import { analyticsService } from "../services/analytics.service";
+import { supportService } from "../services/support.service";
 import { sendCreated, sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { buildPaginationMeta } from "../utils/pagination";
@@ -740,6 +741,45 @@ export const verifyMembershipPayment = asyncHandler(async (req: Request, res: Re
 export const cancelMembership = asyncHandler(async (req: Request, res: Response) => {
   const membership = await vendorService.cancelMembership(req.user!.id, req);
   return sendSuccess(res, membership, { message: "Membership plan canceled successfully." });
+});
+
+/**
+ * @swagger
+ * /api/v1/vendors/me/suspension-appeal:
+ *   post:
+ *     summary: Create a suspension appeal ticket
+ *     tags: [Vendors]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 description: Reason for the appeal
+ *     responses:
+ *       201:
+ *         description: Appeal ticket created successfully
+ */
+export const createSuspensionAppeal = asyncHandler(async (req: Request, res: Response) => {
+  const { reason } = req.body as { reason: string };
+  
+  // Get vendor ID for the current user
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  
+  const ticket = await supportService.createSuspensionAppealTicket(
+    req.user!.id,
+    vendor.id,
+    reason
+  );
+  
+  return sendSuccess(res, ticket, { message: "Your appeal has been submitted. Our team will review it shortly." });
 });
 
 /**

@@ -112,15 +112,23 @@ export const userService = {
   },
 
   async toggleVendorSubscription(userId: string, vendorId: string) {
-    const existing = await prisma.userSubscription.findFirst({
-      where: { user_id: userId, vendor_id: vendorId }
-    });
-    if (existing) {
-      await prisma.userSubscription.delete({ where: { id: existing.id } });
-      return { subscribed: false };
-    } else {
-      await prisma.userSubscription.create({ data: { user_id: userId, vendor_id: vendorId } });
-      return { subscribed: true };
+    try {
+      const existing = await prisma.userSubscription.findFirst({
+        where: { user_id: userId, vendor_id: vendorId }
+      });
+      if (existing) {
+        await prisma.userSubscription.delete({ where: { id: existing.id } });
+        return { subscribed: false };
+      } else {
+        await prisma.userSubscription.create({ data: { user_id: userId, vendor_id: vendorId } });
+        return { subscribed: true };
+      }
+    } catch (error) {
+      throw new ApiError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "Failed to update vendor subscription",
+        { code: "SUBSCRIPTION_UPDATE_FAILED" }
+      );
     }
   },
 };
