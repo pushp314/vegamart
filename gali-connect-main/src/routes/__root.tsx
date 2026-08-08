@@ -119,13 +119,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "thumbnail", content: "https://vegamart.in/icons/icon-512.png" },
     ],
     links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico", sizes: "any" },
-      { rel: "icon", href: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
-      { rel: "icon", href: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
-      { rel: "shortcut icon", href: "/favicon.ico" },
+      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "shortcut icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
+      { rel: "icon", href: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+      { rel: "icon", href: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
       { rel: "image_src", href: "https://vegamart.in/icons/icon-512.png" },
+      { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
@@ -142,15 +142,28 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "Vegamart",
-    "url": "https://vegamart.in",
-    "logo": "https://vegamart.in/icons/icon-512.png",
-    "image": "https://vegamart.in/icons/icon-512.png",
-    "sameAs": []
-  };
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Vegamart",
+      "url": "https://vegamart.in",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://vegamart.in/icons/icon-512.png",
+        "width": 512,
+        "height": 512
+      },
+      "image": "https://vegamart.in/icons/icon-512.png"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Vegamart",
+      "url": "https://vegamart.in",
+      "image": "https://vegamart.in/icons/icon-512.png"
+    }
+  ];
 
   return (
     <html lang="en">
