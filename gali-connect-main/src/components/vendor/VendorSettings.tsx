@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { Save, Loader2, FileText, Phone, Bike, ShieldCheck } from "lucide-react";
+import { Save, Loader2, FileText, Phone, Bike, ShieldCheck, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -27,6 +27,38 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   const [contactPhone, setContactPhone] = useState(profile.phone || "");
   const [providesDelivery, setProvidesDelivery] = useState(profile.provides_delivery ?? false);
   const [logoUrl, setLogoUrl] = useState(profile.logo_url || "");
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size exceeds 10MB limit.");
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res: any = await api.post("/uploads", formData);
+      const uploadedUrl = res?.data?.data?.url || res?.data?.url || res?.url || res?.data?.fileUrl;
+      if (uploadedUrl) {
+        setLogoUrl(uploadedUrl);
+        toast.success("Logo uploaded successfully! Click Save to apply changes.");
+      } else {
+        toast.error("Failed to parse uploaded image URL");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload logo image");
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoFileInputRef.current) logoFileInputRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     if (profile.gstin !== undefined) setGstin(profile.gstin || "");
@@ -91,30 +123,63 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden border border-border shrink-0 grid place-items-center">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="relative group h-20 w-20 rounded-2xl bg-muted overflow-hidden border border-border shrink-0 grid place-items-center shadow-inner">
                 {logoUrl ? (
                   <img src={logoUrl} alt="Store DP" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="h-full w-full p-2 grid place-items-center">
-                    <img src="/icons/icon-512.png" alt="Vegamart logo" className="h-full w-full object-contain" />
+                  <div className="h-full w-full p-3 grid place-items-center bg-muted/60">
+                    <img src="/icons/icon-512.png" alt="Vegamart logo" className="h-full w-full object-contain opacity-80" />
+                  </div>
+                )}
+                {isUploadingLogo && (
+                  <div className="absolute inset-0 bg-background/80 backdrop-blur-xs grid place-items-center z-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
                 )}
               </div>
-              <div className="flex-1 space-y-1.5">
+
+              <div className="flex-1 w-full space-y-2">
                 <Label
                   htmlFor="logoUrl"
                   className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
                 >
-                  Logo Image URL
+                  Logo Image / DP
                 </Label>
-                <Input
-                  id="logoUrl"
-                  placeholder="https://example.com/logo.png"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  className="h-10 rounded-2xl text-xs bg-muted/40"
-                />
+                
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <Input
+                    id="logoUrl"
+                    placeholder="https://example.com/logo.png or upload image"
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    className="h-10 rounded-2xl text-xs bg-muted/40 flex-1"
+                  />
+                  <input
+                    type="file"
+                    ref={logoFileInputRef}
+                    onChange={handleLogoFileUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                    className="h-10 rounded-2xl text-xs font-bold shrink-0 border-primary/30 hover:border-primary/60 hover:bg-primary/5 flex items-center gap-1.5"
+                  >
+                    {isUploadingLogo ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5 text-primary" />
+                    )}
+                    Upload Image
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Upload an image file (PNG, JPG, WebP) up to 10MB or paste an image URL directly.
+                </p>
               </div>
             </div>
           </CardContent>
