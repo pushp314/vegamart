@@ -1,6 +1,7 @@
 import type { Request } from "express";
 
 import { auditService } from "./audit.service";
+import { cacheService } from "../database/cache";
 import * as heroSlideRepo from "../repositories/hero-slide.repository";
 import { deleteObject, extractKeyFromUrl } from "../storage/r2.client";
 import { ApiError } from "../utils/ApiError";
@@ -58,6 +59,8 @@ export const heroSlideService = {
       created_by: adminUserId,
     });
 
+    await cacheService.invalidateNamespace("settings");
+
     await auditService.record(
       { userId: adminUserId, action: "HERO_SLIDE_CREATED", entityType: "hero_slide", entityId: row.id, newValues: { title: row.title } },
       req
@@ -100,6 +103,7 @@ export const heroSlideService = {
 
     if (Object.keys(data).length > 0) {
       await heroSlideRepo.updateHeroSlide(id, data as never);
+      await cacheService.invalidateNamespace("settings");
     }
 
     await auditService.record(
@@ -112,6 +116,7 @@ export const heroSlideService = {
   async publish(id: string, adminUserId: string, req: Request) {
     await this.getById(id);
     const updated = await heroSlideRepo.updateHeroSlide(id, { is_active: true });
+    await cacheService.invalidateNamespace("settings");
     await auditService.record(
       { userId: adminUserId, action: "HERO_SLIDE_PUBLISHED", entityType: "hero_slide", entityId: id },
       req
@@ -122,6 +127,7 @@ export const heroSlideService = {
   async unpublish(id: string, adminUserId: string, req: Request) {
     await this.getById(id);
     const updated = await heroSlideRepo.updateHeroSlide(id, { is_active: false });
+    await cacheService.invalidateNamespace("settings");
     await auditService.record(
       { userId: adminUserId, action: "HERO_SLIDE_UNPUBLISHED", entityType: "hero_slide", entityId: id },
       req
@@ -136,6 +142,7 @@ export const heroSlideService = {
       if (key) await deleteObject(key).catch(() => {});
     }
     await heroSlideRepo.softDelete(id);
+    await cacheService.invalidateNamespace("settings");
     await auditService.record(
       { userId: adminUserId, action: "HERO_SLIDE_DELETED", entityType: "hero_slide", entityId: id },
       req

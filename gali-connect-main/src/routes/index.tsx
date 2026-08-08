@@ -293,7 +293,7 @@ function Hero() {
           }>
         >("/hero-slides/public")
         .then((r) => r.data),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 1000,
   });
 
   const { data: videoAdsResponse } = useQuery({
@@ -474,18 +474,21 @@ function Hero() {
                 ) : (
                   <>
                     <div
-                      className="absolute inset-0 opacity-30 mix-blend-overlay z-0"
+                      className="absolute inset-0 opacity-40 mix-blend-overlay z-0"
                       style={{
                         backgroundImage:
                           "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
                       }}
                     />
                     {slide.image_url && (
-                      <img
-                        src={slide.image_url}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover opacity-20 z-0"
-                      />
+                      <>
+                        <img
+                          src={slide.image_url}
+                          alt={slide.title}
+                          className="absolute inset-0 w-full h-full object-cover opacity-65 md:opacity-75 z-0"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/85 via-black/40 to-transparent z-0 pointer-events-none" />
+                      </>
                     )}
                   </>
                 )}
@@ -503,11 +506,9 @@ function Hero() {
                       </button>
                     )}
                   </div>
-                  {slide.subtitle && (
-                    <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight drop-shadow-md">
-                      {slide.subtitle}
-                    </h1>
-                  )}
+                  <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight drop-shadow-md">
+                    {slide.subtitle || slide.title}
+                  </h1>
                   {slide.body && (
                     <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/90 max-w-[22ch] md:max-w-[42ch] drop-shadow-sm">
                       {slide.body}
