@@ -12,7 +12,7 @@ import {
 } from "../utils/file-validation";
 import { HttpStatus } from "../utils/httpStatus";
 
-const ALLOWED_FOLDERS = ["products", "vendors", "profiles", "categories", "documents", "invoices", "hero", "videos", "ads"] as const;
+const ALLOWED_FOLDERS = ["products", "vendors", "profiles", "categories", "documents", "invoices", "hero", "cms", "videos", "ads"] as const;
 
 export type UploadFolder = (typeof ALLOWED_FOLDERS)[number];
 
