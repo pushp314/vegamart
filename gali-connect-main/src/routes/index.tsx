@@ -24,9 +24,12 @@ import {
   Coffee,
   Heart,
   Download,
+  Play,
+  Sparkles,
 } from "lucide-react";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { Logo } from "@/components/system/logo";
+import { VideoAdModal, type VideoAdData } from "@/components/system/VideoAdModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, getFeaturedProducts } from "@/lib/api";
 import { homePathForRole } from "@/lib/utils";
@@ -267,7 +270,9 @@ function SearchBar() {
 import { type CarouselApi } from "@/components/ui/carousel";
 
 function Hero() {
-  const { data: slidesResponse, isLoading } = useQuery({
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+
+  const { data: slidesResponse, isLoading: slidesLoading } = useQuery({
     queryKey: ["hero-slides"],
     queryFn: () =>
       api
@@ -287,6 +292,16 @@ function Hero() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: videoAdsResponse } = useQuery({
+    queryKey: ["publicVideoAds"],
+    queryFn: () =>
+      api
+        .get<VideoAdData[]>("/video-ads/public")
+        .then((r) => r.data),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const activeVideoAd = videoAdsResponse?.[0] || null;
   const slides = slidesResponse?.filter((s) => s.is_active !== false) ?? [];
 
   const [apiCarousel, setApiCarousel] = useState<CarouselApi>();
@@ -314,21 +329,45 @@ function Hero() {
     return () => clearInterval(intervalId);
   }, [apiCarousel]);
 
-  if (isLoading || slides.length === 0) {
+  const isBehindHeroVideo = activeVideoAd?.display_mode === "behind_hero";
+
+  if (slidesLoading || slides.length === 0) {
     return (
       <section className="pt-4 md:pt-8">
         <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white h-[260px] md:h-[320px] p-6 md:p-10 shadow-lg flex flex-col justify-center">
-          <div
-            className="absolute inset-0 opacity-30 mix-blend-overlay"
-            style={{
-              backgroundImage:
-                "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
-            }}
-          />
+          {isBehindHeroVideo && activeVideoAd ? (
+            <video
+              src={activeVideoAd.video_url}
+              poster={activeVideoAd.thumbnail_url || undefined}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover opacity-40 z-0 pointer-events-none"
+            />
+          ) : (
+            <div
+              className="absolute inset-0 opacity-30 mix-blend-overlay"
+              style={{
+                backgroundImage:
+                  "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
+              }}
+            />
+          )}
           <div className="relative md:max-w-2xl z-10">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
-              <Radio className="h-3 w-3" /> India's First Live Vendor Network
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
+                <Radio className="h-3 w-3" /> India's First Live Vendor Network
+              </span>
+              {activeVideoAd && activeVideoAd.display_mode === "watch_cta" && (
+                <button
+                  onClick={() => setIsVideoModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 text-emerald-950 px-3 py-1 text-[10.5px] md:text-xs font-black uppercase tracking-wide shadow-md hover:bg-amber-300 transition-all animate-pulse"
+                >
+                  <Play className="h-3 w-3 fill-emerald-950" /> {activeVideoAd.cta_text || "Watch 30s Ad"}
+                </button>
+              )}
+            </div>
             <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight">
               Har Gali Banegi
               <br />
@@ -337,14 +376,31 @@ function Hero() {
             <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/85 max-w-[22ch] md:max-w-[42ch]">
               See moving vendors on the map. Buy from the nearest one, right now.
             </p>
-            <Link
-              to="/street-vendors"
-              className="mt-4 inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm px-5 py-2.5 shadow-sm hover:bg-emerald-50 transition-colors"
-            >
-              <MapPin className="h-4 w-4" /> Open Live Map <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Link
+                to="/street-vendors"
+                className="inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm px-5 py-2.5 shadow-sm hover:bg-emerald-50 transition-colors"
+              >
+                <MapPin className="h-4 w-4" /> Open Live Map <ArrowRight className="h-4 w-4" />
+              </Link>
+
+              {activeVideoAd && (
+                <button
+                  onClick={() => setIsVideoModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full bg-emerald-700/80 hover:bg-emerald-600/90 text-white font-bold text-sm px-5 py-2.5 backdrop-blur-md border border-white/20 transition-all shadow-md"
+                >
+                  <Play className="h-4 w-4 fill-white" /> Watch Ad Video
+                </button>
+              )}
+            </div>
           </div>
         </div>
+
+        <VideoAdModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          videoAd={activeVideoAd}
+        />
       </section>
     );
   }
@@ -356,24 +412,48 @@ function Hero() {
           {slides.map((slide) => (
             <CarouselItem key={slide.id}>
               <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white h-[260px] md:h-[320px] p-6 md:p-10 shadow-lg flex flex-col justify-center">
-                <div
-                  className="absolute inset-0 opacity-30 mix-blend-overlay"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
-                  }}
-                />
-                {slide.image_url && (
-                  <img
-                    src={slide.image_url}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover opacity-20"
+                {isBehindHeroVideo && activeVideoAd ? (
+                  <video
+                    src={activeVideoAd.video_url}
+                    poster={activeVideoAd.thumbnail_url || undefined}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="absolute inset-0 w-full h-full object-cover opacity-40 z-0 pointer-events-none"
                   />
+                ) : (
+                  <>
+                    <div
+                      className="absolute inset-0 opacity-30 mix-blend-overlay z-0"
+                      style={{
+                        backgroundImage:
+                          "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
+                      }}
+                    />
+                    {slide.image_url && (
+                      <img
+                        src={slide.image_url}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover opacity-20 z-0"
+                      />
+                    )}
+                  </>
                 )}
                 <div className="relative md:max-w-2xl z-10">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
-                    <Radio className="h-3 w-3" /> {slide.title}
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
+                      <Radio className="h-3 w-3" /> {slide.title}
+                    </span>
+                    {activeVideoAd && activeVideoAd.display_mode === "watch_cta" && (
+                      <button
+                        onClick={() => setIsVideoModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 text-emerald-950 px-3 py-1 text-[10.5px] md:text-xs font-black uppercase tracking-wide shadow-md hover:bg-amber-300 transition-all animate-pulse"
+                      >
+                        <Play className="h-3 w-3 fill-emerald-950" /> {activeVideoAd.cta_text || "Watch 30s Ad"}
+                      </button>
+                    )}
+                  </div>
                   {slide.subtitle && (
                     <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight">
                       {slide.subtitle}
@@ -384,14 +464,24 @@ function Hero() {
                       {slide.body}
                     </p>
                   )}
-                  {slide.link_url && (
-                    <Link
-                      to={slide.link_url}
-                      className="mt-4 inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm px-5 py-2.5 shadow-sm hover:bg-emerald-50 transition-colors"
-                    >
-                      {slide.link_text || "Explore"} <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  )}
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    {slide.link_url && (
+                      <Link
+                        to={slide.link_url}
+                        className="inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm px-5 py-2.5 shadow-sm hover:bg-emerald-50 transition-colors"
+                      >
+                        {slide.link_text || "Explore"} <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    )}
+                    {activeVideoAd && (
+                      <button
+                        onClick={() => setIsVideoModalOpen(true)}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-5 py-2.5 backdrop-blur-md border border-white/30 transition-all shadow-md"
+                      >
+                        <Play className="h-4 w-4 fill-white" /> Watch 30s Ad
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </CarouselItem>
@@ -412,6 +502,12 @@ function Hero() {
           </div>
         )}
       </Carousel>
+
+      <VideoAdModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        videoAd={activeVideoAd}
+      />
     </section>
   );
 }

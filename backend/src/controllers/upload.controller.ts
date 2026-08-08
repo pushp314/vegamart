@@ -148,6 +148,23 @@ export const uploadDocument = asyncHandler(async (req: Request, res: Response) =
  *       400:
  *         description: Invalid file key.
  */
+export const uploadVideo = asyncHandler(async (req: Request, res: Response) => {
+  const file = assertSingleFile(req);
+  const folder = (req.body.folder as string) || "videos";
+  if (!uploadService.isAllowedFolder(folder)) {
+    throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid upload folder.", { code: "INVALID_FOLDER" });
+  }
+  const result = await uploadService.uploadVideo(
+    req.user!.id,
+    folder,
+    file.mimetype,
+    file.buffer,
+    file.originalname,
+    req
+  );
+  return sendSuccess(res, result, { status: HttpStatus.CREATED });
+});
+
 export const deleteImage = asyncHandler(async (req: Request, res: Response) => {
   const { key } = req.body as { key?: string };
   if (!key) {

@@ -72,6 +72,21 @@ import {
   unpublishHeroSlide,
   updateHeroSlide,
 } from "../../controllers/hero-slide.controller";
+import {
+  createVideoAd,
+  deleteVideoAd,
+  getVideoAd,
+  listVideoAds,
+  publishVideoAd,
+  unpublishVideoAd,
+  updateVideoAd,
+} from "../../controllers/video-ad.controller";
+import {
+  createVideoAdSchema,
+  updateVideoAdSchema,
+  videoAdIdParamsSchema,
+  videoAdQuerySchema,
+} from "../../validators/video-ad.validators";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
@@ -218,6 +233,15 @@ router.patch("/hero-slides/:slide_id", validate({ params: heroSlideIdParamsSchem
 router.post("/hero-slides/:slide_id/publish", validate({ params: heroSlideIdParamsSchema }), publishHeroSlide);
 router.post("/hero-slides/:slide_id/unpublish", validate({ params: heroSlideIdParamsSchema }), unpublishHeroSlide);
 router.delete("/hero-slides/:slide_id", validate({ params: heroSlideIdParamsSchema }), deleteHeroSlide);
+
+// Video Ads
+router.get("/video-ads", validate({ query: videoAdQuerySchema }), listVideoAds);
+router.post("/video-ads", validate({ body: createVideoAdSchema }), createVideoAd);
+router.get("/video-ads/:ad_id", validate({ params: videoAdIdParamsSchema }), getVideoAd);
+router.patch("/video-ads/:ad_id", validate({ params: videoAdIdParamsSchema, body: updateVideoAdSchema }), updateVideoAd);
+router.post("/video-ads/:ad_id/publish", validate({ params: videoAdIdParamsSchema }), publishVideoAd);
+router.post("/video-ads/:ad_id/unpublish", validate({ params: videoAdIdParamsSchema }), unpublishVideoAd);
+router.delete("/video-ads/:ad_id", validate({ params: videoAdIdParamsSchema }), deleteVideoAd);
 
 // Order management
 router.get("/orders", validate({ query: adminOrderQuerySchema }), listOrders);

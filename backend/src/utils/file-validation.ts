@@ -4,7 +4,7 @@ import { HttpStatus } from "./httpStatus";
 
 import { IMAGE_MIME_TYPES, MAX_IMAGE_SIZE_BYTES } from "../constants";
 
-export type UploadKind = "image" | "document";
+export type UploadKind = "image" | "document" | "video";
 
 const MAGIC_BYTES: Record<string, Array<number[]>> = {
   "image/jpeg": [[0xff, 0xd8, 0xff]],
@@ -18,13 +18,28 @@ const MAGIC_BYTES: Record<string, Array<number[]>> = {
   ],
   "application/pdf": [[0x25, 0x50, 0x44, 0x46]],
   "text/plain": [],
+  "video/mp4": [],
+  "video/webm": [[0x1a, 0x45, 0xdf, 0xa3]],
+  "video/ogg": [[0x4f, 0x67, 0x67, 0x53]],
+  "video/quicktime": [],
+  "video/x-matroska": [[0x1a, 0x45, 0xdf, 0xa3]],
 };
 
 const DOCUMENT_MIME_TYPES = ["application/pdf", "text/plain"] as const;
+const VIDEO_MIME_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+  "video/x-matroska",
+] as const;
 
 export function isAllowedMime(kind: UploadKind, mime: string): boolean {
   if (kind === "image") {
     return (IMAGE_MIME_TYPES as readonly string[]).includes(mime);
+  }
+  if (kind === "video") {
+    return (VIDEO_MIME_TYPES as readonly string[]).includes(mime);
   }
   return (DOCUMENT_MIME_TYPES as readonly string[]).includes(mime);
 }
@@ -32,6 +47,9 @@ export function isAllowedMime(kind: UploadKind, mime: string): boolean {
 export function maxSizeFor(kind: UploadKind): number {
   if (kind === "image") {
     return MAX_IMAGE_SIZE_BYTES;
+  }
+  if (kind === "video") {
+    return 200 * 1024 * 1024; // 200 MB for video files
   }
   return 10 * 1024 * 1024; // 10 MB documents
 }

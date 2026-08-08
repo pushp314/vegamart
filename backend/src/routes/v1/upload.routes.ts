@@ -1,10 +1,10 @@
 import { Router } from "express";
 
-import { deleteImage, uploadDocument, uploadImage } from "../../controllers/upload.controller";
+import { deleteImage, uploadDocument, uploadImage, uploadVideo } from "../../controllers/upload.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { ROLES } from "../../constants/roles";
-import { upload } from "../../middlewares/upload.middleware";
+import { upload, videoUpload } from "../../middlewares/upload.middleware";
 import { validate } from "../../middlewares/validate";
 import { deleteFileSchema, uploadFolderSchema } from "../../validators/upload.validators";
 
@@ -25,6 +25,13 @@ router.post(
   upload.single("file"),
   validate({ body: uploadFolderSchema }),
   uploadImage
+);
+router.post(
+  "/upload/video",
+  authenticate,
+  requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.VENDOR),
+  videoUpload.single("file"),
+  uploadVideo
 );
 router.post(
   "/upload/document",

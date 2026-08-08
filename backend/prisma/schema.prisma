@@ -1274,6 +1274,30 @@ model HeroSlide {
   @@map("hero_slides")
 }
 
+model VideoAd {
+  id            String    @id @default(uuid()) @db.Uuid
+  title         String    @db.VarChar(200)
+  subtitle      String?   @db.VarChar(300)
+  video_url     String    @db.VarChar(500)
+  thumbnail_url String?   @db.VarChar(500)
+  cta_text      String?   @default("Watch 30s Ad") @db.VarChar(100)
+  cta_link      String?   @db.VarChar(500)
+  display_mode  String    @default("watch_cta") @db.VarChar(30) // "watch_cta" | "behind_hero"
+  duration      Int       @default(30)
+  is_active     Boolean   @default(true)
+  sort_order    Int       @default(0)
+  created_by    String?   @db.Uuid
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  deleted_at    DateTime?
+
+  @@index([is_active])
+  @@index([display_mode])
+  @@index([sort_order])
+  @@map("video_ads")
+}
+
+
 model Faq {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   question   String

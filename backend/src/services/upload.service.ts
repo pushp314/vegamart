@@ -12,7 +12,7 @@ import {
 } from "../utils/file-validation";
 import { HttpStatus } from "../utils/httpStatus";
 
-const ALLOWED_FOLDERS = ["products", "vendors", "profiles", "categories", "documents", "invoices", "hero"] as const;
+const ALLOWED_FOLDERS = ["products", "vendors", "profiles", "categories", "documents", "invoices", "hero", "videos", "ads"] as const;
 
 export type UploadFolder = (typeof ALLOWED_FOLDERS)[number];
 
@@ -73,6 +73,34 @@ export const uploadService = {
         userId,
         action: AUDIT_ACTIONS.FILE_UPLOADED,
         entityType: "file",
+        entityId: key,
+        newValues: { url, folder, mime, size_bytes: buffer.length },
+      },
+      req
+    );
+
+    return { url, key, mime, size_bytes: buffer.length };
+  },
+
+  async uploadVideo(
+    userId: string,
+    folder: UploadFolder,
+    mime: string,
+    buffer: Buffer,
+    originalName: string,
+    req: Request
+  ): Promise<{ url: string; key: string; mime: string; size_bytes: number }> {
+    this.ensureFolder(folder);
+    validateUpload("video", mime, buffer);
+
+    const key = buildObjectKey(folder, originalName);
+    const url = await uploadObject({ key, body: buffer, contentType: mime });
+
+    await auditService.record(
+      {
+        userId,
+        action: AUDIT_ACTIONS.FILE_UPLOADED,
+        entityType: "video",
         entityId: key,
         newValues: { url, folder, mime, size_bytes: buffer.length },
       },

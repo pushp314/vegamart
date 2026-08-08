@@ -29,6 +29,20 @@ export const upload = multer({
   },
 });
 
+export const videoUpload = multer({
+  storage,
+  limits: {
+    fileSize: 200 * 1024 * 1024, // 200 MB for video files
+    files: 1,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (!file.originalname || !isAscii(file.originalname)) {
+      return cb(new ApiError(HttpStatus.BAD_REQUEST, "Filename must be ASCII-only."));
+    }
+    cb(null, true);
+  },
+});
+
 export function multerErrorHandler(err: unknown, res: { status: (code: number) => { json: (body: unknown) => void } }): boolean {
   if (err instanceof multer.MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
