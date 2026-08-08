@@ -550,31 +550,6 @@ function Categories() {
 }
 
 function LiveBanner() {
-  const { data: res, isLoading } = useQuery({
-    queryKey: ["banners"],
-    queryFn: () => api.get<any[]>("/banners"),
-  });
-  const banners = res?.data || [];
-  const activeBanner = banners.find((b) => b.type === "LiveNow" || b.position === "LiveNow") || {
-    title: "🔥 Live vendors near you - Order fresh now!",
-  };
-
-  if (isLoading) {
-    return (
-      <section className="px-4 md:px-0 pt-6 md:pt-10">
-        <div className="flex items-center gap-3 md:gap-4 rounded-2xl md:rounded-3xl bg-muted/70 border border-border/60 px-4 md:px-6 py-4 md:py-5 animate-pulse">
-          <span className="grid h-10 w-10 md:h-12 md:w-12 shrink-0 place-items-center rounded-full bg-foreground/10">
-            <MapPin className="h-5 w-5 text-foreground/30" />
-          </span>
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-2.5 w-16 rounded-full bg-foreground/10" />
-            <div className="h-3.5 w-48 max-w-full rounded-full bg-foreground/15" />
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">
       <Link
@@ -588,7 +563,9 @@ function LiveBanner() {
           <div className="flex items-center gap-1.5 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide text-white/85">
             <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" /> Live now
           </div>
-          <div className="mt-0.5 font-semibold text-[15px] md:text-lg">{activeBanner.title}</div>
+          <div className="mt-0.5 font-semibold text-[15px] md:text-lg">
+            🔥 Live vendors near you - Order fresh now!
+          </div>
         </div>
         <ArrowRight className="h-5 w-5" />
       </Link>
