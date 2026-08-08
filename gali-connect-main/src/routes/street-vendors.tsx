@@ -23,9 +23,7 @@ function StreetVendorsRoute() {
       : [];
 
   const filteredVendors = useMemo(() => {
-    return vendorList.filter((v) => {
-      return v.roaming === true || v.profile?.roaming === true;
-    });
+    return vendorList; // Show all vendors as requested
   }, [vendorList]);
 
   return (
