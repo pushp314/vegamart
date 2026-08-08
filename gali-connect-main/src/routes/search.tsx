@@ -131,6 +131,7 @@ function SearchPage() {
         const nameMatch = v.business_name?.toLowerCase().includes(debounced) || false;
         return nameMatch;
       })
+      .sort((a, b) => Number(Boolean(b.is_sponsored)) - Number(Boolean(a.is_sponsored)))
       .slice(0, 6);
   }, [debounced, vendors]);
 
@@ -235,17 +236,24 @@ function SearchPage() {
                           onClick={() => handleVendorClick(vendor.id)}
                           className="flex items-center gap-4 p-4 rounded-2xl bg-card border hover:border-primary/40 transition-colors cursor-pointer"
                         >
-                          <div className="h-12 w-12 rounded-full bg-muted overflow-hidden">
-                            {vendor.profile?.logo_url ? (
-                              <img src={vendor.profile.logo_url} alt={vendor.business_name} className="w-full h-full object-cover" />
+                          <div className="h-12 w-12 rounded-full bg-muted overflow-hidden shrink-0 border border-border">
+                            {vendor.logo_url || vendor.profile?.logo_url ? (
+                              <img src={vendor.logo_url || vendor.profile?.logo_url} alt={vendor.business_name} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Store className="h-6 w-6 text-muted-foreground" />
+                              <div className="w-full h-full flex items-center justify-center bg-amber-100 text-amber-700 font-bold text-base">
+                                {vendor.business_name?.[0] || "V"}
                               </div>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-sm truncate">{vendor.business_name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold text-sm truncate">{vendor.business_name}</h4>
+                              {vendor.is_sponsored && (
+                                <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 border border-amber-500/30 rounded-full flex items-center gap-1">
+                                  <Sparkles className="h-2.5 w-2.5" /> Promoted
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground truncate">{vendor.profile?.description || "Local vendor"}</p>
                           </div>
                           <ArrowRight className="h-5 w-5 text-muted-foreground" />

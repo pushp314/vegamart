@@ -146,6 +146,29 @@ export async function cleanupTempFiles(retentionHours: number): Promise<void> {
 
 export async function expireExpiredMemberships(): Promise<number> {
   const now = new Date();
+  
+  // Auto-demote vendors whose scheduled promotion duration (sponsored_until) has passed
+  const expiredPromotions = await prisma.vendorProfile.findMany({
+    where: {
+      is_sponsored: true,
+      sponsored_until: { lte: now },
+    },
+    select: { id: true, user_id: true, business_name: true },
+  });
+
+  for (const vendor of expiredPromotions) {
+    await prisma.vendorProfile.update({
+      where: { id: vendor.id },
+      data: { is_sponsored: false, sponsored_until: null },
+    });
+    await notificationService.vendor(
+      vendor.user_id,
+      "Promotion expired",
+      `Your promoted search placement duration has ended.`,
+      { vendor_id: vendor.id }
+    );
+  }
+
   const expired = await prisma.vendorProfile.findMany({
     where: {
       membership_expires_at: { lte: now },
@@ -159,7 +182,7 @@ export async function expireExpiredMemberships(): Promise<number> {
     },
   });
 
-  let count = 0;
+  let count = expiredPromotions.length;
   for (const vendor of expired) {
     const demoteSponsorship = vendor.membership_plan?.includes_sponsorship ?? false;
     await prisma.vendorProfile.update({
@@ -179,7 +202,7 @@ export async function expireExpiredMemberships(): Promise<number> {
   }
 
   if (count > 0) {
-    log.info(`[cron] Expired memberships for ${count} vendors`, { context: "cron" });
+    log.info(`[cron] Expired memberships/promotions for ${count} vendors`, { context: "cron" });
   }
   return count;
 }

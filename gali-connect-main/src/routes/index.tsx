@@ -190,6 +190,7 @@ function Home() {
             <SearchBar />
           </div>
           <Hero />
+          <SponsoredVendors />
           <FeaturedProducts />
           <Categories />
           <LiveBanner />
@@ -601,6 +602,81 @@ function isRoamingVendor(v: any): boolean {
     v.vendor?.roaming === true ||
     v.profile?.roaming === true ||
     v.vendor_type === "roaming"
+  );
+}
+
+function SponsoredVendors() {
+  const { data: res, isLoading } = useQuery({
+    queryKey: ["vendors", "sponsored"],
+    queryFn: () => api.get<any[]>("/vendors"),
+  });
+
+  const sponsoredList = (res?.data || []).filter((v) => v.is_sponsored === true);
+
+  if (isLoading || sponsoredList.length === 0) return null;
+
+  return (
+    <section className="pt-6 md:pt-10">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/20">
+            <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg md:text-2xl font-bold tracking-tight">
+              Featured & Promoted Vendors
+            </h2>
+            <p className="text-xs text-muted-foreground">Top recommended stores & partners</p>
+          </div>
+        </div>
+        <span className="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-700 border border-amber-500/30 rounded-full">
+          Sponsored
+        </span>
+      </div>
+
+      <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x no-scrollbar">
+        {sponsoredList.map((v) => {
+          const logo = v.logo_url || v.profile?.logo_url;
+          return (
+            <Link
+              key={v.id}
+              to="/vendors/$vendorId"
+              params={{ vendorId: v.id }}
+              className="snap-start shrink-0 w-[240px] md:w-[280px] rounded-3xl bg-gradient-to-b from-amber-500/5 via-card to-card border border-amber-500/30 p-4 shadow-md hover:shadow-lg hover:border-amber-500/60 transition-all group relative overflow-hidden"
+            >
+              <div className="absolute top-2.5 right-2.5 z-10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white rounded-full shadow-xs">
+                Promoted
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="h-14 w-14 rounded-2xl bg-muted overflow-hidden border border-border shrink-0 group-hover:scale-105 transition-transform">
+                  {logo ? (
+                    <img src={logo} alt={v.business_name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full grid place-items-center bg-amber-100 text-amber-700 font-bold text-lg">
+                      {v.business_name?.[0] || "V"}
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-sm truncate text-foreground group-hover:text-amber-600 transition-colors">
+                    {v.business_name}
+                  </h3>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {v.profile?.description || v.category || "Featured Partner"}
+                  </p>
+                  <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-amber-700">
+                    <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                    {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "4.9"}
+                    <span className="text-muted-foreground font-normal ml-1">({v.review_count || 12}+ reviews)</span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

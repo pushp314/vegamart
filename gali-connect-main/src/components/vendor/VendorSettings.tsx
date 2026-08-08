@@ -26,6 +26,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   );
   const [contactPhone, setContactPhone] = useState(profile.phone || "");
   const [providesDelivery, setProvidesDelivery] = useState(profile.provides_delivery ?? false);
+  const [logoUrl, setLogoUrl] = useState(profile.logo_url || "");
 
   useEffect(() => {
     if (profile.gstin !== undefined) setGstin(profile.gstin || "");
@@ -35,6 +36,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
       );
     if (profile.phone !== undefined) setContactPhone(profile.phone || "");
     if (profile.provides_delivery !== undefined) setProvidesDelivery(!!profile.provides_delivery);
+    if (profile.logo_url !== undefined) setLogoUrl(profile.logo_url || "");
   }, [profile]);
 
   const updateMutation = useMutation({
@@ -55,6 +57,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
       provides_delivery: providesDelivery,
       free_delivery_min_order: freeDeliveryMin ? Number(freeDeliveryMin) : null,
       phone: contactPhone || null,
+      logo_url: logoUrl || null,
     });
   };
 
@@ -77,6 +80,46 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
+        <Card className="rounded-3xl border-border shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-5 w-5 text-amber-500" />
+              Store Branding & Logo
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Upload or provide an image link for your business logo / store DP.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden border border-border shrink-0 grid place-items-center">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Store DP" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-xl font-bold text-muted-foreground">
+                    {profile.business_name?.[0] || "V"}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <Label
+                  htmlFor="logoUrl"
+                  className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  Logo Image URL
+                </Label>
+                <Input
+                  id="logoUrl"
+                  placeholder="https://example.com/logo.png"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  className="h-10 rounded-2xl text-xs bg-muted/40"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="rounded-3xl border-border shadow-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">

@@ -407,6 +407,8 @@ model VendorProfile {
   is_open                 Boolean      @default(false)
   is_verified             Boolean      @default(false)
   is_sponsored            Boolean      @default(false)
+  sponsored_until         DateTime?
+  sponsored_priority      Int          @default(0)
   status                  VendorStatus @default(PENDING)
   owner_name              String?      @db.VarChar(120)
   phone                   String?      @db.VarChar(20)

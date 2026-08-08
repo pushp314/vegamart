@@ -4,9 +4,14 @@ import { boundingBox, haversineDistanceKm } from "../utils/geo";
 
 const MAX_RESULTS = 50;
 
-function getPlanBoost(vendor?: { membership_tier?: string | null; is_sponsored?: boolean | null }): number {
+function getPlanBoost(vendor?: { membership_tier?: string | null; is_sponsored?: boolean | null; sponsored_until?: Date | string | null; sponsored_priority?: number | null }): number {
   if (!vendor) return 0;
-  if (vendor.is_sponsored) return -3;
+  if (vendor.is_sponsored) {
+    if (!vendor.sponsored_until || new Date(vendor.sponsored_until) > new Date()) {
+      const priorityBonus = (vendor.sponsored_priority || 0) * 10;
+      return -100 - priorityBonus; // Absolute top priority, ordered by sponsored_priority score
+    }
+  }
   switch (vendor.membership_tier) {
     case "business": return -2;
     case "premium": return -1;

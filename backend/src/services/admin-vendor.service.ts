@@ -197,6 +197,8 @@ export const adminVendorService = {
   async updatePromotion(
     vendorId: string,
     isSponsored: boolean,
+    sponsoredUntil: Date | null | undefined,
+    sponsoredPriority: number | undefined,
     adminId: string,
     req: Request
   ) {
@@ -209,8 +211,12 @@ export const adminVendorService = {
 
     const updated = await prisma.vendorProfile.update({
       where: { id: vendorId },
-      data: { is_sponsored: isSponsored },
-      select: { id: true, business_name: true, is_sponsored: true },
+      data: {
+        is_sponsored: isSponsored,
+        sponsored_until: isSponsored ? (sponsoredUntil ?? null) : null,
+        sponsored_priority: isSponsored ? (sponsoredPriority ?? 0) : 0,
+      },
+      select: { id: true, business_name: true, is_sponsored: true, sponsored_until: true, sponsored_priority: true },
     });
 
     await auditService.record(
@@ -219,7 +225,7 @@ export const adminVendorService = {
         action: isSponsored ? "VENDOR_PROMOTED" : "VENDOR_UNPROMOTED",
         entityType: "vendor",
         entityId: vendorId,
-        newValues: { is_sponsored: updated.is_sponsored },
+        newValues: { is_sponsored: updated.is_sponsored, sponsored_until: updated.sponsored_until, sponsored_priority: updated.sponsored_priority },
       },
       req
     );

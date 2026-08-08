@@ -33,6 +33,9 @@ export type Vendor = {
   status: VendorStatus;
   is_verified: boolean;
   is_sponsored?: boolean;
+  sponsored_until?: string | null;
+  sponsored_priority?: number;
+  logo_url?: string | null;
   commission_rate?: number;
   membership_tier?: string;
   membership_plan_id?: string | null;

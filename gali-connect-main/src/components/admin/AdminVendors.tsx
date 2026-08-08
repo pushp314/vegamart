@@ -14,7 +14,7 @@ interface AdminVendorsProps {
   onReject: (id: string, reason: string) => void;
   onSuspend: (id: string) => void;
   onRestore: (id: string) => void;
-  onPromote: (id: string) => void;
+  onPromote: (id: string, sponsoredUntil?: string | null, sponsoredPriority?: number) => void;
   onUnpromote: (id: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
@@ -36,6 +36,7 @@ export function AdminVendors({
   const [query, setQuery] = useState("");
   const [editingSettingsVendor, setEditingSettingsVendor] = useState<any>(null);
   const [earningsVendor, setEarningsVendor] = useState<any>(null);
+  const [promoteTargetVendor, setPromoteTargetVendor] = useState<any>(null);
 
   const queryClient = useQueryClient();
 
@@ -280,24 +281,22 @@ export function AdminVendors({
                             >
                               Orders
                             </Link>
-                            {v.is_sponsored ? (
+                             {v.is_sponsored ? (
                               <button
                                 onClick={() => {
-                                  if (confirm("Remove the Sponsored badge from this vendor?"))
+                                  if (confirm(`Demote "${v.business_name}" and remove top search placement?`))
                                     onUnpromote(v.id);
                                 }}
                                 className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-all active:scale-95"
                               >
-                                Unpromote
+                                Demote
                               </button>
                             ) : (
                               <button
-                                onClick={() => {
-                                  if (confirm("Promote this vendor to Sponsored?")) onPromote(v.id);
-                                }}
-                                className="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-rose-500 to-saffron text-white hover:opacity-90 shadow-sm transition-all active:scale-95"
+                                onClick={() => setPromoteTargetVendor(v)}
+                                className="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-rose-500 to-saffron text-white hover:opacity-90 shadow-sm transition-all active:scale-95 flex items-center gap-1"
                               >
-                                Promote
+                                <Sparkles className="h-3 w-3" /> Promote
                               </button>
                             )}
                             <button
@@ -378,6 +377,163 @@ export function AdminVendors({
           onClose={() => setEarningsVendor(null)}
         />
       )}
+
+      {promoteTargetVendor && (
+        <PromotionScheduleModal
+          vendor={promoteTargetVendor}
+          onClose={() => setPromoteTargetVendor(null)}
+          onConfirm={(sponsoredUntil, sponsoredPriority) => {
+            onPromote(promoteTargetVendor.id, sponsoredUntil, sponsoredPriority);
+            setPromoteTargetVendor(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PromotionScheduleModal({
+  vendor,
+  onClose,
+  onConfirm,
+}: {
+  vendor: any;
+  onClose: () => void;
+  onConfirm: (sponsoredUntil: string | null, sponsoredPriority: number) => void;
+}) {
+  const [durationOption, setDurationOption] = useState<"indefinite" | "1hour" | "1day" | "7days" | "30days" | "custom">("1day");
+  const [customDays, setCustomDays] = useState(1);
+  const [priority, setPriority] = useState<number>(vendor.sponsored_priority || 0);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    let untilIso: string | null = null;
+
+    if (durationOption !== "indefinite") {
+      const now = new Date();
+      let durationMs = 0;
+      if (durationOption === "1hour") durationMs = 60 * 60 * 1000;
+      else if (durationOption === "1day") durationMs = 24 * 60 * 60 * 1000;
+      else if (durationOption === "7days") durationMs = 7 * 24 * 60 * 60 * 1000;
+      else if (durationOption === "30days") durationMs = 30 * 24 * 60 * 60 * 1000;
+      else if (durationOption === "custom") durationMs = (Math.max(1, customDays) || 1) * 24 * 60 * 60 * 1000;
+      const expiresAt = new Date(now.getTime() + durationMs);
+      untilIso = expiresAt.toISOString();
+    }
+
+    onConfirm(untilIso, Number(priority) || 0);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-center p-4 overflow-y-auto">
+      <div className="bg-card text-card-foreground border border-border w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+        <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base">Promote Vendor</h3>
+              <p className="text-xs text-muted-foreground">{vendor.business_name}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-foreground block mb-2">
+              Select Promotion Duration (Top Search Ranking)
+            </label>
+            <div className="space-y-2">
+              {[
+                { id: "1hour", label: "1 Hour", desc: "Short term burst promotion" },
+                { id: "1day", label: "1 Day (24 Hours)", desc: "Standard daily boost" },
+                { id: "7days", label: "7 Days (1 Week)", desc: "Weekly campaign boost" },
+                { id: "30days", label: "30 Days (1 Month)", desc: "Monthly feature boost" },
+                { id: "custom", label: "Custom Days", desc: "Specify custom number of days" },
+                { id: "indefinite", label: "Indefinite / Permanent", desc: "Promoted until manually demoted" },
+              ].map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer ${
+                    durationOption === opt.id
+                      ? "bg-amber-500/10 border-amber-500/40 text-foreground"
+                      : "bg-muted/40 border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="duration"
+                    value={opt.id}
+                    checked={durationOption === opt.id}
+                    onChange={() => setDurationOption(opt.id as any)}
+                    className="mt-0.5 text-amber-600 focus:ring-amber-500"
+                  />
+                  <div>
+                    <div className="text-xs font-bold text-foreground">{opt.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {durationOption === "custom" && (
+            <div className="pt-1">
+              <label className="text-xs font-bold text-foreground block mb-1">Number of Days</label>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={customDays}
+                onChange={(e) => setCustomDays(parseInt(e.target.value) || 1)}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          )}
+
+          <div className="pt-2">
+            <label className="text-xs font-bold text-foreground block mb-1">
+              Promotion Priority Rank (Higher appears first)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={priority}
+                onChange={(e) => setPriority(parseInt(e.target.value) || 0)}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+              />
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                (e.g., 10 = VIP, 5 = High, 0 = Normal)
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-muted hover:bg-muted/80 text-foreground transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md hover:opacity-90 transition-all active:scale-95 flex items-center gap-1.5"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Confirm Promotion
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

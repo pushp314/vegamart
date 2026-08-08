@@ -31,6 +31,8 @@ const baseSelect = {
   is_open: true,
   is_verified: true,
   is_sponsored: true,
+  sponsored_until: true,
+  sponsored_priority: true,
   status: true,
   owner_name: true,
   phone: true,
@@ -88,6 +90,7 @@ export type VendorRow = {
   is_open: boolean;
   is_verified: boolean;
   is_sponsored: boolean;
+  sponsored_until: Date | null;
   status: import("@prisma/client").VendorStatus;
   owner_name: string | null;
   phone: string | null;
@@ -267,7 +270,7 @@ export async function listVendors(
     prisma.vendorProfile.findMany({
       where,
       select: baseSelect,
-      orderBy: [{ is_sponsored: "desc" }, { is_open: "desc" }, { rating: "desc" }, { created_at: "desc" }],
+      orderBy: [{ is_sponsored: "desc" }, { sponsored_priority: "desc" }, { is_open: "desc" }, { rating: "desc" }, { created_at: "desc" }],
       skip,
       take,
     }),

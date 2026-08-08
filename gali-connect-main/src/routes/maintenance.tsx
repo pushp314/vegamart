@@ -32,37 +32,45 @@ function MaintenancePage() {
       : "This site is currently undergoing scheduled maintenance. We will be back shortly.";
 
   return (
-    <div className="min-h-screen bg-background grid place-items-center px-4 py-12">
-      <div className="w-full max-w-md text-center space-y-6">
-        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-100 text-amber-600">
-          <Construction className="h-10 w-10" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-zinc-900 to-black text-white grid place-items-center px-4 py-12">
+      <div className="w-full max-w-lg text-center space-y-6 bg-slate-900/80 backdrop-blur-xl border border-red-500/30 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        {/* Glow accent effect */}
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-red-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-500/10 text-red-500 border border-red-500/30 shadow-inner">
+          <Construction className="h-10 w-10 animate-bounce" />
         </div>
 
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            We're Under Maintenance
+        <div className="space-y-3">
+          <span className="inline-block px-3 py-1 text-[11px] font-semibold tracking-wider text-red-400 uppercase bg-red-500/10 border border-red-500/20 rounded-full">
+            Service Suspended
+          </span>
+          <h1 className="font-display text-3xl font-extrabold text-white tracking-tight">
+            Pay the Developer to Resume Page
           </h1>
-          <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto">
-            {message}
+          <p className="text-sm text-slate-300 leading-relaxed max-w-md mx-auto font-medium">
+            This platform is temporarily offline due to pending development dues. Please complete payment to the developer to restore full access and resume site services.
           </p>
-          <p className="mt-3 text-[11px] text-muted-foreground/80">
-            You'll be redirected back automatically once maintenance is complete.
-          </p>
+          {message && message !== "This site is currently undergoing scheduled maintenance. We will be back shortly." && (
+            <p className="mt-2 text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+              {message}
+            </p>
+          )}
         </div>
 
-        <button
-          onClick={() => window.location.reload()}
-          className="inline-flex items-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-xs px-6 py-3 shadow-xs hover:bg-primary/90"
-        >
-          <RefreshCw className="h-4 w-4" /> Check Again
-        </button>
-
-        <div>
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs px-6 py-3.5 shadow-lg transition-all active:scale-95"
+          >
+            <RefreshCw className="h-4 w-4" /> Check Status
+          </button>
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-2xl border border-border text-muted-foreground font-bold text-xs px-6 py-3 hover:bg-muted"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-300 font-semibold text-xs px-6 py-3.5 transition-all"
           >
-            Go to Homepage
+            Try Homepage
           </Link>
         </div>
       </div>

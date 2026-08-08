@@ -476,9 +476,13 @@ export const deleteMembershipPlan = asyncHandler(async (req: Request, res: Respo
 });
 
 export const updateVendorPromotion = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as { is_sponsored: boolean; sponsored_until?: string | null; sponsored_priority?: number };
+  const sponsoredUntil = body.sponsored_until ? new Date(body.sponsored_until) : null;
   const data = await adminVendorService.updatePromotion(
     req.params.vendor_id as string,
-    (req.body as { is_sponsored: boolean }).is_sponsored,
+    body.is_sponsored,
+    sponsoredUntil,
+    body.sponsored_priority,
     req.user!.id,
     req
   );

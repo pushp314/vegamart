@@ -242,6 +242,8 @@ export type UpdateVendorMembershipBody = z.infer<typeof updateVendorMembershipSc
 
 export const updateVendorPromotionSchema = z.object({
   is_sponsored: z.boolean(),
+  sponsored_until: z.string().datetime().optional().nullable(),
+  sponsored_priority: z.number().int().min(0).optional().nullable(),
 }).strict();
 export type UpdateVendorPromotionBody = z.infer<typeof updateVendorPromotionSchema>;
 
