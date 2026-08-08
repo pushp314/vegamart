@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+
+const DISMISS_KEY = "lg_install_dismissed_at";
+const DISMISS_DAYS = 7;
 
 type BIPEvent = Event & {
   prompt: () => Promise<void>;
@@ -38,19 +41,32 @@ function isIOSPwa() {
 }
 
 export function usePwaInstall() {
-  const [deferred, setDeferred] = useState<BIPEvent | null>(deferredInstallPrompt);
+  const [deferred, setDeferred] = useState<BIPEvent | null>(null);
   const [standalone, setStandalone] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    setDeferred(deferredInstallPrompt);
+    setStandalone(isStandalonePwa());
+    setIsIOS(isIOSPwa());
+    
     const sync = () => setDeferred(deferredInstallPrompt);
     listeners.add(sync);
-    setStandalone(isStandalonePwa());
+    const checkDismissed = () => {
+      const dismissed = Number(localStorage.getItem(DISMISS_KEY) || 0);
+      setIsDismissed(Boolean(dismissed && Date.now() - dismissed < DISMISS_DAYS * 86400000));
+    };
+    checkDismissed();
+    window.addEventListener("pwa_dismissed", checkDismissed);
+
     return () => {
       listeners.delete(sync);
+      window.removeEventListener("pwa_dismissed", checkDismissed);
     };
   }, []);
-
-  const isIOS = isIOSPwa();
 
   const install = async (): Promise<"accepted" | "dismissed" | null> => {
     const prompt = deferredInstallPrompt;
@@ -64,11 +80,19 @@ export function usePwaInstall() {
 
   const canInstall = Boolean(deferred);
 
+  const dismiss = useCallback(() => {
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    setIsDismissed(true);
+    window.dispatchEvent(new Event("pwa_dismissed"));
+  }, []);
+
   return {
     canInstall,
     isIOS,
     isStandalone: standalone,
-    showInstallOption: !standalone && (canInstall || isIOS),
+    showInstallOption: mounted && !standalone && (canInstall || isIOS),
+    isDismissed: mounted ? isDismissed : true,
     install,
+    dismiss,
   };
 }

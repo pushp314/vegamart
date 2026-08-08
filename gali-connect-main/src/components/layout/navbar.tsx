@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   MapPin,
@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Bell,
   Bike,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/system/logo";
@@ -19,6 +20,8 @@ import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useAuth } from "@/context/auth-context";
 import { useLocation } from "@/hooks/use-location";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
+import { toast } from "sonner";
 
 /**
  * Desktop / tablet header. Rendered globally at md+ from __root.
@@ -31,6 +34,9 @@ export function Navbar() {
   const { displayLocation } = useLocation();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { isStandalone, install } = usePwaInstall();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Support the advertised ⌘K / Ctrl+K shortcut for search
   useEffect(() => {
@@ -92,6 +98,20 @@ export function Navbar() {
               <Sparkles className="h-3.5 w-3.5" /> Street Radar
             </Link>
           </Button>
+
+          {mounted && !isStandalone && (
+            <Button
+              onClick={async () => {
+                const res = await install();
+                if (!res) toast.info("Look for the install icon in your browser's address bar, or use the 'Add to Home Screen' / 'Install' option in the browser menu.");
+              }}
+              variant="default"
+              size="sm"
+              className="bg-brand hover:bg-brand/90 text-primary-foreground font-bold shadow-glow"
+            >
+              <Download className="h-4 w-4 mr-1.5" />Install
+            </Button>
+          )}
 
           {role === "vendor" ? (
             <div className="flex items-center gap-1.5">

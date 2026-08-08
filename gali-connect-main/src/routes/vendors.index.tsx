@@ -59,12 +59,15 @@ function VendorsPage() {
 
   const { data: vendorsRes, isLoading: loadingVendors } = useQuery({
     queryKey: ["vendors", activeAddress?.latitude, activeAddress?.longitude],
-    queryFn: () => {
-      let url = "/vendors";
+    queryFn: async () => {
       if (activeAddress?.latitude && activeAddress?.longitude) {
-        url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}`;
+        const url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}`;
+        const res = await api.get<Vendor[]>(url);
+        if (res.data && res.data.length > 0) {
+          return res;
+        }
       }
-      return api.get<Vendor[]>(url);
+      return api.get<Vendor[]>("/vendors");
     },
   });
 

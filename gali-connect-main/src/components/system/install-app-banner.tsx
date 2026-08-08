@@ -2,20 +2,24 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
-
-const DISMISS_KEY = "lg_install_dismissed_at";
-const DISMISS_DAYS = 7;
+import { useRouterState } from "@tanstack/react-router";
 
 export function InstallAppBanner() {
-  const { canInstall, isIOS, isStandalone, install } = usePwaInstall();
+  const { canInstall, isIOS, isStandalone, install, isDismissed, dismiss } = usePwaInstall();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [visible, setVisible] = useState(false);
   const [showSteps, setShowSteps] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (isStandalone) return;
-    const dismissed = Number(localStorage.getItem(DISMISS_KEY) || 0);
-    if (dismissed && Date.now() - dismissed < DISMISS_DAYS * 86400000) return;
+    if (pathname !== "/") {
+      setVisible(false);
+      return;
+    }
+    if (isStandalone || isDismissed) {
+      setVisible(false);
+      return;
+    }
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     if (isIOS) {
@@ -25,10 +29,10 @@ export function InstallAppBanner() {
       timers.push(setTimeout(() => setVisible(true), 800));
     }
     return () => timers.forEach((t) => clearTimeout(t));
-  }, [canInstall, isIOS, isStandalone]);
+  }, [canInstall, isIOS, isStandalone, isDismissed, pathname]);
 
-  const dismiss = () => {
-    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+  const handleDismiss = () => {
+    dismiss();
     setVisible(false);
   };
 
@@ -53,7 +57,7 @@ export function InstallAppBanner() {
         >
           <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-2xl relative">
             <button
-              onClick={dismiss}
+              onClick={handleDismiss}
               className="absolute right-4 top-4 p-2 text-muted-foreground hover:bg-muted rounded-full tap-highlight-none"
             >
               <X className="h-5 w-5" />

@@ -6,7 +6,8 @@ import log from "../config/logger";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import * as vendorRepo from "../repositories/vendor.repository";
-import { findById as findUserById } from "../repositories/user.repository";
+import { findById as findUserById, update as updateUser } from "../repositories/user.repository";
+import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
 import { cacheService } from "../database/cache";
 import { notificationService } from "./notification.service";
 import { emailService } from "./email.service";
@@ -70,8 +71,14 @@ export const vendorService = {
     }
 
     const user = await findUserById(userId, { role: true });
-    if (user?.role.slug !== "vendor") {
-      throw new ForbiddenError("Only vendor accounts can create a vendor profile.");
+    
+    if (user?.role.slug === "customer") {
+      const vendorRole = await findRoleBySlug("vendor");
+      if (vendorRole) {
+        await updateUser(userId, { role: { connect: { id: vendorRole.id } } });
+      }
+    } else if (user?.role.slug !== "vendor" && user?.role.slug !== "admin") {
+      throw new ForbiddenError("Your account type cannot create a vendor profile.");
     }
 
     const existingSlugs = await vendorRepo.listSlugs();

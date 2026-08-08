@@ -23,6 +23,7 @@ import {
   Plug,
   Coffee,
   Heart,
+  Download,
 } from "lucide-react";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { Logo } from "@/components/system/logo";
@@ -33,6 +34,7 @@ import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useLocation } from "@/hooks/use-location";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { toast } from "sonner";
 import {
   Carousel,
@@ -206,6 +208,8 @@ function Home() {
 
 function Header({ displayLocation }: { displayLocation: string }) {
   const { itemCount } = useCart();
+  const { showInstallOption, isDismissed, install } = usePwaInstall();
+
   return (
     <div className="pt-4 pb-3 flex items-center gap-3">
       <Link to="/" aria-label="Vegamart home" className="shrink-0">
@@ -217,18 +221,28 @@ function Header({ displayLocation }: { displayLocation: string }) {
         </div>
         <div className="mt-0.5 text-[15px] font-bold truncate">{displayLocation}</div>
       </Link>
-      <Link
-        to="/cart"
-        aria-label="Cart"
-        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-50 text-primary tap-highlight-none"
-      >
-        <ShoppingCart className="h-5 w-5" />
-        {itemCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 grid h-[18px] min-w-[18px] px-1 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-2 ring-background">
-            {itemCount > 99 ? "99+" : itemCount}
-          </span>
-        )}
-      </Link>
+      {showInstallOption && isDismissed ? (
+        <button
+          onClick={install}
+          aria-label="Install App"
+          className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-primary-foreground shadow-glow tap-highlight-none transition active:scale-95"
+        >
+          <Download className="h-5 w-5" />
+        </button>
+      ) : (
+        <Link
+          to="/cart"
+          aria-label="Cart"
+          className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-50 text-primary tap-highlight-none"
+        >
+          <ShoppingCart className="h-5 w-5" />
+          {itemCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 grid h-[18px] min-w-[18px] px-1 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-2 ring-background">
+              {itemCount > 99 ? "99+" : itemCount}
+            </span>
+          )}
+        </Link>
+      )}
     </div>
   );
 }
@@ -467,6 +481,7 @@ function FeaturedProducts() {
 }
 
 function Categories() {
+  const [expanded, setExpanded] = useState(false);
   const { data: res } = useQuery({
     queryKey: ["publicCategories"],
     queryFn: () => api.get<any[]>("/categories"),
@@ -474,8 +489,9 @@ function Categories() {
   });
 
   const dbCats = res?.data || [];
-  // Ensure we only show active categories
   const activeCats = dbCats.filter((c: any) => c.is_active !== false);
+  const hasMore = activeCats.length > 7;
+  const displayCats = expanded || !hasMore ? activeCats : activeCats.slice(0, 6);
 
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">
@@ -495,7 +511,7 @@ function Categories() {
             Live Vendor
           </span>
         </Link>
-        {activeCats.map((c: any) => (
+        {displayCats.map((c: any) => (
           <Link
             key={c.id}
             to="/products"
@@ -514,6 +530,19 @@ function Categories() {
             </span>
           </Link>
         ))}
+        {hasMore && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
+          >
+            <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted/50 border-2 border-dashed border-muted-foreground/30 text-muted-foreground transition hover:border-primary/50 hover:text-primary">
+              <ChevronDown className={`h-7 w-7 md:h-8 md:w-8 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} strokeWidth={1.75} />
+            </div>
+            <span className="text-[11.5px] md:text-[13px] font-medium text-center leading-tight">
+              {expanded ? "Less" : "More"}
+            </span>
+          </button>
+        )}
       </div>
     </section>
   );
@@ -1043,6 +1072,7 @@ function Offers() {
             <Link
               key={o.id}
               to="/vendors"
+              search={{ q: o.tag }}
               className={`snap-start shrink-0 md:shrink w-[72%] md:w-auto rounded-2xl md:rounded-3xl p-4 md:p-6 ${tone} shadow-sm`}
             >
               <div className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider opacity-80">

@@ -72,7 +72,7 @@ router.get("/vendors/by-slug/:slug", validate({ params: vendorSlugParamsSchema }
 // Vendor self-service (must precede /vendors/:vendor_id)
 router.get("/vendors/me", authenticate, getMyVendor);
 router.delete("/vendors/me", authenticate, blockGuest, requireRole(ROLES.VENDOR), cancelVendorApplication);
-router.post("/vendors", authenticate, requireRole(ROLES.VENDOR), validate({ body: createVendorSchema }), createVendor);
+router.post("/vendors", authenticate, requireRole(ROLES.VENDOR, ROLES.CUSTOMER), validate({ body: createVendorSchema }), createVendor);
 router.put("/vendors/me", authenticate, validate({ body: updateVendorSchema }), updateMyVendor);
 router.get("/vendors/me/kyc", authenticate, requireRole(ROLES.VENDOR), getVendorKyc);
 router.post("/vendors/me/kyc", authenticate, blockGuest, requireRole(ROLES.VENDOR), validate({ body: vendorKycSchema }), submitVendorKyc);
