@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Navigation, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,10 +49,73 @@ function LocationMarker({
   return position === null ? null : <Marker position={position}></Marker>;
 }
 
+function MapUpdater({ center }: { center: L.LatLng }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, map.getZoom());
+  }, [center, map]);
+  return null;
+}
+
 export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
   const queryClient = useQueryClient();
   const [position, setPosition] = useState<L.LatLng | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [mapLink, setMapLink] = useState("");
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const newPos = new L.LatLng(pos.coords.latitude, pos.coords.longitude);
+        setPosition(newPos);
+        toast.success("Location found");
+      },
+      (err) => {
+        setIsLocating(false);
+        toast.error("Unable to retrieve your location. Please check browser permissions.");
+      },
+      { timeout: 10000 }
+    );
+  };
+
+  const handleParseMapLink = () => {
+    if (!mapLink.trim()) return;
+    try {
+      const regexArray = [
+        /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+        /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
+        /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/,
+      ];
+      
+      let lat = null, lng = null;
+      for (const regex of regexArray) {
+        const match = mapLink.match(regex);
+        if (match) {
+          lat = parseFloat(match[1]);
+          lng = parseFloat(match[2]);
+          break;
+        }
+      }
+
+      if (lat && lng) {
+        const newPos = new L.LatLng(lat, lng);
+        setPosition(newPos);
+        toast.success("Location extracted from link");
+        setMapLink("");
+      } else {
+        toast.error("Could not find coordinates in this link. Try a different format or click directly on the map.");
+      }
+    } catch (e) {
+      toast.error("Invalid link format");
+    }
+  };
 
   useEffect(() => {
     if (vendorProfile.latitude && vendorProfile.longitude) {
@@ -102,13 +165,37 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="flex flex-col md:flex-row gap-3">
+          <Button 
+            variant="outline" 
+            onClick={handleCurrentLocation}
+            disabled={isLocating}
+            className="flex-shrink-0"
+          >
+            {isLocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Navigation className="mr-2 h-4 w-4" />}
+            Current Location
+          </Button>
+          <div className="flex flex-1 gap-2">
+            <Input 
+              placeholder="Paste Google Maps Link..." 
+              value={mapLink}
+              onChange={(e) => setMapLink(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleParseMapLink()}
+            />
+            <Button variant="secondary" onClick={handleParseMapLink}>
+              <Search className="h-4 w-4 mr-2" /> Find
+            </Button>
+          </div>
+        </div>
+
         <div className="h-[400px] rounded-lg overflow-hidden border border-border relative z-0">
           <MapContainer center={defaultCenter} zoom={13} style={{ height: "100%", width: "100%" }}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
+              url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
             />
             <LocationMarker position={position} setPosition={setPosition} />
+            {position && <MapUpdater center={position} />}
             {position && (
               <Circle
                 center={position}
