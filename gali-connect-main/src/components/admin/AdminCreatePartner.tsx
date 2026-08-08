@@ -13,7 +13,7 @@ import {
   MapPin,
   X,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, formatErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 
 export function AdminCreatePartner() {
@@ -107,7 +107,7 @@ export function AdminCreatePartner() {
             const approveRes = await api.put<any>(`/admin/vendors/${vId}/approve`);
             if (!approveRes.success) {
               setLoading(false);
-              toast.error(approveRes.error?.message || "Vendor created but failed to approve");
+              toast.error(formatErrorMessage(approveRes.error, "Vendor created but failed to approve"));
               return;
             }
           }
@@ -129,7 +129,7 @@ export function AdminCreatePartner() {
           setPhone("");
           setAddress("");
         } else {
-          toast.error(vendorRes.error?.message || "Failed to create vendor profile");
+          toast.error(formatErrorMessage(vendorRes.error, "Failed to create vendor profile"));
         }
       } else {
         // Delivery Partner Creation

@@ -44,6 +44,17 @@ export interface ApiResponse<T = unknown> {
   };
 }
 
+export function formatErrorMessage(error?: { code?: string; message?: string; details?: Record<string, string> } | null, fallback = "An unexpected error occurred"): string {
+  if (!error) return fallback;
+  if (error.details && Object.keys(error.details).length > 0) {
+    const detailList = Object.entries(error.details)
+      .map(([field, msg]) => `${field.replace(/^body\./, "")}: ${msg}`)
+      .join(" | ");
+    return `${error.message || "Validation failed"}: ${detailList}`;
+  }
+  return error.message || fallback;
+}
+
 export interface AuthSessionPayload<TUser = unknown> {
   access_token: string;
   refresh_token: string;
