@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
