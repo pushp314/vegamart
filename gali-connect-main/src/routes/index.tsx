@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -26,6 +26,8 @@ import {
   Download,
   Play,
   Sparkles,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { Logo } from "@/components/system/logo";
@@ -271,6 +273,8 @@ import { type CarouselApi } from "@/components/ui/carousel";
 
 function Hero() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isBackgroundMuted, setIsBackgroundMuted] = useState(true);
+  const backgroundVideoRef = useRef<HTMLVideoElement>(null);
 
   const { data: slidesResponse, isLoading: slidesLoading } = useQuery({
     queryKey: ["hero-slides"],
@@ -329,6 +333,13 @@ function Hero() {
     return () => clearInterval(intervalId);
   }, [apiCarousel]);
 
+  const toggleBackgroundSound = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!backgroundVideoRef.current) return;
+    backgroundVideoRef.current.muted = !isBackgroundMuted;
+    setIsBackgroundMuted(!isBackgroundMuted);
+  };
+
   const isBehindHeroVideo = activeVideoAd?.display_mode === "behind_hero";
 
   if (slidesLoading || slides.length === 0) {
@@ -336,15 +347,21 @@ function Hero() {
       <section className="pt-4 md:pt-8">
         <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white h-[260px] md:h-[320px] p-6 md:p-10 shadow-lg flex flex-col justify-center">
           {isBehindHeroVideo && activeVideoAd ? (
-            <video
-              src={activeVideoAd.video_url}
-              poster={activeVideoAd.thumbnail_url || undefined}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-40 z-0 pointer-events-none"
-            />
+            <>
+              <video
+                ref={backgroundVideoRef}
+                src={activeVideoAd.video_url}
+                poster={activeVideoAd.thumbnail_url || undefined}
+                autoPlay
+                loop
+                muted={isBackgroundMuted}
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover opacity-50 z-0 pointer-events-none"
+              />
+              {/* Dual Linear-Radial Gradient Mask */}
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-black/60 to-transparent z-0 pointer-events-none" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-black/70 mix-blend-overlay z-0 pointer-events-none" />
+            </>
           ) : (
             <div
               className="absolute inset-0 opacity-30 mix-blend-overlay"
@@ -368,12 +385,12 @@ function Hero() {
                 </button>
               )}
             </div>
-            <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight">
+            <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight drop-shadow-md">
               Har Gali Banegi
               <br />
               Live Market.
             </h1>
-            <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/85 max-w-[22ch] md:max-w-[42ch]">
+            <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/90 max-w-[22ch] md:max-w-[42ch] drop-shadow-sm">
               See moving vendors on the map. Buy from the nearest one, right now.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -394,6 +411,32 @@ function Hero() {
               )}
             </div>
           </div>
+
+          {/* Floating Sound Control Glass Pill */}
+          {isBehindHeroVideo && activeVideoAd && (
+            <button
+              onClick={toggleBackgroundSound}
+              className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-lg transition-all active:scale-95"
+              title={isBackgroundMuted ? "Unmute Background Audio" : "Mute Background Audio"}
+            >
+              {isBackgroundMuted ? (
+                <>
+                  <VolumeX className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Tap for Sound</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="flex items-end gap-0.5 h-3">
+                    <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_100ms] h-full" />
+                    <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_200ms] h-2/3" />
+                    <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_300ms] h-full" />
+                    <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_400ms] h-1/2" />
+                  </span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         <VideoAdModal
@@ -413,15 +456,21 @@ function Hero() {
             <CarouselItem key={slide.id}>
               <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white h-[260px] md:h-[320px] p-6 md:p-10 shadow-lg flex flex-col justify-center">
                 {isBehindHeroVideo && activeVideoAd ? (
-                  <video
-                    src={activeVideoAd.video_url}
-                    poster={activeVideoAd.thumbnail_url || undefined}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="absolute inset-0 w-full h-full object-cover opacity-40 z-0 pointer-events-none"
-                  />
+                  <>
+                    <video
+                      ref={backgroundVideoRef}
+                      src={activeVideoAd.video_url}
+                      poster={activeVideoAd.thumbnail_url || undefined}
+                      autoPlay
+                      loop
+                      muted={isBackgroundMuted}
+                      playsInline
+                      className="absolute inset-0 w-full h-full object-cover opacity-50 z-0 pointer-events-none"
+                    />
+                    {/* Dual Linear-Radial Gradient Mask */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-black/60 to-transparent z-0 pointer-events-none" />
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-black/70 mix-blend-overlay z-0 pointer-events-none" />
+                  </>
                 ) : (
                   <>
                     <div
@@ -455,12 +504,12 @@ function Hero() {
                     )}
                   </div>
                   {slide.subtitle && (
-                    <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight">
+                    <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight drop-shadow-md">
                       {slide.subtitle}
                     </h1>
                   )}
                   {slide.body && (
-                    <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/85 max-w-[22ch] md:max-w-[42ch]">
+                    <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/90 max-w-[22ch] md:max-w-[42ch] drop-shadow-sm">
                       {slide.body}
                     </p>
                   )}
@@ -483,6 +532,32 @@ function Hero() {
                     )}
                   </div>
                 </div>
+
+                {/* Floating Sound Control Glass Pill */}
+                {isBehindHeroVideo && activeVideoAd && (
+                  <button
+                    onClick={toggleBackgroundSound}
+                    className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-lg transition-all active:scale-95"
+                    title={isBackgroundMuted ? "Unmute Background Audio" : "Mute Background Audio"}
+                  >
+                    {isBackgroundMuted ? (
+                      <>
+                        <VolumeX className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Tap for Sound</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="flex items-end gap-0.5 h-3">
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_100ms] h-full" />
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_200ms] h-2/3" />
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_300ms] h-full" />
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_400ms] h-1/2" />
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </CarouselItem>
           ))}
