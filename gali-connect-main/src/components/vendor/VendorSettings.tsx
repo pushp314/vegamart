@@ -96,9 +96,9 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 {logoUrl ? (
                   <img src={logoUrl} alt="Store DP" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-xl font-bold text-muted-foreground">
-                    {profile.business_name?.[0] || "V"}
-                  </span>
+                  <div className="h-full w-full p-2 grid place-items-center">
+                    <img src="/icons/icon-512.png" alt="Vegamart logo" className="h-full w-full object-contain" />
+                  </div>
                 )}
               </div>
               <div className="flex-1 space-y-1.5">

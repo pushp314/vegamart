@@ -240,8 +240,8 @@ function SearchPage() {
                             {vendor.logo_url || vendor.profile?.logo_url ? (
                               <img src={vendor.logo_url || vendor.profile?.logo_url} alt={vendor.business_name} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-amber-100 text-amber-700 font-bold text-base">
-                                {vendor.business_name?.[0] || "V"}
+                              <div className="w-full h-full flex items-center justify-center bg-muted p-1.5">
+                                <img src="/icons/icon-512.png" alt="Vegamart logo" className="w-full h-full object-contain" />
                               </div>
                             )}
                           </div>

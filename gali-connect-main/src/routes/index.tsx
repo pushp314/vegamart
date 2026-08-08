@@ -653,8 +653,8 @@ function SponsoredVendors() {
                   {logo ? (
                     <img src={logo} alt={v.business_name} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="h-full w-full grid place-items-center bg-amber-100 text-amber-700 font-bold text-lg">
-                      {v.business_name?.[0] || "V"}
+                    <div className="h-full w-full grid place-items-center bg-muted p-2">
+                      <img src="/icons/icon-512.png" alt="Vegamart logo" className="h-full w-full object-contain" />
                     </div>
                   )}
                 </div>

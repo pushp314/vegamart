@@ -104,7 +104,7 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
   [SETTING_KEYS.PLATFORM_LOGO_URL]: {
     key: SETTING_KEYS.PLATFORM_LOGO_URL,
     type: "string",
-    default: null,
+    default: "/icons/icon-512.png",
     description: "URL of the platform logo image.",
     is_public: true,
   },
