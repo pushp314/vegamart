@@ -203,34 +203,34 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   if (!open) return null;
 
   return (
-    <div className="min-h-screen bg-background pb-28 md:pb-16">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/50 to-background pb-28 md:pb-16">
       {/* Sticky Search Header — matches app theme */}
-      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b">
-        <div className="mx-auto flex max-w-3xl items-center gap-2 px-3 py-3 pt-safe">
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b shadow-sm">
+        <div className="mx-auto flex max-w-4xl items-center gap-2 px-4 py-4 pt-safe">
           <button
             type="button"
             aria-label="Back"
             onClick={onClose}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full hover:bg-muted tap-highlight-none md:hidden"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted/50 hover:bg-muted tap-highlight-none transition-colors"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <input
               ref={inputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit(q)}
               placeholder="Search chai, sabzi, samosa, vendors…"
-              className="h-11 w-full rounded-full bg-muted pl-9 pr-20 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/40"
+              className="h-12 w-full rounded-2xl bg-muted/50 pl-12 pr-24 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/40 focus:bg-background transition-all"
             />
-            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {q && (
                 <button
                   onClick={() => setQ("")}
                   aria-label="Clear"
-                  className="grid h-8 w-8 place-items-center rounded-full hover:bg-background"
+                  className="grid h-9 w-9 place-items-center rounded-full hover:bg-background transition-colors"
                 >
                   <X className="h-4 w-4 text-muted-foreground" />
                 </button>
@@ -238,9 +238,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
               <button
                 onClick={startVoice}
                 aria-label="Voice search"
-                className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
+                className={`grid h-9 w-9 place-items-center rounded-full transition-all ${
                   listening
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
                     : "text-primary hover:bg-background"
                 }`}
               >
@@ -251,22 +251,23 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl px-3 md:px-4 py-4 space-y-6">
+      <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 space-y-8">
         {/* Voice listening state */}
         {listening && (
-          <div className="rounded-3xl bg-emerald-50 p-8 text-center animate-fade-in">
-            <div className="relative mx-auto grid h-20 w-20 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
-              <Mic className="h-8 w-8" />
+          <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-emerald-100 p-10 text-center animate-fade-in shadow-sm border border-emerald-200/50">
+            <div className="relative mx-auto grid h-24 w-24 place-items-center rounded-full bg-primary text-primary-foreground shadow-xl">
+              <Mic className="h-10 w-10" />
               <span className="absolute inset-0 rounded-full animate-ping bg-primary/30" />
             </div>
-            <p className="mt-4 text-sm font-bold text-primary">Listening…</p>
-            <div className="mt-3 flex items-end justify-center gap-1 h-8">
+            <p className="mt-6 text-base font-bold text-primary">Listening…</p>
+            <p className="mt-2 text-sm text-muted-foreground">Speak clearly to search</p>
+            <div className="mt-4 flex items-end justify-center gap-1 h-10">
               {Array.from({ length: 24 }).map((_, i) => (
                 <span
                   key={i}
-                  className="w-1 rounded-full bg-primary transition-all duration-150"
+                  className="w-1.5 rounded-full bg-primary transition-all duration-150"
                   style={{
-                    height: `${8 + Math.abs(Math.sin((pulse + i) * 0.6)) * 24}px`,
+                    height: `${10 + Math.abs(Math.sin((pulse + i) * 0.6)) * 30}px`,
                     opacity: 0.35 + Math.abs(Math.sin((pulse + i) * 0.6)) * 0.55,
                   }}
                 />
@@ -274,7 +275,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             </div>
             <button
               onClick={() => setListening(false)}
-              className="mt-4 text-xs font-semibold text-primary underline underline-offset-4"
+              className="mt-6 text-sm font-semibold text-primary underline underline-offset-4 hover:text-emerald-700 transition-colors"
             >
               Tap to cancel
             </button>
@@ -285,14 +286,14 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
         {!listening && !debounced && (
           <>
             {recent.length > 0 && (
-              <section>
-                <div className="mb-3 flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Clock className="h-4 w-4 text-muted-foreground" /> Recent
+              <section className="animate-fade-in">
+                <div className="mb-4 flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Clock className="h-4 w-4 text-primary" /> Recent searches
                   </div>
                   <button
                     onClick={clear}
-                    className="text-xs font-semibold text-primary hover:underline"
+                    className="text-xs font-semibold text-primary hover:text-emerald-700 transition-colors"
                   >
                     Clear all
                   </button>
@@ -301,18 +302,18 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   {recent.map((r) => (
                     <div
                       key={r}
-                      className="group inline-flex items-center gap-1 rounded-full border bg-card pl-3 pr-1 py-1 text-sm"
+                      className="group inline-flex items-center gap-1 rounded-full border border-border/50 bg-card/50 pl-4 pr-1 py-2 text-sm hover:border-primary/30 hover:bg-card transition-all"
                     >
-                      <button onClick={() => setQ(r)} className="inline-flex items-center gap-1.5">
-                        <Clock className="h-3 w-3 text-muted-foreground" />
+                      <button onClick={() => setQ(r)} className="inline-flex items-center gap-2 font-medium">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                         {r}
                       </button>
                       <button
                         onClick={() => remove(r)}
                         aria-label={`Remove ${r}`}
-                        className="grid h-6 w-6 place-items-center rounded-full text-muted-foreground opacity-60 hover:opacity-100 hover:bg-muted"
+                        className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground opacity-60 hover:opacity-100 hover:bg-muted transition-all"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}
@@ -320,13 +321,32 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
               </section>
             )}
 
+            <section className="animate-fade-in">
+              <div className="mb-4 flex items-center gap-2 px-1 text-sm font-semibold text-foreground">
+                <TrendingUp className="h-4 w-4 text-amber-500" /> Trending searches
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {TRENDING.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      push(t);
+                      setQ(t);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-card/50 px-4 py-2 text-sm hover:border-amber-500/50 hover:bg-amber-50/50 transition-all group"
+                  >
+                    <TrendingUp className="h-3.5 w-3.5 text-amber-500" />
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </section>
 
-
-            <section>
-              <div className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold">
+            <section className="animate-fade-in">
+              <div className="mb-4 flex items-center gap-2 px-1 text-sm font-semibold text-foreground">
                 <Sparkles className="h-4 w-4 text-primary" /> Browse categories
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {categories.slice(0, 8).map((c) => (
                   <button
                     key={c.id}
@@ -336,12 +356,12 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                       setQ("");
                       navigate({ to: "/products", search: { category: c.name } });
                     }}
-                    className="rounded-2xl bg-card border p-3 text-left hover:border-primary/50 hover:bg-emerald-50 transition-colors"
+                    className="rounded-2xl bg-card border border-border/50 p-4 text-left hover:border-primary/50 hover:bg-emerald-50/50 hover:shadow-sm transition-all group"
                   >
-                    <div className="mb-2 grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-primary">
-                      <ShoppingBasket className="h-4 w-4" />
+                    <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-200 text-primary group-hover:from-emerald-200 group-hover:to-emerald-300 transition-all">
+                      <ShoppingBasket className="h-5 w-5" />
                     </div>
-                    <div className="text-[13px] font-semibold truncate">{c.name}</div>
+                    <div className="text-sm font-semibold truncate text-foreground">{c.name}</div>
                     {/* Categories backend model doesn't have a count yet, we skip it */}
                   </button>
                 ))}
@@ -352,17 +372,17 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
 
         {/* Suggestions */}
         {!listening && debounced && (
-          <div className="space-y-5">
+          <div className="space-y-6 animate-fade-in">
             <button
               onClick={() => submit(q)}
-              className="w-full flex items-center justify-between rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-soft hover:opacity-95 transition-opacity"
+              className="w-full flex items-center justify-between rounded-2xl bg-gradient-to-r from-primary to-emerald-600 px-5 py-4 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all transform hover:scale-[1.01]"
             >
               <span>See all results for "{q}"</span>
-              <ArrowUpRight className="h-4 w-4" />
+              <ArrowUpRight className="h-5 w-5" />
             </button>
             {categorySug.length > 0 && (
               <section>
-                <div className="mb-2 px-1 text-sm font-semibold">Categories</div>
+                <div className="mb-3 px-1 text-sm font-semibold text-foreground">Categories</div>
                 <div className="flex flex-wrap gap-2">
                   {categorySug.map((c) => (
                     <button
@@ -373,9 +393,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                         setQ("");
                         navigate({ to: "/products", search: { category: c.name } });
                       }}
-                      className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-sm hover:border-primary/50 hover:bg-emerald-50 transition-colors"
+                      className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-card/50 px-4 py-2 text-sm hover:border-primary/50 hover:bg-emerald-50/50 transition-all group"
                     >
-                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      <span className="h-2 w-2 rounded-full bg-primary group-hover:scale-125 transition-transform" />
                       {c.name}
                     </button>
                   ))}
@@ -385,8 +405,8 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
 
             {productSug.length > 0 && (
               <section>
-                <div className="mb-2 px-1 text-sm font-semibold">Products</div>
-                <ol className="rounded-2xl bg-card border divide-y overflow-hidden">
+                <div className="mb-3 px-1 text-sm font-semibold text-foreground">Products</div>
+                <ol className="rounded-2xl bg-card border border-border/50 divide-y divide-border/30 overflow-hidden shadow-sm">
                   {productSug.map((p) => {
                     const imgUrl =
                       p.images?.[0]?.url ||
@@ -401,22 +421,22 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                               onClose();
                             });
                           }}
-                          className="w-full group flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
+                          className="w-full group flex items-center gap-4 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
                         >
                           <img
                             src={imgUrl}
                             alt={p.name}
-                            className="h-11 w-11 shrink-0 rounded-xl object-cover bg-muted"
+                            className="h-14 w-14 shrink-0 rounded-xl object-cover bg-muted shadow-sm"
                           />
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold truncate">
+                            <div className="text-sm font-semibold truncate text-foreground">
                               <Highlight text={p.name} q={debounced} />
                             </div>
-                            <div className="text-[12px] text-muted-foreground tabular-nums">
+                            <div className="text-[13px] text-muted-foreground tabular-nums mt-0.5">
                               ₹{p.price} · {p.unit}
                             </div>
                           </div>
-                          <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition" />
+                          <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-0.5" />
                         </button>
                       </li>
                     );
@@ -427,8 +447,8 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
 
             {vendorSug.length > 0 && (
               <section>
-                <div className="mb-2 px-1 text-sm font-semibold">Vendors</div>
-                <ol className="rounded-2xl bg-card border divide-y overflow-hidden">
+                <div className="mb-3 px-1 text-sm font-semibold text-foreground">Vendors</div>
+                <ol className="rounded-2xl bg-card border border-border/50 divide-y divide-border/30 overflow-hidden shadow-sm">
                   {vendorSug.map((v) => (
                     <li key={v.id}>
                       <Link
@@ -439,18 +459,18 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                           onClose();
                           setQ("");
                         }}
-                        className="group flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                        className="group flex items-center gap-4 px-4 py-3 hover:bg-muted/50 transition-colors"
                       >
-                        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-100 text-primary">
-                          <Store className="h-4 w-4" />
+                        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-200 text-primary shadow-sm">
+                          <Store className="h-5 w-5" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold truncate">
+                          <div className="text-sm font-semibold truncate text-foreground">
                             <Highlight text={v.business_name} q={debounced} />
                           </div>
-                          <div className="text-[12px] text-muted-foreground truncate">Vendor</div>
+                          <div className="text-[13px] text-muted-foreground truncate">Vendor</div>
                         </div>
-                        <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition" />
+                        <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-0.5" />
                       </Link>
                     </li>
                   ))}
@@ -459,26 +479,26 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             )}
 
             {!hasResults && (
-              <div className="space-y-6 animate-fade-in">
-                <div className="rounded-2xl bg-card border p-6 text-center shadow-soft">
-                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-100 text-primary">
-                    <Search className="h-5 w-5" />
+              <div className="space-y-8 animate-fade-in">
+                <div className="rounded-3xl bg-gradient-to-br from-card to-muted/30 border border-border/50 p-8 text-center shadow-sm">
+                  <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 text-primary shadow-lg">
+                    <Search className="h-7 w-7" />
                   </div>
-                  <h3 className="mt-3 text-sm font-bold text-foreground">
+                  <h3 className="mt-4 text-base font-bold text-foreground">
                     No direct matches for "{q}"
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     Check out popular items available in your gali below!
                   </p>
                 </div>
 
                 <section>
-                  <div className="mb-3 flex items-center justify-between px-1">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5" /> Popular Products You Might Like
+                  <div className="mb-4 flex items-center justify-between px-1">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-600 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" /> Popular Products You Might Like
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {products.slice(0, 6).map((p) => {
                       const imgUrl =
                         p.images?.[0]?.url ||
@@ -493,9 +513,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                               onClose();
                             });
                           }}
-                          className="w-full text-left group flex flex-col justify-between rounded-2xl bg-card border p-3 hover:border-emerald-500/50 hover:shadow-soft transition-all"
+                          className="w-full text-left group flex flex-col justify-between rounded-2xl bg-card border border-border/50 p-4 hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10 transition-all"
                         >
-                          <div className="aspect-square w-full rounded-xl overflow-hidden bg-muted mb-2">
+                          <div className="aspect-square w-full rounded-xl overflow-hidden bg-muted mb-3 shadow-sm">
                             <img
                               src={imgUrl}
                               alt={p.name}
@@ -503,10 +523,10 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                             />
                           </div>
                           <div>
-                            <div className="text-xs font-bold truncate text-foreground">
+                            <div className="text-sm font-bold truncate text-foreground">
                               {p.name}
                             </div>
-                            <div className="text-[11px] font-semibold text-emerald-600 mt-0.5">
+                            <div className="text-xs font-semibold text-emerald-600 mt-1">
                               ₹{p.price}
                             </div>
                           </div>

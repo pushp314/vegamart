@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch, Outlet } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Search, X } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useQuery } from "@tanstack/react-query";
@@ -22,7 +22,15 @@ type ProductRow = {
   is_active: boolean;
   is_featured: boolean;
   images?: ProductImage[];
-  vendor?: { id: string; business_name: string; logo_url?: string | null; is_sponsored?: boolean };
+  vendor?: {
+    id: string;
+    business_name: string;
+    logo_url?: string | null;
+    is_sponsored?: boolean;
+    profile?: {
+      logo_url?: string | null;
+    };
+  };
 };
 
 export const Route = createFileRoute("/products")({
@@ -39,11 +47,14 @@ function ProductsPage() {
   const { category, q } = useSearch({ from: "/products" });
   const [input, setInput] = useState(q || "");
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  
-  // If we're on a child route (e.g., /products/$productId), render the outlet
-  if (pathname.match(/^\/products\/[^/]+$/)) {
-    return <Outlet />;
-  }
+
+  const setSearch = useCallback((updates: { category?: string; q?: string }) => {
+    navigate({
+      to: "/products",
+      search: (prev) => ({ ...prev, ...updates }),
+      replace: true,
+    });
+  }, [navigate]);
 
   const { data: catsRes } = useQuery({
     queryKey: ["categories"],
@@ -59,15 +70,26 @@ function ProductsPage() {
   );
 
   const { data: productsRes, isLoading } = useQuery({
-    queryKey: ["products", activeCategory?.id || "all"],
+    queryKey: ["products", activeCategory?.id || "all", q],
     queryFn: () => {
       const params = new URLSearchParams({ per_page: "60" });
       if (activeCategory) params.set("category_id", activeCategory.id);
-      return api.get<{ rows: ProductRow[]; total: number }>(`/products?${params.toString()}`);
+      if (q) params.set("q", q);
+      return api.get<ProductRow[]>(`/products?${params.toString()}`);
     },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
-  const products = useMemo(() => productsRes?.data?.rows || [], [productsRes?.data]);
+  const products = useMemo(() => {
+    const data = Array.isArray(productsRes?.data) ? productsRes.data : [];
+    console.log('Products page data:', { 
+      category: activeCategory?.name, 
+      totalProducts: data.length,
+      searchQuery: q,
+      sample: data.slice(0, 2).map(p => ({ id: p.id, name: p.name }))
+    });
+    return data;
+  }, [productsRes?.data, activeCategory?.name, q]);
 
   const filtered = useMemo(() => {
     const qn = q?.trim().toLowerCase();
@@ -83,18 +105,16 @@ function ProductsPage() {
     );
   }, [products, q]);
 
-  const setSearch = (updates: { category?: string; q?: string }) => {
-    navigate({
-      to: "/products",
-      search: (prev) => ({ ...prev, ...updates }),
-      replace: true,
-    });
-  };
+  // If we're on a child route (e.g., /products/$productId), render the outlet
+  // Check if pathname is exactly /products or has a child segment
+  if (pathname !== "/products" && pathname.startsWith("/products/")) {
+    return <Outlet />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        title={activeCategory?.name || "All products"}
+        title={activeCategory?.name || (q ? `Search: "${q}"` : "All products")}
         subtitle={`${filtered.length} product${filtered.length === 1 ? "" : "s"}`}
       />
       <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 pb-28 md:pb-16">
@@ -105,7 +125,12 @@ function ProductsPage() {
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
-              setSearch({ q: e.target.value || undefined });
+              // Immediate URL update for better UX
+              if (e.target.value.trim()) {
+                setSearch({ q: e.target.value.trim() });
+              } else {
+                setSearch({ q: undefined });
+              }
             }}
             placeholder="Search by product or vendor…"
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -200,7 +225,7 @@ function ProductsPage() {
             </div>
             <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {filtered.map((row) => (
-                <ProductCard key={row.id} product={row as unknown as Product} />
+                <ProductCard key={row.id} product={row as Product} />
               ))}
             </div>
           </>

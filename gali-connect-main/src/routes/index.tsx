@@ -237,7 +237,7 @@ function SearchBar() {
   return (
     <div>
       <Link
-        to="/search"
+        to="/products"
         className="flex items-center gap-3 rounded-full bg-card border h-12 px-4 shadow-sm hover:border-primary/40 transition-colors"
       >
         <Search className="h-4 w-4 text-muted-foreground" />
@@ -499,7 +499,7 @@ function Categories() {
           <Link
             key={c.id}
             to="/products"
-            search={{ category: c.id }}
+            search={{ category: c.name }}
             className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
           >
             <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted text-muted-foreground overflow-hidden">
