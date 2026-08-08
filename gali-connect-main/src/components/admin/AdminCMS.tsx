@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, formatErrorMessage } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Image,
@@ -15,6 +15,8 @@ import {
   Sparkles,
   ExternalLink,
   Plus,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,11 +32,13 @@ export function AdminCMS() {
   const imageUploadRef = useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [cmsImageUrl, setCmsImageUrl] = useState("");
+  const [bannerUploadError, setBannerUploadError] = useState("");
 
   // Video Upload state
   const videoUploadRef = useRef<HTMLInputElement>(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [videoAdUrl, setVideoAdUrl] = useState("");
+  const [videoUploadError, setVideoUploadError] = useState("");
 
   const thumbnailUploadRef = useRef<HTMLInputElement>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
@@ -68,8 +72,14 @@ export function AdminCMS() {
       queryClient.invalidateQueries({ queryKey: ["hero-slides"] });
       toast.success("Banner created successfully");
       setIsBannerModalOpen(false);
+      setCmsImageUrl("");
+      setBannerUploadError("");
     },
-    onError: (err: any) => toast.error(err?.message || "Failed to create banner"),
+    onError: (err: any) => {
+      const msg = formatErrorMessage(err?.error || err, "Failed to create banner slide");
+      setBannerUploadError(msg);
+      toast.error(msg);
+    },
   });
 
   const deleteSlideMutation = useMutation({
@@ -79,7 +89,7 @@ export function AdminCMS() {
       queryClient.invalidateQueries({ queryKey: ["hero-slides"] });
       toast.success("Banner deleted");
     },
-    onError: (err: any) => toast.error(err?.message || "Failed to delete banner"),
+    onError: (err: any) => toast.error(formatErrorMessage(err?.error || err, "Failed to delete banner")),
   });
 
   // Video Ad Mutations
@@ -92,8 +102,13 @@ export function AdminCMS() {
       setIsVideoAdModalOpen(false);
       setVideoAdUrl("");
       setThumbnailUrl("");
+      setVideoUploadError("");
     },
-    onError: (err: any) => toast.error(err?.message || "Failed to create video ad"),
+    onError: (err: any) => {
+      const msg = formatErrorMessage(err?.error || err, "Failed to create video ad");
+      setVideoUploadError(msg);
+      toast.error(msg);
+    },
   });
 
   const updateVideoAdMutation = useMutation({
@@ -103,7 +118,7 @@ export function AdminCMS() {
       queryClient.invalidateQueries({ queryKey: ["publicVideoAds"] });
       toast.success("Video ad updated");
     },
-    onError: (err: any) => toast.error(err?.message || "Failed to update video ad"),
+    onError: (err: any) => toast.error(formatErrorMessage(err?.error || err, "Failed to update video ad")),
   });
 
   const deleteVideoAdMutation = useMutation({
@@ -113,7 +128,7 @@ export function AdminCMS() {
       queryClient.invalidateQueries({ queryKey: ["publicVideoAds"] });
       toast.success("Video ad deleted");
     },
-    onError: (err: any) => toast.error(err?.message || "Failed to delete video ad"),
+    onError: (err: any) => toast.error(formatErrorMessage(err?.error || err, "Failed to delete video ad")),
   });
 
   // Upload Handlers
@@ -121,6 +136,7 @@ export function AdminCMS() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setBannerUploadError("");
     setIsUploadingImage(true);
     const formData = new FormData();
     formData.append("file", file);
@@ -129,17 +145,24 @@ export function AdminCMS() {
     try {
       const res: any = await api.post("/uploads", formData);
       if (!res.success) {
-        throw new Error(res.error?.message || "Failed to upload image");
+        const msg = formatErrorMessage(res.error, "Failed to upload banner image");
+        setBannerUploadError(msg);
+        toast.error(msg);
+        return;
       }
       const uploadedUrl = res?.data?.data?.url || res?.data?.url || res?.url || res?.data?.fileUrl;
       if (uploadedUrl) {
         setCmsImageUrl(uploadedUrl);
+        setBannerUploadError("");
         toast.success("Image uploaded successfully!");
       } else {
+        setBannerUploadError("Failed to parse image URL from response.");
         toast.error("Failed to parse image URL from response.");
       }
     } catch (err: any) {
-      toast.error(err?.message || "Failed to upload image");
+      const msg = formatErrorMessage(err?.error || err, "Failed to upload image");
+      setBannerUploadError(msg);
+      toast.error(msg);
     } finally {
       setIsUploadingImage(false);
       if (imageUploadRef.current) imageUploadRef.current.value = "";
@@ -150,6 +173,7 @@ export function AdminCMS() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setVideoUploadError("");
     setIsUploadingVideo(true);
     const formData = new FormData();
     formData.append("file", file);
@@ -158,17 +182,24 @@ export function AdminCMS() {
     try {
       const res: any = await api.post("/upload/video", formData);
       if (!res.success) {
-        throw new Error(res.error?.message || "Failed to upload video");
+        const msg = formatErrorMessage(res.error, "Failed to upload video to Cloudflare R2");
+        setVideoUploadError(msg);
+        toast.error(msg);
+        return;
       }
       const uploadedUrl = res?.data?.data?.url || res?.data?.url || res?.url;
       if (uploadedUrl) {
         setVideoAdUrl(uploadedUrl);
+        setVideoUploadError("");
         toast.success("Video uploaded to Cloudflare R2 successfully!");
       } else {
+        setVideoUploadError("Failed to parse video URL from response.");
         toast.error("Failed to parse video URL.");
       }
     } catch (err: any) {
-      toast.error(err?.message || "Failed to upload video to R2");
+      const msg = formatErrorMessage(err?.error || err, "Failed to upload video to Cloudflare R2");
+      setVideoUploadError(msg);
+      toast.error(msg);
     } finally {
       setIsUploadingVideo(false);
       if (videoUploadRef.current) videoUploadRef.current.value = "";
@@ -526,16 +557,47 @@ export function AdminCMS() {
         open={isBannerModalOpen}
         onOpenChange={(open) => {
           setIsBannerModalOpen(open);
-          if (!open) setCmsImageUrl("");
+          if (!open) {
+            setCmsImageUrl("");
+            setBannerUploadError("");
+          }
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Create Hero Banner</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Image className="h-5 w-5 text-emerald-500" /> Create Hero Banner Slide
+            </DialogTitle>
           </DialogHeader>
+
+          {/* Validation & Requirements Guidance Box */}
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11.5px] text-muted-foreground space-y-1">
+            <div className="font-bold text-foreground flex items-center gap-1.5 text-xs">
+              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Hero Banner Requirements & Size Limits
+            </div>
+            <ul className="list-disc list-inside space-y-0.5 pl-1">
+              <li><strong>Max File Size:</strong> 10 MB per image</li>
+              <li><strong>Accepted Image Formats:</strong> JPEG, PNG, WebP, GIF, AVIF</li>
+              <li><strong>Filename Requirement:</strong> Standard ASCII characters (e.g. <code>hero_slide1.jpg</code>)</li>
+              <li><strong>Required Input:</strong> Banner Title</li>
+            </ul>
+          </div>
+
+          {/* Error Banner */}
+          {bannerUploadError && (
+            <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold uppercase tracking-wider text-[10px] text-rose-500">Validation / Upload Error</div>
+                <div className="mt-0.5 leading-relaxed font-bold">{bannerUploadError}</div>
+              </div>
+            </div>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              setBannerUploadError("");
               const fd = new FormData(e.target as HTMLFormElement);
               createSlideMutation.mutate({
                 title: fd.get("title"),
@@ -636,6 +698,7 @@ export function AdminCMS() {
           if (!open) {
             setVideoAdUrl("");
             setThumbnailUrl("");
+            setVideoUploadError("");
           }
         }}
       >
@@ -645,13 +708,41 @@ export function AdminCMS() {
               <Sparkles className="h-5 w-5 text-emerald-500" /> Upload 30-Second Video Ad to Cloudflare R2
             </DialogTitle>
           </DialogHeader>
+
+          {/* Validation & Requirements Guidance Box */}
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11.5px] text-muted-foreground space-y-1">
+            <div className="font-bold text-foreground flex items-center gap-1.5 text-xs">
+              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Video Ad Requirements & Size Limits
+            </div>
+            <ul className="list-disc list-inside space-y-0.5 pl-1">
+              <li><strong>Max File Size:</strong> 200 MB per video (Cloudflare R2 Storage)</li>
+              <li><strong>Formats Accepted:</strong> MP4, WebM, OGG, MOV, MKV</li>
+              <li><strong>Filename Requirement:</strong> Standard ASCII characters (e.g. <code>ad_video1.mp4</code>)</li>
+              <li><strong>Required Inputs:</strong> Ad Title & Video File or R2 URL</li>
+            </ul>
+          </div>
+
+          {/* Error Banner */}
+          {videoUploadError && (
+            <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold uppercase tracking-wider text-[10px] text-rose-500">Validation / Upload Error</div>
+                <div className="mt-0.5 leading-relaxed font-bold">{videoUploadError}</div>
+              </div>
+            </div>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              setVideoUploadError("");
               const fd = new FormData(e.target as HTMLFormElement);
               const url = (fd.get("video_url") as string) || videoAdUrl;
               if (!url) {
-                toast.error("Please upload a video file or enter a valid video URL.");
+                const msg = "Please upload a video file or enter a valid R2 video URL.";
+                setVideoUploadError(msg);
+                toast.error(msg);
                 return;
               }
               createVideoAdMutation.mutate({

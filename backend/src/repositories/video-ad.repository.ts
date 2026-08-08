@@ -138,3 +138,4 @@ export async function softDelete(id: string): Promise<VideoAdRow> {
   });
   return row as unknown as VideoAdRow;
 }
+

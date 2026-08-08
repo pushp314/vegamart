@@ -48,7 +48,7 @@ export function multerErrorHandler(err: unknown, res: { status: (code: number) =
     if (err.code === "LIMIT_FILE_SIZE") {
       res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
-        error: { code: "FILE_TOO_LARGE", message: "File exceeds the maximum allowed size." },
+        error: { code: "FILE_TOO_LARGE", message: "File exceeds the maximum allowed size limit (200 MB for videos, 10 MB for images/documents)." },
       });
       return true;
     }

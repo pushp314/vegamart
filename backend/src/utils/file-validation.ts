@@ -154,15 +154,17 @@ export function buildObjectKey(folder: string, originalName: string): string {
 
 export function validateUpload(kind: UploadKind, mime: string, buffer: Buffer): void {
   if (!isAllowedMime(kind, mime)) {
-    throw new ApiError(HttpStatus.BAD_REQUEST, `Unsupported file type "${mime}".`, { code: "UNSUPPORTED_MEDIA_TYPE" });
+    const allowed = kind === "video" ? "MP4, WebM, OGG, MOV, MKV" : kind === "image" ? "JPEG, PNG, WebP, GIF, AVIF" : "PDF, TXT";
+    throw new ApiError(HttpStatus.BAD_REQUEST, `Unsupported file type "${mime}". Allowed ${kind} formats: ${allowed}.`, { code: "UNSUPPORTED_MEDIA_TYPE" });
   }
   if (buffer.length > maxSizeFor(kind)) {
-    throw new ApiError(HttpStatus.BAD_REQUEST, "File exceeds the maximum allowed size.", { code: "PAYLOAD_TOO_LARGE" });
+    const maxMb = Math.round(maxSizeFor(kind) / (1024 * 1024));
+    throw new ApiError(HttpStatus.BAD_REQUEST, `File exceeds the maximum allowed size limit of ${maxMb} MB.`, { code: "PAYLOAD_TOO_LARGE" });
   }
   if (buffer.length === 0) {
-    throw new ApiError(HttpStatus.BAD_REQUEST, "Empty file.", { code: "BAD_REQUEST" });
+    throw new ApiError(HttpStatus.BAD_REQUEST, "File is empty (0 bytes). Please select a valid file.", { code: "BAD_REQUEST" });
   }
   if (!hasValidMagicBytes(mime, buffer)) {
-    throw new ApiError(HttpStatus.BAD_REQUEST, "File content does not match its declared type.", { code: "BAD_REQUEST" });
+    throw new ApiError(HttpStatus.BAD_REQUEST, "File binary signature does not match declared file type.", { code: "BAD_REQUEST" });
   }
 }
