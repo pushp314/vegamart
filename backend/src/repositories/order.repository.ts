@@ -115,10 +115,8 @@ export interface OrderDetail extends OrderRow {
     id: string;
     label: string;
     full_address: string;
-    city: string;
-    state: string;
-    pincode: string;
-    phone: string | null;
+    landmark: string | null;
+    country: string | null;
   } | null;
 }
 
@@ -158,7 +156,7 @@ const detailSelect = {
   },
   coupon: { select: { id: true, code: true, type: true } },
   vendor: { select: { id: true, business_name: true } },
-  user: {
+  customer: {
     select: {
       id: true,
       name: true,
@@ -169,11 +167,10 @@ const detailSelect = {
   address: {
     select: {
       id: true,
-      street: true,
-      city: true,
-      state: true,
-      pincode: true,
-      phone: true,
+      label: true,
+      full_address: true,
+      landmark: true,
+      country: true,
     },
   },
 } as const;

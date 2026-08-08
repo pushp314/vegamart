@@ -128,8 +128,10 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 {logoUrl ? (
                   <img src={logoUrl} alt="Store DP" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="h-full w-full p-3 grid place-items-center bg-muted/60">
-                    <img src="/icons/icon-512.png" alt="Vegamart logo" className="h-full w-full object-contain opacity-80" />
+                  <div className="h-full w-full bg-emerald-100 flex items-center justify-center p-4">
+                    <div className="h-16 w-16 opacity-50 grayscale">
+                      <img src="/favicon.ico" alt="Vegamart logo" className="h-full w-full object-contain opacity-80" />
+                    </div>
                   </div>
                 )}
                 {isUploadingLogo && (

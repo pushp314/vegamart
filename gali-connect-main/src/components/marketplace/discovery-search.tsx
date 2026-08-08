@@ -153,7 +153,7 @@ export const DiscoverySearch = memo(function DiscoverySearch({
                       className="flex w-full items-center gap-3 rounded-2xl bg-white/60 px-3 py-2 text-left ring-1 ring-black/5 transition hover:bg-white"
                     >
                       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full overflow-hidden bg-muted p-1 border border-border">
-                        <img src="/icons/icon-512.png" alt="Vegamart logo" className="h-full w-full object-contain" />
+                        <img src="/favicon.ico" alt="Vegamart logo" className="h-full w-full object-contain" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-bold">

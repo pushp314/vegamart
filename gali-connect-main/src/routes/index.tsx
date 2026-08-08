@@ -803,7 +803,7 @@ function SponsoredVendors() {
                     <img src={logo} alt={v.business_name} className="h-full w-full object-cover" />
                   ) : (
                     <div className="h-full w-full grid place-items-center bg-muted p-2">
-                      <img src="/icons/icon-512.png" alt="Vegamart logo" className="h-full w-full object-contain" />
+                      <img src="/favicon.ico" alt="Vegamart logo" className="h-full w-full object-contain" />
                     </div>
                   )}
                 </div>
