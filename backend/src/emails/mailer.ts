@@ -38,11 +38,12 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
   const transport = getTransporter();
 
   if (!transport) {
-    log.warn(
-      `[mailer] SMTP not configured — email not sent to ${message.to}. ` +
-        `Subject: "${message.subject}". ` +
-        `In development, preview the content below:\n${message.text ?? message.html}`
-    );
+    if (env.NODE_ENV === "development" || env.NODE_ENV === "test") {
+      log.info(
+        `[mailer] SMTP disabled / unconfigured (Optional in dev). Email to <${message.to}> omitted.\n` +
+          `Preview Link / Code:\n${message.text ?? message.html}`
+      );
+    }
     return false;
   }
 
