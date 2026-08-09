@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Search, X, Clock, TrendingUp, Store, ShoppingBasket, ChevronLeft, Loader2, Sparkles, ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { Logo } from "@/components/system/logo";
 import { api, getFeaturedProducts } from "@/lib/api";
 import type { Product, Vendor, Category } from "@/types";
 import { AppHeader } from "@/components/layout/app-header";
@@ -241,7 +242,7 @@ function SearchPage() {
                               <img src={vendor.logo_url || vendor.profile?.logo_url} alt={vendor.business_name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center bg-muted p-1.5">
-                                <img src="/favicon.ico" alt="Vegamart logo" className="w-full h-full object-contain" />
+                                <Logo className="w-full h-full object-contain" />
                               </div>
                             )}
                           </div>

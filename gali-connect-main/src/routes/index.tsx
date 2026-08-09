@@ -30,6 +30,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
+import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/system/logo";
 import { VideoAdModal, type VideoAdData } from "@/components/system/VideoAdModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -803,7 +804,7 @@ function SponsoredVendors() {
                     <img src={logo} alt={v.business_name} className="h-full w-full object-cover" />
                   ) : (
                     <div className="h-full w-full grid place-items-center bg-muted p-2">
-                      <img src="/favicon.ico" alt="Vegamart logo" className="h-full w-full object-contain" />
+                      <Logo className="h-full w-full object-contain" />
                     </div>
                   )}
                 </div>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Save, Loader2, FileText, Phone, Bike, ShieldCheck, Upload } from "lucide-react";
+
+import { Logo } from "@/components/system/logo";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -130,7 +132,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 ) : (
                   <div className="h-full w-full bg-emerald-100 flex items-center justify-center p-4">
                     <div className="h-16 w-16 opacity-50 grayscale">
-                      <img src="/favicon.ico" alt="Vegamart logo" className="h-full w-full object-contain opacity-80" />
+                      <Logo className="h-full w-full object-contain opacity-80" />
                     </div>
                   </div>
                 )}

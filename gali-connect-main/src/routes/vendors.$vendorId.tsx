@@ -91,10 +91,10 @@ function VendorDetail() {
 
   const { data: productsRes, isLoading } = useQuery({
     queryKey: ["products", { vendor_id: vendor.id }],
-    queryFn: () => api.get<{ rows: Product[]; total: number }>(`/products?vendor_id=${vendor.id}`),
+    queryFn: () => api.get<Product[]>(`/products?vendor_id=${vendor.id}`),
   });
 
-  const showcase = productsRes?.data?.rows || [];
+  const showcase = productsRes?.data || [];
 
   const coverUrl =
     profile.banner_url ||
