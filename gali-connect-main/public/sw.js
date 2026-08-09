@@ -1,9 +1,11 @@
-const CACHE_NAME = "vegamart-v3";
+const CACHE_NAME = "vegamart-v4";
 const PRECACHE_URLS = [
   "/manifest.webmanifest",
   "/favicon.ico",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
+  "/icons/maskable-192.png",
+  "/icons/maskable-512.png",
   "/icons/apple-touch-icon.png",
   "/offline",
 ];
