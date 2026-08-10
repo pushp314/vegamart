@@ -11,6 +11,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -481,20 +482,20 @@ export function AdminSettings() {
             </div>
             <div className="space-y-2">
               <Label>Current Password</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="Enter current password to confirm"
                 value={adminCreds.current_password}
                 onChange={(e) => setAdminCreds({ ...adminCreds, current_password: e.target.value })}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-9 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:text-sm"
               />
             </div>
             <div className="space-y-2">
               <Label>New Password</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="Minimum 8 chars with upper, lower, number & special"
                 value={adminCreds.new_password}
                 onChange={(e) => setAdminCreds({ ...adminCreds, new_password: e.target.value })}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-9 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:text-sm"
               />
             </div>
             <Button

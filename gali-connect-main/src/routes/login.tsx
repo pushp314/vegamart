@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Lock, Mail, Loader2 } from "lucide-react";
 import { Logo } from "@/components/system/logo";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/context/auth-context";
 import { homePathForRole, getSafeRedirect } from "@/lib/utils";
 import { toast } from "sonner";
@@ -143,12 +144,12 @@ function Login() {
             </div>
             <div className="flex items-center rounded-2xl bg-muted border h-11 px-3">
               <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground"
+                wrapperClassName="min-w-0 flex-1"
+                className="bg-transparent px-2.5 pr-9 text-sm placeholder:text-muted-foreground"
               />
             </div>
           </label>

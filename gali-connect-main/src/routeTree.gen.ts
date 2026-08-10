@@ -38,6 +38,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StreetVendorsRouteImport } from './routes/street-vendors'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VendorRouteImport } from './routes/vendor'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAuditLogsRouteImport } from './routes/admin/audit-logs'
@@ -223,6 +224,11 @@ const TermsRoute = TermsRouteImport.update({
 const VendorRoute = VendorRouteImport.update({
   id: '/vendor',
   path: '/vendor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WishlistRoute = WishlistRouteImport.update({
@@ -461,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/street-vendors': typeof StreetVendorsRoute
   '/terms': typeof TermsRoute
   '/vendor': typeof VendorRouteWithChildren
+  '/verify-email': typeof VerifyEmailRoute
   '/wishlist': typeof WishlistRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -531,6 +538,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/street-vendors': typeof StreetVendorsRoute
   '/terms': typeof TermsRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/wishlist': typeof WishlistRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -603,6 +611,7 @@ export interface FileRoutesById {
   '/street-vendors': typeof StreetVendorsRoute
   '/terms': typeof TermsRoute
   '/vendor': typeof VendorRouteWithChildren
+  '/verify-email': typeof VerifyEmailRoute
   '/wishlist': typeof WishlistRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -677,6 +686,7 @@ export interface FileRouteTypes {
     | '/street-vendors'
     | '/terms'
     | '/vendor'
+    | '/verify-email'
     | '/wishlist'
     | '/admin/audit-logs'
     | '/admin/categories'
@@ -747,6 +757,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/street-vendors'
     | '/terms'
+    | '/verify-email'
     | '/wishlist'
     | '/admin/audit-logs'
     | '/admin/categories'
@@ -818,6 +829,7 @@ export interface FileRouteTypes {
     | '/street-vendors'
     | '/terms'
     | '/vendor'
+    | '/verify-email'
     | '/wishlist'
     | '/admin/audit-logs'
     | '/admin/categories'
@@ -891,6 +903,7 @@ export interface RootRouteChildren {
   StreetVendorsRoute: typeof StreetVendorsRoute
   TermsRoute: typeof TermsRoute
   VendorRoute: typeof VendorRouteWithChildren
+  VerifyEmailRoute: typeof VerifyEmailRoute
   WishlistRoute: typeof WishlistRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   VendorsVendorIdRoute: typeof VendorsVendorIdRoute
@@ -1100,6 +1113,13 @@ declare module '@tanstack/react-router' {
       path: '/vendor'
       fullPath: '/vendor'
       preLoaderRoute: typeof VendorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/wishlist': {
@@ -1553,6 +1573,7 @@ const rootRouteChildren: RootRouteChildren = {
   StreetVendorsRoute: StreetVendorsRoute,
   TermsRoute: TermsRoute,
   VendorRoute: VendorRouteWithChildren,
+  VerifyEmailRoute: VerifyEmailRoute,
   WishlistRoute: WishlistRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   VendorsVendorIdRoute: VendorsVendorIdRoute,

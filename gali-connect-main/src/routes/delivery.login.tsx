@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Bike, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/context/auth-context";
 
 export const Route = createFileRoute("/delivery/login")({
@@ -64,13 +65,12 @@ function DeliveryLoginPage() {
             <div className="mb-1 text-xs font-semibold text-foreground flex items-center gap-1">
               <Lock className="h-3.5 w-3.5 text-muted-foreground" /> Password
             </div>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              className="w-full rounded-2xl bg-muted border h-11 px-3.5 text-sm outline-none"
+              className="rounded-2xl bg-muted border h-11 px-3.5 pr-10 text-sm outline-none"
             />
           </label>
 

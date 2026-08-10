@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Store, MapPin, Phone, CheckCircle2, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -176,13 +177,12 @@ function BecomeVendorPage() {
                       </label>
                       <label className="block">
                         <div className="mb-1.5 text-xs font-bold text-foreground">Password *</div>
-                        <input
-                          type="password"
+                        <PasswordInput
                           value={authPassword}
                           onChange={(e) => setAuthPassword(e.target.value)}
                           placeholder="••••••••"
                           required
-                          className="w-full rounded-2xl bg-muted border border-border h-12 px-4 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                          className="rounded-2xl bg-muted border border-border h-12 px-4 pr-10 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                         />
                       </label>
                     </div>

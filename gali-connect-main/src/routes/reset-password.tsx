@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, KeyRound, Lock, Loader2, CheckCircle2, Mail } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Logo } from "@/components/system/logo";
 import { toast } from "sonner";
 
@@ -126,12 +127,12 @@ function ResetPassword() {
                 <div className="mb-1.5 text-xs font-semibold text-foreground">New Password</div>
                 <div className="flex items-center rounded-2xl bg-muted border h-11 px-3">
                   <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground"
+                    wrapperClassName="min-w-0 flex-1"
+                    className="bg-transparent px-2.5 pr-9 text-sm placeholder:text-muted-foreground"
                   />
                 </div>
               </label>
@@ -142,12 +143,12 @@ function ResetPassword() {
                 </div>
                 <div className="flex items-center rounded-2xl bg-muted border h-11 px-3">
                   <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground"
+                    wrapperClassName="min-w-0 flex-1"
+                    className="bg-transparent px-2.5 pr-9 text-sm placeholder:text-muted-foreground"
                   />
                 </div>
               </label>

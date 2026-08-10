@@ -4,6 +4,7 @@ import { APP_NAME } from "../constants";
 interface TemplateContext {
   appName: string;
   appUrl: string;
+  clientUrl: string;
   year: number;
 }
 
@@ -11,6 +12,7 @@ function baseContext(): TemplateContext {
   return {
     appName: env.APP_NAME || APP_NAME,
     appUrl: env.APP_URL,
+    clientUrl: env.CLIENT_URL,
     year: new Date().getFullYear(),
   };
 }
@@ -45,8 +47,8 @@ function layout(title: string, bodyHtml: string): string {
 }
 
 export function verifyEmailTemplate(token: string): { subject: string; html: string; text: string } {
-  const { appUrl } = baseContext();
-  const verifyUrl = `${appUrl}/verify-email?token=${encodeURIComponent(token)}`;
+  const { clientUrl } = baseContext();
+  const verifyUrl = `${clientUrl}/verify-email?token=${encodeURIComponent(token)}`;
   const subject = "Verify your email address";
   const html = layout(
     subject,

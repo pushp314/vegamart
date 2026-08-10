@@ -487,7 +487,9 @@ export const authService = {
     const email = normalizeEmail(emailInput);
     const user = await findByEmail(email);
     if (!user) {
-      return;
+      throw new ApiError(HttpStatus.NOT_FOUND, "No account found with this email address.", {
+        code: "ACCOUNT_NOT_FOUND",
+      });
     }
 
     const { plain } = await generateAndStoreOtp(email, OtpPurpose.PASSWORD_RESET);
