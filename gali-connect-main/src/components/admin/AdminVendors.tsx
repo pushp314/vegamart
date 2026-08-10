@@ -1,4 +1,4 @@
-import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown } from "lucide-react";
+import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown, Trash2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { KYCReviewModal } from "./KYCReviewModal";
 import { VendorMembershipModal } from "./VendorMembershipModal";
@@ -14,6 +14,7 @@ interface AdminVendorsProps {
   onReject: (id: string, reason: string) => void;
   onSuspend: (id: string) => void;
   onRestore: (id: string) => void;
+  onDelete: (id: string) => void;
   onPromote: (id: string, sponsoredUntil?: string | null, sponsoredPriority?: number) => void;
   onUnpromote: (id: string) => void;
   isApproving: boolean;
@@ -26,6 +27,7 @@ export function AdminVendors({
   onReject,
   onSuspend,
   onRestore,
+  onDelete,
   onPromote,
   onUnpromote,
   isApproving,
@@ -281,10 +283,14 @@ export function AdminVendors({
                             >
                               Orders
                             </Link>
-                             {v.is_sponsored ? (
+                            {v.is_sponsored ? (
                               <button
                                 onClick={() => {
-                                  if (confirm(`Demote "${v.business_name}" and remove top search placement?`))
+                                  if (
+                                    confirm(
+                                      `Demote "${v.business_name}" and remove top search placement?`,
+                                    )
+                                  )
                                     onUnpromote(v.id);
                                 }}
                                 className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-all active:scale-95"
@@ -307,17 +313,47 @@ export function AdminVendors({
                             >
                               Suspend
                             </button>
+                            <button
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    `Delete vendor "${v.business_name || "Unnamed Vendor"}" and its account? This cannot be undone.`,
+                                  )
+                                ) {
+                                  onDelete(v.id);
+                                }
+                              }}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 border border-rose-700 transition-all active:scale-95 inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="h-3 w-3" /> Delete
+                            </button>
                           </>
                         )}
                         {status === "suspended" && (
-                          <button
-                            onClick={() => {
-                              if (confirm("Unsuspend this vendor?")) onRestore(v.id);
-                            }}
-                            className="px-4 py-2 text-xs font-bold rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-200 transition-all active:scale-95"
-                          >
-                            Unsuspend
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                if (confirm("Unsuspend this vendor?")) onRestore(v.id);
+                              }}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-200 transition-all active:scale-95"
+                            >
+                              Unsuspend
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    `Delete vendor "${v.business_name || "Unnamed Vendor"}" and its account? This cannot be undone.`,
+                                  )
+                                ) {
+                                  onDelete(v.id);
+                                }
+                              }}
+                              className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 border border-rose-700 transition-all active:scale-95 inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="h-3 w-3" /> Delete
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -372,10 +408,7 @@ export function AdminVendors({
       )}
 
       {earningsVendor && (
-        <VendorEarningsModal
-          vendor={earningsVendor}
-          onClose={() => setEarningsVendor(null)}
-        />
+        <VendorEarningsModal vendor={earningsVendor} onClose={() => setEarningsVendor(null)} />
       )}
 
       {promoteTargetVendor && (
@@ -401,7 +434,9 @@ function PromotionScheduleModal({
   onClose: () => void;
   onConfirm: (sponsoredUntil: string | null, sponsoredPriority: number) => void;
 }) {
-  const [durationOption, setDurationOption] = useState<"indefinite" | "1hour" | "1day" | "7days" | "30days" | "custom">("1day");
+  const [durationOption, setDurationOption] = useState<
+    "indefinite" | "1hour" | "1day" | "7days" | "30days" | "custom"
+  >("1day");
   const [customDays, setCustomDays] = useState(1);
   const [priority, setPriority] = useState<number>(vendor.sponsored_priority || 0);
 
@@ -416,7 +451,8 @@ function PromotionScheduleModal({
       else if (durationOption === "1day") durationMs = 24 * 60 * 60 * 1000;
       else if (durationOption === "7days") durationMs = 7 * 24 * 60 * 60 * 1000;
       else if (durationOption === "30days") durationMs = 30 * 24 * 60 * 60 * 1000;
-      else if (durationOption === "custom") durationMs = (Math.max(1, customDays) || 1) * 24 * 60 * 60 * 1000;
+      else if (durationOption === "custom")
+        durationMs = (Math.max(1, customDays) || 1) * 24 * 60 * 60 * 1000;
       const expiresAt = new Date(now.getTime() + durationMs);
       untilIso = expiresAt.toISOString();
     }
@@ -457,7 +493,11 @@ function PromotionScheduleModal({
                 { id: "7days", label: "7 Days (1 Week)", desc: "Weekly campaign boost" },
                 { id: "30days", label: "30 Days (1 Month)", desc: "Monthly feature boost" },
                 { id: "custom", label: "Custom Days", desc: "Specify custom number of days" },
-                { id: "indefinite", label: "Indefinite / Permanent", desc: "Promoted until manually demoted" },
+                {
+                  id: "indefinite",
+                  label: "Indefinite / Permanent",
+                  desc: "Promoted until manually demoted",
+                },
               ].map((opt) => (
                 <label
                   key={opt.id}

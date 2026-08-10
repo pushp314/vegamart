@@ -72,6 +72,7 @@ function makeVendor(overrides: Partial<vendorRepo.VendorRow> = {}): vendorRepo.V
     is_open: true,
     is_verified: true,
     is_sponsored: false,
+    sponsored_until: null,
     status: "APPROVED",
     owner_name: null,
     phone: null,

@@ -17,6 +17,10 @@ jest.mock("../../src/services/vendor.service", () => ({
   vendorService: { getMyVendor: jest.fn() },
 }));
 
+jest.mock("../../src/services/payment.service", () => ({
+  paymentService: { refund: jest.fn() },
+}));
+
 jest.mock("../../src/repositories/order.repository", () => ({
   listOrders: jest.fn(),
   findById: jest.fn(),
@@ -32,10 +36,13 @@ jest.mock("../../src/repositories/inventory.repository", () => ({
 import * as orderRepo from "../../src/repositories/order.repository";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
 import { vendorService } from "../../src/services/vendor.service";
+import { paymentService } from "../../src/services/payment.service";
+import { notificationService } from "../../src/services/notification.service";
 
 const repo = orderRepo as jest.Mocked<typeof orderRepo>;
 const invRepo = inventoryRepo as jest.Mocked<typeof inventoryRepo>;
 const vendorServiceMock = vendorService as jest.Mocked<typeof vendorService>;
+const paymentServiceMock = paymentService as jest.Mocked<typeof paymentService>;
 
 const mockReq = { user: { id: "u1" } } as any;
 
@@ -126,10 +133,25 @@ describe("order service", () => {
     });
   });
 
-  it("releases reserved inventory when cancelling a paid order", async () => {
+  it("attempts a refund and releases reserved inventory when cancelling a paid order", async () => {
     repo.findById.mockResolvedValue(makeOrder({ payment_status: "PAID" }));
     repo.updateOrderStatus.mockResolvedValue(makeOrder({ status: "CANCELLED" }));
+    paymentServiceMock.refund.mockResolvedValue({ refund_id: "rf-1" });
+
     await orderService.cancelOrder("u1", "order-1", {}, mockReq);
+
+    expect(paymentServiceMock.refund).toHaveBeenCalledWith("u1", "order-1", expect.objectContaining({ reason: undefined }), mockReq);
+    expect(notificationService.orderStatus).toHaveBeenCalledWith("u1", "GC-1", "Order cancelled", expect.stringContaining("has been cancelled"), expect.objectContaining({ order_id: "order-1" }));
+  });
+
+  it("releases reserved inventory and propagates the error when the refund fails on cancel", async () => {
+    repo.findById.mockResolvedValue(makeOrder({ payment_status: "PAID" }));
+    repo.updateOrderStatus.mockResolvedValue(makeOrder({ status: "CANCELLED" }));
+    paymentServiceMock.refund.mockRejectedValue(new Error("refund gateway timeout"));
+
+    await expect(orderService.cancelOrder("u1", "order-1", {}, mockReq)).rejects.toThrow(
+      "refund gateway timeout"
+    );
     expect(invRepo.releaseQuantityForOrder).toHaveBeenCalledWith("order-1");
   });
 

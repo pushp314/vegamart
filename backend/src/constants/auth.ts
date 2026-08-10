@@ -80,6 +80,7 @@ export const AUDIT_ACTIONS = {
   USER_ROLE_CHANGED: "user.role_changed",
   USER_PASSWORD_RESET_BY_ADMIN: "user.password_reset_by_admin",
   USER_FORCE_LOGGED_OUT: "user.force_logged_out",
+  ADMIN_CREDENTIALS_CHANGED: "admin.credentials_changed",
   VENDOR_RESTORED: "vendor.restored",
   DELIVERY_CREATED: "delivery.created",
   DELIVERY_APPROVED: "delivery.approved",
@@ -98,4 +99,6 @@ export const AUDIT_ACTIONS = {
   DELIVERY_ACCEPTED: "delivery.accepted",
   GALI_BELL_RUNG: "gali_bell.rung",
   ORDER_RETURNED: "order.returned",
+  MAINTENANCE_TASK_COMPLETED: "maintenance.task_completed",
+  MAINTENANCE_CONTACT_UPDATED: "maintenance.contact_updated",
 } as const;

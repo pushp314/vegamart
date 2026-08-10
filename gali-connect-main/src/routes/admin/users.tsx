@@ -45,10 +45,20 @@ function AdminUsersPage() {
     onError: () => toast.error("Failed to update user status"),
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/users/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
+      toast.success("User deleted successfully");
+    },
+    onError: () => toast.error("Failed to delete user"),
+  });
+
   return (
     <AdminUsers
       users={userList}
       onToggleStatus={(id, is_active) => toggleUserStatusMutation.mutate({ id, is_active })}
+      onDelete={(id) => deleteUserMutation.mutate(id)}
     />
   );
 }

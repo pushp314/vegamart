@@ -71,6 +71,27 @@ export const changeRoleSchema = z.object({
   role: z.enum(["customer", "vendor", "delivery", "admin", "super_admin"]),
 }).strict();
 
+export const updateAdminCredentialsSchema = z
+  .object({
+    current_password: z.string().min(1, "Current password is required.").max(PASSWORD_RULES.MAX_LENGTH),
+    email: z.string().trim().email("A valid email is required.").max(255).optional(),
+    new_password: z
+      .string()
+      .min(PASSWORD_RULES.MIN_LENGTH, `Password must be at least ${PASSWORD_RULES.MIN_LENGTH} characters.`)
+      .max(PASSWORD_RULES.MAX_LENGTH)
+      .optional(),
+  })
+  .strict()
+  .refine((data) => data.email !== undefined || data.new_password !== undefined, {
+    message: "Provide a new admin email and/or a new password.",
+    path: ["email"],
+  })
+  .refine((data) => data.email !== undefined || data.new_password !== undefined, {
+    message: "Provide a new admin email and/or a new password.",
+    path: ["new_password"],
+  });
+export type UpdateAdminCredentialsBody = z.infer<typeof updateAdminCredentialsSchema>;
+
 export const vendorIdParamsSchema = z.object({
   vendor_id: z.string().uuid("vendor_id must be a valid UUID."),
 }).strict();
@@ -280,4 +301,13 @@ export const ticketIdParamsSchema = z.object({
 export const updateTicketStatusSchema = z.object({
   status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED", "ESCALATED"]),
   resolved_at: z.string().datetime().optional(),
+}).strict();
+
+export const maintenanceTaskParamsSchema = z.object({
+  type: z.string().trim().min(1).max(50),
+}).strict();
+
+export const updateMaintenanceContactSchema = z.object({
+  contact_email: z.string().email().optional().nullable(),
+  contact_phone: z.string().trim().max(30).optional().nullable(),
 }).strict();

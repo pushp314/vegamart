@@ -67,9 +67,30 @@ function AdminVendorsPage() {
     onError: () => toast.error("Failed to unsuspend vendor"),
   });
 
+  const deleteVendorMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/vendors/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
+      toast.success("Vendor deleted successfully");
+    },
+    onError: () => toast.error("Failed to delete vendor"),
+  });
+
   const promoteVendorMutation = useMutation({
-    mutationFn: ({ id, sponsored_until, sponsored_priority }: { id: string; sponsored_until?: string | null; sponsored_priority?: number }) =>
-      api.patch(`/admin/vendors/${id}/promote`, { is_sponsored: true, sponsored_until, sponsored_priority }),
+    mutationFn: ({
+      id,
+      sponsored_until,
+      sponsored_priority,
+    }: {
+      id: string;
+      sponsored_until?: string | null;
+      sponsored_priority?: number;
+    }) =>
+      api.patch(`/admin/vendors/${id}/promote`, {
+        is_sponsored: true,
+        sponsored_until,
+        sponsored_priority,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
       toast.success("Vendor promoted to Top Search Placement");
@@ -93,7 +114,10 @@ function AdminVendorsPage() {
       onReject={(id, reason) => rejectVendorMutation.mutate({ id, reason })}
       onSuspend={(id) => suspendVendorMutation.mutate(id)}
       onRestore={(id) => restoreVendorMutation.mutate(id)}
-      onPromote={(id, sponsored_until, sponsored_priority) => promoteVendorMutation.mutate({ id, sponsored_until, sponsored_priority })}
+      onDelete={(id) => deleteVendorMutation.mutate(id)}
+      onPromote={(id, sponsored_until, sponsored_priority) =>
+        promoteVendorMutation.mutate({ id, sponsored_until, sponsored_priority })
+      }
       onUnpromote={(id) => unpromoteVendorMutation.mutate(id)}
       isApproving={approveVendorMutation.isPending}
       isRejecting={rejectVendorMutation.isPending}

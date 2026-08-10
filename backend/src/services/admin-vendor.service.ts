@@ -6,6 +6,9 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { membershipPlanService } from "./membership-plan.service";
 import * as vendorRepo from "../repositories/vendor.repository";
+import * as userRepo from "../repositories/user.repository";
+import * as sessionRepo from "../repositories/session.repository";
+import * as refreshTokenRepo from "../repositories/refresh-token.repository";
 import { cacheService } from "../database/cache";
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
@@ -135,6 +138,40 @@ export const adminVendorService = {
       req
     );
     return updated;
+  },
+
+  async remove(adminUserId: string, vendorId: string, req: Request) {
+    const vendor = await vendorRepo.findById(vendorId);
+    if (!vendor) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Vendor not found.", { code: "NOT_FOUND" });
+    }
+    const userId = vendor.user_id;
+
+    await vendorRepo.updateVendor(vendorId, {
+      status: "SUSPENDED",
+      is_open: false,
+    });
+    await vendorRepo.softDelete(vendorId);
+
+    await userRepo.softDelete(userId);
+    await sessionRepo.revokeAllForUser(userId);
+    await refreshTokenRepo.revokeAllForUser(userId);
+
+    await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
+
+    await auditService.record(
+      {
+        userId: adminUserId,
+        action: AUDIT_ACTIONS.VENDOR_DELETED,
+        entityType: "vendor",
+        entityId: vendorId,
+        newValues: { user_id: userId, business_name: vendor.business_name },
+      },
+      req
+    );
+
+    return { success: true };
   },
 
   async earnings(vendorId: string, monthFilter?: string) {

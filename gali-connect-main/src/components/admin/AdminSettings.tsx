@@ -1,13 +1,31 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import {
+  api,
+  getMaintenanceStatus,
+  completeMaintenanceTask,
+  updateMaintenanceContact,
+  type MaintenanceStatus,
+  type MaintenanceTask,
+} from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Upload } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Loader2,
+  Save,
+  Upload,
+  KeyRound,
+  Wrench,
+  Mail,
+  CheckCircle2,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/context/auth-context";
 
 interface Settings {
   "platform.name"?: string;
@@ -26,15 +44,63 @@ interface Settings {
   "support.phone"?: string;
 }
 
+const maintenanceSeverityStyles: Record<MaintenanceTask["severity"], string> = {
+  critical: "bg-red-100 text-red-700",
+  high: "bg-orange-100 text-orange-700",
+  medium: "bg-amber-100 text-amber-700",
+  low: "bg-blue-100 text-blue-700",
+};
+
+const maintenanceSeverityLabel: Record<MaintenanceTask["severity"], string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function AdminSettings() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [settings, setSettings] = useState<Settings>({});
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [adminCreds, setAdminCreds] = useState({
+    email: "",
+    current_password: "",
+    new_password: "",
+  });
+  const [maintenanceContact, setMaintenanceContact] = useState({
+    contact_email: "",
+    contact_phone: "",
+  });
+
+  const { data: maintenanceRes, isLoading: maintenanceLoading } = useQuery({
+    queryKey: ["maintenance-status"],
+    queryFn: getMaintenanceStatus,
+  });
+  const maintenance = maintenanceRes?.success ? maintenanceRes.data : null;
+
+  useEffect(() => {
+    if (maintenanceRes?.success && maintenanceRes.data) {
+      setMaintenanceContact({
+        contact_email: maintenanceRes.data.contact.contact_email ?? "",
+        contact_phone: maintenanceRes.data.contact.contact_phone ?? "",
+      });
+    }
+  }, [maintenanceRes]);
 
   const { data: settingsRes, isLoading } = useQuery({
     queryKey: ["adminSettings"],
-    queryFn: () => api.get<any>("/admin/settings"),
+    queryFn: () => api.get<Settings & { data?: Settings }>("/admin/settings"),
   });
 
   useEffect(() => {
@@ -80,6 +146,68 @@ export function AdminSettings() {
   const handleSave = () => {
     updateSettingsMutation.mutate(settings);
   };
+
+  const updateCredentialsMutation = useMutation({
+    mutationFn: async () => {
+      const payload: Record<string, string> = {
+        current_password: adminCreds.current_password,
+      };
+      if (adminCreds.email.trim()) payload.email = adminCreds.email.trim();
+      if (adminCreds.new_password) payload.new_password = adminCreds.new_password;
+      return api.patch("/admin/credentials", payload);
+    },
+    onSuccess: (res) => {
+      if (res.success) {
+        toast.success("Admin credentials updated. Use the new login details next time.");
+        setAdminCreds({ email: "", current_password: "", new_password: "" });
+      } else {
+        toast.error(res.error?.message || "Failed to update admin credentials");
+      }
+    },
+    onError: () => toast.error("Failed to update admin credentials"),
+  });
+
+  const handleSaveCredentials = () => {
+    if (!adminCreds.current_password) {
+      toast.error("Please enter your current password to confirm the change.");
+      return;
+    }
+    if (!adminCreds.email.trim() && !adminCreds.new_password) {
+      toast.error("Enter a new admin email id and/or a new password.");
+      return;
+    }
+    updateCredentialsMutation.mutate();
+  };
+
+  const completeMaintenanceMutation = useMutation({
+    mutationFn: (type: string) => completeMaintenanceTask(type),
+    onSuccess: (res) => {
+      if (res.success && res.data) {
+        queryClient.setQueryData(["maintenance-status"], res);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["maintenance-status"] });
+      }
+      toast.success("Maintenance task rescheduled");
+    },
+    onError: () => toast.error("Failed to reschedule maintenance task"),
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: () =>
+      updateMaintenanceContact({
+        contact_email: maintenanceContact.contact_email.trim() || null,
+        contact_phone: maintenanceContact.contact_phone.trim() || null,
+      }),
+    onSuccess: (res) => {
+      if (res.success && res.data) {
+        queryClient.setQueryData(["maintenance-status"], res);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["maintenance-status"] });
+      }
+      toast.success("Maintenance contact updated");
+    },
+    onError: () => toast.error("Failed to update maintenance contact"),
+  });
 
   if (isLoading) {
     return (
@@ -297,7 +425,10 @@ export function AdminSettings() {
             <div className="flex items-center justify-between border-b pb-4">
               <div>
                 <Label>Multi-Store Checkout</Label>
-                <p className="text-xs text-muted-foreground">Allow customers to combine products from multiple stores in a single cart (Disabled by default)</p>
+                <p className="text-xs text-muted-foreground">
+                  Allow customers to combine products from multiple stores in a single cart
+                  (Disabled by default)
+                </p>
               </div>
               <Switch
                 checked={settings["platform.multi_store_checkout_enabled"] ?? false}
@@ -309,7 +440,9 @@ export function AdminSettings() {
             <div className="flex items-center justify-between">
               <div>
                 <Label>Maintenance Mode</Label>
-                <p className="text-xs text-muted-foreground">Temporarily disable the platform for updates</p>
+                <p className="text-xs text-muted-foreground">
+                  Temporarily disable the platform for updates
+                </p>
               </div>
               <Switch
                 checked={settings["platform.maintenance_mode"] ?? false}
@@ -317,6 +450,178 @@ export function AdminSettings() {
                   setSettings({ ...settings, "platform.maintenance_mode": checked })
                 }
               />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Admin Credentials */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              Admin Credentials
+            </CardTitle>
+            <CardDescription>
+              Change the admin login id (email) and password. You are signed in as{" "}
+              <span className="font-semibold text-foreground">{user?.email || "your account"}</span>
+              .
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Admin Email (Login ID)</Label>
+              <Input
+                type="email"
+                placeholder={user?.email || "admin@vegamart.in"}
+                value={adminCreds.email}
+                onChange={(e) => setAdminCreds({ ...adminCreds, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Current Password</Label>
+              <Input
+                type="password"
+                placeholder="Enter current password to confirm"
+                value={adminCreds.current_password}
+                onChange={(e) => setAdminCreds({ ...adminCreds, current_password: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>New Password</Label>
+              <Input
+                type="password"
+                placeholder="Minimum 8 chars with upper, lower, number & special"
+                value={adminCreds.new_password}
+                onChange={(e) => setAdminCreds({ ...adminCreds, new_password: e.target.value })}
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={handleSaveCredentials}
+              disabled={updateCredentialsMutation.isPending}
+            >
+              {updateCredentialsMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <KeyRound className="h-4 w-4" />
+              )}
+              Update Admin Credentials
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Maintenance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wrench className="h-4 w-4" />
+              Maintenance
+            </CardTitle>
+            <CardDescription>
+              {maintenance?.next_due_at
+                ? `Next maintenance due on ${formatDate(maintenance.next_due_at)}. Alerts appear in the panel whenever a task becomes due.`
+                : "No maintenance due right now. Alerts appear automatically on the cadence below."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {maintenanceLoading && (
+              <div className="flex items-center justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            )}
+            {!maintenanceLoading && maintenance && (
+              <div className="space-y-2">
+                {maintenance.tasks.map((task) => {
+                  const due = task.status === "due";
+                  return (
+                    <div
+                      key={task.type}
+                      className={`flex items-center justify-between gap-3 rounded-lg border p-3 ${
+                        due ? "border-orange-300 bg-orange-50/60" : ""
+                      }`}
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <Badge className={maintenanceSeverityStyles[task.severity]}>
+                            {maintenanceSeverityLabel[task.severity]}
+                          </Badge>
+                          <p className="truncate text-sm font-semibold">{task.label}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {due
+                            ? `Due (${formatDate(task.due_at)}), ${task.overdue_days} day(s) overdue`
+                            : `Next due ${formatDate(task.due_at)}`}
+                          <span className="ml-2">every {task.cadence_days} days</span>
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={due ? "default" : "outline"}
+                        onClick={() => completeMaintenanceMutation.mutate(task.type)}
+                        disabled={completeMaintenanceMutation.isPending}
+                        className="shrink-0"
+                      >
+                        {completeMaintenanceMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        Done
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="rounded-lg border p-3 space-y-3">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Mail className="h-3.5 w-3.5" />
+                  Developer Contact Email
+                </Label>
+                <Input
+                  type="email"
+                  placeholder="you@developer.com"
+                  value={maintenanceContact.contact_email}
+                  onChange={(e) =>
+                    setMaintenanceContact({
+                      ...maintenanceContact,
+                      contact_email: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Developer Contact Phone
+                </Label>
+                <Input
+                  placeholder="+91 00000 00000"
+                  value={maintenanceContact.contact_phone}
+                  onChange={(e) =>
+                    setMaintenanceContact({
+                      ...maintenanceContact,
+                      contact_phone: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => updateContactMutation.mutate()}
+                disabled={updateContactMutation.isPending}
+              >
+                {updateContactMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Save Contact
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -88,7 +88,7 @@ describe("file-validation", () => {
     it("throws on a mismatched magic signature", () => {
       const text = Buffer.from("not an image at all");
       expect(() => validateUpload("image", "image/png", text)).toThrow(
-        "does not match its declared type"
+        "signature does not match declared file type"
       );
     });
 
@@ -98,7 +98,7 @@ describe("file-validation", () => {
     });
 
     it("throws on an empty file", () => {
-      expect(() => validateUpload("image", "image/png", Buffer.alloc(0))).toThrow("Empty file");
+      expect(() => validateUpload("image", "image/png", Buffer.alloc(0))).toThrow("File is empty");
     });
 
     it("throws on an unsupported mime", () => {

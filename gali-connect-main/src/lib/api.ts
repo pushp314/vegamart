@@ -44,7 +44,10 @@ export interface ApiResponse<T = unknown> {
   };
 }
 
-export function formatErrorMessage(error?: { code?: string; message?: string; details?: Record<string, string> } | null, fallback = "An unexpected error occurred"): string {
+export function formatErrorMessage(
+  error?: { code?: string; message?: string; details?: Record<string, string> } | null,
+  fallback = "An unexpected error occurred",
+): string {
   if (!error) return fallback;
   if (error.details && Object.keys(error.details).length > 0) {
     const detailList = Object.entries(error.details)
@@ -461,3 +464,34 @@ export interface FeaturedProduct {
 
 export const getFeaturedProducts = () =>
   api.get<{ rows: FeaturedProduct[]; total: number }>("/products/featured");
+
+// ── Maintenance Reminders (Admin) ──────────────────────────────────────
+export interface MaintenanceTask {
+  type: string;
+  label: string;
+  description: string;
+  dev_note: string;
+  severity: "critical" | "high" | "medium" | "low";
+  cadence_days: number;
+  done_at: string | null;
+  due_at: string;
+  status: "due" | "upcoming";
+  overdue_days: number;
+}
+
+export interface MaintenanceStatus {
+  baseline: string;
+  contact: { contact_email: string | null; contact_phone: string | null };
+  next_due_at: string | null;
+  tasks: MaintenanceTask[];
+}
+
+export const getMaintenanceStatus = () => api.get<MaintenanceStatus>("/admin/maintenance");
+
+export const completeMaintenanceTask = (type: string) =>
+  api.post<MaintenanceStatus>(`/admin/maintenance/${encodeURIComponent(type)}/done`);
+
+export const updateMaintenanceContact = (data: {
+  contact_email?: string | null;
+  contact_phone?: string | null;
+}) => api.patch<MaintenanceStatus>("/admin/maintenance/contact", data);

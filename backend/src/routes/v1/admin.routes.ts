@@ -5,6 +5,7 @@ import {
   changeUserRole,
   createDeliveryPartner,
   deleteUser,
+  deleteVendorAdmin,
   forceLogoutUser,
   getAuditLog,
   getDashboard,
@@ -29,6 +30,7 @@ import {
   suspendDeliveryPartner,
   suspendUser,
   suspendVendorAdmin,
+  updateAdminCredentials,
   updateOrderStatus,
   updateVendorMembership,
   updateVendorPromotion,
@@ -39,6 +41,9 @@ import {
   createMembershipPlan,
   updateMembershipPlan,
   deleteMembershipPlan,
+  getMaintenanceStatus,
+  completeMaintenanceTask,
+  updateMaintenanceContact,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -118,6 +123,7 @@ import {
   settingsUpdateSchema,
   suspendUserSchema,
   suspendVendorSchema,
+  updateAdminCredentialsSchema,
   updateAnnouncementSchema,
   updateHeroSlideSchema,
   userIdParamsSchema,
@@ -130,6 +136,8 @@ import {
   createMembershipPlanSchema,
   updateMembershipPlanSchema,
   membershipPlanIdParamsSchema,
+  maintenanceTaskParamsSchema,
+  updateMaintenanceContactSchema,
 } from "../../validators/admin.validators";
 
 import { productIdParamsSchema } from "../../validators/product.validators";
@@ -140,6 +148,13 @@ router.use(adminLimiter, authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMI
 
 // Dashboard
 router.get("/dashboard", getDashboard);
+
+// Admin account / credentials
+router.patch(
+  "/credentials",
+  validate({ body: updateAdminCredentialsSchema }),
+  updateAdminCredentials
+);
 
 // User management
 router.get("/users", validate({ query: adminPaginationQuerySchema }), listUsers);
@@ -160,6 +175,7 @@ router.post("/vendors/:vendor_id/suspend", validate({ params: vendorIdParamsSche
 router.post("/vendors/:vendor_id/restore", validate({ params: vendorIdParamsSchema }), restoreVendorAdmin);
 router.patch("/vendors/:vendor_id/membership", validate({ params: vendorIdParamsSchema, body: updateVendorMembershipSchema }), updateVendorMembership);
 router.patch("/vendors/:vendor_id/promote", validate({ params: vendorIdParamsSchema, body: updateVendorPromotionSchema }), updateVendorPromotion);
+router.delete("/vendors/:vendor_id", validate({ params: vendorIdParamsSchema }), deleteVendorAdmin);
 
 // Membership plans
 router.get("/membership-plans", listMembershipPlans);
@@ -215,6 +231,19 @@ router.get("/audit-logs/:audit_log_id", validate({ params: auditLogIdParamsSchem
 // Settings
 router.get("/settings", getSettings);
 router.patch("/settings", validate({ body: settingsUpdateSchema }), updateSettings);
+
+// Maintenance scheduling & alerts
+router.get("/maintenance", getMaintenanceStatus);
+router.post(
+  "/maintenance/:type/done",
+  validate({ params: maintenanceTaskParamsSchema }),
+  completeMaintenanceTask
+);
+router.patch(
+  "/maintenance/contact",
+  validate({ body: updateMaintenanceContactSchema }),
+  updateMaintenanceContact
+);
 
 // Announcements
 router.get("/announcements", validate({ query: announcementQuerySchema }), listAnnouncements);

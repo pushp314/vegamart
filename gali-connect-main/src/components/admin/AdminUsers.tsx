@@ -1,12 +1,13 @@
-import { Users, Power, PowerOff, Search, UserCheck, UserX } from "lucide-react";
+import { Users, Power, PowerOff, Search, UserCheck, UserX, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 interface AdminUsersProps {
   users: any[];
   onToggleStatus: (id: string, isActive: boolean) => void;
+  onDelete: (id: string) => void;
 }
 
-export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
+export function AdminUsers({ users, onToggleStatus, onDelete }: AdminUsersProps) {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<
     "all" | "customer" | "vendor" | "delivery" | "admin"
@@ -146,25 +147,41 @@ export function AdminUsers({ users, onToggleStatus }: AdminUsersProps) {
                     </span>
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <button
-                      onClick={() => onToggleStatus(u.id, !u.is_active)}
-                      className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border transition-all active:scale-95
-                        ${
-                          u.is_active
-                            ? "bg-card border-border text-rose-600 hover:bg-rose-50 hover:border-rose-200"
-                            : "bg-card border-border text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200"
-                        }`}
-                    >
-                      {u.is_active ? (
-                        <>
-                          <PowerOff className="h-4 w-4" /> Disable
-                        </>
-                      ) : (
-                        <>
-                          <Power className="h-4 w-4" /> Enable
-                        </>
-                      )}
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={() => onToggleStatus(u.id, !u.is_active)}
+                        className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border transition-all active:scale-95
+                          ${
+                            u.is_active
+                              ? "bg-card border-border text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+                              : "bg-card border-border text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200"
+                          }`}
+                      >
+                        {u.is_active ? (
+                          <>
+                            <PowerOff className="h-4 w-4" /> Disable
+                          </>
+                        ) : (
+                          <>
+                            <Power className="h-4 w-4" /> Enable
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Delete user "${u.name || u.email}"? This permanently removes the account and logs them out.`,
+                            )
+                          ) {
+                            onDelete(u.id);
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border transition-all active:scale-95 bg-card border-border text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+                      >
+                        <Trash2 className="h-4 w-4" /> Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -6,7 +6,7 @@ import * as userRepo from "../repositories/user.repository";
 import * as sessionRepo from "../repositories/session.repository";
 import * as refreshTokenRepo from "../repositories/refresh-token.repository";
 import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
-import { hashPassword } from "../utils/password";
+import { assertStrongPassword, hashPassword, normalizeEmail, verifyPassword } from "../utils/password";
 import { enforcePasswordPolicy } from "../utils/password-policy";
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
@@ -181,5 +181,71 @@ export const adminUserService = {
       req
     );
     return sanitizeUser(updated as unknown as Record<string, unknown>);
+  },
+
+  async updateOwnCredentials(
+    adminUserId: string,
+    input: { current_password: string; email?: string; new_password?: string },
+    req: Request
+  ) {
+    const user = await userRepo.findById(adminUserId, { role: true });
+    if (!user) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "User not found.", { code: "NOT_FOUND" });
+    }
+
+    const currentValid = await verifyPassword(input.current_password, user.password_hash);
+    if (!currentValid) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Current password is incorrect.", {
+        code: "INVALID_CURRENT_PASSWORD",
+      });
+    }
+
+    const oldValues: Record<string, unknown> = {};
+    const newValues: Record<string, unknown> = {};
+    let emailChanged = false;
+    let passwordChanged = false;
+
+    if (input.email !== undefined) {
+      const email = normalizeEmail(input.email);
+      if (email !== user.email) {
+        const existing = await userRepo.findByEmail(email);
+        if (existing && existing.id !== adminUserId) {
+          throw new ApiError(HttpStatus.CONFLICT, "An account with this email already exists.", {
+            code: "EMAIL_TAKEN",
+          });
+        }
+        oldValues.email = user.email;
+        await userRepo.update(adminUserId, { email });
+        newValues.email = email;
+        emailChanged = true;
+      }
+    }
+
+    if (input.new_password !== undefined) {
+      assertStrongPassword(input.new_password);
+      const passwordHash = await hashPassword(input.new_password);
+      const { history } = await enforcePasswordPolicy(
+        user.password_hash,
+        user.password_history,
+        input.new_password
+      );
+      await userRepo.updatePassword(adminUserId, passwordHash, history);
+      await userRepo.update(adminUserId, { failed_login_attempts: 0, locked_until: null });
+      passwordChanged = true;
+    }
+
+    await auditService.record(
+      {
+        userId: adminUserId,
+        action: AUDIT_ACTIONS.ADMIN_CREDENTIALS_CHANGED,
+        entityType: "user",
+        entityId: adminUserId,
+        oldValues: Object.keys(oldValues).length > 0 ? oldValues : undefined,
+        newValues,
+      },
+      req
+    );
+
+    return { success: true, email_changed: emailChanged, password_changed: passwordChanged };
   },
 };

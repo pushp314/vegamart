@@ -10,6 +10,7 @@ import { auditLogService } from "../services/audit-log.service";
 import { adminOrderService } from "../services/admin-order.service";
 import { productService } from "../services/product.service";
 import { membershipPlanService } from "../services/membership-plan.service";
+import { maintenanceService } from "../services/maintenance.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { HttpStatus } from "../utils/httpStatus";
@@ -287,6 +288,36 @@ export const changeUserRole = asyncHandler(async (req: Request, res: Response) =
 
 /**
  * @swagger
+ * /admin/credentials:
+ *   patch:
+ *     summary: Update the signed-in admin's login email (id) and/or password
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [current_password]
+ *             properties:
+ *               current_password: { type: string }
+ *               email: { type: string, format: email }
+ *               new_password: { type: string }
+ *     responses:
+ *       200:
+ *         description: Admin credentials updated.
+ *       400:
+ *         description: Current password is incorrect.
+ */
+export const updateAdminCredentials = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as { current_password: string; email?: string; new_password?: string };
+  const data = await adminUserService.updateOwnCredentials(req.user!.id, body, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
  * /admin/vendors:
  *   get:
  *     summary: List all vendors for admin
@@ -410,6 +441,28 @@ export const suspendVendorAdmin = asyncHandler(async (req: Request, res: Respons
  */
 export const restoreVendorAdmin = asyncHandler(async (req: Request, res: Response) => {
   const data = await adminVendorService.restore(req.user!.id, req.params.vendor_id as string, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/vendors/{vendor_id}:
+ *   delete:
+ *     summary: Soft-delete a vendor and its account
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: vendor_id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Vendor deleted.
+ */
+export const deleteVendorAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminVendorService.remove(req.user!.id, req.params.vendor_id as string, req);
   return sendSuccess(res, data);
 });
 
@@ -897,3 +950,68 @@ export const updateSupportTicketStatus = async (req: Request, res: Response, nex
     next(err);
   }
 };
+
+/**
+ * @swagger
+ * /admin/maintenance:
+ *   get:
+ *     summary: Get the maintenance schedule and which maintenance tasks are currently due
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Maintenance schedule status with due/upcoming tasks.
+ */
+export const getMaintenanceStatus = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await maintenanceService.getStatus();
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/maintenance/{type}/done:
+ *   post:
+ *     summary: Mark a maintenance task as performed and reschedule its next alert
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: type
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Maintenance status after rescheduling.
+ */
+export const completeMaintenanceTask = asyncHandler(async (req: Request, res: Response) => {
+  const data = await maintenanceService.markDone(req.params.type as string, req.user!.id, req);
+  return sendSuccess(res, data);
+});
+
+/**
+ * @swagger
+ * /admin/maintenance/contact:
+ *   patch:
+ *     summary: Set the developer contact details sent with maintenance alerts
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Admin]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               contact_email: { type: string, format: email }
+ *               contact_phone: { type: string }
+ *     responses:
+ *       200:
+ *         description: Maintenance status after updating contact details.
+ */
+export const updateMaintenanceContact = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as { contact_email?: string | null; contact_phone?: string | null };
+  const data = await maintenanceService.updateContact(body, req.user!.id, req);
+  return sendSuccess(res, data);
+});
