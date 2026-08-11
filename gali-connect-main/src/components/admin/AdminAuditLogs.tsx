@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Search, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
 interface AuditLog {
   id: string;
@@ -45,6 +46,8 @@ export function AdminAuditLogs() {
       ? (logsRes?.data as any).data
       : [];
 
+  const pagination = logsRes?.pagination as PaginationMeta | undefined;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -54,7 +57,10 @@ export function AdminAuditLogs() {
           <Input
             placeholder="Search logs..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="pl-9 w-64"
           />
         </div>
@@ -122,6 +128,8 @@ export function AdminAuditLogs() {
           )}
         </CardContent>
       </Card>
+
+      <AdminPaginationBar pagination={pagination} onPageChange={setPage} />
     </div>
   );
 }

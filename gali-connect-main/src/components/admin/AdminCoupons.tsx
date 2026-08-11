@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 import {
   Dialog,
   DialogContent,
@@ -16,14 +17,27 @@ import {
 export function AdminCoupons() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const { data: couponsRes, isLoading } = useQuery({
-    queryKey: ["adminCoupons"],
-    queryFn: () => api.get<any>("/coupons"),
+    queryKey: ["adminCoupons", query, page],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("per_page", "20");
+      if (query.trim()) params.set("q", query.trim());
+      return api.get<any>(`/coupons?${params.toString()}`);
+    },
   });
 
-  const coupons = couponsRes?.data || [];
+  const coupons = Array.isArray(couponsRes?.data) ? couponsRes.data : [];
+  const pagination = couponsRes?.pagination as PaginationMeta | undefined;
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setPage(1);
+  };
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.post("/coupons", data),
@@ -43,10 +57,6 @@ export function AdminCoupons() {
     },
     onError: (err: any) => toast.error(err?.message || "Failed to delete coupon"),
   });
-
-  const filtered = coupons.filter((c: any) =>
-    (c.code || "").toLowerCase().includes(query.toLowerCase()),
-  );
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -72,13 +82,13 @@ export function AdminCoupons() {
             placeholder="Search coupons..."
             className="pl-10 rounded-xl bg-muted/50 border-transparent focus:bg-background"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => handleQueryChange(e.target.value)}
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((coupon: any) => (
+        {coupons.map((coupon: any) => (
           <div
             key={coupon.id}
             className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between"
@@ -128,13 +138,15 @@ export function AdminCoupons() {
         ))}
       </div>
 
-      {filtered.length === 0 && !isLoading && (
+      {coupons.length === 0 && !isLoading && (
         <div className="text-center py-20 bg-card rounded-3xl border border-border">
           <Tag className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
           <h3 className="text-lg font-bold">No coupons found</h3>
           <p className="text-muted-foreground text-sm">Create a new coupon to get started.</p>
         </div>
       )}
+
+      <AdminPaginationBar pagination={pagination} onPageChange={setPage} />
 
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent>

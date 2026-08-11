@@ -1,36 +1,27 @@
 import { Users, Power, PowerOff, Search, UserCheck, UserX, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
 interface AdminUsersProps {
   users: any[];
+  pagination?: PaginationMeta;
+  onPageChange: (page: number) => void;
+  search: string;
+  roleFilter: "all" | "customer" | "vendor" | "delivery" | "admin";
+  onFilterChange: (search: string, roleFilter: string) => void;
   onToggleStatus: (id: string, isActive: boolean) => void;
   onDelete: (id: string) => void;
 }
 
-export function AdminUsers({ users, onToggleStatus, onDelete }: AdminUsersProps) {
-  const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<
-    "all" | "customer" | "vendor" | "delivery" | "admin"
-  >("all");
-
-  const roles = useMemo(() => {
-    const set = new Set<string>();
-    users.forEach((u) => set.add(u.role?.slug || u.role || "customer"));
-    return Array.from(set);
-  }, [users]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return users.filter((u) => {
-      const name = (u.name || "").toLowerCase();
-      const email = (u.email || "").toLowerCase();
-      const role = (u.role?.slug || u.role || "customer").toLowerCase();
-      if (roleFilter !== "all" && role !== roleFilter) return false;
-      if (q && !name.includes(q) && !email.includes(q)) return false;
-      return true;
-    });
-  }, [users, query, roleFilter]);
-
+export function AdminUsers({
+  users,
+  pagination,
+  onPageChange,
+  search,
+  roleFilter,
+  onFilterChange,
+  onToggleStatus,
+  onDelete,
+}: AdminUsersProps) {
   const activeCount = users.filter((u) => u.is_active).length;
   const disabledCount = users.length - activeCount;
 
@@ -54,7 +45,7 @@ export function AdminUsers({ users, onToggleStatus, onDelete }: AdminUsersProps)
             Total Users
           </div>
           <div className="text-2xl font-black font-display text-foreground mt-1">
-            {users.length}
+            {pagination?.total ?? users.length}
           </div>
         </div>
         <div className="rounded-3xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
@@ -86,23 +77,22 @@ export function AdminUsers({ users, onToggleStatus, onDelete }: AdminUsersProps)
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => onFilterChange(e.target.value, roleFilter)}
             placeholder="Search by name or email..."
             className="w-full rounded-2xl bg-card border border-border pl-10 pr-4 h-11 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all"
           />
         </div>
         <select
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as any)}
+          onChange={(e) => onFilterChange(search, e.target.value as any)}
           className="rounded-2xl bg-card border border-border px-4 h-11 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
         >
           <option value="all">All Roles</option>
-          {roles.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
+          <option value="customer">customer</option>
+          <option value="vendor">vendor</option>
+          <option value="delivery">delivery</option>
+          <option value="admin">admin</option>
         </select>
       </div>
 
@@ -118,7 +108,7 @@ export function AdminUsers({ users, onToggleStatus, onDelete }: AdminUsersProps)
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
-              {filtered.map((u) => (
+              {users.map((u) => (
                 <tr key={u.id} className="hover:bg-muted/50 transition-colors group">
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
@@ -189,18 +179,16 @@ export function AdminUsers({ users, onToggleStatus, onDelete }: AdminUsersProps)
                 <tr>
                   <td colSpan={4} className="px-8 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
-                      <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
-                      <p className="text-foreground font-medium">No users found.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {users.length > 0 && filtered.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-8 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <Search className="h-12 w-12 text-muted-foreground/40 mb-4" />
-                      <p className="text-foreground font-medium">No users match your search.</p>
+                      {search || roleFilter !== "all" ? (
+                        <Search className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                      ) : (
+                        <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                      )}
+                      <p className="text-foreground font-medium">
+                        {search || roleFilter !== "all"
+                          ? "No users match your search."
+                          : "No users found."}
+                      </p>
                     </div>
                   </td>
                 </tr>
@@ -209,6 +197,8 @@ export function AdminUsers({ users, onToggleStatus, onDelete }: AdminUsersProps)
           </table>
         </div>
       </div>
+
+      <AdminPaginationBar pagination={pagination} onPageChange={onPageChange} />
     </div>
   );
 }

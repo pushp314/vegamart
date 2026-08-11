@@ -100,7 +100,7 @@ export const adminDeliveryService = {
     const { rows, total } = await deliveryRepo.listDeliveryPartners(
       {
         q: query.q,
-        status: query.status as import("@prisma/client").DeliveryStatus | undefined,
+        status: query.status ? (query.status.toUpperCase() as import("@prisma/client").DeliveryStatus) : undefined,
         isAvailable: query.is_available === "true" ? true : query.is_available === "false" ? false : undefined,
         vehicleType: query.vehicle_type,
       },

@@ -1,8 +1,9 @@
 import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown, Trash2 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { KYCReviewModal } from "./KYCReviewModal";
 import { VendorMembershipModal } from "./VendorMembershipModal";
 import { VendorEarningsModal } from "./VendorEarningsModal";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Link } from "@tanstack/react-router";
@@ -10,6 +11,11 @@ import { toast } from "sonner";
 
 interface AdminVendorsProps {
   vendors: any[];
+  pagination?: PaginationMeta;
+  onPageChange: (page: number) => void;
+  search: string;
+  typeFilter: "all" | "shop" | "roaming";
+  onFilterChange: (search: string, typeFilter: string) => void;
   onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onSuspend: (id: string) => void;
@@ -23,6 +29,11 @@ interface AdminVendorsProps {
 
 export function AdminVendors({
   vendors,
+  pagination,
+  onPageChange,
+  search,
+  typeFilter,
+  onFilterChange,
   onApprove,
   onReject,
   onSuspend,
@@ -34,8 +45,6 @@ export function AdminVendors({
   isRejecting,
 }: AdminVendorsProps) {
   const [reviewVendor, setReviewVendor] = useState<any>(null);
-  const [typeFilter, setTypeFilter] = useState<"all" | "shop" | "roaming">("all");
-  const [query, setQuery] = useState("");
   const [editingSettingsVendor, setEditingSettingsVendor] = useState<any>(null);
   const [earningsVendor, setEarningsVendor] = useState<any>(null);
   const [promoteTargetVendor, setPromoteTargetVendor] = useState<any>(null);
@@ -54,20 +63,6 @@ export function AdminVendors({
       toast.error(err?.message || "Failed to update vendor membership");
     },
   });
-
-  const filteredVendors = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return vendors.filter((v) => {
-      const vType = v.profile?.vendor_type || v.vendor_type || "shop";
-      if (typeFilter !== "all" && vType !== typeFilter) return false;
-      if (q) {
-        const name = (v.business_name || "").toLowerCase();
-        const email = (v.user?.email || v.city || "").toLowerCase();
-        if (!name.includes(q) && !email.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [vendors, typeFilter, query]);
 
   const shopCount = vendors.filter(
     (v) => (v.profile?.vendor_type || v.vendor_type || "shop") === "shop",
@@ -131,7 +126,7 @@ export function AdminVendors({
           {(["all", "shop", "roaming"] as const).map((t) => (
             <button
               key={t}
-              onClick={() => setTypeFilter(t)}
+              onClick={() => onFilterChange(search, t)}
               className={`px-5 py-2 rounded-xl text-xs font-bold capitalize transition-all whitespace-nowrap ${
                 typeFilter === t
                   ? "bg-card text-foreground shadow-sm border border-border"
@@ -146,8 +141,8 @@ export function AdminVendors({
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => onFilterChange(e.target.value, typeFilter)}
             placeholder="Search vendors..."
             className="w-full rounded-2xl bg-card border border-border pl-10 pr-4 h-11 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all"
           />
@@ -168,7 +163,7 @@ export function AdminVendors({
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
-              {filteredVendors.map((v: any) => {
+              {vendors.map((v: any) => {
                 const vType = v.profile?.vendor_type || v.vendor_type || "shop";
                 const status = (v.status || "").toLowerCase();
                 return (
@@ -360,17 +355,17 @@ export function AdminVendors({
                   </tr>
                 );
               })}
-              {filteredVendors.length === 0 && (
+              {vendors.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-8 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
-                      {query ? (
+                      {search ? (
                         <Search className="h-12 w-12 text-muted-foreground/40 mb-4" />
                       ) : (
                         <Store className="h-12 w-12 text-muted-foreground/40 mb-4" />
                       )}
                       <p className="text-foreground font-medium">
-                        {query ? "No vendors match your search." : "No vendors found."}
+                        {search ? "No vendors match your search." : "No vendors found."}
                       </p>
                     </div>
                   </td>
@@ -380,6 +375,8 @@ export function AdminVendors({
           </table>
         </div>
       </div>
+
+      <AdminPaginationBar pagination={pagination} onPageChange={onPageChange} />
 
       {reviewVendor && (
         <KYCReviewModal

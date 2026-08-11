@@ -21,10 +21,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
 export function AdminCMS() {
   const queryClient = useQueryClient();
-  const [activeSubTab, setActiveSubTab] = useState<"banners" | "video_ads" | "announcements">("banners");
+  const [activeSubTab, setActiveSubTab] = useState<"banners" | "video_ads" | "announcements">(
+    "banners",
+  );
+  const [slidesPage, setSlidesPage] = useState(1);
+  const [videoAdsPage, setVideoAdsPage] = useState(1);
+  const [announcementsPage, setAnnouncementsPage] = useState(1);
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [isVideoAdModalOpen, setIsVideoAdModalOpen] = useState(false);
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
@@ -46,23 +52,27 @@ export function AdminCMS() {
 
   // Queries
   const { data: slidesRes, isLoading: slidesLoading } = useQuery({
-    queryKey: ["adminHeroSlides"],
-    queryFn: () => api.get<any>("/admin/hero-slides"),
+    queryKey: ["adminHeroSlides", slidesPage],
+    queryFn: () => api.get<any>(`/admin/hero-slides?page=${slidesPage}&per_page=20`),
   });
 
   const { data: videoAdsRes, isLoading: videoAdsLoading } = useQuery({
-    queryKey: ["adminVideoAds"],
-    queryFn: () => api.get<any>("/admin/video-ads"),
+    queryKey: ["adminVideoAds", videoAdsPage],
+    queryFn: () => api.get<any>(`/admin/video-ads?page=${videoAdsPage}&per_page=20`),
   });
 
   const { data: announcementsRes, isLoading: announcementsLoading } = useQuery({
-    queryKey: ["adminAnnouncements"],
-    queryFn: () => api.get<any>("/admin/announcements"),
+    queryKey: ["adminAnnouncements", announcementsPage],
+    queryFn: () => api.get<any>(`/admin/announcements?page=${announcementsPage}&per_page=20`),
   });
 
   const slides = slidesRes?.data || [];
   const videoAds = videoAdsRes?.data || [];
   const announcements = announcementsRes?.data || [];
+
+  const slidesPagination = slidesRes?.pagination as PaginationMeta | undefined;
+  const videoAdsPagination = videoAdsRes?.pagination as PaginationMeta | undefined;
+  const announcementsPagination = announcementsRes?.pagination as PaginationMeta | undefined;
 
   // Banner Mutations
   const createSlideMutation = useMutation({
@@ -89,7 +99,8 @@ export function AdminCMS() {
       queryClient.invalidateQueries({ queryKey: ["hero-slides"] });
       toast.success("Banner deleted");
     },
-    onError: (err: any) => toast.error(formatErrorMessage(err?.error || err, "Failed to delete banner")),
+    onError: (err: any) =>
+      toast.error(formatErrorMessage(err?.error || err, "Failed to delete banner")),
   });
 
   // Video Ad Mutations
@@ -112,13 +123,15 @@ export function AdminCMS() {
   });
 
   const updateVideoAdMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/admin/video-ads/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      api.patch(`/admin/video-ads/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminVideoAds"] });
       queryClient.invalidateQueries({ queryKey: ["publicVideoAds"] });
       toast.success("Video ad updated");
     },
-    onError: (err: any) => toast.error(formatErrorMessage(err?.error || err, "Failed to update video ad")),
+    onError: (err: any) =>
+      toast.error(formatErrorMessage(err?.error || err, "Failed to update video ad")),
   });
 
   const deleteVideoAdMutation = useMutation({
@@ -128,7 +141,8 @@ export function AdminCMS() {
       queryClient.invalidateQueries({ queryKey: ["publicVideoAds"] });
       toast.success("Video ad deleted");
     },
-    onError: (err: any) => toast.error(formatErrorMessage(err?.error || err, "Failed to delete video ad")),
+    onError: (err: any) =>
+      toast.error(formatErrorMessage(err?.error || err, "Failed to delete video ad")),
   });
 
   // Upload Handlers
@@ -383,6 +397,9 @@ export function AdminCMS() {
           )}
         </div>
       )}
+      {activeSubTab === "banners" && (
+        <AdminPaginationBar pagination={slidesPagination} onPageChange={setSlidesPage} />
+      )}
 
       {/* 30s VIDEO ADS TAB */}
       {activeSubTab === "video_ads" && (
@@ -508,6 +525,9 @@ export function AdminCMS() {
           )}
         </div>
       )}
+      {activeSubTab === "video_ads" && (
+        <AdminPaginationBar pagination={videoAdsPagination} onPageChange={setVideoAdsPage} />
+      )}
 
       {/* ANNOUNCEMENTS TAB */}
       {activeSubTab === "announcements" && (
@@ -551,6 +571,12 @@ export function AdminCMS() {
           )}
         </div>
       )}
+      {activeSubTab === "announcements" && (
+        <AdminPaginationBar
+          pagination={announcementsPagination}
+          onPageChange={setAnnouncementsPage}
+        />
+      )}
 
       {/* Banner Create Modal */}
       <Dialog
@@ -573,13 +599,23 @@ export function AdminCMS() {
           {/* Validation & Requirements Guidance Box */}
           <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11.5px] text-muted-foreground space-y-1">
             <div className="font-bold text-foreground flex items-center gap-1.5 text-xs">
-              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Hero Banner Requirements & Size Limits
+              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Hero Banner Requirements & Size
+              Limits
             </div>
             <ul className="list-disc list-inside space-y-0.5 pl-1">
-              <li><strong>Max File Size:</strong> 10 MB per image</li>
-              <li><strong>Accepted Image Formats:</strong> JPEG, PNG, WebP, GIF, AVIF</li>
-              <li><strong>Filename Requirement:</strong> Standard ASCII characters (e.g. <code>hero_slide1.jpg</code>)</li>
-              <li><strong>Required Input:</strong> Banner Title</li>
+              <li>
+                <strong>Max File Size:</strong> 10 MB per image
+              </li>
+              <li>
+                <strong>Accepted Image Formats:</strong> JPEG, PNG, WebP, GIF, AVIF
+              </li>
+              <li>
+                <strong>Filename Requirement:</strong> Standard ASCII characters (e.g.{" "}
+                <code>hero_slide1.jpg</code>)
+              </li>
+              <li>
+                <strong>Required Input:</strong> Banner Title
+              </li>
             </ul>
           </div>
 
@@ -588,7 +624,9 @@ export function AdminCMS() {
             <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
-                <div className="font-bold uppercase tracking-wider text-[10px] text-rose-500">Validation / Upload Error</div>
+                <div className="font-bold uppercase tracking-wider text-[10px] text-rose-500">
+                  Validation / Upload Error
+                </div>
                 <div className="mt-0.5 leading-relaxed font-bold">{bannerUploadError}</div>
               </div>
             </div>
@@ -625,7 +663,9 @@ export function AdminCMS() {
                 <label className="text-xs font-bold uppercase text-muted-foreground">
                   Image URL (Optional)
                 </label>
-                <span className="text-[10px] text-muted-foreground font-medium">Max size: 10 MB</span>
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  Max size: 10 MB
+                </span>
               </div>
               <div className="flex gap-2">
                 <Input
@@ -705,20 +745,31 @@ export function AdminCMS() {
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-emerald-500" /> Upload 30-Second Video Ad to Cloudflare R2
+              <Sparkles className="h-5 w-5 text-emerald-500" /> Upload 30-Second Video Ad to
+              Cloudflare R2
             </DialogTitle>
           </DialogHeader>
 
           {/* Validation & Requirements Guidance Box */}
           <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11.5px] text-muted-foreground space-y-1">
             <div className="font-bold text-foreground flex items-center gap-1.5 text-xs">
-              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Video Ad Requirements & Size Limits
+              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Video Ad Requirements & Size
+              Limits
             </div>
             <ul className="list-disc list-inside space-y-0.5 pl-1">
-              <li><strong>Max File Size:</strong> 200 MB per video (Cloudflare R2 Storage)</li>
-              <li><strong>Formats Accepted:</strong> MP4, WebM, OGG, MOV, MKV</li>
-              <li><strong>Filename Requirement:</strong> Standard ASCII characters (e.g. <code>ad_video1.mp4</code>)</li>
-              <li><strong>Required Inputs:</strong> Ad Title & Video File or R2 URL</li>
+              <li>
+                <strong>Max File Size:</strong> 200 MB per video (Cloudflare R2 Storage)
+              </li>
+              <li>
+                <strong>Formats Accepted:</strong> MP4, WebM, OGG, MOV, MKV
+              </li>
+              <li>
+                <strong>Filename Requirement:</strong> Standard ASCII characters (e.g.{" "}
+                <code>ad_video1.mp4</code>)
+              </li>
+              <li>
+                <strong>Required Inputs:</strong> Ad Title & Video File or R2 URL
+              </li>
             </ul>
           </div>
 
@@ -727,7 +778,9 @@ export function AdminCMS() {
             <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
-                <div className="font-bold uppercase tracking-wider text-[10px] text-rose-500">Validation / Upload Error</div>
+                <div className="font-bold uppercase tracking-wider text-[10px] text-rose-500">
+                  Validation / Upload Error
+                </div>
                 <div className="mt-0.5 leading-relaxed font-bold">{videoUploadError}</div>
               </div>
             </div>
@@ -766,8 +819,13 @@ export function AdminCMS() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Subtitle (Optional)</label>
-              <Input name="subtitle" placeholder="e.g. Watch this short 30s video ad to get exclusive coupons" />
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Subtitle (Optional)
+              </label>
+              <Input
+                name="subtitle"
+                placeholder="e.g. Watch this short 30s video ad to get exclusive coupons"
+              />
             </div>
 
             {/* Video File Upload */}
@@ -776,7 +834,9 @@ export function AdminCMS() {
                 <label className="text-xs font-bold uppercase text-muted-foreground">
                   Video File (Cloudflare R2 Direct Upload)
                 </label>
-                <span className="text-[10px] text-emerald-600 font-bold uppercase">No Limit (R2 Storage)</span>
+                <span className="text-[10px] text-emerald-600 font-bold uppercase">
+                  No Limit (R2 Storage)
+                </span>
               </div>
               <div className="flex gap-2">
                 <Input
@@ -824,7 +884,9 @@ export function AdminCMS() {
             {/* Display Mode Selection */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Display Placement Mode</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Display Placement Mode
+                </label>
                 <select
                   name="display_mode"
                   defaultValue="watch_cta"
@@ -836,19 +898,29 @@ export function AdminCMS() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">CTA Button Text</label>
-                <Input name="cta_text" defaultValue="Watch 30s Ad" placeholder="e.g. Watch 30s Ad" />
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  CTA Button Text
+                </label>
+                <Input
+                  name="cta_text"
+                  defaultValue="Watch 30s Ad"
+                  placeholder="e.g. Watch 30s Ad"
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">CTA Target Link (Optional)</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  CTA Target Link (Optional)
+                </label>
                 <Input name="cta_link" placeholder="e.g. /products or https://..." />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">Duration (Seconds)</label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Duration (Seconds)
+                </label>
                 <Input name="duration" type="number" defaultValue="30" />
               </div>
             </div>

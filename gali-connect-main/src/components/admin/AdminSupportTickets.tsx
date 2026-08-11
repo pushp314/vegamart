@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { AdminPaginationBar } from "./AdminPaginationBar";
 import {
   Table,
   TableBody,
@@ -44,6 +45,7 @@ export function AdminSupportTickets() {
   });
 
   const tickets = ticketsRes?.data?.rows || ticketsRes?.data?.data?.rows || [];
+  const ticketMeta = ticketsRes?.data?.data ?? ticketsRes?.data ?? {};
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -65,12 +67,18 @@ export function AdminSupportTickets() {
             placeholder="Search tickets by subject or user..."
             className="pl-10 rounded-xl bg-muted/50 border-transparent focus:bg-background w-full"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
           className="w-full sm:w-auto h-10 px-4 rounded-xl border bg-muted/50 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none cursor-pointer"
         >
           <option value="">All Statuses</option>
@@ -189,6 +197,18 @@ export function AdminSupportTickets() {
           </Table>
         )}
       </div>
+
+      <AdminPaginationBar
+        pagination={{
+          page: Number(ticketMeta.page) || 1,
+          per_page: Number(ticketMeta.per_page) || 20,
+          total: Number(ticketMeta.total) || 0,
+          total_pages: Number(ticketMeta.total_pages) || 1,
+          has_next: Number(ticketMeta.page || 1) < Number(ticketMeta.total_pages || 1),
+          has_prev: Number(ticketMeta.page || 1) > 1,
+        }}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

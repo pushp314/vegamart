@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AdminDelivery } from "@/components/admin/AdminDelivery";
 import { api } from "@/lib/api";
+import type { PaginationMeta } from "@/components/admin/AdminPaginationBar";
 
 export const Route = createFileRoute("/admin/delivery")({
   component: AdminDeliveryPage,
@@ -11,10 +12,22 @@ export const Route = createFileRoute("/admin/delivery")({
 
 function AdminDeliveryPage() {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "approved" | "pending" | "rejected" | "suspended"
+  >("all");
 
   const { data: deliveryRes, isError } = useQuery({
-    queryKey: ["adminDelivery"],
-    queryFn: () => api.get<any>("/admin/delivery-partners"),
+    queryKey: ["adminDelivery", page, search, statusFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("per_page", "20");
+      if (search.trim()) params.set("q", search.trim());
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      return api.get<any>(`/admin/delivery-partners?${params.toString()}`);
+    },
     retry: false,
   });
 
@@ -29,6 +42,14 @@ function AdminDeliveryPage() {
     : Array.isArray((deliveryRes?.data as any)?.data)
       ? (deliveryRes?.data as any).data
       : [];
+
+  const pagination = deliveryRes?.pagination as PaginationMeta | undefined;
+
+  const handleFilterChange = (nextSearch: string, nextStatus: string) => {
+    setSearch(nextSearch);
+    setStatusFilter(nextStatus as any);
+    setPage(1);
+  };
 
   const approveDeliveryMutation = useMutation({
     mutationFn: (id: string) =>
@@ -71,6 +92,11 @@ function AdminDeliveryPage() {
   return (
     <AdminDelivery
       deliveryList={deliveryList}
+      pagination={pagination}
+      onPageChange={setPage}
+      search={search}
+      statusFilter={statusFilter}
+      onFilterChange={handleFilterChange}
       onApprove={(id) => approveDeliveryMutation.mutate(id)}
       onReject={(id) => rejectDeliveryMutation.mutate(id)}
       onSuspend={(id) => suspendDeliveryMutation.mutate(id)}

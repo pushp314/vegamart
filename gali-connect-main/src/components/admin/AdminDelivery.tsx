@@ -10,12 +10,18 @@ import {
   Loader2,
   FileBarChart,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { CreateDeliveryBoyModal } from "./CreateDeliveryBoyModal";
 import { DeliveryBoyDetailModal } from "./DeliveryBoyDetailModal";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
 interface AdminDeliveryProps {
   deliveryList: any[];
+  pagination?: PaginationMeta;
+  onPageChange: (page: number) => void;
+  search: string;
+  statusFilter: "all" | "approved" | "pending" | "rejected" | "suspended";
+  onFilterChange: (search: string, statusFilter: string) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onSuspend: (id: string) => void;
@@ -29,6 +35,11 @@ interface AdminDeliveryProps {
 
 export function AdminDelivery({
   deliveryList,
+  pagination,
+  onPageChange,
+  search,
+  statusFilter,
+  onFilterChange,
   onApprove,
   onReject,
   onSuspend,
@@ -39,24 +50,8 @@ export function AdminDelivery({
   isRestoring,
   onRefresh,
 }: AdminDeliveryProps) {
-  const [query, setQuery] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [detailDeliveryId, setDetailDeliveryId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "approved" | "pending" | "rejected" | "suspended"
-  >("all");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return deliveryList.filter((p) => {
-      const status = (p.status || "").toLowerCase();
-      const name = (p.user?.name || "").toLowerCase();
-      const email = (p.user?.email || "").toLowerCase();
-      if (statusFilter !== "all" && status !== statusFilter) return false;
-      if (q && !name.includes(q) && !email.includes(q)) return false;
-      return true;
-    });
-  }, [deliveryList, query, statusFilter]);
 
   const approvedCount = deliveryList.filter(
     (p) => (p.status || "").toLowerCase() === "approved",
@@ -123,15 +118,15 @@ export function AdminDelivery({
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => onFilterChange(e.target.value, statusFilter)}
             placeholder="Search by rider name or email..."
             className="w-full rounded-2xl bg-card border border-border pl-10 pr-4 h-11 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all"
           />
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
+          onChange={(e) => onFilterChange(search, e.target.value as any)}
           className="rounded-2xl bg-card border border-border px-4 h-11 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
         >
           <option value="all">All Statuses</option>
@@ -154,7 +149,7 @@ export function AdminDelivery({
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
-              {filtered.map((partner) => {
+              {deliveryList.map((partner) => {
                 const status = (partner.status || "").toLowerCase();
                 return (
                   <tr key={partner.id} className="hover:bg-muted/50 transition-colors group">
@@ -276,7 +271,7 @@ export function AdminDelivery({
                   </td>
                 </tr>
               )}
-              {deliveryList.length > 0 && filtered.length === 0 && (
+              {deliveryList.length > 0 && search !== "" && statusFilter === "all" && (
                 <tr>
                   <td colSpan={4} className="px-8 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
@@ -290,6 +285,8 @@ export function AdminDelivery({
           </table>
         </div>
       </div>
+
+      <AdminPaginationBar pagination={pagination} onPageChange={onPageChange} />
 
       <CreateDeliveryBoyModal
         open={showCreateModal}

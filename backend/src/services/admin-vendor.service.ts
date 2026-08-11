@@ -29,6 +29,7 @@ export const adminVendorService = {
     category?: string;
     status?: VendorStatus;
     is_open?: string;
+    roaming?: string;
   }) {
     const page = Math.max(1, query.page ?? 1);
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
@@ -40,6 +41,7 @@ export const adminVendorService = {
         status: query.status,
         includeAll: true,
         isOpen: query.is_open === "true" ? true : query.is_open === "false" ? false : undefined,
+        roaming: query.roaming === "true" ? true : query.roaming === "false" ? false : undefined,
       },
       (page - 1) * perPage,
       perPage

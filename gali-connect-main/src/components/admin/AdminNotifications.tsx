@@ -24,6 +24,7 @@ import {
 import { Bell, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
 interface Announcement {
   id: string;
@@ -37,14 +38,15 @@ interface Announcement {
 
 export function AdminNotifications() {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [newAudience, setNewAudience] = useState("all");
 
   const { data: announcementsRes, isLoading } = useQuery({
-    queryKey: ["adminAnnouncements"],
-    queryFn: () => api.get<any>("/admin/announcements"),
+    queryKey: ["adminAnnouncements", page],
+    queryFn: () => api.get<any>(`/admin/announcements?page=${page}&per_page=20`),
   });
 
   const announcements: Announcement[] = Array.isArray(announcementsRes?.data)
@@ -52,6 +54,8 @@ export function AdminNotifications() {
     : Array.isArray((announcementsRes?.data as any)?.data)
       ? (announcementsRes?.data as any).data
       : [];
+
+  const pagination = announcementsRes?.pagination as PaginationMeta | undefined;
 
   const createAnnouncementMutation = useMutation({
     mutationFn: (data: { title: string; body: string; audience: string }) =>
@@ -206,6 +210,8 @@ export function AdminNotifications() {
           )}
         </CardContent>
       </Card>
+
+      <AdminPaginationBar pagination={pagination} onPageChange={setPage} />
     </div>
   );
 }

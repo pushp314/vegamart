@@ -229,6 +229,7 @@ export interface VendorFilter {
   isOpen?: boolean;
   status?: import("@prisma/client").VendorStatus;
   includeAll?: boolean;
+  roaming?: boolean;
 }
 
 function buildVendorWhere(filter: VendorFilter): Prisma.VendorProfileWhereInput {
@@ -247,6 +248,9 @@ function buildVendorWhere(filter: VendorFilter): Prisma.VendorProfileWhereInput 
   }
   if (filter.isOpen !== undefined) {
     where.is_open = filter.isOpen;
+  }
+  if (filter.roaming !== undefined) {
+    where.roaming = filter.roaming;
   }
   if (filter.q) {
     where.OR = [

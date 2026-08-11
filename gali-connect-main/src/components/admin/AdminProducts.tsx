@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Search, Star, Loader2, Package, Trash2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +81,8 @@ export function AdminProducts() {
       ? (productsRes?.data as any).data
       : [];
 
+  const pagination = productsRes?.pagination as PaginationMeta | undefined;
+
   const toggleFeatureMutation = useMutation({
     mutationFn: ({ id, is_featured }: { id: string; is_featured: boolean }) =>
       api.put(`/admin/products/${id}/feature`, { is_featured }),
@@ -119,7 +122,10 @@ export function AdminProducts() {
           <Input
             placeholder="Search products..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="pl-9 w-64"
           />
         </div>
@@ -264,6 +270,8 @@ export function AdminProducts() {
           )}
         </CardContent>
       </Card>
+
+      <AdminPaginationBar pagination={pagination} onPageChange={setPage} />
     </div>
   );
 }

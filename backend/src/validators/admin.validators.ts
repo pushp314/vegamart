@@ -7,6 +7,16 @@ export const adminPaginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   q: z.string().trim().max(160).optional(),
+  role: z.string().trim().max(40).optional(),
+  status: z.string().trim().max(40).optional(),
+  is_verified: z.enum(["true", "false"]).optional(),
+  provider: z.string().trim().max(40).optional(),
+  city: z.string().trim().max(120).optional(),
+  category: z.string().trim().max(120).optional(),
+  is_open: z.enum(["true", "false"]).optional(),
+  roaming: z.enum(["true", "false"]).optional(),
+  is_available: z.enum(["true", "false"]).optional(),
+  vehicle_type: z.string().trim().max(60).optional(),
 }).strict();
 
 export const reportDateQuerySchema = z.object({
