@@ -1,6 +1,8 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import prisma from "../database/prisma";
+
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 const baseSelect = {
   id: true,
@@ -117,26 +119,26 @@ export async function releaseReserved(productId: string, quantity: number): Prom
   });
 }
 
-export async function consumeReserved(productId: string, quantity: number): Promise<void> {
-  await prisma.inventoryItem.updateMany({
+export async function consumeReserved(productId: string, quantity: number, db: DbClient = prisma): Promise<void> {
+  await db.inventoryItem.updateMany({
     where: { product_id: productId, reserved: { gte: quantity } },
     data: {
       reserved: { decrement: quantity },
       quantity: { decrement: quantity },
     },
   });
-  await prisma.product.updateMany({
+  await db.product.updateMany({
     where: { id: productId, stock: { gte: quantity } },
     data: { stock: { decrement: quantity } },
   });
-  await prisma.product.updateMany({
+  await db.product.updateMany({
     where: { id: productId, stock: { lte: 0 } },
     data: { is_available: false },
   });
 }
 
-export async function listByOrder(orderId: string): Promise<Array<{ product_id: string; quantity: number }>> {
-  const rows = await prisma.orderItem.findMany({
+export async function listByOrder(orderId: string, db: DbClient = prisma): Promise<Array<{ product_id: string; quantity: number }>> {
+  const rows = await db.orderItem.findMany({
     where: { order_id: orderId },
     select: { product_id: true, quantity: true },
   });
@@ -157,9 +159,9 @@ export async function releaseQuantityForOrder(orderId: string): Promise<void> {
   }
 }
 
-export async function consumeQuantityForOrder(orderId: string): Promise<void> {
-  const items = await listByOrder(orderId);
+export async function consumeQuantityForOrder(orderId: string, db: DbClient = prisma): Promise<void> {
+  const items = await listByOrder(orderId, db);
   for (const item of items) {
-    await consumeReserved(item.product_id, item.quantity);
+    await consumeReserved(item.product_id, item.quantity, db);
   }
 }

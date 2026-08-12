@@ -821,6 +821,8 @@ model Order {
   payment_method        PaymentMethod @default(RAZORPAY)
   payment_status        PaymentStatus @default(PENDING)
   otp_code              String?       @db.VarChar(10)
+  otp_expires_at        DateTime?
+  otp_attempts          Int           @default(0)
   delivery_note         String?       @db.VarChar(500)
   invoice_number        String?       @unique @db.VarChar(40)
   delivered_at          DateTime?

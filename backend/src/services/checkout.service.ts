@@ -2,7 +2,7 @@ import type { Request } from "express";
 import prisma from "../database/prisma";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
-import { DEFAULT_CURRENCY, TAX_RATE_PERCENT } from "../constants";
+import { DEFAULT_CURRENCY, OTP_TTL_MINUTES, TAX_RATE_PERCENT } from "../constants";
 import { auditService } from "./audit.service";
 import { cartService } from "./cart.service";
 import { couponService } from "./coupon.service";
@@ -301,6 +301,7 @@ export const checkoutService = {
         invoice_number: invoiceNumber,
         idempotency_key: idempotencyKey ?? null,
         otp_code: generateDeliveryOtp(),
+        otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
       });
 
       await orderRepo.updateOrderStatus(order.id, {

@@ -159,7 +159,8 @@ export const deliveryOrderStatusSchema = z.object({
     "ready_for_pickup",
     "picked_up",
     "out_for_delivery",
-    "delivered",
+    // "delivered" is intentionally excluded: it is OTP-gated and must go
+    // through the dedicated /delivery/order/:id/delivered endpoint.
   ]),
 }).strict();
 

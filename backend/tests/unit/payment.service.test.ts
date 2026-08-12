@@ -20,6 +20,7 @@ jest.mock("../../src/repositories/payment.repository", () => ({
   updatePayment: jest.fn(),
   createForOrder: jest.fn(),
   incrementAttempts: jest.fn(),
+  claimAsPaid: jest.fn(),
 }));
 
 jest.mock("../../src/repositories/order.repository", () => ({
@@ -42,17 +43,27 @@ jest.mock("../../src/payments/razorpay.gateway", () => ({
     verifySignature: jest.fn(),
     verifyWebhookSignature: jest.fn(),
     refundPayment: jest.fn(),
+    fetchPayment: jest.fn(),
+  },
+}));
+
+jest.mock("../../src/database/cache", () => ({
+  cacheService: {
+    get: jest.fn(),
+    set: jest.fn(),
   },
 }));
 
 import * as paymentRepo from "../../src/repositories/payment.repository";
 import * as orderRepo from "../../src/repositories/order.repository";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
+import * as transactionRepo from "../../src/repositories/transaction.repository";
 import { razorpayGateway } from "../../src/payments/razorpay.gateway";
 
 const payRepo = paymentRepo as jest.Mocked<typeof paymentRepo>;
 const orderRepoMock = orderRepo as jest.Mocked<typeof orderRepo>;
 const invRepo = inventoryRepo as jest.Mocked<typeof inventoryRepo>;
+const txRepo = transactionRepo as jest.Mocked<typeof transactionRepo>;
 const gatewayMock = razorpayGateway as jest.Mocked<typeof razorpayGateway>;
 
 const mockReq = { user: { id: "u1" } } as any;
@@ -104,7 +115,21 @@ function makeOrder(overrides: Partial<orderRepo.OrderRow> = {}) {
   } as any;
 }
 
-describe("payment service", () => {
+function capturedEntity(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "rzp-pay-1",
+    entity: "payment",
+    order_id: "rzp-order-1",
+    status: "captured",
+    amount: 24000,
+    currency: "INR",
+    method: "upi",
+    created_at: 1720000000,
+    ...overrides,
+  };
+}
+
+describe("payment service - verifyPayment", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -117,29 +142,130 @@ describe("payment service", () => {
     await expect(
       paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "bad" }, mockReq)
     ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_SIGNATURE" });
+    expect(gatewayMock.fetchPayment).not.toHaveBeenCalled();
+    expect(payRepo.claimAsPaid).not.toHaveBeenCalled();
   });
 
-  it("verifies a payment and marks the order paid", async () => {
-    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
+  it("verifies a payment only when signature, amount, currency and order mapping all match", async () => {
+    payRepo.findByRazorpayOrderId
+      .mockResolvedValueOnce(makePayment())
+      .mockResolvedValue(makePayment({ status: "PAID" }));
     orderRepoMock.findById.mockResolvedValue(makeOrder());
     gatewayMock.verifySignature.mockReturnValue(true);
-    payRepo.updatePayment.mockResolvedValue(makePayment({ status: "PAID" }));
+    gatewayMock.fetchPayment.mockResolvedValue(capturedEntity());
+    payRepo.claimAsPaid.mockResolvedValue(1);
     orderRepoMock.updateOrder.mockResolvedValue(makeOrder({ payment_status: "PAID" }));
     orderRepoMock.updateOrderStatus.mockResolvedValue(makeOrder({ status: "CONFIRMED" }));
 
     const result = await paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" }, mockReq);
 
     expect(result.payment.status).toBe("PAID");
+    expect(payRepo.claimAsPaid).toHaveBeenCalledWith(
+      "pay-1",
+      expect.objectContaining({ razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" })
+    );
+    expect(orderRepoMock.updateOrder).toHaveBeenCalledWith("order-1", { payment_status: "PAID" });
+    expect(orderRepoMock.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "CONFIRMED" }));
+    expect(txRepo.create).toHaveBeenCalledWith(expect.objectContaining({ amount: 240, reference: "rzp-pay-1" }));
     expect(invRepo.reserveQuantityFromOrder).toHaveBeenCalledWith("order-1", mockReq);
   });
 
-  it("returns early when already paid", async () => {
+  it("rejects a captured amount that does not match the order total", async () => {
+    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    gatewayMock.verifySignature.mockReturnValue(true);
+    gatewayMock.fetchPayment.mockResolvedValue(capturedEntity({ amount: 24001 }));
+
+    await expect(
+      paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 400, code: "PAYMENT_AMOUNT_MISMATCH" });
+    expect(payRepo.claimAsPaid).not.toHaveBeenCalled();
+    expect(orderRepoMock.updateOrder).not.toHaveBeenCalled();
+    expect(txRepo.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a payment whose currency does not match the order", async () => {
+    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    gatewayMock.verifySignature.mockReturnValue(true);
+    gatewayMock.fetchPayment.mockResolvedValue(capturedEntity({ currency: "USD" }));
+
+    await expect(
+      paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 400, code: "PAYMENT_CURRENCY_MISMATCH" });
+    expect(payRepo.claimAsPaid).not.toHaveBeenCalled();
+  });
+
+  it("rejects a payment that does not belong to the expected order", async () => {
+    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    gatewayMock.verifySignature.mockReturnValue(true);
+    gatewayMock.fetchPayment.mockResolvedValue(capturedEntity({ order_id: "rzp-order-other" }));
+
+    await expect(
+      paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 400, code: "PAYMENT_ORDER_MISMATCH" });
+    expect(payRepo.claimAsPaid).not.toHaveBeenCalled();
+  });
+
+  it("rejects a payment with an unacceptable gateway status", async () => {
+    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    gatewayMock.verifySignature.mockReturnValue(true);
+    gatewayMock.fetchPayment.mockResolvedValue(capturedEntity({ status: "failed" }));
+
+    await expect(
+      paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 400, code: "PAYMENT_STATUS_NOT_ACCEPTABLE" });
+    expect(payRepo.claimAsPaid).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the gateway cannot be reached (payment stays unpaid)", async () => {
+    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    gatewayMock.verifySignature.mockReturnValue(true);
+    gatewayMock.fetchPayment.mockRejectedValue(new Error("network down"));
+
+    await expect(
+      paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 502, code: "PAYMENT_VERIFICATION_FAILED" });
+    expect(payRepo.claimAsPaid).not.toHaveBeenCalled();
+    expect(txRepo.create).not.toHaveBeenCalled();
+  });
+
+  it("is idempotent: a duplicate callback after success does not re-run side effects", async () => {
+    payRepo.findByRazorpayOrderId
+      .mockResolvedValueOnce(makePayment())
+      .mockResolvedValue(makePayment({ status: "PAID" }));
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    gatewayMock.verifySignature.mockReturnValue(true);
+    gatewayMock.fetchPayment.mockResolvedValue(capturedEntity());
+    payRepo.claimAsPaid.mockResolvedValue(0); // a concurrent request already won the claim
+
+    const result = await paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" }, mockReq);
+
+    expect(result.payment.status).toBe("PAID");
+    expect(txRepo.create).not.toHaveBeenCalled();
+    expect(orderRepoMock.updateOrderStatus).not.toHaveBeenCalled();
+    expect(invRepo.reserveQuantityFromOrder).not.toHaveBeenCalled();
+  });
+
+  it("is idempotent: refreshing/retrying an already-paid payment returns early", async () => {
     payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment({ status: "PAID" }));
     orderRepoMock.findById.mockResolvedValue(makeOrder());
 
     const result = await paymentService.verifyPayment("u1", { razorpay_order_id: "rzp-order-1", razorpay_payment_id: "rzp-pay-1", razorpay_signature: "x" }, mockReq);
+
     expect(result.payment.status).toBe("PAID");
     expect(gatewayMock.verifySignature).not.toHaveBeenCalled();
+    expect(txRepo.create).not.toHaveBeenCalled();
+    expect(orderRepoMock.updateOrderStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("payment service - webhook", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   it("rejects webhooks with a missing or invalid signature", async () => {
@@ -148,15 +274,60 @@ describe("payment service", () => {
     await expect(paymentService.handleWebhook("{}", "sig", mockReq)).rejects.toMatchObject({ statusCode: 401 });
   });
 
-  it("processes a payment.captured webhook", async () => {
+  it("processes a valid payment.captured webhook", async () => {
     gatewayMock.verifyWebhookSignature.mockReturnValue(true);
     payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
     orderRepoMock.findById.mockResolvedValue(makeOrder());
-    payRepo.updatePayment.mockResolvedValue(makePayment({ status: "PAID" }));
+    payRepo.claimAsPaid.mockResolvedValue(1);
 
-    const body = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: { id: "rzp-pay-1", order_id: "rzp-order-1" } } } });
+    const body = JSON.stringify({
+      event: "payment.captured",
+      payload: { payment: { entity: capturedEntity() } },
+    });
     const result = await paymentService.handleWebhook(body, "sig", mockReq);
     expect(result.handled).toBe("payment.captured");
+    expect(txRepo.create).toHaveBeenCalledWith(expect.objectContaining({ amount: 240, reference: "rzp-pay-1" }));
+    expect(orderRepoMock.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "CONFIRMED" }));
+    expect(invRepo.reserveQuantityFromOrder).toHaveBeenCalledWith("order-1", undefined);
+  });
+
+  it("rejects a payment.captured webhook whose amount does not match the order", async () => {
+    gatewayMock.verifyWebhookSignature.mockReturnValue(true);
+    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment());
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+
+    const body = JSON.stringify({
+      event: "payment.captured",
+      payload: { payment: { entity: capturedEntity({ amount: 24001 }) } },
+    });
+    await expect(paymentService.handleWebhook(body, "sig", mockReq)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "PAYMENT_AMOUNT_MISMATCH",
+    });
+    expect(payRepo.claimAsPaid).not.toHaveBeenCalled();
+    expect(txRepo.create).not.toHaveBeenCalled();
+  });
+
+  it("does not duplicate side effects when the webhook races the client callback", async () => {
+    gatewayMock.verifyWebhookSignature.mockReturnValue(true);
+    payRepo.findByRazorpayOrderId.mockResolvedValue(makePayment({ status: "PAID" }));
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    payRepo.claimAsPaid.mockResolvedValue(0);
+
+    const body = JSON.stringify({
+      event: "payment.captured",
+      payload: { payment: { entity: capturedEntity() } },
+    });
+    const result = await paymentService.handleWebhook(body, "sig", mockReq);
+    expect(result.handled).toBe("payment.captured");
+    expect(txRepo.create).not.toHaveBeenCalled();
+    expect(orderRepoMock.updateOrderStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("payment service - refund", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   it("rejects refunding a payment that is not paid", async () => {

@@ -15,6 +15,62 @@ import { subscriptionPaymentService } from "./subscription-payment.service";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
+// Razorpay statuses for which the payment amount can be trusted as captured.
+// `authorized` is accepted for merchants that use manual capture; both must still
+// pass the amount/currency/order checks below.
+const ACCEPTABLE_PAYMENT_STATUSES = new Set(["captured", "authorized"]);
+
+interface CapturedPaymentEntity {
+  id?: string;
+  order_id?: string;
+  status?: string;
+  amount?: number;
+  currency?: string;
+}
+
+function expectedAmountPaise(order: { total: { toNumber: () => number } }): number {
+  return Math.round(order.total.toNumber() * 100);
+}
+
+/**
+ * Verifies that a captured payment entity from Razorpay matches the persisted
+ * order: it belongs to the expected razorpay order, has an acceptable status,
+ * and the captured amount + currency equal the server-derived order total.
+ * The expected amount is derived from the persisted order, never from the
+ * frontend or from a client-supplied value.
+ */
+function assertCapturedPayment(
+  entity: CapturedPaymentEntity,
+  payment: { razorpay_order_id: string | null; currency: string },
+  order: { total: { toNumber: () => number } }
+): void {
+  if (!entity.id || !entity.order_id || !entity.status || typeof entity.amount !== "number") {
+    throw new ApiError(HttpStatus.BAD_REQUEST, "Payment verification failed: incomplete gateway data.", {
+      code: "PAYMENT_VERIFICATION_FAILED",
+    });
+  }
+  if (payment.razorpay_order_id && entity.order_id !== payment.razorpay_order_id) {
+    throw new ApiError(HttpStatus.BAD_REQUEST, "Payment does not belong to this order.", {
+      code: "PAYMENT_ORDER_MISMATCH",
+    });
+  }
+  if (!ACCEPTABLE_PAYMENT_STATUSES.has(entity.status)) {
+    throw new ApiError(HttpStatus.BAD_REQUEST, `Payment status is not acceptable (${entity.status}).`, {
+      code: "PAYMENT_STATUS_NOT_ACCEPTABLE",
+    });
+  }
+  if (entity.amount !== expectedAmountPaise(order)) {
+    throw new ApiError(HttpStatus.BAD_REQUEST, "Captured amount does not match the order total.", {
+      code: "PAYMENT_AMOUNT_MISMATCH",
+    });
+  }
+  if (entity.currency && entity.currency !== (payment.currency || "INR")) {
+    throw new ApiError(HttpStatus.BAD_REQUEST, "Payment currency does not match the expected currency.", {
+      code: "PAYMENT_CURRENCY_MISMATCH",
+    });
+  }
+}
+
 export const paymentService = {
   async verifyPayment(userId: string, input: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }, req: Request) {
     const payment = await paymentRepo.findByRazorpayOrderId(input.razorpay_order_id);
@@ -43,12 +99,34 @@ export const paymentService = {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid payment signature.", { code: "INVALID_SIGNATURE" });
     }
 
-    const updatedPayment = await paymentRepo.updatePayment(payment.id, {
+    let entity: CapturedPaymentEntity;
+    try {
+      entity = await razorpayGateway.fetchPayment(input.razorpay_payment_id);
+    } catch {
+      throw new ApiError(HttpStatus.BAD_GATEWAY, "Unable to verify payment with the payment gateway.", {
+        code: "PAYMENT_VERIFICATION_FAILED",
+      });
+    }
+
+    // The expected amount is derived from the persisted order; the frontend is
+    // never trusted for the payable amount. Signature + amount + currency + order
+    // mapping must all hold before the payment is marked paid.
+    assertCapturedPayment(entity, payment, order);
+
+    // Atomic claim: only the first request that transitions this payment to PAID
+    // proceeds with the downstream side effects. Replayed/concurrent callbacks
+    // find `claimed === 0` and return the already-paid state idempotently.
+    const claimed = await paymentRepo.claimAsPaid(payment.id, {
       razorpay_payment_id: input.razorpay_payment_id,
       razorpay_signature: input.razorpay_signature,
-      status: "PAID",
+      gateway_response: entity as never,
     });
+    if (claimed === 0) {
+      const paidPayment = await paymentRepo.findByRazorpayOrderId(input.razorpay_order_id);
+      return { payment: paidPayment ?? payment, order };
+    }
 
+    const updatedPayment = await paymentRepo.findByRazorpayOrderId(input.razorpay_order_id) ?? payment;
     await orderRepo.updateOrder(order.id, { payment_status: "PAID" });
     await orderRepo.updateOrderStatus(order.id, {
       status: "CONFIRMED",
@@ -61,7 +139,7 @@ export const paymentService = {
       payment_id: payment.id,
       user_id: userId,
       type: "DEBIT",
-      amount: payment.amount.toNumber(),
+      amount: order.total.toNumber(),
       status: "success",
       reference: input.razorpay_payment_id,
       metadata: { razorpay_order_id: input.razorpay_order_id },
@@ -75,7 +153,7 @@ export const paymentService = {
     });
 
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "payment", entityId: payment.id, newValues: { razorpay_payment_id: input.razorpay_payment_id, order_id: order.id } },
+      { userId, action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "payment", entityId: payment.id, newValues: { razorpay_payment_id: input.razorpay_payment_id, order_id: order.id, amount: order.total.toNumber() } },
       req
     );
 
@@ -153,22 +231,26 @@ export const paymentService = {
     return { handled: event };
   },
 
-  async handlePaymentCaptured(entity: { id?: string; order_id?: string; status?: string; amount?: number }): Promise<void> {
+  async handlePaymentCaptured(entity: CapturedPaymentEntity): Promise<void> {
     const razorpayOrderId = entity.order_id;
     if (!razorpayOrderId) return;
 
     const payment = await paymentRepo.findByRazorpayOrderId(razorpayOrderId);
-    if (!payment || payment.status === "PAID") return;
-
-    await paymentRepo.updatePayment(payment.id, {
-      razorpay_payment_id: entity.id,
-      status: "PAID",
-      gateway_response: entity as never,
-      webhook_events: { captured: true },
-    });
+    if (!payment) return;
 
     const order = await findOrderById(payment.order_id);
     if (!order) return;
+
+    assertCapturedPayment(entity, payment, order);
+
+    // Atomic claim: only one callback (webhook or client verify) applies the
+    // paid transition; duplicates short-circuit before any side effect.
+    const claimed = await paymentRepo.claimAsPaid(payment.id, {
+      razorpay_payment_id: entity.id,
+      gateway_response: entity as never,
+      webhook_events: { captured: true },
+    });
+    if (claimed === 0) return;
 
     await orderRepo.updateOrder(order.id, { payment_status: "PAID" });
     await orderRepo.updateOrderStatus(order.id, {
@@ -182,9 +264,9 @@ export const paymentService = {
       payment_id: payment.id,
       user_id: order.user_id,
       type: "DEBIT",
-      amount: payment.amount.toNumber(),
+      amount: order.total.toNumber(),
       status: "success",
-      reference: entity.id,
+      reference: entity.id ?? null,
       metadata: { razorpay_order_id: razorpayOrderId, source: "webhook" },
     });
 

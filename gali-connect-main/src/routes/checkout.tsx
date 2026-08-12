@@ -145,6 +145,75 @@ function Checkout() {
     mutationFn: (data: any) => api.post<any>("/payments/verify", data),
   });
 
+  // Opens the Razorpay modal for every online order and resolves ONLY when the
+  // backend has confirmed the payment (signature + amount + order mapping). Modal
+  // dismissal and verification failures reject, so the caller never clears the
+  // cart, never shows success, and never navigates to the success page unless the
+  // payment was genuinely captured.
+  const runRazorpayFlow = async (orders: any[]) => {
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded) {
+      throw new Error("Razorpay SDK failed to load. Are you online?");
+    }
+    const RazorpayCtor = (window as any).Razorpay;
+    for (const entry of orders) {
+      const order = entry?.order;
+      const pay = entry?.payment;
+      if (!order || !pay?.razorpay_order_id) continue;
+      await new Promise<void>((resolve, reject) => {
+        // Once Razorpay has returned a payment response, the modal auto-closes and
+        // some SDK builds fire `ondismiss` alongside `handler`. Track that a payment
+        // was received so an auto-close is never misreported as a user cancellation.
+        let paymentReceived = false;
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+          amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
+          currency: "INR",
+          name: "Vegamart",
+          description: `Order ${order.order_number}`,
+          order_id: pay.razorpay_order_id,
+          handler: async (response: any) => {
+            paymentReceived = true;
+            try {
+              const res = await verifyMutation.mutateAsync({
+                razorpay_order_id: pay.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+              if (res?.success) {
+                resolve();
+              } else {
+                reject(
+                  new Error(
+                    res?.error?.message || "Payment verification failed. Please contact support.",
+                  ),
+                );
+              }
+            } catch {
+              reject(new Error("Payment verification failed. Please contact support."));
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              if (paymentReceived) return;
+              reject(new Error("Payment was cancelled. Your order has not been charged."));
+            },
+          },
+          prefill: {
+            name: user?.name || "Customer",
+            email: user?.email || "",
+            contact: selectedAddress?.phone || "9999999999",
+          },
+          theme: {
+            color: "#10b981",
+          },
+        };
+        const paymentObject = new RazorpayCtor(options);
+        paymentObject.open();
+      });
+    }
+  };
+
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await api.post<any>("/orders", data);
@@ -157,49 +226,15 @@ function Checkout() {
       const orders: any[] = res?.orders ?? [];
       const firstOrder = orders[0]?.order ?? null;
       if (payment === "upi" || payment === "card") {
-        const scriptLoaded = await loadRazorpayScript();
-        if (!scriptLoaded) {
-          toast.error("Razorpay SDK failed to load. Are you online?");
+        try {
+          await runRazorpayFlow(orders);
+        } catch (err) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Payment could not be completed. Please try again.";
+          toast.error(message);
           return;
-        }
-        const RazorpayCtor = (window as any).Razorpay;
-        for (const entry of orders) {
-          const order = entry?.order;
-          const pay = entry?.payment;
-          if (!order || !pay?.razorpay_order_id) continue;
-          await new Promise<void>((resolve) => {
-            const options = {
-              key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
-              amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
-              currency: "INR",
-              name: "Vegamart",
-              description: `Order ${order.order_number}`,
-              order_id: pay.razorpay_order_id,
-              handler: async (response: any) => {
-                try {
-                  await verifyMutation.mutateAsync({
-                    razorpay_order_id: pay.razorpay_order_id,
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature: response.razorpay_signature,
-                  });
-                } catch {
-                  toast.error("Payment verification failed. Please contact support.");
-                }
-                resolve();
-              },
-              modal: { ondismiss: () => resolve() },
-              prefill: {
-                name: user?.name || "Customer",
-                email: user?.email || "",
-                contact: selectedAddress?.phone || "9999999999",
-              },
-              theme: {
-                color: "#10b981",
-              },
-            };
-            const paymentObject = new RazorpayCtor(options);
-            paymentObject.open();
-          });
         }
         clearCart();
         toast.success("Payment successful!");

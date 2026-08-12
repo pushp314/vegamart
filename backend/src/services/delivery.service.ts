@@ -71,8 +71,39 @@ const ORDER_STATUS_MAP: Record<string, string> = {
   ready_for_pickup: "READY_FOR_PICKUP",
   picked_up: "PICKED_UP",
   out_for_delivery: "OUT_FOR_DELIVERY",
-  delivered: "DELIVERED",
+  // "delivered" is intentionally NOT mapped here. Marking an order DELIVERED
+  // requires OTP verification through the dedicated delivered endpoint.
 };
+
+// Forward-only state machine for the delivery-partner status endpoint.
+// DELIVERED is never a target here (OTP-gated endpoint only), and backwards
+// transitions are rejected. OUT_FOR_DELIVERY is only reachable after PICKED_UP,
+// so a partner cannot skip the pickup step before completing a delivery.
+const DELIVERY_TRANSITIONS: Record<string, Set<string>> = {
+  PENDING: new Set(["CONFIRMED"]),
+  CONFIRMED: new Set(["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
+  PREPARING: new Set(["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
+  PACKED: new Set(["PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
+  READY_FOR_PICKUP: new Set(["READY_FOR_PICKUP", "PICKED_UP"]),
+  PICKED_UP: new Set(["PICKED_UP", "OUT_FOR_DELIVERY"]),
+  OUT_FOR_DELIVERY: new Set(["OUT_FOR_DELIVERY"]),
+  DELIVERED: new Set([]),
+  CANCELLED: new Set([]),
+  REFUNDED: new Set([]),
+  RETURNED: new Set([]),
+  FAILED: new Set([]),
+};
+
+function assertDeliveryTransition(current: string, next: string): void {
+  const allowed = DELIVERY_TRANSITIONS[current];
+  if (!allowed || !allowed.has(next)) {
+    throw new ApiError(
+      HttpStatus.BAD_REQUEST,
+      `Cannot transition order from ${current} to ${next}.`,
+      { code: "INVALID_STATUS" }
+    );
+  }
+}
 
 import prisma from "../database/prisma";
 import { AUDIT_ACTIONS } from "../constants/auth";
@@ -81,6 +112,11 @@ import * as deliveryRepo from "../repositories/delivery.repository";
 import { cacheService } from "../database/cache";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
+import {
+  completeDelivery,
+  DELIVERY_PARTNER_DELIVERY_STATES,
+  verifyDeliveryOtp,
+} from "./order-delivery.service";
 
 export const deliveryService = {
   async getMyStats(userId: string) {
@@ -522,6 +558,13 @@ export const deliveryService = {
       throw new ConflictError("This order already has a delivery partner assigned.");
     }
     const updated = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, delivery_partner_id: null },
+        data: { delivery_partner_id: partner.id, eta_minutes: etaMinutes },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictError("This order already has a delivery partner assigned.");
+      }
       await tx.orderEvent.create({
         data: {
           order_id: orderId,
@@ -531,12 +574,14 @@ export const deliveryService = {
           actor_id: userId,
         },
       });
-      return tx.order.update({
+      return tx.order.findUnique({
         where: { id: orderId },
-        data: { delivery_partner_id: partner.id, eta_minutes: etaMinutes },
         select: { id: true, order_number: true, status: true, total: true, user_id: true },
       });
     });
+    if (!updated) {
+      throw new NotFoundError("Order not found.");
+    }
     await prisma.deliveryTracking.upsert({
       where: { order_id: orderId },
       update: {},
@@ -573,10 +618,10 @@ export const deliveryService = {
     if (!mapped) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid delivery status.", { code: "INVALID_STATUS" });
     }
+    assertDeliveryTransition(order.status, mapped);
     const timestamps: Record<string, Date> = {};
     if (mapped === "PICKED_UP") timestamps.picked_up_at = new Date();
     if (mapped === "OUT_FOR_DELIVERY") timestamps.started_at = new Date();
-    if (mapped === "DELIVERED") timestamps.delivered_at = new Date();
 
     const updated = await orderRepo.updateOrderStatus(orderId, {
       status: mapped,
@@ -643,21 +688,18 @@ export const deliveryService = {
     if (order.delivery_partner_id !== partner.id) {
       throw new ForbiddenError("This order is not assigned to you.");
     }
-    if (!order.otp_code || order.otp_code !== input.otp) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid delivery OTP.", { code: "INVALID_OTP" });
-    }
-    const updated = await orderRepo.updateOrderStatus(orderId, {
-      status: "DELIVERED",
-      note: "Order delivered.",
+
+    await verifyDeliveryOtp(order, input.otp, DELIVERY_PARTNER_DELIVERY_STATES);
+
+    const updated = await completeDelivery({
+      orderId: order.id,
+      partnerId: partner.id,
+      otp: input.otp,
+      allowedStates: DELIVERY_PARTNER_DELIVERY_STATES,
       actorType: "delivery",
       actorId: userId,
-      timestamps: { delivered_at: new Date() },
     });
-    await prisma.deliveryTracking.upsert({
-      where: { order_id: orderId },
-      update: { status: "DELIVERED" },
-      create: { order_id: orderId, status: "DELIVERED" },
-    });
+
     await notificationService.orderStatus(
       order.user_id,
       order.order_number,

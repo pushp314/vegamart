@@ -33,16 +33,30 @@ jest.mock("../../src/repositories/inventory.repository", () => ({
   consumeQuantityForOrder: jest.fn(),
 }));
 
+jest.mock("../../src/services/order-delivery.service", () => ({
+  verifyDeliveryOtp: jest.fn().mockResolvedValue(undefined),
+  completeDelivery: jest.fn(),
+  VENDOR_DELIVERY_STATES: ["READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"],
+}));
+
 import * as orderRepo from "../../src/repositories/order.repository";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
 import { vendorService } from "../../src/services/vendor.service";
 import { paymentService } from "../../src/services/payment.service";
 import { notificationService } from "../../src/services/notification.service";
+import { ApiError } from "../../src/utils/ApiError";
+import {
+  verifyDeliveryOtp,
+  completeDelivery,
+  VENDOR_DELIVERY_STATES,
+} from "../../src/services/order-delivery.service";
 
 const repo = orderRepo as jest.Mocked<typeof orderRepo>;
 const invRepo = inventoryRepo as jest.Mocked<typeof inventoryRepo>;
 const vendorServiceMock = vendorService as jest.Mocked<typeof vendorService>;
 const paymentServiceMock = paymentService as jest.Mocked<typeof paymentService>;
+const verifyDeliveryOtpMock = verifyDeliveryOtp as jest.MockedFunction<typeof verifyDeliveryOtp>;
+const completeDeliveryMock = completeDelivery as jest.MockedFunction<typeof completeDelivery>;
 
 const mockReq = { user: { id: "u1" } } as any;
 
@@ -155,10 +169,12 @@ describe("order service", () => {
     expect(invRepo.releaseQuantityForOrder).toHaveBeenCalledWith("order-1");
   });
 
-  it("transitions status and consumes inventory on delivery", async () => {
+  it("transitions status and completes delivery (OTP-verified) for a vendor", async () => {
     vendorServiceMock.getMyVendor.mockResolvedValue({ id: "v1" } as any);
-    repo.findById.mockResolvedValue(makeOrder({ otp_code: "123456" }));
-    repo.updateOrderStatus.mockResolvedValue(makeOrder({ status: "DELIVERED", delivered_at: new Date() }));
+    repo.findById.mockResolvedValue(
+      makeOrder({ status: "OUT_FOR_DELIVERY", otp_code: "123456", otp_attempts: 0, otp_expires_at: null })
+    );
+    completeDeliveryMock.mockResolvedValue(makeOrder({ status: "DELIVERED", delivered_at: new Date() }) as any);
 
     const updated = await orderService.transitionStatus(
       "u-vendor",
@@ -167,7 +183,29 @@ describe("order service", () => {
       mockReq
     );
     expect(updated.status).toBe("DELIVERED");
-    expect(invRepo.consumeQuantityForOrder).toHaveBeenCalledWith("order-1");
+    expect(verifyDeliveryOtpMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "order-1", otp_code: "123456" }),
+      "123456",
+      VENDOR_DELIVERY_STATES
+    );
+    expect(completeDeliveryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: "order-1", otp: "123456", actorType: "vendor", allowedStates: VENDOR_DELIVERY_STATES })
+    );
+    // Inventory consumption now lives inside completeDelivery; it must not run twice here.
+    expect(invRepo.consumeQuantityForOrder).not.toHaveBeenCalled();
+  });
+
+  it("rejects a vendor marking an order delivered without a valid OTP", async () => {
+    vendorServiceMock.getMyVendor.mockResolvedValue({ id: "v1" } as any);
+    repo.findById.mockResolvedValue(makeOrder({ status: "OUT_FOR_DELIVERY", otp_code: "123456" }));
+    verifyDeliveryOtpMock.mockRejectedValueOnce(
+      new ApiError(400, "Invalid delivery OTP.", { code: "INVALID_OTP" })
+    );
+
+    await expect(
+      orderService.transitionStatus("u-vendor", "order-1", { status: "DELIVERED", otp_code: "wrong" }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_OTP" });
+    expect(completeDeliveryMock).not.toHaveBeenCalled();
   });
 
   it("throws 403 when a vendor transitions another vendor's order", async () => {

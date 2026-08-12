@@ -8,6 +8,7 @@ import { vendorService } from "./vendor.service";
 import { paymentService } from "./payment.service";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
+import { completeDelivery, VENDOR_DELIVERY_STATES, verifyDeliveryOtp } from "./order-delivery.service";
 import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -136,13 +137,8 @@ export const orderService = {
         timestamps.started_at = new Date();
         break;
       case "DELIVERED":
-        if (!order.otp_code || !input.otp_code || input.otp_code !== order.otp_code) {
-          throw new ApiError(HttpStatus.BAD_REQUEST, "Delivery OTP required to mark order as delivered.", {
-            code: "INVALID_OTP",
-          });
-        }
+        await verifyDeliveryOtp(order, input.otp_code ?? "", VENDOR_DELIVERY_STATES);
         timestamps.delivered_at = new Date();
-        await inventoryRepo.consumeQuantityForOrder(order.id);
         break;
       case "CANCELLED":
         timestamps.cancelled_at = new Date();
@@ -153,20 +149,32 @@ export const orderService = {
         });
     }
 
-    const updated = await orderRepo.updateOrderStatus(order.id, {
-      status: input.status,
-      note: input.note ?? `Status changed to ${input.status}.`,
-      actorType: "vendor",
-      actorId: userId,
-      timestamps,
-    });
+    let updated: orderRepo.OrderRow;
+    if (input.status === "DELIVERED") {
+      updated = await completeDelivery({
+        orderId: order.id,
+        otp: input.otp_code ?? "",
+        allowedStates: VENDOR_DELIVERY_STATES,
+        note: input.note ?? "Order delivered.",
+        actorType: "vendor",
+        actorId: userId,
+      });
+    } else {
+      updated = await orderRepo.updateOrderStatus(order.id, {
+        status: input.status,
+        note: input.note ?? `Status changed to ${input.status}.`,
+        actorType: "vendor",
+        actorId: userId,
+        timestamps,
+      });
 
-    if (input.status === "CANCELLED" && order.payment_status === "PAID") {
-      try {
-        await paymentService.refund(userId, order.id, { reason: input.note }, req);
-      } catch (err) {
-        await inventoryRepo.releaseQuantityForOrder(order.id);
-        throw err;
+      if (input.status === "CANCELLED" && order.payment_status === "PAID") {
+        try {
+          await paymentService.refund(userId, order.id, { reason: input.note }, req);
+        } catch (err) {
+          await inventoryRepo.releaseQuantityForOrder(order.id);
+          throw err;
+        }
       }
     }
 
@@ -250,13 +258,11 @@ export const orderService = {
 
     const item = order.items?.find((i: any) => i.id === itemId);
     if (!item) throw new NotFoundError("Item not found in order");
-    // @ts-ignore - Prisma types might be stale in IDE
     if (item.status === "rejected") throw new ApiError(HttpStatus.BAD_REQUEST, "Item is already rejected");
 
     // Update item status in DB
     await prisma.orderItem.update({
       where: { id: itemId },
-      // @ts-ignore - Prisma types might be stale in IDE
       data: { status: "rejected" }
     });
 

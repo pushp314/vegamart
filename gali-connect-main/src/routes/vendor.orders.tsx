@@ -473,22 +473,22 @@ function VendorOrdersPage() {
           <DialogHeader>
             <DialogTitle className="font-display text-center">Verify Delivery OTP</DialogTitle>
             <DialogDescription className="text-xs text-center">
-              Ask the customer for their 4-digit verification PIN to complete order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
+              Ask the customer for their 6-digit verification PIN to complete order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-3">
             <input
               type="text"
-              maxLength={4}
+              maxLength={6}
               value={otpInput}
               onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))}
-              placeholder="0000"
+              placeholder="000000"
               className="w-full text-center text-4xl tracking-widest rounded-2xl border border-border bg-muted/50 px-4 py-5 font-display font-black focus:bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
             <button
               onClick={() => {
-                if (otpInput.length !== 4) {
-                  toast.error("Please enter a valid 4-digit OTP");
+                if (otpInput.length !== 6) {
+                  toast.error("Please enter a valid 6-digit OTP");
                   return;
                 }
                 updateOrderStatusMutation.mutate({
@@ -497,7 +497,7 @@ function VendorOrdersPage() {
                   otpCode: otpInput,
                 });
               }}
-              disabled={updateOrderStatusMutation.isPending || otpInput.length !== 4}
+              disabled={updateOrderStatusMutation.isPending || otpInput.length !== 6}
               className="w-full rounded-2xl bg-emerald-500 text-black px-4 py-3.5 text-xs font-bold shadow-lg disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               {updateOrderStatusMutation.isPending ? (

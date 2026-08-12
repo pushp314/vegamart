@@ -99,6 +99,36 @@ export async function updatePayment(id: string, data: Prisma.PaymentUpdateInput)
   return row as unknown as PaymentRow;
 }
 
+/**
+ * Atomically transitions a payment from any non-PAID state to PAID.
+ *
+ * Returns the number of rows updated (1 when this call won the claim, 0 when the
+ * payment is already PAID). Concurrent or replayed verification callbacks can
+ * therefore never double-apply the paid transition or duplicate downstream side
+ * effects (order events, transactions, inventory reservation).
+ */
+export async function claimAsPaid(
+  id: string,
+  data: {
+    razorpay_payment_id?: string;
+    razorpay_signature?: string;
+    gateway_response?: Prisma.InputJsonValue;
+    webhook_events?: Prisma.InputJsonValue;
+  }
+): Promise<number> {
+  const result = await prisma.payment.updateMany({
+    where: { id, status: { not: "PAID" } },
+    data: {
+      status: "PAID",
+      ...(data.razorpay_payment_id !== undefined ? { razorpay_payment_id: data.razorpay_payment_id } : {}),
+      ...(data.razorpay_signature !== undefined ? { razorpay_signature: data.razorpay_signature } : {}),
+      ...(data.gateway_response !== undefined ? { gateway_response: data.gateway_response } : {}),
+      ...(data.webhook_events !== undefined ? { webhook_events: data.webhook_events } : {}),
+    },
+  });
+  return result.count;
+}
+
 export async function incrementAttempts(id: string): Promise<void> {
   await prisma.payment.update({
     where: { id },

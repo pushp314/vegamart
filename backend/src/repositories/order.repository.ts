@@ -20,6 +20,8 @@ const baseSelect = {
   payment_status: true,
   invoice_number: true,
   otp_code: true,
+  otp_expires_at: true,
+  otp_attempts: true,
   delivery_note: true,
   delivered_at: true,
   cancelled_at: true,
@@ -54,6 +56,8 @@ export type OrderRow = {
   payment_status: string;
   invoice_number: string | null;
   otp_code: string | null;
+  otp_expires_at: Date | null;
+  otp_attempts: number;
   delivery_note: string | null;
   delivered_at: Date | null;
   cancelled_at: Date | null;
