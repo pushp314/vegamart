@@ -83,7 +83,9 @@ function Cart() {
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
-                      <p className="text-[12px] text-muted-foreground">{i.product.unit}</p>
+                      <p className="text-[12px] text-muted-foreground">
+                        {i.selectedVariant || i.product.unit}
+                      </p>
                       <div className="mt-2 flex items-center justify-between">
                         <div>
                           <span className="font-bold text-[15px]">

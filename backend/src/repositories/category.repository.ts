@@ -91,6 +91,27 @@ export async function listPaged(
   return { rows: rows as unknown as CategoryRow[], total };
 }
 
+export type CategoryWithVendorCount = CategoryRow & { vendor_count: number };
+
+export async function vendorCountsByCategory(): Promise<Map<string, number>> {
+  const grouped = await prisma.product.groupBy({
+    by: ["category_id", "vendor_id"],
+    where: {
+      is_active: true,
+      is_available: true,
+      deleted_at: null,
+      vendor: { status: "APPROVED", deleted_at: null },
+    },
+  });
+  const counts = new Map<string, number>();
+  for (const row of grouped) {
+    if (row.category_id) {
+      counts.set(row.category_id, (counts.get(row.category_id) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 export async function listSlugs(exceptId?: string): Promise<Set<string>> {
   const rows = await prisma.category.findMany({
     where: { deleted_at: null, ...(exceptId ? { NOT: { id: exceptId } } : {}) },

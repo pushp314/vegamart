@@ -49,13 +49,14 @@ import type { VendorKycBody, RingBellBody } from "../validators/integration.vali
  *         description: Paginated vendor list.
  */
 export const listVendors = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as { page?: string; per_page?: string; q?: string; city?: string; category?: string; is_open?: string };
+  const query = req.query as { page?: string; per_page?: string; q?: string; city?: string; category?: string; category_id?: string; is_open?: string };
   const result = await vendorService.list({
     page: query.page ? Number(query.page) : undefined,
     per_page: query.per_page ? Number(query.per_page) : undefined,
     q: query.q,
     city: query.city,
     category: query.category,
+    category_id: query.category_id,
     is_open: query.is_open,
   });
   return sendSuccess(res, result.rows, {

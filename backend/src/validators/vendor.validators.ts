@@ -96,6 +96,7 @@ export const listVendorsQuerySchema = z.object({
   q: z.string().trim().max(160).optional(),
   city: z.string().trim().max(100).optional(),
   category: z.string().trim().max(120).optional(),
+  category_id: z.string().uuid().optional(),
   is_open: z.enum(["true", "false"]).optional(),
   sort: z.enum(["relevance", "rating", "name", "distance", "newest"]).optional(),
   order: z.enum(["asc", "desc"]).optional(),

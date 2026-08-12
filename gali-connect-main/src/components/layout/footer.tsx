@@ -99,7 +99,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-t pt-6 text-xs text-muted-foreground">
-          <div>© 2026 Vegamart. Made with 💚 in Bengaluru.</div>
+          <div>© 2026 Vegamart. Made with 💚 in Sakti, Chhattisgarh.</div>
           <div className="flex gap-4">
             <Link to="/terms" className="hover:underline">
               Terms

@@ -288,6 +288,7 @@ export async function createProduct(data: {
   price: number;
   mrp: number;
   unit: string;
+  variants?: Array<{ unit: string; price: number; mrp?: number | null }> | null;
   tag?: string | null;
   is_active?: boolean;
   is_featured?: boolean;
@@ -308,6 +309,7 @@ export async function createProduct(data: {
       price: data.price,
       mrp: data.mrp,
       unit: data.unit,
+      variants: (data.variants ?? null) as Prisma.InputJsonValue | undefined,
       tag: data.tag ?? null,
       is_active: data.is_active ?? true,
       is_featured: data.is_featured ?? false,

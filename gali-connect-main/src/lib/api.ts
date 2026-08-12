@@ -460,6 +460,7 @@ export interface FeaturedProduct {
   rating: number;
   review_count: number;
   is_featured: boolean;
+  vendor_id: string;
 }
 
 export const getFeaturedProducts = () =>

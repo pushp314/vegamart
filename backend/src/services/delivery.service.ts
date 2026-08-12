@@ -20,6 +20,45 @@ async function getKyc(userId: string, type: string) {
   return prisma.kycRecord.findUnique({ where: { user_id_type: { user_id: userId, type } } });
 }
 
+// If a soft-deleted profile already exists for this user (deleted account re-registered),
+// restore it instead of failing on the unique user_id. Otherwise create a fresh one.
+async function restoreOrCreateProfile(
+  userId: string,
+  input: { vehicle_type: string; vehicle_number?: string; license_number?: string }
+) {
+  const previous = await prisma.deliveryProfile.findFirst({
+    where: { user_id: userId },
+    orderBy: { created_at: "asc" },
+  });
+  if (previous && previous.deleted_at) {
+    return prisma.deliveryProfile.update({
+      where: { id: previous.id },
+      data: {
+        deleted_at: null,
+        vehicle_type: input.vehicle_type,
+        vehicle_number: input.vehicle_number && input.vehicle_number.trim() ? input.vehicle_number : "NA",
+        license_number: input.license_number ?? "",
+        status: "PENDING",
+        is_verified: false,
+        is_available: false,
+        availability_status: "OFFLINE",
+      },
+    });
+  }
+  return prisma.deliveryProfile.create({
+    data: {
+      user_id: userId,
+      vehicle_type: input.vehicle_type,
+      vehicle_number: input.vehicle_number && input.vehicle_number.trim() ? input.vehicle_number : "NA",
+      license_number: input.license_number ?? "",
+      status: "PENDING",
+      is_verified: false,
+      is_available: false,
+      availability_status: "OFFLINE",
+    },
+  });
+}
+
 import type { Request } from "express";
 import { Prisma } from "@prisma/client";
 import * as addressRepo from "../repositories/address.repository";
@@ -321,18 +360,7 @@ export const deliveryService = {
     if (user?.role.slug !== ROLES.DELIVERY_PARTNER) {
       await upgradeRole(userId, ROLES.DELIVERY_PARTNER);
     }
-    const partner = await prisma.deliveryProfile.create({
-      data: {
-        user_id: userId,
-        vehicle_type: input.vehicle_type,
-        vehicle_number: input.vehicle_number,
-        license_number: input.license_number ?? "",
-        status: "PENDING",
-        is_verified: false,
-        is_available: false,
-        availability_status: "OFFLINE",
-      },
-    });
+    const partner = await restoreOrCreateProfile(userId, input);
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.DELIVERY_REGISTERED, entityType: "delivery", entityId: partner.id, newValues: { vehicle_type: input.vehicle_type } },
       req
@@ -362,18 +390,7 @@ export const deliveryService = {
       await upgradeRole(userId, ROLES.DELIVERY_PARTNER);
     }
 
-    const partner = await prisma.deliveryProfile.create({
-      data: {
-        user_id: userId,
-        vehicle_type: input.vehicle_type,
-        vehicle_number: input.vehicle_number && input.vehicle_number.trim() ? input.vehicle_number : "NA",
-        license_number: input.license_number ?? "",
-        status: "PENDING",
-        is_verified: false,
-        is_available: false,
-        availability_status: "OFFLINE",
-      },
-    });
+    const partner = await restoreOrCreateProfile(userId, input);
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.DELIVERY_REGISTERED, entityType: "delivery", entityId: partner.id, newValues: { vehicle_type: input.vehicle_type } },
       req

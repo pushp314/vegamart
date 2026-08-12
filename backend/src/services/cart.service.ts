@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { Prisma } from "@prisma/client";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { SETTING_KEYS } from "../constants/settings";
@@ -17,13 +18,29 @@ export const cartService = {
     return cartRepo.getOrCreate(userId);
   },
 
-  async addItem(userId: string, input: { product_id: string; quantity: number }, req: Request): Promise<cartRepo.CartRow> {
+  async addItem(
+    userId: string,
+    input: { product_id: string; quantity: number; selected_unit?: string },
+    req: Request
+  ): Promise<cartRepo.CartRow> {
     const product = await findProductById(input.product_id);
     if (!product || !product.is_active || !product.is_available) {
       throw new ApiError(HttpStatus.NOT_FOUND, "Product not found or unavailable.", { code: "NOT_FOUND" });
     }
     if (product.vendor?.is_open === false || product.vendor?.status !== "APPROVED") {
       throw new ApiError(HttpStatus.NOT_FOUND, "Product is unavailable because the vendor is offline.", { code: "NOT_FOUND" });
+    }
+
+    const selectedUnit = input.selected_unit?.trim() || product.unit;
+    let unitPrice = product.price.toNumber();
+    if (Array.isArray(product.variants) && product.variants.length > 0) {
+      const variant = product.variants.find(
+        (v: { unit?: string; price?: number; mrp?: number }) =>
+          v?.unit === selectedUnit
+      );
+      if (variant && typeof variant.price === "number") {
+        unitPrice = variant.price;
+      }
     }
 
     const cart = await cartRepo.getOrCreate(userId);
@@ -44,7 +61,9 @@ export const cartService = {
       });
     }
 
-    const existing = cart.items.find((item) => item.product_id === input.product_id);
+    const existing = cart.items.find(
+      (item) => item.product_id === input.product_id && item.selected_unit === selectedUnit
+    );
     const targetQuantity = (existing?.quantity ?? 0) + input.quantity;
     if (targetQuantity > CART_MAX_QUANTITY) {
       throw new ApiError(HttpStatus.BAD_REQUEST, `Quantity cannot exceed ${CART_MAX_QUANTITY} per product.`, {
@@ -65,9 +84,9 @@ export const cartService = {
       });
     }
 
-    const updated = await cartRepo.addItem(cart.id, input.product_id, input.quantity, product.price);
+    const updated = await cartRepo.addItem(cart.id, input.product_id, input.quantity, new Prisma.Decimal(unitPrice), selectedUnit);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.CART_ITEM_ADDED, entityType: "cart_item", entityId: input.product_id, newValues: { product_id: input.product_id, quantity: input.quantity } },
+      { userId, action: AUDIT_ACTIONS.CART_ITEM_ADDED, entityType: "cart_item", entityId: input.product_id, newValues: { product_id: input.product_id, quantity: input.quantity, selected_unit: selectedUnit } },
       req
     );
     return updated;

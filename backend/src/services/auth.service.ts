@@ -136,7 +136,7 @@ export const authService = {
     assertStrongPassword(input.password);
 
     const existingEmail = await findByEmail(email);
-    if (existingEmail) {
+    if (existingEmail && !existingEmail.deleted_at) {
       throw new ApiError(HttpStatus.CONFLICT, "An account with this email already exists.", {
         code: "EMAIL_TAKEN",
       });
@@ -145,10 +145,15 @@ export const authService = {
     if (input.phone) {
       const { findByPhone } = await import("../repositories/user.repository");
       const existingPhone = await findByPhone(input.phone);
-      if (existingPhone) {
+      if (existingPhone && !existingPhone.deleted_at) {
         throw new ApiError(HttpStatus.CONFLICT, "An account with this phone already exists.", {
           code: "PHONE_TAKEN",
         });
+      }
+      // The phone belongs to a *different* soft-deleted account (e.g. the same
+      // person re-registering). Free it up so the email/phone can be reused.
+      if (existingPhone && existingPhone.deleted_at && existingPhone.id !== existingEmail?.id) {
+        await updateUserRepo(existingPhone.id, { phone: null });
       }
     }
 
@@ -162,15 +167,38 @@ export const authService = {
 
     const passwordHash = await hashPassword(input.password);
 
-    const user = await createUserRepo({
-      name: input.name.trim(),
-      email,
-      phone: input.phone ?? undefined,
-      password_hash: passwordHash,
-      role: { connect: { id: roleRow.id } },
-      is_verified: false,
-      provider: "local",
-    });
+    let user;
+    if (existingEmail && existingEmail.deleted_at) {
+      // The account was soft-deleted by an admin. Resurrect it with the new
+      // credentials so the same email (and user id) can be used again instead of
+      // failing with "account already exists".
+      await revokeAllSessionsForUser(existingEmail.id);
+      await revokeAllTokensForUser(existingEmail.id);
+      user = await updateUserRepo(existingEmail.id, {
+        name: input.name.trim(),
+        phone: input.phone ?? null,
+        password_hash: passwordHash,
+        role: { connect: { id: roleRow.id } },
+        is_verified: false,
+        email_verified_at: null,
+        provider: "local",
+        provider_id: null,
+        deleted_at: null,
+        status: "ACTIVE",
+        failed_login_attempts: 0,
+        locked_until: null,
+      });
+    } else {
+      user = await createUserRepo({
+        name: input.name.trim(),
+        email,
+        phone: input.phone ?? undefined,
+        password_hash: passwordHash,
+        role: { connect: { id: roleRow.id } },
+        is_verified: false,
+        provider: "local",
+      });
+    }
 
     await auditService.record(
       {
@@ -198,12 +226,19 @@ export const authService = {
     const email = normalizeEmail(emailInput);
     const user = await findByEmail(email);
 
-    if (!user || user.deleted_at) {
+    if (!user) {
       await auditService.record(
-        { userId: user?.id, action: AUDIT_ACTIONS.USER_LOGIN_FAILED, entityType: "user", entityId: user?.id },
+        { userId: undefined, action: AUDIT_ACTIONS.USER_LOGIN_FAILED, entityType: "user", entityId: undefined },
         req
       );
       throw new UnauthorizedError("Invalid email or password.");
+    }
+
+    if (user.deleted_at) {
+      // Account was removed by an admin. Point them to re-registration instead of a dead-end.
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "This account has been deleted. Please create a new account with this email.", {
+        code: "ACCOUNT_DELETED",
+      });
     }
 
     if (user.status === UserStatus.SUSPENDED || user.status === UserStatus.BANNED) {
@@ -290,7 +325,32 @@ export const authService = {
 
     let user = await findByEmail(profile.email);
 
-    if (!user || user.deleted_at) {
+    if (user && user.deleted_at) {
+      // Resurrect a soft-deleted account when they sign back in via Google instead of
+      // failing on the unique email constraint.
+      await revokeAllSessionsForUser(user.id);
+      await revokeAllTokensForUser(user.id);
+      user = await updateUserRepo(user.id, {
+        name: profile.name || profile.email.split("@")[0] || "Google User",
+        is_verified: profile.email_verified,
+        email_verified_at: profile.email_verified ? new Date() : null,
+        avatar_url: profile.picture,
+        password_hash: generateOpaqueToken(32),
+        provider: "google",
+        provider_id: profile.sub,
+        deleted_at: null,
+        status: "ACTIVE",
+        failed_login_attempts: 0,
+        locked_until: null,
+      });
+      await auditService.record(
+        { userId: user.id, action: AUDIT_ACTIONS.USER_REGISTERED, entityType: "user", entityId: user.id, newValues: { email: profile.email, role: "customer", provider: "google" } },
+        req
+      );
+      return createSessionAndTokens(user.id, req);
+    }
+
+    if (!user) {
       const roleRow = await findRoleBySlug("customer");
       if (!roleRow) {
         throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, `Role "customer" is not configured.`, {

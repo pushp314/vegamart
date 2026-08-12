@@ -21,7 +21,7 @@ const baseSelect = {
 
 export type VideoAdRow = {
   id: string;
-  title: string;
+  title: string | null;
   subtitle: string | null;
   video_url: string;
   thumbnail_url: string | null;
@@ -88,12 +88,12 @@ export async function getActivePublicVideoAds(): Promise<VideoAdRow[]> {
 }
 
 export interface CreateVideoAdInput {
-  title: string;
-  subtitle?: string;
+  title?: string | null;
+  subtitle?: string | null;
   video_url: string;
-  thumbnail_url?: string;
-  cta_text?: string;
-  cta_link?: string;
+  thumbnail_url?: string | null;
+  cta_text?: string | null;
+  cta_link?: string | null;
   display_mode?: string;
   duration?: number;
   is_active?: boolean;
@@ -104,7 +104,7 @@ export interface CreateVideoAdInput {
 export async function createVideoAd(data: CreateVideoAdInput): Promise<VideoAdRow> {
   const row = await prisma.videoAd.create({
     data: {
-      title: data.title,
+      title: data.title ?? null,
       subtitle: data.subtitle ?? null,
       video_url: data.video_url,
       thumbnail_url: data.thumbnail_url ?? null,

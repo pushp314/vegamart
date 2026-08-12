@@ -23,7 +23,13 @@ export const createOrderFromCartSchema = z.object({
   delivery_slot: z.string().trim().max(60).optional(),
   idempotency_key: z.string().trim().min(8).max(120).optional(),
   items: z
-    .array(z.object({ product_id: z.string().uuid(), quantity: z.number().int().min(1).max(50) }))
+    .array(
+      z.object({
+        product_id: z.string().uuid(),
+        quantity: z.number().int().min(1).max(50),
+        selected_unit: z.string().trim().min(1).max(50).optional(),
+      })
+    )
     .min(1, "Cart is empty."),
 }).strict();
 

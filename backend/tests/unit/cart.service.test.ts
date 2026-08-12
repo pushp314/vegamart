@@ -52,6 +52,7 @@ function makeCart(overrides: Partial<cartRepo.CartRow> = {}): cartRepo.CartRow {
         id: "ci-1",
         product_id: "p1",
         quantity: 2,
+        selected_unit: null,
         price_snapshot: makeDecimal(50),
         created_at: new Date(),
         updated_at: new Date(),
@@ -117,7 +118,7 @@ describe("cart service", () => {
     repo.addItem.mockResolvedValue(makeCart());
 
     await cartService.addItem("u1", { product_id: "p1", quantity: 2 }, mockReq);
-    expect(repo.addItem).toHaveBeenCalledWith("cart-1", "p1", 2, expect.anything());
+    expect(repo.addItem).toHaveBeenCalledWith("cart-1", "p1", 2, expect.anything(), "kg");
   });
 
   it("rejects when quantity exceeds the available stock", async () => {

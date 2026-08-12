@@ -25,7 +25,7 @@ export const createVideoAd = asyncHandler(async (req: Request, res: Response) =>
     thumbnail_url?: string;
     cta_text?: string;
     cta_link?: string;
-    display_mode?: "watch_cta" | "behind_hero";
+    display_mode?: "watch_cta" | "behind_hero" | "fixed_video";
     duration?: number;
     is_active?: boolean;
     sort_order?: number;
@@ -62,7 +62,7 @@ export const updateVideoAd = asyncHandler(async (req: Request, res: Response) =>
     thumbnail_url?: string;
     cta_text?: string;
     cta_link?: string;
-    display_mode?: "watch_cta" | "behind_hero";
+    display_mode?: "watch_cta" | "behind_hero" | "fixed_video";
     duration?: number;
     is_active?: boolean;
     sort_order?: number;

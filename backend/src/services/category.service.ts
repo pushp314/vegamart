@@ -64,7 +64,12 @@ export const categoryService = {
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
     const skip = (page - 1) * perPage;
     const { rows, total } = await categoryRepo.listPaged(includeInactive, skip, perPage);
-    return { rows, total, page, perPage };
+    const counts = await categoryRepo.vendorCountsByCategory();
+    const rowsWithCounts = rows.map((row) => ({
+      ...row,
+      vendor_count: counts.get(row.id) ?? 0,
+    }));
+    return { rows: rowsWithCounts, total, page, perPage };
   },
 
   async getById(id: string): Promise<categoryRepo.CategoryRow> {

@@ -16,8 +16,9 @@ export const Route = createFileRoute("/vendors/")({
       { name: "description", content: "Browse verified local vendors and shops moving near you." },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { q?: string; category?: string } => ({
     q: typeof search.q === "string" ? search.q : undefined,
+    category: typeof search.category === "string" ? search.category : undefined,
   }),
   component: VendorsPage,
 });
@@ -25,19 +26,17 @@ export const Route = createFileRoute("/vendors/")({
 function VendorsPage() {
   const { isAuthenticated } = useAuth();
   const [activeCat, setActiveCat] = useState<string>("all");
-  const { q: urlQ } = useSearch({ from: "/vendors/" });
+  const { q: urlQ, category: urlCat } = useSearch({ from: "/vendors/" });
   const [query, setQuery] = useState<string>(urlQ || "");
 
-  // Initialize activeCat from URL if present
-  useMemo(() => {
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const cat = urlParams.get("category");
-      if (cat && activeCat === "all") {
-        setActiveCat(cat);
-      }
+  // Sync the selected category with the URL ?category= param (e.g. coming from the homepage).
+  useEffect(() => {
+    if (urlCat) {
+      setActiveCat(urlCat);
+    } else if (urlCat === undefined) {
+      setActiveCat("all");
     }
-  }, []);
+  }, [urlCat]);
 
   const refresh = () => new Promise<void>((res) => setTimeout(res, 700));
 

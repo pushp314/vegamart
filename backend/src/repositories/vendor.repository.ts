@@ -178,6 +178,50 @@ export async function createVendor(data: {
   available_to?: string | null;
   roaming?: boolean;
 }): Promise<VendorRow> {
+  // If the previous profile for this user was soft-deleted (admin removed it and the
+  // vendor re-registered), restore that row instead of failing on the unique user_id.
+  const previous = await prisma.vendorProfile.findFirst({
+    where: { user_id: data.user_id },
+    orderBy: { created_at: "asc" },
+  });
+  if (previous && previous.deleted_at) {
+    const row = await prisma.vendorProfile.update({
+      where: { id: previous.id },
+      data: {
+        deleted_at: null,
+        business_name: data.business_name,
+        slug: data.slug,
+        description: data.description ?? null,
+        category: data.category ?? null,
+        tags: data.tags ?? null,
+        logo_url: data.logo_url ?? null,
+        banner_url: data.banner_url ?? null,
+        address: data.address,
+        landmark: data.landmark ?? null,
+        city: data.city,
+        state: data.state,
+        country: data.country ?? "India",
+        pincode: data.pincode,
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
+        delivery_radius_km: data.delivery_radius_km ?? 5,
+        business_hours: data.business_hours ?? null,
+        min_order: data.min_order ?? 0,
+        delivery_fee: data.delivery_fee ?? 0,
+        free_delivery_min_order: data.free_delivery_min_order ?? null,
+        provides_delivery: data.provides_delivery ?? false,
+        owner_name: data.owner_name ?? null,
+        phone: data.phone ?? null,
+        available_from: data.available_from ?? null,
+        available_to: data.available_to ?? null,
+        roaming: data.roaming ?? false,
+        status: "PENDING",
+        is_open: false,
+      },
+      select: baseSelect,
+    });
+    return row as unknown as VendorRow;
+  }
   const row = await prisma.vendorProfile.create({
     data: {
       user_id: data.user_id,
@@ -226,6 +270,7 @@ export interface VendorFilter {
   q?: string;
   city?: string;
   category?: string;
+  category_id?: string;
   isOpen?: boolean;
   status?: import("@prisma/client").VendorStatus;
   includeAll?: boolean;
@@ -245,6 +290,16 @@ function buildVendorWhere(filter: VendorFilter): Prisma.VendorProfileWhereInput 
   }
   if (filter.category) {
     where.category = { contains: filter.category, mode: "insensitive" };
+  }
+  if (filter.category_id) {
+    where.products = {
+      some: {
+        category_id: filter.category_id,
+        is_active: true,
+        is_available: true,
+        deleted_at: null,
+      },
+    };
   }
   if (filter.isOpen !== undefined) {
     where.is_open = filter.isOpen;

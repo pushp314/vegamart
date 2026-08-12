@@ -68,6 +68,8 @@ function computeDeliveryFee(
 export interface CheckoutSummaryItem {
   product_id: string;
   name: string;
+  unit: string;
+  selected_unit?: string | null;
   quantity: number;
   unit_price: number;
   line_total: number;
@@ -161,6 +163,8 @@ export const checkoutService = {
         items: group.items.map((item) => ({
           product_id: item.product_id,
           name: item.product.name,
+          unit: item.selected_unit || item.product.unit,
+          selected_unit: item.selected_unit,
           quantity: item.quantity,
           unit_price: item.price_snapshot.toNumber(),
           line_total: item.price_snapshot.toNumber() * item.quantity,
@@ -213,7 +217,11 @@ export const checkoutService = {
     const cart = await cartRepo.getOrCreate(userId);
     await cartRepo.clear(cart.id);
     for (const item of input.items) {
-      await cartService.addItem(userId, { product_id: item.product_id, quantity: item.quantity }, req);
+      await cartService.addItem(
+        userId,
+        { product_id: item.product_id, quantity: item.quantity, selected_unit: item.selected_unit },
+        req
+      );
     }
     return this.placeOrder(
       userId,
@@ -268,7 +276,8 @@ export const checkoutService = {
         items: group.items.map((item) => ({
           product_id: item.product_id,
           product_name: item.name,
-          unit: "",
+          unit: item.unit,
+          selected_unit: item.selected_unit,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.line_total,

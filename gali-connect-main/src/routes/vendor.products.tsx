@@ -39,6 +39,7 @@ type Product = {
   price: number;
   mrp?: number;
   unit: string;
+  variants?: { unit: string; price: number; mrp?: number }[];
   stock?: number;
   description?: string;
   is_active: boolean;
@@ -47,6 +48,8 @@ type Product = {
   category?: Category;
   images?: { id: string; url: string }[];
 };
+
+type VariantRow = { unit: string; price: string; mrp: string };
 
 function VendorProductsPage() {
   const queryClient = useQueryClient();
@@ -97,6 +100,7 @@ function VendorProductsPage() {
   const [prodPrice, setProdPrice] = useState("");
   const [prodMrp, setProdMrp] = useState("");
   const [prodUnit, setProdUnit] = useState("1 kg");
+  const [prodVariants, setProdVariants] = useState<{ unit: string; price: string; mrp: string }[]>([]);
   const [prodStock, setProdStock] = useState("");
   const [prodCategoryId, setProdCategoryId] = useState("");
   const [prodIsVegetarian, setProdIsVegetarian] = useState<boolean | null>(null);
@@ -182,6 +186,7 @@ function VendorProductsPage() {
     setProdPrice("");
     setProdMrp("");
     setProdUnit("1 kg");
+    setProdVariants([]);
     setProdStock("10");
     setProdCategoryId(categoriesList[0]?.id || "");
     setProdIsVegetarian(null);
@@ -196,6 +201,15 @@ function VendorProductsPage() {
     setProdPrice(String(p.price));
     setProdMrp(p.mrp ? String(p.mrp) : "");
     setProdUnit(p.unit || "1 kg");
+    setProdVariants(
+      Array.isArray(p.variants)
+        ? p.variants.map((v) => ({
+            unit: v.unit || "",
+            price: v.price != null ? String(v.price) : "",
+            mrp: v.mrp != null ? String(v.mrp) : "",
+          }))
+        : []
+    );
     setProdStock(String(p.stock ?? 0));
     setProdCategoryId(p.category_id || "");
     setProdIsVegetarian(p.is_vegetarian ?? null);
@@ -229,6 +243,16 @@ function VendorProductsPage() {
         price: Number(prodPrice),
         mrp: prodMrp ? Number(prodMrp) : undefined,
         unit: prodUnit,
+        variants:
+          prodVariants.length > 0
+            ? prodVariants
+                .filter((v) => v.unit.trim() && v.price !== "" && Number(v.price) >= 0)
+                .map((v) => ({
+                  unit: v.unit.trim(),
+                  price: Number(v.price),
+                  mrp: v.mrp !== "" && Number(v.mrp) > 0 ? Number(v.mrp) : undefined,
+                }))
+            : undefined,
         stock: Number(prodStock),
         category_id: prodCategoryId || undefined,
         is_vegetarian: prodIsVegetarian,
@@ -573,7 +597,7 @@ function VendorProductsPage() {
 
       {/* Add / Edit Product Modal */}
       <Dialog open={productModalOpen} onOpenChange={setProductModalOpen}>
-        <DialogContent className="rounded-3xl border-border max-w-lg">
+        <DialogContent className="rounded-3xl border-border max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-display">
               {editingProduct ? "Edit Product Listing" : "Add New Product"}
@@ -663,6 +687,106 @@ function VendorProductsPage() {
                   className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Additional Pack Sizes (Optional)
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setProdVariants((prev) => [...prev, { unit: "", price: "", mrp: "" }])
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-[10.5px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> Add Pack Size
+                </button>
+              </div>
+              <p className="text-[10.5px] text-muted-foreground">
+                Sell the same product in multiple sizes, e.g. 250g, 500g, 1kg. Base pack size is the
+                Unit above.
+              </p>
+              {prodVariants.length > 0 && (
+                <div className="space-y-2">
+                  {prodVariants.map((v, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-[1fr_0.9fr_0.9fr_auto] gap-2 items-end rounded-2xl border border-border bg-muted/40 p-2.5"
+                    >
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Pack Size
+                        </label>
+                        <input
+                          type="text"
+                          value={v.unit}
+                          onChange={(e) =>
+                            setProdVariants((prev) =>
+                              prev.map((row, i) =>
+                                i === idx ? { ...row, unit: e.target.value } : row
+                              )
+                            )
+                          }
+                          placeholder="e.g. 250g"
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Price (₹)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={v.price}
+                          onChange={(e) =>
+                            setProdVariants((prev) =>
+                              prev.map((row, i) =>
+                                i === idx ? { ...row, price: e.target.value } : row
+                              )
+                            )
+                          }
+                          placeholder="25"
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          MRP (₹)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={v.mrp}
+                          onChange={(e) =>
+                            setProdVariants((prev) =>
+                              prev.map((row, i) =>
+                                i === idx ? { ...row, mrp: e.target.value } : row
+                              )
+                            )
+                          }
+                          placeholder="30"
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setProdVariants((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-xl border border-border bg-background text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        aria-label="Remove pack size"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">

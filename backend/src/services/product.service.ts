@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { VendorStatus } from "@prisma/client";
+import { VendorStatus, Prisma } from "@prisma/client";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
@@ -82,6 +82,7 @@ export const productService = {
       price: input.price,
       mrp: input.mrp ?? input.price,
       unit: input.unit.trim(),
+      variants: input.variants ?? null,
       tag: input.tag ?? null,
       is_active: input.is_active ?? true,
       is_featured: input.is_featured ?? false,
@@ -122,6 +123,7 @@ export const productService = {
     if (input.price !== undefined) data.price = input.price;
     if (input.mrp !== undefined) data.mrp = input.mrp;
     if (input.unit !== undefined) data.unit = input.unit.trim();
+    if (input.variants !== undefined) data.variants = input.variants as unknown as Prisma.InputJsonValue;
     if (input.tag !== undefined) data.tag = input.tag || null;
     if (input.is_active !== undefined) data.is_active = input.is_active;
     if (input.is_featured !== undefined) data.is_featured = input.is_featured;

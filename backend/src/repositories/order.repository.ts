@@ -76,6 +76,7 @@ export interface OrderDetail extends OrderRow {
     product_id: string;
     product_name: string;
     unit: string;
+    selected_unit: string | null;
     quantity: number;
     unit_price: import("@prisma/client").Prisma.Decimal;
     total_price: import("@prisma/client").Prisma.Decimal;
@@ -128,6 +129,7 @@ const detailSelect = {
       product_id: true,
       product_name: true,
       unit: true,
+      selected_unit: true,
       quantity: true,
       unit_price: true,
       total_price: true,
@@ -191,6 +193,7 @@ export interface CreateOrderInput {
     product_id: string;
     product_name: string;
     unit: string;
+    selected_unit?: string | null;
     quantity: number;
     unit_price: number;
     total_price: number;
@@ -217,6 +220,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderRow> {
           product_id: item.product_id,
           product_name: item.product_name,
           unit: item.unit,
+          selected_unit: item.selected_unit ?? null,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.total_price,

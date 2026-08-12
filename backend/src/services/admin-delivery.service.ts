@@ -4,7 +4,7 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { ROLES } from "../constants/roles";
 import { auditService } from "./audit.service";
 import * as deliveryRepo from "../repositories/delivery.repository";
-import { findByEmail, findByPhone, create as createUser } from "../repositories/user.repository";
+import { findByEmail, findByPhone, create as createUser, update as updateUser } from "../repositories/user.repository";
 import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
 import { prisma } from "../database/prisma";
 import { ApiError } from "../utils/ApiError";
@@ -17,17 +17,20 @@ export const adminDeliveryService = {
     const email = input.email.trim().toLowerCase();
 
     const existingEmail = await findByEmail(email);
-    if (existingEmail) {
+    if (existingEmail && !existingEmail.deleted_at) {
       throw new ApiError(HttpStatus.CONFLICT, "An account with this email already exists.", {
         code: "EMAIL_TAKEN",
       });
     }
     if (input.phone) {
       const existingPhone = await findByPhone(input.phone);
-      if (existingPhone) {
+      if (existingPhone && !existingPhone.deleted_at) {
         throw new ApiError(HttpStatus.CONFLICT, "Phone number is already in use.", {
           code: "PHONE_TAKEN",
         });
+      }
+      if (existingPhone && existingPhone.deleted_at && existingPhone.id !== existingEmail?.id) {
+        await updateUser(existingPhone.id, { phone: null });
       }
     }
 
@@ -40,18 +43,49 @@ export const adminDeliveryService = {
     }
 
     const password_hash = await hashPassword(input.password);
-    const user = await createUser({
-      name: input.name.trim(),
-      email,
-      phone: input.phone || undefined,
-      password_hash,
-      role: { connect: { id: role.id } },
-      is_verified: true,
-      provider: "local",
-    });
 
-    const profile = await prisma.deliveryProfile.create({
-      data: {
+    let user;
+    if (existingEmail && existingEmail.deleted_at) {
+      // Resurrect a soft-deleted account instead of failing with "already exists".
+      user = await updateUser(existingEmail.id, {
+        name: input.name.trim(),
+        phone: input.phone || null,
+        password_hash,
+        role: { connect: { id: role.id } },
+        is_verified: true,
+        email_verified_at: new Date(),
+        provider: "local",
+        provider_id: null,
+        deleted_at: null,
+        status: "ACTIVE",
+        failed_login_attempts: 0,
+        locked_until: null,
+      });
+    } else {
+      user = await createUser({
+        name: input.name.trim(),
+        email,
+        phone: input.phone || undefined,
+        password_hash,
+        role: { connect: { id: role.id } },
+        is_verified: true,
+        provider: "local",
+      });
+    }
+
+    const profile = await prisma.deliveryProfile.upsert({
+      where: { user_id: user.id },
+      update: {
+        vehicle_type: input.vehicle_type,
+        vehicle_number: input.vehicle_number?.trim() || "NA",
+        license_number: input.license_number?.trim() || "",
+        status: "APPROVED",
+        is_verified: true,
+        is_available: false,
+        availability_status: "OFFLINE",
+        deleted_at: null,
+      },
+      create: {
         user_id: user.id,
         vehicle_type: input.vehicle_type,
         vehicle_number: input.vehicle_number?.trim() || "NA",

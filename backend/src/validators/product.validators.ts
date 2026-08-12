@@ -6,6 +6,14 @@ export const productIdParamsSchema = z.object({
   product_id: z.string().uuid("product_id must be a valid UUID."),
 }).strict();
 
+export const productVariantSchema = z
+  .object({
+    unit: z.string().trim().min(1).max(50),
+    price: z.coerce.number().min(0),
+    mrp: z.coerce.number().min(0).optional().nullable(),
+  })
+  .strict();
+
 export const createProductSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters.").max(160),
   category_id: z.string().uuid("category_id must be a valid UUID."),
@@ -14,6 +22,7 @@ export const createProductSchema = z.object({
   price: z.coerce.number().min(0),
   mrp: z.coerce.number().min(0).optional().nullable(),
   unit: z.string().trim().min(1).max(50),
+  variants: z.array(productVariantSchema).max(20).optional(),
   tag: z.string().trim().max(60).optional().nullable(),
   is_active: z.boolean().optional(),
   is_featured: z.boolean().optional(),

@@ -175,7 +175,9 @@ export function VideoAdModal({ isOpen, onClose, videoAd }: VideoAdModalProps) {
         <div className="p-5 sm:p-6 bg-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-zinc-800/80">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="font-display text-lg font-bold text-white truncate">{videoAd.title}</h3>
+              <h3 className="font-display text-lg font-bold text-white truncate">
+                {videoAd.title || "Video Advertisement"}
+              </h3>
               {isCompleted && (
                 <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
                   Unlocked ✓

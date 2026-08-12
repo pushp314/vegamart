@@ -14,6 +14,8 @@ export const SETTING_KEYS = {
   SUPPORT_EMAIL: "support.email",
   SUPPORT_PHONE: "support.phone",
   MULTI_STORE_CHECKOUT_ENABLED: "platform.multi_store_checkout_enabled",
+  DELIVERIES_ACTIVE: "platform.deliveries_active",
+  DEFAULT_DELIVERY_RADIUS_KM: "platform.default_delivery_radius_km",
 } as const;
 
 export type SettingValue =
@@ -133,7 +135,21 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     key: SETTING_KEYS.MULTI_STORE_CHECKOUT_ENABLED,
     type: "boolean",
     default: false,
-    description: "Allow customers to checkout items from multiple stores simultaneously.",
+    description: "Allow customers to add products from multiple stores to a single cart.",
+    is_public: true,
+  },
+  [SETTING_KEYS.DELIVERIES_ACTIVE]: {
+    key: SETTING_KEYS.DELIVERIES_ACTIVE,
+    type: "boolean",
+    default: true,
+    description: "Whether the platform is accepting delivery orders.",
+    is_public: true,
+  },
+  [SETTING_KEYS.DEFAULT_DELIVERY_RADIUS_KM]: {
+    key: SETTING_KEYS.DEFAULT_DELIVERY_RADIUS_KM,
+    type: "number",
+    default: 10,
+    description: "Default maximum delivery radius in kilometres.",
     is_public: true,
   },
 };

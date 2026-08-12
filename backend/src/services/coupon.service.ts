@@ -244,6 +244,7 @@ export const couponService = {
             id: "",
             product_id: product.id,
             quantity: Math.max(1, i.quantity),
+            selected_unit: null,
             price_snapshot: product.price,
             created_at: now,
             updated_at: now,

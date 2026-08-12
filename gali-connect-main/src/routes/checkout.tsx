@@ -230,7 +230,11 @@ function Checkout() {
       payment_method: payment,
       coupon_code: appliedCoupon || undefined,
       delivery_slot: DELIVERY_OPTIONS[deliveryOption].label,
-      items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+      items: items.map((item) => ({
+        product_id: item.product.id,
+        quantity: item.quantity,
+        selected_unit: item.selectedVariant || item.product.unit,
+      })),
     });
   };
 

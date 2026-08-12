@@ -6,6 +6,7 @@ jest.mock("../../src/repositories/category.repository", () => ({
   findBySlug: jest.fn(),
   listAll: jest.fn(),
   listPaged: jest.fn(),
+  vendorCountsByCategory: jest.fn(),
   listSlugs: jest.fn(),
   createCategory: jest.fn(),
   updateCategory: jest.fn(),
@@ -104,5 +105,27 @@ describe("category service", () => {
     const tree = (result as { tree: unknown[] }).tree;
     expect(tree).toHaveLength(1);
     expect((tree[0] as { children: unknown[] }).children).toHaveLength(1);
+  });
+
+  it("includes per-category vendor counts in the flat list", async () => {
+    repo.listPaged.mockResolvedValue({
+      rows: [
+        makeCategoryRow({ id: "cat-1", slug: "vegetables" }),
+        makeCategoryRow({ id: "cat-2", slug: "dairy" }),
+      ],
+      total: 2,
+    });
+    repo.vendorCountsByCategory.mockResolvedValue(
+      new Map<string, number>([
+        ["cat-1", 3],
+        ["cat-2", 1],
+      ])
+    );
+
+    const result = await categoryService.list({});
+    const rows = (result as { rows: Array<{ id: string; vendor_count: number }> }).rows;
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.id === "cat-1")?.vendor_count).toBe(3);
+    expect(rows.find((r) => r.id === "cat-2")?.vendor_count).toBe(1);
   });
 });

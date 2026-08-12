@@ -12,6 +12,7 @@ const baseSelect = {
       id: true,
       product_id: true,
       quantity: true,
+      selected_unit: true,
       price_snapshot: true,
       created_at: true,
       updated_at: true,
@@ -48,6 +49,7 @@ export type CartRow = {
     id: string;
     product_id: string;
     quantity: number;
+    selected_unit: string | null;
     price_snapshot: import("@prisma/client").Prisma.Decimal;
     created_at: Date;
     updated_at: Date;
@@ -105,17 +107,26 @@ export async function addItem(
   cartId: string,
   productId: string,
   quantity: number,
-  priceSnapshot: Prisma.Decimal
+  priceSnapshot: Prisma.Decimal,
+  selectedUnit?: string
 ): Promise<CartRow> {
+  const unit = selectedUnit ?? null;
   await prisma.cartItem.upsert({
-    where: { cart_id_product_id: { cart_id: cartId, product_id: productId } },
+    where: {
+      cart_id_product_id_selected_unit: {
+        cart_id: cartId,
+        product_id: productId,
+        selected_unit: unit ?? "",
+      },
+    },
     create: {
       cart_id: cartId,
       product_id: productId,
       quantity,
+      selected_unit: unit,
       price_snapshot: priceSnapshot,
     },
-    update: { quantity: { increment: quantity } },
+    update: { quantity: { increment: quantity }, price_snapshot: priceSnapshot },
   });
   const row = await prisma.cart.findUnique({
     where: { id: cartId },

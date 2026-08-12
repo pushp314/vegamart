@@ -773,7 +773,7 @@ model CartItem {
   cart    Cart    @relation(fields: [cart_id], references: [id], onDelete: Cascade)
   product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
-  @@unique([cart_id, product_id])
+  @@unique([cart_id, product_id, selected_unit])
   @@index([product_id])
   @@map("cart_items")
 }
@@ -1255,7 +1255,7 @@ model Announcement {
 
 model HeroSlide {
   id         String    @id @default(uuid()) @db.Uuid
-  title      String    @db.VarChar(200)
+  title      String?   @db.VarChar(200)
   subtitle   String?   @db.VarChar(300)
   body       String?   @db.Text
   image_url  String?   @db.VarChar(500)
@@ -1276,7 +1276,7 @@ model HeroSlide {
 
 model VideoAd {
   id            String    @id @default(uuid()) @db.Uuid
-  title         String    @db.VarChar(200)
+  title         String?   @db.VarChar(200)
   subtitle      String?   @db.VarChar(300)
   video_url     String    @db.VarChar(500)
   thumbnail_url String?   @db.VarChar(500)

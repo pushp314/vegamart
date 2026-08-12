@@ -63,6 +63,7 @@ function makeCart(): CartRow {
         id: "ci-1",
         product_id: "p1",
         quantity: 2,
+        selected_unit: null,
         price_snapshot: dec(500),
         created_at: new Date(),
         updated_at: new Date(),

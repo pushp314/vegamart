@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useSearch } from "@tanstack/react-router";
 import {
   Star,
   Clock,
@@ -14,18 +14,37 @@ import {
   Bell,
   BellRing,
   Loader2,
+  Navigation,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { api, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
+import { useLocation } from "@/hooks/use-location";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { VendorLocationCard } from "@/components/vendor/vendor-location-card";
 import { ReviewModal } from "@/components/marketplace/review-modal";
+import { calculateDistance, formatDistance } from "@/lib/utils/distance";
 import { toast } from "sonner";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+import iconUrl from "leaflet/dist/images/marker-icon.png";
+import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
+import shadowUrl from "leaflet/dist/images/marker-shadow.png";
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl,
+  iconUrl,
+  shadowUrl,
+});
 
 export const Route = createFileRoute("/vendors/$vendorId")({
+  validateSearch: (search: Record<string, unknown>): { product?: string } => ({
+    product: typeof search.product === "string" ? search.product : undefined,
+  }),
   loader: async ({ params }) => {
     const res = await api.get<Vendor>(`/vendors/${params.vendorId}`);
     if (!res.success || !res.data) throw notFound();
@@ -59,6 +78,7 @@ function VendorDetail() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const { product: pinnedProductId } = useSearch({ from: "/vendors/$vendorId" });
 
   const toggleSubscriptionMutation = useMutation({
     mutationFn: async () => {
@@ -67,7 +87,7 @@ function VendorDetail() {
       const res = await fetch("/api/v1/users/me/subscriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ vendor_id: vendor.id })
+        body: JSON.stringify({ vendor_id: vendor.id }),
       });
       if (!res.ok) throw new Error("Failed to subscribe");
       return res.json();
@@ -75,14 +95,16 @@ function VendorDetail() {
     onSuccess: (data: any) => {
       setIsSubscribed(data.data?.subscribed);
       if (data.data?.subscribed) {
-        toast.success(`You will now receive notifications when ${vendor.business_name || 'the vendor'} is nearby! 🔔`);
+        toast.success(
+          `You will now receive notifications when ${vendor.business_name || "the vendor"} is nearby! 🔔`,
+        );
       } else {
-        toast.info(`Unsubscribed from ${vendor.business_name || 'the vendor'}'s alerts.`);
+        toast.info(`Unsubscribed from ${vendor.business_name || "the vendor"}'s alerts.`);
       }
     },
     onError: (err: any) => {
       toast.error(err.message);
-    }
+    },
   });
 
   const handleNotifyMe = () => {
@@ -94,14 +116,30 @@ function VendorDetail() {
     queryFn: () => api.get<Product[]>(`/products?vendor_id=${vendor.id}`),
   });
 
-  const showcase = productsRes?.data || [];
+  const rawShowcase = productsRes?.data || [];
+
+  const showcase = useMemo(() => {
+    if (!pinnedProductId) return rawShowcase;
+    const sorted = [...rawShowcase];
+    const idx = sorted.findIndex((p) => p.id === pinnedProductId);
+    if (idx <= 0) return sorted;
+    const [pinned] = sorted.splice(idx, 1);
+    return [pinned, ...sorted];
+  }, [rawShowcase, pinnedProductId]);
 
   const coverUrl =
     profile.banner_url ||
     "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
-  const logoUrl =
-    profile.logo_url ||
-    "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
+  const logoUrl = profile.logo_url || null;
+
+  const lat = typeof profile.latitude === "number" ? profile.latitude : null;
+  const lng = typeof profile.longitude === "number" ? profile.longitude : null;
+
+  const { activeAddress } = useLocation();
+  const distanceKm =
+    lat != null && lng != null && activeAddress?.latitude && activeAddress?.longitude
+      ? calculateDistance(activeAddress.latitude, activeAddress.longitude, lat, lng)
+      : null;
 
   const ownerName = profile.owner_name || vendor.business_name || "Verified Merchant";
   const phone = profile.phone || (vendor as any).phone || null;
@@ -168,11 +206,17 @@ function VendorDetail() {
         <section className="rounded-3xl bg-card border p-6 md:p-8 shadow-xl space-y-5">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-start gap-4">
-              <img
-                src={logoUrl}
-                alt={vendor.business_name}
-                className="h-20 w-20 md:h-24 md:w-24 rounded-2xl object-cover ring-4 ring-background shadow-md shrink-0"
-              />
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={vendor.business_name}
+                  className="h-20 w-20 md:h-24 md:w-24 rounded-2xl object-cover ring-4 ring-background shadow-md shrink-0"
+                />
+              ) : (
+                <span className="grid h-20 w-20 md:h-24 md:w-24 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700 ring-4 ring-background shadow-md">
+                  <Store className="h-9 w-9" />
+                </span>
+              )}
               <div className="space-y-1 min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="font-display text-2xl md:text-3xl font-black tracking-tight text-foreground">
@@ -194,7 +238,9 @@ function VendorDetail() {
                     className="inline-flex items-center gap-1 font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
                   >
                     <Star className="h-3.5 w-3.5 fill-amber-400" />
-                    {typeof profile.rating === "number" ? profile.rating.toFixed(1) : (profile.rating || "0.0")}
+                    {typeof profile.rating === "number"
+                      ? profile.rating.toFixed(1)
+                      : profile.rating || "0.0"}
                     <span className="text-muted-foreground font-normal ml-0.5">
                       ({profile.review_count ?? 0})
                     </span>
@@ -221,9 +267,7 @@ function VendorDetail() {
                   <Phone className="h-4 w-4 text-emerald-600" /> Call Store
                 </a>
               ) : (
-                <span
-                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl border bg-muted/50 text-muted-foreground font-bold text-xs h-11 px-5 cursor-not-allowed opacity-60"
-                >
+                <span className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 rounded-2xl border bg-muted/50 text-muted-foreground font-bold text-xs h-11 px-5 cursor-not-allowed opacity-60">
                   <Phone className="h-4 w-4" /> No Phone
                 </span>
               )}
@@ -231,9 +275,9 @@ function VendorDetail() {
                 onClick={handleNotifyMe}
                 disabled={toggleSubscriptionMutation.isPending}
                 className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-                  isSubscribed 
-                    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
-                    : 'bg-white text-foreground border-border hover:bg-muted'
+                  isSubscribed
+                    ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                    : "bg-white text-foreground border-border hover:bg-muted"
                 }`}
               >
                 {toggleSubscriptionMutation.isPending ? (
@@ -266,6 +310,49 @@ function VendorDetail() {
           )}
         </section>
 
+        {/* Shop Location on Map */}
+        {!isRoaming && lat != null && lng != null && (
+          <section className="rounded-3xl bg-card border p-5 md:p-6 shadow-sm space-y-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-emerald-600" />
+              <h2 className="font-display text-lg font-bold text-foreground">Shop location</h2>
+              {typeof distanceKm === "number" && (
+                <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                  <Navigation className="h-3.5 w-3.5 text-emerald-600" />{" "}
+                  {formatDistanceLabel(distanceKm)} away
+                </span>
+              )}
+            </div>
+            <div className="h-[240px] md:h-[300px] overflow-hidden rounded-2xl border relative z-0">
+              <MapContainer
+                center={[lat, lng]}
+                zoom={15}
+                scrollWheelZoom={false}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
+                  url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                />
+                <Marker position={[lat, lng]}>
+                  <Popup>
+                    <div className="text-xs font-semibold">{vendor.business_name}</div>
+                    <div className="text-[11px] text-muted-foreground">{profile.address}</div>
+                  </Popup>
+                </Marker>
+              </MapContainer>
+            </div>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
+            >
+              <Navigation className="h-3.5 w-3.5" /> Get directions
+            </a>
+          </section>
+        )}
+
         {/* Today's Location (for roaming vendors with active daily location) */}
         {isRoaming && dailyLocation && dailyLocation.is_active && (
           <VendorLocationCard
@@ -293,6 +380,14 @@ function VendorDetail() {
             </span>
           </div>
 
+          {pinnedProductId && showcase[0]?.id === pinnedProductId && (
+            <div className="flex items-center gap-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-300">
+              <Sparkles className="h-4 w-4 shrink-0 text-amber-500" />
+              You selected <span className="font-bold">{showcase[0]?.name}</span> — it's shown
+              first.
+            </div>
+          )}
+
           {isLoading ? (
             <div className="rounded-3xl border bg-card p-12 text-center text-sm font-semibold text-muted-foreground">
               Loading store items...
@@ -308,7 +403,14 @@ function VendorDetail() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {showcase.map((p) => (
-                <ProductCard key={p.id} product={p} />
+                <div key={p.id} className={p.id === pinnedProductId ? "relative" : ""}>
+                  {p.id === pinnedProductId && (
+                    <span className="absolute -top-2 -right-1 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm">
+                      Selected
+                    </span>
+                  )}
+                  <ProductCard key={p.id} product={p} />
+                </div>
               ))}
             </div>
           )}
@@ -325,4 +427,8 @@ function VendorDetail() {
       />
     </div>
   );
+}
+
+function formatDistanceLabel(km: number): string {
+  return formatDistance(km);
 }

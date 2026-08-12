@@ -8,12 +8,12 @@ import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
 export interface CreateHeroSlideInput {
-  title: string;
-  subtitle?: string;
-  body?: string;
-  image_url?: string;
-  link_url?: string;
-  link_text?: string;
+  title?: string | null;
+  subtitle?: string | null;
+  body?: string | null;
+  image_url?: string | null;
+  link_url?: string | null;
+  link_text?: string | null;
   is_active?: boolean;
   sort_order?: number;
 }
@@ -71,12 +71,12 @@ export const heroSlideService = {
   async update(
     id: string,
     input: {
-      title?: string;
-      subtitle?: string;
-      body?: string;
-      image_url?: string;
-      link_url?: string;
-      link_text?: string;
+      title?: string | null;
+      subtitle?: string | null;
+      body?: string | null;
+      image_url?: string | null;
+      link_url?: string | null;
+      link_text?: string | null;
       is_active?: boolean;
       sort_order?: number;
     },

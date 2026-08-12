@@ -185,6 +185,7 @@ export const vendorService = {
 
     const updated = await vendorRepo.findById(vendor.id);
     await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.VENDOR_UPDATED, entityType: "vendor", entityId: vendor.id, newValues: data },
       req
@@ -202,6 +203,7 @@ export const vendorService = {
     }
     const updated = await vendorRepo.updateVendor(vendor.id, { is_open: isOpen });
     await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.VENDOR_STATUS_TOGGLED, entityType: "vendor", entityId: vendor.id, newValues: { is_open: isOpen } },
       req
@@ -310,18 +312,20 @@ export const vendorService = {
     q?: string;
     city?: string;
     category?: string;
+    category_id?: string;
     is_open?: string;
   }) {
     const page = Math.max(1, query.page ?? 1);
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
     const cacheable = !query.q && page <= 5;
-    const key = `list:${page}:${perPage}:${query.city ?? ""}:${query.category ?? ""}:${query.is_open ?? ""}`;
+    const key = `list:${page}:${perPage}:${query.city ?? ""}:${query.category ?? ""}:${query.category_id ?? ""}:${query.is_open ?? ""}`;
     const load = () =>
       vendorRepo.listVendors(
         {
           q: query.q,
           city: query.city,
           category: query.category,
+          category_id: query.category_id,
           isOpen: query.is_open === "true" ? true : query.is_open === "false" ? false : undefined,
         },
         (page - 1) * perPage,

@@ -61,6 +61,7 @@ import { Route as AdminSupportTicketsRouteImport } from './routes/admin/support-
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminVendorsRouteImport } from './routes/admin/vendors'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as CategoriesCategorySlugRouteImport } from './routes/categories.$categorySlug'
 import { Route as DeliveryLoginRouteImport } from './routes/delivery.login'
 import { Route as OrdersHistoryRouteImport } from './routes/orders.history'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
@@ -341,6 +342,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CategoriesCategorySlugRoute = CategoriesCategorySlugRouteImport.update({
+  id: '/categories/$categorySlug',
+  path: '/categories/$categorySlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DeliveryLoginRoute = DeliveryLoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -489,6 +495,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/categories/$categorySlug': typeof CategoriesCategorySlugRoute
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
@@ -560,6 +567,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/categories/$categorySlug': typeof CategoriesCategorySlugRoute
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
@@ -633,6 +641,7 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/categories/$categorySlug': typeof CategoriesCategorySlugRoute
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
@@ -708,6 +717,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vendors'
     | '/auth/callback'
+    | '/categories/$categorySlug'
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
@@ -779,6 +789,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vendors'
     | '/auth/callback'
+    | '/categories/$categorySlug'
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
@@ -851,6 +862,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vendors'
     | '/auth/callback'
+    | '/categories/$categorySlug'
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
@@ -906,6 +918,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   WishlistRoute: typeof WishlistRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  CategoriesCategorySlugRoute: typeof CategoriesCategorySlugRoute
   VendorsVendorIdRoute: typeof VendorsVendorIdRoute
   VendorsIndexRoute: typeof VendorsIndexRoute
 }
@@ -1276,6 +1289,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/categories/$categorySlug': {
+      id: '/categories/$categorySlug'
+      path: '/categories/$categorySlug'
+      fullPath: '/categories/$categorySlug'
+      preLoaderRoute: typeof CategoriesCategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/delivery/login': {
       id: '/delivery/login'
       path: '/login'
@@ -1576,6 +1596,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   WishlistRoute: WishlistRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  CategoriesCategorySlugRoute: CategoriesCategorySlugRoute,
   VendorsVendorIdRoute: VendorsVendorIdRoute,
   VendorsIndexRoute: VendorsIndexRoute,
 }

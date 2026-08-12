@@ -167,6 +167,9 @@ export const settingsUpdateSchema = z
     "platform.max_cart_items": z.coerce.number().int().min(1).max(500).optional(),
     "platform.maintenance_mode": z.boolean().optional(),
     "platform.logo_url": z.string().trim().url().max(500).optional().nullable(),
+    "platform.multi_store_checkout_enabled": z.boolean().optional(),
+    "platform.deliveries_active": z.boolean().optional(),
+    "platform.default_delivery_radius_km": z.coerce.number().min(0).max(500).optional(),
     "notifications.announcement_enabled": z.boolean().optional(),
     "support.email": z.string().trim().email().optional(),
     "support.phone": z.string().trim().max(30).optional(),
@@ -242,23 +245,23 @@ export const heroSlideQuerySchema = z.object({
 }).strict();
 
 export const createHeroSlideSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  subtitle: z.string().trim().max(300).optional(),
-  body: z.string().trim().max(10000).optional(),
-  image_url: z.string().trim().max(500).optional(),
-  link_url: z.string().trim().max(500).optional(),
-  link_text: z.string().trim().max(100).optional(),
+  title: z.string().trim().max(200).optional().nullable(),
+  subtitle: z.string().trim().max(300).optional().nullable(),
+  body: z.string().trim().max(10000).optional().nullable(),
+  image_url: z.string().trim().max(500).optional().nullable(),
+  link_url: z.string().trim().max(500).optional().nullable(),
+  link_text: z.string().trim().max(100).optional().nullable(),
   is_active: z.boolean().optional(),
   sort_order: z.coerce.number().int().optional(),
 }).strict();
 
 export const updateHeroSlideSchema = z.object({
-  title: z.string().trim().min(1).max(200).optional(),
-  subtitle: z.string().trim().max(300).optional(),
-  body: z.string().trim().max(10000).optional(),
-  image_url: z.string().trim().max(500).optional(),
-  link_url: z.string().trim().max(500).optional(),
-  link_text: z.string().trim().max(100).optional(),
+  title: z.string().trim().max(200).optional().nullable(),
+  subtitle: z.string().trim().max(300).optional().nullable(),
+  body: z.string().trim().max(10000).optional().nullable(),
+  image_url: z.string().trim().max(500).optional().nullable(),
+  link_url: z.string().trim().max(500).optional().nullable(),
+  link_text: z.string().trim().max(100).optional().nullable(),
   is_active: z.boolean().optional(),
   sort_order: z.coerce.number().int().optional(),
 }).strict();

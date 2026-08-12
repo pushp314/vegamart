@@ -7,13 +7,13 @@ import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
 export interface CreateVideoAdInput {
-  title: string;
-  subtitle?: string;
+  title?: string | null;
+  subtitle?: string | null;
   video_url: string;
-  thumbnail_url?: string;
+  thumbnail_url?: string | null;
   cta_text?: string;
-  cta_link?: string;
-  display_mode?: "watch_cta" | "behind_hero";
+  cta_link?: string | null;
+  display_mode?: "watch_cta" | "behind_hero" | "fixed_video";
   duration?: number;
   is_active?: boolean;
   sort_order?: number;
@@ -84,13 +84,13 @@ export const videoAdService = {
   async update(
     id: string,
     input: {
-      title?: string;
-      subtitle?: string;
+      title?: string | null;
+      subtitle?: string | null;
       video_url?: string;
-      thumbnail_url?: string;
-      cta_text?: string;
-      cta_link?: string;
-      display_mode?: "watch_cta" | "behind_hero";
+      thumbnail_url?: string | null;
+      cta_text?: string | null;
+      cta_link?: string | null;
+      display_mode?: "watch_cta" | "behind_hero" | "fixed_video";
       duration?: number;
       is_active?: boolean;
       sort_order?: number;

@@ -163,11 +163,14 @@ export function AdminCategories() {
                     {category.description}
                   </p>
                 )}
-                <div className="mt-4">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span
                     className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${category.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
                   >
                     {category.is_active ? "Active" : "Inactive"}
+                  </span>
+                  <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
+                    Order: {category.sort_order ?? 0}
                   </span>
                 </div>
               </div>
@@ -221,6 +224,7 @@ export function AdminCategories() {
                 name: fd.get("name"),
                 description: fd.get("description") || undefined,
                 image_url: fd.get("image_url") || undefined,
+                sort_order: Number(fd.get("sort_order")) || 0,
                 is_active: fd.get("is_active") === "on",
               };
 
@@ -293,6 +297,21 @@ export function AdminCategories() {
               <label htmlFor="is_active" className="text-sm font-medium">
                 Active Category
               </label>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Sort Order (Homepage position)
+              </label>
+              <Input
+                name="sort_order"
+                type="number"
+                step="1"
+                defaultValue={editingCategory?.sort_order ?? 0}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Lower numbers appear first on the homepage. Set the order in which categories are
+                listed.
+              </p>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>

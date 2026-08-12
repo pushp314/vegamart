@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -28,7 +28,11 @@ import {
   Sparkles,
   Volume2,
   VolumeX,
+  Store,
+  ChevronRight,
 } from "lucide-react";
+import { ProductCard } from "@/components/marketplace/product-card";
+import type { Product } from "@/types";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/system/logo";
@@ -198,6 +202,7 @@ function Home() {
           <Hero />
           <SponsoredVendors />
           <FeaturedProducts />
+          <ShopWiseProducts />
           <Categories />
           <LiveBanner />
           <LiveVendors defaultAddress={activeAddress} />
@@ -299,10 +304,7 @@ function Hero() {
 
   const { data: videoAdsResponse } = useQuery({
     queryKey: ["publicVideoAds"],
-    queryFn: () =>
-      api
-        .get<VideoAdData[]>("/video-ads/public")
-        .then((r) => r.data),
+    queryFn: () => api.get<VideoAdData[]>("/video-ads/public").then((r) => r.data),
     staleTime: 2 * 60 * 1000,
   });
 
@@ -311,6 +313,8 @@ function Hero() {
 
   const [apiCarousel, setApiCarousel] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
+
+  const isFixedVideo = activeVideoAd?.display_mode === "fixed_video";
 
   useEffect(() => {
     if (!apiCarousel) {
@@ -342,6 +346,59 @@ function Hero() {
   };
 
   const isBehindHeroVideo = activeVideoAd?.display_mode === "behind_hero";
+
+  // Fixed-size inline video ad (no modal, no hero background) — "show only video in a fixed size".
+  if (isFixedVideo && activeVideoAd) {
+    return (
+      <section className="pt-4 md:pt-8">
+        <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] border border-border bg-black shadow-lg">
+          <div className="aspect-video w-full">
+            <video
+              ref={backgroundVideoRef}
+              src={activeVideoAd.video_url}
+              poster={activeVideoAd.thumbnail_url || undefined}
+              autoPlay
+              loop
+              muted={isBackgroundMuted}
+              playsInline
+              className="absolute inset-0 w-full h-full object-contain"
+            />
+          </div>
+
+          {activeVideoAd.cta_link && (
+            <div className="absolute bottom-3 left-3 right-3 z-20">
+              <a
+                href={activeVideoAd.cta_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-2.5 shadow-lg transition-all active:scale-95"
+              >
+                {activeVideoAd.cta_text || "Claim Offer Now"} <ArrowRight className="h-4 w-4" />
+              </a>
+            </div>
+          )}
+
+          <button
+            onClick={toggleBackgroundSound}
+            className="absolute bottom-3 right-3 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-lg transition-all active:scale-95"
+            title={isBackgroundMuted ? "Unmute Background Audio" : "Mute Background Audio"}
+          >
+            {isBackgroundMuted ? (
+              <>
+                <VolumeX className="h-3.5 w-3.5 text-amber-400" />
+                <span>Tap for Sound</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Mute</span>
+              </>
+            )}
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   if (slidesLoading || slides.length === 0) {
     return (
@@ -382,7 +439,8 @@ function Hero() {
                   onClick={() => setIsVideoModalOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 text-emerald-950 px-3 py-1 text-[10.5px] md:text-xs font-black uppercase tracking-wide shadow-md hover:bg-amber-300 transition-all animate-pulse"
                 >
-                  <Play className="h-3 w-3 fill-emerald-950" /> {activeVideoAd.cta_text || "Watch 30s Ad"}
+                  <Play className="h-3 w-3 fill-emerald-950" />{" "}
+                  {activeVideoAd.cta_text || "Watch 30s Ad"}
                 </button>
               )}
             </div>
@@ -485,7 +543,7 @@ function Hero() {
                       <>
                         <img
                           src={slide.image_url}
-                          alt={slide.title}
+                          alt={slide.title || "Vegamart banner"}
                           className="absolute inset-0 w-full h-full object-cover opacity-65 md:opacity-75 z-0"
                         />
                         <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/85 via-black/40 to-transparent z-0 pointer-events-none" />
@@ -496,19 +554,20 @@ function Hero() {
                 <div className="relative md:max-w-2xl z-10">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
-                      <Radio className="h-3 w-3" /> {slide.title}
+                      <Radio className="h-3 w-3" /> {slide.title || "Vegamart"}
                     </span>
                     {activeVideoAd && activeVideoAd.display_mode === "watch_cta" && (
                       <button
                         onClick={() => setIsVideoModalOpen(true)}
                         className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 text-emerald-950 px-3 py-1 text-[10.5px] md:text-xs font-black uppercase tracking-wide shadow-md hover:bg-amber-300 transition-all animate-pulse"
                       >
-                        <Play className="h-3 w-3 fill-emerald-950" /> {activeVideoAd.cta_text || "Watch 30s Ad"}
+                        <Play className="h-3 w-3 fill-emerald-950" />{" "}
+                        {activeVideoAd.cta_text || "Watch 30s Ad"}
                       </button>
                     )}
                   </div>
                   <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight drop-shadow-md">
-                    {slide.subtitle || slide.title}
+                    {slide.subtitle || slide.title || "Vegamart"}
                   </h1>
                   {slide.body && (
                     <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/90 max-w-[22ch] md:max-w-[42ch] drop-shadow-sm">
@@ -614,8 +673,9 @@ function FeaturedProducts() {
           return (
             <Link
               key={product.id}
-              to="/products/$productId"
-              params={{ productId: product.id }}
+              to="/vendors/$vendorId"
+              params={{ vendorId: product.vendor_id }}
+              search={{ product: product.id }}
               className="group rounded-2xl bg-card border hover:border-primary/40 transition-colors overflow-hidden"
             >
               <div className="aspect-square bg-muted relative">
@@ -647,6 +707,193 @@ function FeaturedProducts() {
                 </div>
               </div>
             </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ShopWiseProducts() {
+  type StoreVendor = {
+    id: string;
+    business_name: string;
+    logo_url?: string | null;
+    is_sponsored?: boolean;
+    is_verified?: boolean;
+    is_open?: boolean;
+    status?: string;
+    rating?: number;
+    review_count?: number;
+    profile?: { logo_url?: string | null };
+  };
+  type ShopProduct = Product & { vendor?: StoreVendor };
+  const { data: res, isLoading } = useQuery({
+    queryKey: ["products", "shopwise"],
+    queryFn: () => api.get<ShopProduct[]>("/products?per_page=100"),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const groups = useMemo(() => {
+    const products = res?.data || [];
+    const map = new Map<string, { vendor: StoreVendor; products: ShopProduct[] }>();
+    for (const p of products) {
+      const vid = p.vendor_id || p.vendor?.id;
+      if (!vid) continue;
+      const v: StoreVendor = p.vendor || { id: vid, business_name: "Store" };
+      if (!map.has(vid)) {
+        map.set(vid, { vendor: v, products: [] });
+      }
+      map.get(vid)!.products.push(p);
+    }
+    return Array.from(map.values()).sort(
+      (a, b) =>
+        Number(b.vendor?.is_sponsored) - Number(a.vendor?.is_sponsored) ||
+        a.vendor?.business_name?.localeCompare(b.vendor?.business_name || ""),
+    );
+  }, [res?.data]);
+
+  const totalShops = groups.length;
+
+  if (isLoading) {
+    return (
+      <section className="pt-6 md:pt-10">
+        <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
+          All Products by Shop
+        </h2>
+        <p className="text-[13px] md:text-sm text-muted-foreground">Loading shops & products…</p>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border bg-card p-3 animate-pulse">
+              <div className="aspect-square rounded-xl bg-muted" />
+              <div className="mt-3 h-3.5 w-3/4 rounded-full bg-muted" />
+              <div className="mt-2 h-3 w-1/2 rounded-full bg-muted" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (groups.length === 0) return null;
+
+  return (
+    <section className="pt-6 md:pt-10">
+      <div className="flex items-end justify-between">
+        <div>
+          <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
+            All Products by Shop
+          </h2>
+          <p className="text-[13px] md:text-sm text-muted-foreground">
+            {totalShops} shop{totalShops === 1 ? "" : "s"} · Buy from one store per order
+          </p>
+        </div>
+        <Link to="/vendors" className="text-sm md:text-base font-semibold text-primary">
+          All shops →
+        </Link>
+      </div>
+
+      <div className="mt-4 space-y-8 md:space-y-10">
+        {groups.map((group) => {
+          const v = group.vendor;
+          const logo = v.logo_url || v.profile?.logo_url;
+          const hasRating = typeof v.rating === "number" && v.rating > 0;
+          const isOpen = v.is_open !== false && v.status !== "rejected" && v.status !== "suspended";
+
+          return (
+            <div key={v.id} className="rounded-3xl border bg-card p-4 md:p-6 shadow-sm">
+              <div className="flex items-center gap-3 md:gap-4">
+                <Link
+                  to="/vendors/$vendorId"
+                  params={{ vendorId: v.id }}
+                  className="relative h-14 w-14 md:h-16 md:w-16 shrink-0 overflow-hidden rounded-2xl bg-muted border"
+                >
+                  {logo ? (
+                    <img src={logo} alt={v.business_name} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-muted-foreground">
+                      <Store className="h-6 w-6" />
+                    </span>
+                  )}
+                  {v.is_sponsored && (
+                    <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-500 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-white shadow-sm">
+                      Promoted
+                    </span>
+                  )}
+                </Link>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      to="/vendors/$vendorId"
+                      params={{ vendorId: v.id }}
+                      className="truncate font-display text-[16px] md:text-lg font-bold hover:text-primary transition-colors"
+                    >
+                      {v.business_name || "Store"}
+                    </Link>
+                    {v.is_verified && (
+                      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground text-[9px]">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11.5px] md:text-xs text-muted-foreground">
+                    {hasRating && v.rating != null && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
+                        <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                        {v.rating.toFixed(1)}
+                        {typeof v.review_count === "number" && v.review_count > 0 && (
+                          <span className="font-semibold text-amber-600 ml-0.5">
+                            ({v.review_count})
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    <span
+                      className={`inline-flex items-center gap-1 font-semibold ${
+                        isOpen ? "text-emerald-600" : "text-muted-foreground"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          isOpen ? "bg-emerald-500" : "bg-muted-foreground/50"
+                        }`}
+                      />
+                      {isOpen ? "Open now" : "Closed"}
+                    </span>
+                    <span>{group.products.length} products</span>
+                  </div>
+                </div>
+
+                <Link
+                  to="/vendors/$vendorId"
+                  params={{ vendorId: v.id }}
+                  className="hidden sm:inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                >
+                  Visit shop <ChevronRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+                {group.products.map((p) => (
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    linkTo="/vendors/$vendorId"
+                    linkParams={{ vendorId: v.id }}
+                    linkSearch={{ product: p.id }}
+                  />
+                ))}
+              </div>
+
+              <Link
+                to="/vendors/$vendorId"
+                params={{ vendorId: v.id }}
+                className="mt-4 inline-flex sm:hidden items-center gap-1 text-[13px] font-semibold text-primary"
+              >
+                Visit shop <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
           );
         })}
       </div>
@@ -688,8 +935,8 @@ function Categories() {
         {displayCats.map((c: any) => (
           <Link
             key={c.id}
-            to="/products"
-            search={{ category: c.name }}
+            to="/categories/$categorySlug"
+            params={{ categorySlug: c.slug }}
             className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
           >
             <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted text-muted-foreground overflow-hidden">
@@ -710,7 +957,10 @@ function Categories() {
             className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
           >
             <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted/50 border-2 border-dashed border-muted-foreground/30 text-muted-foreground transition hover:border-primary/50 hover:text-primary">
-              <ChevronDown className={`h-7 w-7 md:h-8 md:w-8 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} strokeWidth={1.75} />
+              <ChevronDown
+                className={`h-7 w-7 md:h-8 md:w-8 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
+                strokeWidth={1.75}
+              />
             </div>
             <span className="text-[11.5px] md:text-[13px] font-medium text-center leading-tight">
               {expanded ? "Less" : "More"}
@@ -818,7 +1068,9 @@ function SponsoredVendors() {
                   <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-amber-700">
                     <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
                     {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "4.9"}
-                    <span className="text-muted-foreground font-normal ml-1">({v.review_count || 12}+ reviews)</span>
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({v.review_count || 12}+ reviews)
+                    </span>
                   </div>
                 </div>
               </div>
@@ -924,7 +1176,9 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                         <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
                         {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "New"}
                         {typeof v.review_count === "number" && v.review_count > 0 && (
-                          <span className="font-semibold text-amber-600 ml-0.5">({v.review_count})</span>
+                          <span className="font-semibold text-amber-600 ml-0.5">
+                            ({v.review_count})
+                          </span>
                         )}
                       </span>
                       {hasDistance && (
@@ -1034,7 +1288,9 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
                         <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
                         {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "New"}
                         {typeof v.review_count === "number" && v.review_count > 0 && (
-                          <span className="font-semibold text-amber-600 ml-0.5">({v.review_count})</span>
+                          <span className="font-semibold text-amber-600 ml-0.5">
+                            ({v.review_count})
+                          </span>
                         )}
                       </span>
                       {typeof v.distance_km === "number" && (
@@ -1104,8 +1360,9 @@ function RecentlyViewed() {
             return (
               <Link
                 key={p.id}
-                to="/products/$productId"
-                params={{ productId: p.id }}
+                to="/vendors/$vendorId"
+                params={{ vendorId: p.vendor_id }}
+                search={{ product: p.id }}
                 className="snap-start shrink-0 md:shrink w-[46%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
               >
                 <div className="relative aspect-square bg-muted">
@@ -1185,8 +1442,9 @@ function Trending() {
             return (
               <Link
                 key={p.id}
-                to="/products/$productId"
-                params={{ productId: p.id }}
+                to="/vendors/$vendorId"
+                params={{ vendorId: p.vendor_id }}
+                search={{ product: p.id }}
                 className="snap-start shrink-0 md:shrink w-[46%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
               >
                 <div className="relative aspect-square bg-muted">
@@ -1325,7 +1583,7 @@ function BrandFooter() {
           India's first live local vendor network. Har gali banegi live market.
         </p>
         <p className="mt-3 md:mt-4 text-[11px] md:text-xs text-muted-foreground">
-          © 2026 VegaMart. Made with 💚 in Bengaluru.
+          © 2026 VegaMart. Made with 💚 in Sakti, Chhattisgarh.
         </p>
       </div>
     </section>
@@ -1366,8 +1624,9 @@ function Recommended() {
             return (
               <Link
                 key={p.id}
-                to="/products/$productId"
-                params={{ productId: p.id }}
+                to="/vendors/$vendorId"
+                params={{ vendorId: p.vendor_id }}
+                search={{ product: p.id }}
                 className="snap-start shrink-0 md:shrink w-[46%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
               >
                 <div className="relative aspect-square bg-muted">

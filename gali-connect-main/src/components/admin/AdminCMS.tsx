@@ -425,10 +425,16 @@ export function AdminCMS() {
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       ad.display_mode === "behind_hero"
                         ? "bg-purple-600 text-white"
-                        : "bg-blue-600 text-white"
+                        : ad.display_mode === "fixed_video"
+                          ? "bg-amber-600 text-white"
+                          : "bg-blue-600 text-white"
                     }`}
                   >
-                    {ad.display_mode === "behind_hero" ? "Behind Hero Banner" : "Watch CTA Modal"}
+                    {ad.display_mode === "behind_hero"
+                      ? "Behind Hero Banner"
+                      : ad.display_mode === "fixed_video"
+                        ? "Fixed Size Video"
+                        : "Watch CTA Modal"}
                   </span>
                 </div>
 
@@ -447,7 +453,9 @@ export function AdminCMS() {
 
               <div className="p-5 flex-1 flex flex-col justify-between">
                 <div>
-                  <h3 className="font-bold text-lg text-foreground">{ad.title}</h3>
+                  <h3 className="font-bold text-lg text-foreground">
+                    {ad.title || "Video Advertisement"}
+                  </h3>
                   {ad.subtitle && (
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{ad.subtitle}</p>
                   )}
@@ -483,13 +491,22 @@ export function AdminCMS() {
                           id: ad.id,
                           data: {
                             display_mode:
-                              ad.display_mode === "behind_hero" ? "watch_cta" : "behind_hero",
+                              ad.display_mode === "watch_cta"
+                                ? "behind_hero"
+                                : ad.display_mode === "behind_hero"
+                                  ? "fixed_video"
+                                  : "watch_cta",
                           },
                         })
                       }
                       title="Toggle Display Mode"
                     >
-                      Mode: {ad.display_mode === "behind_hero" ? "Behind" : "Modal"}
+                      Mode:{" "}
+                      {ad.display_mode === "behind_hero"
+                        ? "Behind"
+                        : ad.display_mode === "fixed_video"
+                          ? "Fixed"
+                          : "Modal"}
                     </Button>
                     <Button
                       variant="outline"
@@ -614,7 +631,7 @@ export function AdminCMS() {
                 <code>hero_slide1.jpg</code>)
               </li>
               <li>
-                <strong>Required Input:</strong> Banner Title
+                <strong>Title & Subtitle:</strong> Optional — leave blank for a clean banner
               </li>
             </ul>
           </div>
@@ -649,8 +666,10 @@ export function AdminCMS() {
             className="space-y-4"
           >
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Title</label>
-              <Input name="title" required />
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Title (Optional)
+              </label>
+              <Input name="title" placeholder="e.g. Fresh Fruits, Every Morning" />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase text-muted-foreground">
@@ -768,7 +787,8 @@ export function AdminCMS() {
                 <code>ad_video1.mp4</code>)
               </li>
               <li>
-                <strong>Required Inputs:</strong> Ad Title & Video File or R2 URL
+                <strong>Required Inputs:</strong> Video File (or R2 URL). Ad Title & Subtitle are
+                optional.
               </li>
             </ul>
           </div>
@@ -814,8 +834,13 @@ export function AdminCMS() {
             className="space-y-4"
           >
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Ad Title</label>
-              <Input name="title" placeholder="e.g. Summer Mega Offer — 50% Off!" required />
+              <label className="text-xs font-bold uppercase text-muted-foreground">
+                Ad Title (Optional)
+              </label>
+              <Input
+                name="title"
+                placeholder="e.g. Summer Mega Offer — 50% Off!"
+              />
             </div>
 
             <div className="space-y-2">
@@ -835,7 +860,7 @@ export function AdminCMS() {
                   Video File (Cloudflare R2 Direct Upload)
                 </label>
                 <span className="text-[10px] text-emerald-600 font-bold uppercase">
-                  No Limit (R2 Storage)
+                  Max: 200 MB (R2 Storage)
                 </span>
               </div>
               <div className="flex gap-2">
@@ -894,6 +919,7 @@ export function AdminCMS() {
                 >
                   <option value="watch_cta">Watch CTA Modal (Hero Button → Modal Popup)</option>
                   <option value="behind_hero">Behind Hero Banner (Background Video Stream)</option>
+                  <option value="fixed_video">Fixed Size Video (Inline Autoplay, No Modal)</option>
                 </select>
               </div>
 
