@@ -21,8 +21,8 @@ module.exports = {
       name: "vegamart-frontend",
       cwd: "./gali-connect-main",
       script: ".output/server/index.mjs",
-      instances: "max", // Frontend SSR is typically stateless and safe for cluster
-      exec_mode: "cluster",
+      instances: 1, // Changed to 1 and fork mode to prevent cluster/ESM port binding issues
+      exec_mode: "fork",
       max_memory_restart: "512M",
       autorestart: true,
       env: {
