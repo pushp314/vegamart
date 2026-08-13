@@ -79,9 +79,10 @@ function handlePrismaError(error: unknown): { status: number; code: string; mess
         };
       default:
         return {
-          status: HttpStatus.BAD_REQUEST,
-          code: "DATABASE_CONSTRAINT",
-          message: "Database constraint violated.",
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          code: "DATABASE_ERROR",
+          message: "Database operation failed.",
+          details: { error_code: error.code }
         };
     }
   }
