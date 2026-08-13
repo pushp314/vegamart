@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
+import { ClientOnly } from "@/components/system/client-only";
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -22,13 +23,15 @@ function VendorLocationPage() {
 
   return (
     <div className="max-w-xl mx-auto">
-      <Suspense fallback={
-        <div className="p-12 flex justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
-        </div>
-      }>
-        <ShopLocationForm vendorProfile={vendor} />
-      </Suspense>
+      <ClientOnly>
+        <Suspense fallback={
+          <div className="p-12 flex justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+          </div>
+        }>
+          <ShopLocationForm vendorProfile={vendor} />
+        </Suspense>
+      </ClientOnly>
     </div>
   );
 }

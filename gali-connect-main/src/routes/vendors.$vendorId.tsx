@@ -27,19 +27,10 @@ import { VendorLocationCard } from "@/components/vendor/vendor-location-card";
 import { ReviewModal } from "@/components/marketplace/review-modal";
 import { calculateDistance, formatDistance } from "@/lib/utils/distance";
 import { toast } from "sonner";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-import iconUrl from "leaflet/dist/images/marker-icon.png";
-import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
-import shadowUrl from "leaflet/dist/images/marker-shadow.png";
+import { lazy, Suspense } from "react";
+import { ClientOnly } from "@/components/system/client-only";
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl,
-  iconUrl,
-  shadowUrl,
-});
+const VendorMap = lazy(() => import("@/components/vendor/vendor-map"));
 
 export const Route = createFileRoute("/vendors/$vendorId")({
   validateSearch: (search: Record<string, unknown>): { product?: string } => ({
@@ -319,23 +310,11 @@ function VendorDetail() {
               )}
             </div>
             <div className="h-[240px] md:h-[300px] overflow-hidden rounded-2xl border relative z-0">
-              <MapContainer
-                center={[lat, lng]}
-                zoom={15}
-                scrollWheelZoom={false}
-                style={{ height: "100%", width: "100%" }}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
-                  url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-                />
-                <Marker position={[lat, lng]}>
-                  <Popup>
-                    <div className="text-xs font-semibold">{vendor.business_name}</div>
-                    <div className="text-[11px] text-muted-foreground">{profile.address}</div>
-                  </Popup>
-                </Marker>
-              </MapContainer>
+            <ClientOnly>
+              <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
+                <VendorMap lat={lat} lng={lng} businessName={vendor.business_name} address={profile.address || ""} />
+              </Suspense>
+            </ClientOnly>
             </div>
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
