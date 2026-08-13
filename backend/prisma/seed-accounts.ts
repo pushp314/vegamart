@@ -1,3 +1,4 @@
+import process from "node:process";
 import { PrismaClient, VendorStatus, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { ROLES } from "../src/constants/roles";
