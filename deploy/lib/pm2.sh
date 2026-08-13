@@ -11,8 +11,8 @@ restart_pm2() {
     log_info "Restarting PM2 processes using config in $release_dir..."
 
     # The ecosystem.config.js is in the release root
-    # We su to the application user and reload/start
-    if su - "$username" -c "cd $release_dir && pm2 startOrReload ecosystem.config.js"; then
+    # PM2 ignores exec_mode changes on reload, so we must delete and start fresh
+    if su - "$username" -c "pm2 delete vegamart-backend vegamart-frontend || true; cd $release_dir && pm2 start ecosystem.config.js"; then
         log_success "PM2 processes started/reloaded."
         su - "$username" -c "pm2 save"
     else
