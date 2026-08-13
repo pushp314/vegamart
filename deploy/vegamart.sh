@@ -5,8 +5,9 @@
 # Single command wrapper for VegaMart deployment system
 # ==============================================================================
 
-# Locate the deploy directory relative to this script
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Locate the deploy directory relative to this script, resolving symlinks
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 VEGAMART_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Ensure we are running as root
