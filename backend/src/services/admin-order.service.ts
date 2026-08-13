@@ -5,6 +5,7 @@ import prisma from "../database/prisma";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { NotFoundError } from "../utils/ApiError";
+import { parseDateParam } from "../utils/time";
 import * as orderRepo from "../repositories/order.repository";
 import {
   assertOrderTransition,
@@ -47,10 +48,12 @@ export const adminOrderService = {
     if (query.from || query.to) {
       where.created_at = {};
       if (query.from) {
-        where.created_at.gte = new Date(query.from);
+        const from = parseDateParam(query.from, false);
+        if (from) where.created_at.gte = from;
       }
       if (query.to) {
-        where.created_at.lte = new Date(query.to);
+        const to = parseDateParam(query.to, true);
+        if (to) where.created_at.lte = to;
       }
     }
     if (query.q) {

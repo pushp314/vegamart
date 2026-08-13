@@ -1,6 +1,19 @@
-jest.mock("../../src/database/prisma", () => ({
-  __esModule: true,
-  default: {
+jest.mock("../../src/database/prisma", () => {
+  // The service now runs initiate() inside an interactive transaction; hand the
+  // callback the same mocked client so per-vendor serialization is exercised.
+  type MockDb = {
+    vendorSubscription: { findUnique: jest.Mock; upsert: jest.Mock; update: jest.Mock };
+    subscriptionPayment: {
+      findFirst: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      updateMany: jest.Mock;
+      create: jest.Mock;
+      upsert: jest.Mock;
+    };
+    $transaction: jest.Mock;
+  };
+  const db: MockDb = {
     vendorSubscription: {
       findUnique: jest.fn(),
       upsert: jest.fn(),
@@ -14,8 +27,10 @@ jest.mock("../../src/database/prisma", () => ({
       create: jest.fn(),
       upsert: jest.fn(),
     },
-  },
-}));
+    $transaction: jest.fn(async (cb: (tx: MockDb) => unknown) => cb(db)),
+  };
+  return { __esModule: true, default: db };
+});
 
 jest.mock("../../src/database/cache", () => ({
   cacheService: { invalidateNamespace: jest.fn() },
@@ -93,6 +108,7 @@ function makeExisting(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   jest.clearAllMocks();
   jest.resetAllMocks();
+  db.$transaction.mockImplementation(async (cb: (tx: typeof db) => unknown) => cb(db));
   gateway.isConfigured.mockReturnValue(true);
   (subscriptionScheduleFor as jest.Mock).mockReturnValue({ period: "monthly", interval: 1, totalCount: 1200 });
   gateway.createPlan.mockResolvedValue({ id: "plan_rzp1" } as any);
@@ -217,7 +233,12 @@ describe("subscriptionPaymentService.initiate", () => {
 
   it("cleans up the newly created subscription if persistence fails after creation (no orphan)", async () => {
     db.vendorSubscription.findUnique.mockResolvedValue(null);
-    db.vendorSubscription.update.mockRejectedValue(new Error("db down"));
+    // First update (plan/status write) succeeds; the second update (persisting
+    // the new razorpay_subscription_id AFTER gateway creation) fails, exercising
+    // the orphan-cleanup path.
+    db.vendorSubscription.update
+      .mockResolvedValueOnce({ id: "sub1", plan_id: "p2" })
+      .mockRejectedValueOnce(new Error("db down"));
 
     await expect(subscriptionPaymentService.initiate("v1", makePlan())).rejects.toThrow("db down");
     expect(gateway.cancelSubscription).toHaveBeenCalledWith("sub_new456");

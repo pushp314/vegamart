@@ -361,9 +361,14 @@ export const paymentService = {
     });
 
     // Reverse the vendor's and delivery partner's earnings proportionally to the
-    // refunded share (anchored on the gateway refund id so a replayed refund event
-    // can never double-create an adjustment). Orders cancelled before delivery
-    // never earned anything, so this is a safe no-op for them.
+    // CUMULATIVE refunded share of the paid amount (refundedSoFar + this refund).
+    // reverseOrderEarnings writes only the delta beyond what is already reversed,
+    // so passing the cumulative fraction here keeps cascading partial refunds
+    // converging to the total reversal. Passing the incremental fraction instead
+    // would stop reversing after the first partial refund. The reversal is anchored
+    // on the gateway refund id so a replayed refund event can never double-create an
+    // adjustment. Orders cancelled before delivery never earned anything, so this is
+    // a safe no-op for them.
     await reverseOrderEarnings(
       {
         id: order.id,
@@ -371,7 +376,7 @@ export const paymentService = {
         delivery_partner_id: order.delivery_partner_id,
         total: order.total.toNumber(),
       },
-      refundAmount / paidAmount,
+      cumulativeRefunded / paidAmount,
       refund.id
     );
 

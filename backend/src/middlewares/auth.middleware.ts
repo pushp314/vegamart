@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 
 import { GUEST_USER_ID } from "../constants";
 import { verifyAccessToken } from "../services/token.service";
+import { findActiveById as findActiveSessionById } from "../repositories/session.repository";
 import { UnauthorizedError } from "../utils/ApiError";
 
 function extractBearerToken(req: Request): string | null {
@@ -31,7 +32,7 @@ function buildGuestUser(): Express.Request["user"] {
   };
 }
 
-export function authenticate(req: Request, _res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const token = extractBearerToken(req);
   if (!token) {
     return next(new UnauthorizedError());
@@ -43,6 +44,16 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
     if (claims.guest) {
       req.user = buildGuestUser();
       return next();
+    }
+
+    // Real-user access tokens always embed a session_id. If that session was
+    // revoked (logout, password change, admin suspension/deletion), the token is
+    // dead on arrival instead of remaining usable until it expires.
+    if (claims.session_id) {
+      const activeSession = await findActiveSessionById(claims.session_id);
+      if (!activeSession) {
+        return next(new UnauthorizedError("Your session has expired. Please sign in again."));
+      }
     }
 
     req.user = {
@@ -71,7 +82,7 @@ export function blockGuest(req: Request, _res: Response, next: NextFunction): vo
   next();
 }
 
-export function optionalAuthenticate(req: Request, _res: Response, next: NextFunction): void {
+export async function optionalAuthenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const token = extractBearerToken(req);
   if (!token) {
     return next();
@@ -82,6 +93,14 @@ export function optionalAuthenticate(req: Request, _res: Response, next: NextFun
     if (claims.guest) {
       req.user = buildGuestUser();
       return next();
+    }
+    // A token whose session was revoked is treated like an invalid token: the
+    // request proceeds as anonymous.
+    if (claims.session_id) {
+      const activeSession = await findActiveSessionById(claims.session_id);
+      if (!activeSession) {
+        return next();
+      }
     }
     req.user = {
       id: claims.sub,

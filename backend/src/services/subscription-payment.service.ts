@@ -76,130 +76,147 @@ export const subscriptionPaymentService = {
     const razorpayPlanId = await resolveRazorpayPlanId(plan);
     const expiry = membershipPlanService.resolveExpiry(plan);
 
-    const existing = await prisma.vendorSubscription.findUnique({
-      where: { vendor_id: vendorId },
-      include: { payments: { where: { status: "pending" }, orderBy: { created_at: "desc" } } },
-    });
+    // Serialize the whole checkout per vendor inside one transaction. The leading
+    // upsert is atomic on the unique vendor_id, so concurrent purchases for the
+    // same vendor queue here: the second caller's upsert blocks until the first
+    // transaction commits, and every read below then observes the committed state.
+    // This guarantees only one live Razorpay subscription per vendor — two
+    // concurrent checkouts can no longer each create a billable subscription and
+    // orphan the loser at the gateway.
+    return prisma.$transaction(
+      async (tx) => {
+        const ensured = await tx.vendorSubscription.upsert({
+          where: { vendor_id: vendorId },
+          update: {},
+          create: {
+            vendor_id: vendorId,
+            plan_id: plan.id,
+            status: "pending",
+            starts_at: new Date(),
+            expires_at: expiry,
+            auto_renew: true,
+          },
+        });
 
-    // Idempotency: if a checkout for the SAME plan is already in flight, reuse it so a
-    // retried request never creates a second Razorpay subscription.
-    if (
-      existing?.status === "pending" &&
-      existing.plan_id === plan.id &&
-      existing.razorpay_subscription_id &&
-      existing.payments.length > 0
-    ) {
-      try {
-        const rzp = await razorpayGateway.fetchSubscription(existing.razorpay_subscription_id);
+        const existing = await tx.vendorSubscription.findUnique({
+          where: { vendor_id: vendorId },
+          include: { payments: { where: { status: "pending" }, orderBy: { created_at: "desc" } } },
+        });
+
+        // Idempotency: if a checkout for the SAME plan is already in flight, reuse it so a
+        // retried request never creates a second Razorpay subscription.
+        if (
+          existing?.status === "pending" &&
+          existing.plan_id === plan.id &&
+          existing.razorpay_subscription_id &&
+          existing.payments.length > 0
+        ) {
+          try {
+            const rzp = await razorpayGateway.fetchSubscription(existing.razorpay_subscription_id);
+            return {
+              razorpay_subscription_id: existing.razorpay_subscription_id,
+              short_url: rzp.short_url ?? null,
+              key_id: env.RAZORPAY_KEY_ID,
+              amount: price,
+              currency: "INR",
+              billing_period: plan.billing_period,
+            };
+          } catch (error) {
+            log.warn(`[subscription] Reusing pending checkout ${existing.razorpay_subscription_id} failed; starting a fresh checkout.`, {
+              context: "subscription",
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
+        // The subscription record is unique per vendor, so opening a new checkout supersedes
+        // any prior one. Cancel a live/stale Razorpay subscription BEFORE creating a new one
+        // so the vendor never ends up with two billable subscriptions at the gateway.
+        if (existing?.razorpay_subscription_id && existing.status !== "canceled") {
+          const isLive = existing.status === "active" || existing.status === "past_due";
+          try {
+            await razorpayGateway.cancelSubscription(existing.razorpay_subscription_id);
+          } catch (error) {
+            if (isLive) {
+              throw new ApiError(
+                HttpStatus.BAD_GATEWAY,
+                "Could not cancel your existing subscription to switch plans. Please retry or contact support.",
+                { code: "SUBSCRIPTION_SUPERSEDE_FAILED" }
+              );
+            }
+            log.warn(`[subscription] Could not cancel superseded razorpay subscription ${existing.razorpay_subscription_id}`, {
+              context: "subscription",
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
+        if (existing && existing.payments.length > 0) {
+          await tx.subscriptionPayment.updateMany({
+            where: { id: { in: existing.payments.map((p) => p.id) } },
+            data: { status: "failed", failed_reason: "Superseded by a new checkout." },
+          });
+        }
+
+        await tx.vendorSubscription.update({
+          where: { vendor_id: vendorId },
+          data: {
+            plan_id: plan.id,
+            status: "pending",
+            expires_at: expiry,
+            auto_renew: true,
+            updated_at: new Date(),
+          },
+        });
+
+        const rzpSubscription = await razorpayGateway.createSubscription({
+          planId: razorpayPlanId,
+          totalCount: schedule.totalCount,
+          notes: { vendor_id: vendorId, plan_id: plan.id, subscription_id: ensured.id },
+        });
+
+        try {
+          await tx.vendorSubscription.update({
+            where: { id: ensured.id },
+            data: { razorpay_subscription_id: rzpSubscription.id },
+          });
+
+          await tx.subscriptionPayment.create({
+            data: {
+              subscription_id: ensured.id,
+              amount: price,
+              currency: "INR",
+              status: "pending",
+              payment_method: "razorpay",
+              razorpay_subscription_id: rzpSubscription.id,
+            },
+          });
+        } catch (error) {
+          // Recovery: if the new subscription was created but we failed to persist it,
+          // cancel it immediately so we never leave a billable orphan at the gateway.
+          try {
+            await razorpayGateway.cancelSubscription(rzpSubscription.id);
+          } catch (cancelError) {
+            log.warn(`[subscription] Could not cancel orphan razorpay subscription ${rzpSubscription.id} after persistence failure`, {
+              context: "subscription",
+              error: cancelError instanceof Error ? cancelError.message : String(cancelError),
+            });
+          }
+          throw error;
+        }
+
+        await cacheService.invalidateNamespace("vendor");
         return {
-          razorpay_subscription_id: existing.razorpay_subscription_id,
-          short_url: rzp.short_url ?? null,
+          razorpay_subscription_id: rzpSubscription.id,
+          short_url: rzpSubscription.short_url ?? null,
           key_id: env.RAZORPAY_KEY_ID,
           amount: price,
           currency: "INR",
           billing_period: plan.billing_period,
         };
-      } catch (error) {
-        log.warn(`[subscription] Reusing pending checkout ${existing.razorpay_subscription_id} failed; starting a fresh checkout.`, {
-          context: "subscription",
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    // The subscription record is unique per vendor, so opening a new checkout supersedes
-    // any prior one. Cancel a live/stale Razorpay subscription BEFORE creating a new one
-    // so the vendor never ends up with two billable subscriptions at the gateway.
-    if (existing?.razorpay_subscription_id && existing.status !== "canceled") {
-      const isLive = existing.status === "active" || existing.status === "past_due";
-      try {
-        await razorpayGateway.cancelSubscription(existing.razorpay_subscription_id);
-      } catch (error) {
-        if (isLive) {
-          throw new ApiError(
-            HttpStatus.BAD_GATEWAY,
-            "Could not cancel your existing subscription to switch plans. Please retry or contact support.",
-            { code: "SUBSCRIPTION_SUPERSEDE_FAILED" }
-          );
-        }
-        log.warn(`[subscription] Could not cancel superseded razorpay subscription ${existing.razorpay_subscription_id}`, {
-          context: "subscription",
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    if (existing && existing.payments.length > 0) {
-      await prisma.subscriptionPayment.updateMany({
-        where: { id: { in: existing.payments.map((p) => p.id) } },
-        data: { status: "failed", failed_reason: "Superseded by a new checkout." },
-      });
-    }
-
-    const subscription = await prisma.vendorSubscription.upsert({
-      where: { vendor_id: vendorId },
-      update: {
-        plan_id: plan.id,
-        status: "pending",
-        expires_at: expiry,
-        auto_renew: true,
-        updated_at: new Date(),
       },
-      create: {
-        vendor_id: vendorId,
-        plan_id: plan.id,
-        status: "pending",
-        starts_at: new Date(),
-        expires_at: expiry,
-        auto_renew: true,
-      },
-    });
-
-    const rzpSubscription = await razorpayGateway.createSubscription({
-      planId: razorpayPlanId,
-      totalCount: schedule.totalCount,
-      notes: { vendor_id: vendorId, plan_id: plan.id, subscription_id: subscription.id },
-    });
-
-    try {
-      await prisma.vendorSubscription.update({
-        where: { id: subscription.id },
-        data: { razorpay_subscription_id: rzpSubscription.id },
-      });
-
-      await prisma.subscriptionPayment.create({
-        data: {
-          subscription_id: subscription.id,
-          amount: price,
-          currency: "INR",
-          status: "pending",
-          payment_method: "razorpay",
-          razorpay_subscription_id: rzpSubscription.id,
-        },
-      });
-    } catch (error) {
-      // Recovery: if the new subscription was created but we failed to persist it,
-      // cancel it immediately so we never leave a billable orphan at the gateway.
-      try {
-        await razorpayGateway.cancelSubscription(rzpSubscription.id);
-      } catch (cancelError) {
-        log.warn(`[subscription] Could not cancel orphan razorpay subscription ${rzpSubscription.id} after persistence failure`, {
-          context: "subscription",
-          error: cancelError instanceof Error ? cancelError.message : String(cancelError),
-        });
-      }
-      throw error;
-    }
-
-    await cacheService.invalidateNamespace("vendor");
-    return {
-      razorpay_subscription_id: rzpSubscription.id,
-      short_url: rzpSubscription.short_url ?? null,
-      key_id: env.RAZORPAY_KEY_ID,
-      amount: price,
-      currency: "INR",
-      billing_period: plan.billing_period,
-    };
+      { timeout: 30_000 }
+    );
   },
 
   async verifyAndActivate(
