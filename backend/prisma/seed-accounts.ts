@@ -1,4 +1,3 @@
-import process from "node:process";
 import { PrismaClient, VendorStatus, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { ROLES } from "../src/constants/roles";
@@ -127,7 +126,7 @@ async function main() {
 main()
   .catch((e) => {
     console.error("❌ Error seeding accounts:", e);
-    process.exit(1);
+    (globalThis as unknown as { process: { exit: (code: number) => never } }).process?.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
