@@ -5,11 +5,11 @@
 # Node.js and PM2 installation
 # ==============================================================================
 
-# Install Node.js v20 LTS
+# Install Node.js v22 LTS
 install_node() {
     if ! command -v node >/dev/null 2>&1; then
-        log_info "Node.js not found. Installing Node.js 20.x from NodeSource..."
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        log_info "Node.js not found. Installing Node.js 22.x from NodeSource..."
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
         apt-get install -yqq nodejs
         log_success "Node.js installed: $(node --version)"
     else
