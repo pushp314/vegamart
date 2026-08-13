@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { lazy, Suspense } from "react";
 import { ClientOnly } from "@/components/system/client-only";
 
-const VendorMap = lazy(() => import("@/components/vendor/vendor-map"));
+const VendorMap = typeof window !== "undefined" ? lazy(() => import("@/components/vendor/vendor-map")) : () => null;
 
 export const Route = createFileRoute("/vendors/$vendorId")({
   validateSearch: (search: Record<string, unknown>): { product?: string } => ({

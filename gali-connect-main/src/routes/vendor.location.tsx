@@ -6,9 +6,9 @@ import { ClientOnly } from "@/components/system/client-only";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
-const ShopLocationForm = lazy(() =>
-  import("@/components/vendor/shop-location-form").then((m) => ({ default: m.ShopLocationForm }))
-);
+const ShopLocationForm = typeof window !== "undefined"
+  ? lazy(() => import("@/components/vendor/shop-location-form").then((m) => ({ default: m.ShopLocationForm })))
+  : () => null;
 
 export const Route = createFileRoute("/vendor/location")({
   component: VendorLocationPage,

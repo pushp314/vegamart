@@ -28,7 +28,7 @@ import { DeliveryProfile } from "@/components/delivery/DeliveryProfile";
 import { DeliverySettings } from "@/components/delivery/DeliverySettings";
 import { lazy, Suspense } from "react";
 import { ClientOnly } from "@/components/system/client-only";
-const DeliveryMapModal = lazy(() => import("@/components/delivery/DeliveryMapModal").then(m => ({ default: m.DeliveryMapModal })));
+const DeliveryMapModal = typeof window !== "undefined" ? lazy(() => import("@/components/delivery/DeliveryMapModal").then(m => ({ default: m.DeliveryMapModal }))) : () => null;
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
