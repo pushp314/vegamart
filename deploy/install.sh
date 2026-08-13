@@ -42,6 +42,11 @@ configure_redis
 # Nginx
 install_nginx
 
+# CLI Tool
+log_info "Installing vegamart CLI tool..."
+ln -sf "$(pwd)/deploy/vegamart.sh" /usr/local/bin/vegamart
+chmod +x "$(pwd)/deploy/vegamart.sh"
+
 # Environment
 create_env_if_missing
 
