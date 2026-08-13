@@ -7,14 +7,36 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Seeding requested users (Admin, Vendor, Customer)...");
 
+  // Ensure base roles exist
+  const roleDefinitions: { slug: string; name: string; description: string }[] = [
+    { slug: ROLES.SUPER_ADMIN, name: "Super Admin", description: "Full platform control." },
+    { slug: ROLES.ADMIN, name: "Admin", description: "Manages the platform." },
+    { slug: ROLES.VENDOR, name: "Vendor", description: "Manages storefront and orders." },
+    { slug: ROLES.CUSTOMER, name: "Customer", description: "Browses and purchases items." },
+    { slug: ROLES.DELIVERY_PARTNER, name: "Delivery Partner", description: "Delivers orders." },
+  ];
+
+  for (const roleDef of roleDefinitions) {
+    await prisma.role.upsert({
+      where: { slug: roleDef.slug },
+      update: { name: roleDef.name, description: roleDef.description },
+      create: {
+        name: roleDef.name,
+        slug: roleDef.slug,
+        description: roleDef.description,
+        is_system: true,
+      },
+    });
+  }
+
   // 1. Fetch Roles
-  const adminRole = await prisma.role.findUnique({ where: { slug: ROLES.SUPER_ADMIN } }) ||
-                    await prisma.role.findUnique({ where: { slug: ROLES.ADMIN } });
+  const adminRole = (await prisma.role.findUnique({ where: { slug: ROLES.SUPER_ADMIN } })) ||
+                    (await prisma.role.findUnique({ where: { slug: ROLES.ADMIN } }));
   const vendorRole = await prisma.role.findUnique({ where: { slug: ROLES.VENDOR } });
   const customerRole = await prisma.role.findUnique({ where: { slug: ROLES.CUSTOMER } });
 
   if (!adminRole || !vendorRole || !customerRole) {
-    throw new Error("Required roles not found in DB. Make sure database migrations and role seeding have run.");
+    throw new Error("Unable to initialize required roles in DB.");
   }
 
   // 2. Admin User
