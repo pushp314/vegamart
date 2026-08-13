@@ -58,7 +58,7 @@ post_deploy_health_check() {
 
     # We skip backend specific health check if it doesn't exist, but usually it does.
     # Alternatively, we can check a known public endpoint.
-    if ! check_url_health "http://127.0.0.1:8080/api/v1/system/settings/public"; then
+    if ! check_url_health "http://127.0.0.1:8080/api/v1/health"; then
         log_warn "Backend health check failed. Please ensure the backend is running correctly."
         return 1
     fi
