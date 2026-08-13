@@ -38,12 +38,12 @@ distribute_env "$release_dir"
 
 # Backend Build
 log_info "Installing backend dependencies and building..."
-su - vegamart -c "cd $release_dir/backend && npm ci"
+su - vegamart -c "cd $release_dir/backend && npm install --no-audit --no-fund"
 su - vegamart -c "cd $release_dir/backend && npm run build"
 
 # Frontend Build
 log_info "Installing frontend dependencies and building..."
-su - vegamart -c "cd $release_dir/gali-connect-main && npm ci"
+su - vegamart -c "cd $release_dir/gali-connect-main && npm install --no-audit --no-fund"
 su - vegamart -c "cd $release_dir/gali-connect-main && NITRO_PRESET=node-server npm run build"
 
 # Database Backup (if existing db)
