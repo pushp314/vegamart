@@ -1,5 +1,9 @@
 import request from "supertest";
 
+jest.mock("../../src/repositories/session.repository", () => ({
+  findActiveById: jest.fn().mockResolvedValue({ id: "test-session" }),
+}));
+
 import app from "../../src/app";
 import { ROLES } from "../../src/constants/roles";
 import { signAccessToken } from "../../src/services/token.service";

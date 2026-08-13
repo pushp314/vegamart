@@ -18,6 +18,10 @@ jest.mock("../../src/repositories/inventory.repository", () => ({
   releaseQuantityForOrder: jest.fn(),
 }));
 
+jest.mock("../../src/services/earning.service", () => ({
+  reverseOrderEarnings: jest.fn(),
+}));
+
 jest.mock("../../src/database/prisma", () => ({
   __esModule: true,
   default: { $transaction: jest.fn() },
@@ -27,6 +31,7 @@ import * as orderRepo from "../../src/repositories/order.repository";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
 import defaultPrisma from "../../src/database/prisma";
 import { paymentService } from "../../src/services/payment.service";
+import * as earningService from "../../src/services/earning.service";
 
 const repo = orderRepo as jest.Mocked<typeof orderRepo>;
 const invRepo = inventoryRepo as jest.Mocked<typeof inventoryRepo>;
@@ -35,7 +40,10 @@ const paymentServiceMock = paymentService as jest.Mocked<typeof paymentService>;
 const mockReq = { user: { id: "u1" } } as any;
 
 const mockTx = {
-  order: { updateMany: jest.fn() },
+  order: { 
+    updateMany: jest.fn(),
+    findUnique: jest.fn(),
+  },
   orderEvent: { create: jest.fn() },
 };
 const prismaMock = defaultPrisma as any;
@@ -260,6 +268,7 @@ describe("order lifecycle - refundOrderLifecycle", () => {
     const order = makeOrder({ status: "DELIVERED", payment_status: "PAID" });
     paymentServiceMock.refund.mockResolvedValue({ status: "processed", payment: { status: "REFUNDED" } });
     repo.findById.mockResolvedValue(makeOrder({ status: "REFUNDED", payment_status: "REFUNDED" }));
+    mockTx.order.findUnique.mockResolvedValue({ vendor_id: "v1", delivery_partner_id: null, total: dec(240) });
 
     await refundOrderLifecycle({ order, reason: "Not satisfied", actorType: "customer", actorId: "u1", req: mockReq });
 
@@ -272,6 +281,12 @@ describe("order lifecycle - refundOrderLifecycle", () => {
     );
     expect(mockTx.orderEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: "REFUNDED" }) })
+    );
+    expect(earningService.reverseOrderEarnings).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "order-1", vendor_id: "v1", total: 240 }),
+      1.0,
+      "order-refund",
+      mockTx
     );
   });
 

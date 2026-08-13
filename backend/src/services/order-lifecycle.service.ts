@@ -5,6 +5,7 @@ import prisma from "../database/prisma";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
 import { paymentService } from "./payment.service";
+import { reverseOrderEarnings } from "./earning.service";
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -208,6 +209,25 @@ export async function refundOrderLifecycle(params: OrderLifecycleParams): Promis
         order: { connect: { id: order.id } },
       },
     });
+
+    const fullOrder = await tx.order.findUnique({
+      where: { id: order.id },
+      select: { vendor_id: true, delivery_partner_id: true, total: true },
+    });
+    if (fullOrder) {
+      await reverseOrderEarnings(
+        {
+          id: order.id,
+          vendor_id: fullOrder.vendor_id,
+          delivery_partner_id: fullOrder.delivery_partner_id,
+          total: fullOrder.total.toNumber(),
+        },
+        1.0, // full refund fraction
+        "order-refund", // fallback reference id
+        tx
+      );
+    }
+
     return true;
   });
 

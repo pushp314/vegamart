@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { api, authStorage, AUTH_SESSION_EVENT, type AuthSessionPayload } from "@/lib/api";
+import { api, authStorage, AUTH_SESSION_EVENT, ACCESS_TOKEN_KEY, USER_STORAGE_KEY, type AuthSessionPayload } from "@/lib/api";
 
 export type UserRole = "customer" | "vendor" | "admin" | "super_admin" | "delivery";
 
@@ -76,14 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Restore session from localStorage and validate with backend
     const validateSession = async () => {
       try {
-        const storedToken = localStorage.getItem("vegamart_access_token");
+        const storedToken = localStorage.getItem(ACCESS_TOKEN_KEY);
         if (storedToken) {
           setAccessToken(storedToken);
           // Fetch fresh user profile
           const res = await api.get<User>("/users/me");
           if (res.success && res.data) {
             setUser(res.data);
-            localStorage.setItem("vegamart_user", JSON.stringify(res.data));
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(res.data));
           } else {
             // Token invalid or expired
             setAccessToken(null);
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAccessToken(detail.access_token);
         if (detail.user) {
           setUser(detail.user);
-          localStorage.setItem("vegamart_user", JSON.stringify(detail.user));
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(detail.user));
         }
       } else {
         setAccessToken(null);
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await api.put<User>("/users/me", data);
     if (res.success && res.data) {
       setUser(res.data);
-      localStorage.setItem("vegamart_user", JSON.stringify(res.data));
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(res.data));
       return { success: true };
     }
     return { success: false, message: res.error?.message || "Failed to update profile" };
@@ -263,7 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       const updated = { ...user, role: newRole };
       setUser(updated);
-      localStorage.setItem("vegamart_user", JSON.stringify(updated));
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
     }
   };
 

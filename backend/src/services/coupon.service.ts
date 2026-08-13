@@ -349,9 +349,6 @@ export const couponService = {
     if (coupon.max_discount !== null) {
       discount = Math.min(discount, coupon.max_discount.toNumber());
     }
-    // A FIXED (or oversized percentage) discount must never exceed the eligible
-    // subtotal — the final payable amount can therefore never go negative.
-    discount = Math.min(discount, subtotal);
-    return Math.max(0, Math.round(discount * 100) / 100);
+    return Math.round(Math.min(discount, subtotal) * 100) / 100;
   },
 };

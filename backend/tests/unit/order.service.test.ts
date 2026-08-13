@@ -34,6 +34,10 @@ jest.mock("../../src/repositories/inventory.repository", () => ({
   consumeQuantityForOrder: jest.fn(),
 }));
 
+jest.mock("../../src/services/earning.service", () => ({
+  reverseOrderEarnings: jest.fn(),
+}));
+
 jest.mock("../../src/database/prisma", () => ({
   __esModule: true,
   default: { $transaction: jest.fn(), orderItem: { updateMany: jest.fn() } },
@@ -70,8 +74,9 @@ const completeDeliveryMock = completeDelivery as jest.MockedFunction<typeof comp
 const mockReq = { user: { id: "u1" } } as any;
 
 const mockTx = {
-  order: { updateMany: jest.fn() },
+  order: { updateMany: jest.fn(), findUnique: jest.fn().mockResolvedValue({ vendor_id: "v1", delivery_partner_id: null, total: dec(240) }) },
   orderEvent: { create: jest.fn() },
+  orderItem: { updateMany: jest.fn() },
 };
 const prismaMock = defaultPrisma as any;
 const namedPrismaMock = namedPrisma as any;

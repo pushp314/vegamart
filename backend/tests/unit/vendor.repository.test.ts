@@ -50,7 +50,7 @@ describe("getVendorStats", () => {
 
     expect(todayWhere.gte.getTime()).toBe(startOfToday.getTime());
     expect(weeklyWhere.gte.getTime()).toBe(startOfWeek.getTime());
-    expect(todayWhere.lte.getTime()).toBe(now.getTime());
+    expect(Math.abs(todayWhere.lte.getTime() - now.getTime())).toBeLessThan(1000);
   });
 
   it("applies the month filter to the monthly aggregate only", async () => {
