@@ -30,7 +30,14 @@ jest.mock("../../src/repositories/order.repository", () => ({
 
 jest.mock("../../src/repositories/inventory.repository", () => ({
   releaseQuantityForOrder: jest.fn(),
+  releaseReserved: jest.fn(),
   consumeQuantityForOrder: jest.fn(),
+}));
+
+jest.mock("../../src/database/prisma", () => ({
+  __esModule: true,
+  default: { $transaction: jest.fn(), orderItem: { updateMany: jest.fn() } },
+  prisma: { $transaction: jest.fn(), orderItem: { updateMany: jest.fn() } },
 }));
 
 jest.mock("../../src/services/order-delivery.service", () => ({
@@ -41,6 +48,8 @@ jest.mock("../../src/services/order-delivery.service", () => ({
 
 import * as orderRepo from "../../src/repositories/order.repository";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
+import defaultPrisma from "../../src/database/prisma";
+import { prisma as namedPrisma } from "../../src/database/prisma";
 import { vendorService } from "../../src/services/vendor.service";
 import { paymentService } from "../../src/services/payment.service";
 import { notificationService } from "../../src/services/notification.service";
@@ -60,11 +69,18 @@ const completeDeliveryMock = completeDelivery as jest.MockedFunction<typeof comp
 
 const mockReq = { user: { id: "u1" } } as any;
 
+const mockTx = {
+  order: { updateMany: jest.fn() },
+  orderEvent: { create: jest.fn() },
+};
+const prismaMock = defaultPrisma as any;
+const namedPrismaMock = namedPrisma as any;
+
 function dec(value: number) {
   return { toNumber: () => value, toFixed: (n: number) => value.toFixed(n) } as any;
 }
 
-function makeOrder(overrides: Partial<orderRepo.OrderRow> = {}) {
+function makeOrder(overrides: Record<string, unknown> = {}) {
   return {
     id: "order-1",
     order_number: "GC-1",
@@ -104,6 +120,10 @@ function makeOrder(overrides: Partial<orderRepo.OrderRow> = {}) {
 describe("order service", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    prismaMock.$transaction.mockImplementation((cb: (tx: typeof mockTx) => unknown) => cb(mockTx));
+    mockTx.order.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.orderEvent.create.mockResolvedValue({ id: "ev1" });
+    namedPrismaMock.orderItem.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it("lists a customer's orders", async () => {
@@ -130,13 +150,22 @@ describe("order service", () => {
     await expect(orderService.getOrderForUser("u1", "order-1")).rejects.toMatchObject({ statusCode: 403 });
   });
 
-  it("cancels an order in a cancelable status", async () => {
-    repo.findById.mockResolvedValue(makeOrder());
-    repo.updateOrderStatus.mockResolvedValue(makeOrder({ status: "CANCELLED", cancelled_at: new Date() }));
+  it("cancels an order in a cancelable status through the lifecycle", async () => {
+    repo.findById
+      .mockResolvedValueOnce(makeOrder())
+      .mockResolvedValue(makeOrder({ status: "CANCELLED", cancelled_at: new Date() }));
 
     const updated = await orderService.cancelOrder("u1", "order-1", { reason: "Changed mind" }, mockReq);
     expect(updated.status).toBe("CANCELLED");
-    expect(repo.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "CANCELLED" }));
+    // The CANCELLED claim is the atomic lifecycle update, not a blind status write.
+    expect(repo.updateOrderStatus).not.toHaveBeenCalled();
+    expect(mockTx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "order-1", status: { in: expect.any(Array) } }),
+        data: expect.objectContaining({ status: "CANCELLED" }),
+      })
+    );
+    expect(invRepo.releaseQuantityForOrder).toHaveBeenCalledWith("order-1", mockTx);
   });
 
   it("rejects cancelling an order not in a cancelable status", async () => {
@@ -145,28 +174,50 @@ describe("order service", () => {
       statusCode: 400,
       code: "NOT_CANCELLABLE",
     });
+    expect(mockTx.order.updateMany).not.toHaveBeenCalled();
+    expect(paymentServiceMock.refund).not.toHaveBeenCalled();
   });
 
-  it("attempts a refund and releases reserved inventory when cancelling a paid order", async () => {
-    repo.findById.mockResolvedValue(makeOrder({ payment_status: "PAID" }));
-    repo.updateOrderStatus.mockResolvedValue(makeOrder({ status: "CANCELLED" }));
-    paymentServiceMock.refund.mockResolvedValue({ refund_id: "rf-1" });
+  it("refunds a paid order before claiming cancellation and releases inventory in the same transaction", async () => {
+    repo.findById
+      .mockResolvedValueOnce(makeOrder({ payment_status: "PAID" }))
+      .mockResolvedValue(makeOrder({ status: "CANCELLED", payment_status: "REFUNDED" }));
+    paymentServiceMock.refund.mockResolvedValue({ refund_id: "rf-1", status: "processed", payment: { status: "REFUNDED" } });
 
     await orderService.cancelOrder("u1", "order-1", {}, mockReq);
 
     expect(paymentServiceMock.refund).toHaveBeenCalledWith("u1", "order-1", expect.objectContaining({ reason: undefined }), mockReq);
+    expect(mockTx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "order-1" }),
+        data: expect.objectContaining({ status: "CANCELLED", payment_status: "REFUNDED" }),
+      })
+    );
+    expect(invRepo.releaseQuantityForOrder).toHaveBeenCalledWith("order-1", mockTx);
     expect(notificationService.orderStatus).toHaveBeenCalledWith("u1", "GC-1", "Order cancelled", expect.stringContaining("has been cancelled"), expect.objectContaining({ order_id: "order-1" }));
   });
 
-  it("releases reserved inventory and propagates the error when the refund fails on cancel", async () => {
+  it("keeps the order recoverable when the refund fails on cancel (no cancellation, no release)", async () => {
     repo.findById.mockResolvedValue(makeOrder({ payment_status: "PAID" }));
-    repo.updateOrderStatus.mockResolvedValue(makeOrder({ status: "CANCELLED" }));
     paymentServiceMock.refund.mockRejectedValue(new Error("refund gateway timeout"));
 
     await expect(orderService.cancelOrder("u1", "order-1", {}, mockReq)).rejects.toThrow(
       "refund gateway timeout"
     );
-    expect(invRepo.releaseQuantityForOrder).toHaveBeenCalledWith("order-1");
+    // The order was never claimed CANCELLED and inventory stays reserved so the
+    // customer can simply retry the cancellation.
+    expect(mockTx.order.updateMany).not.toHaveBeenCalled();
+    expect(invRepo.releaseQuantityForOrder).not.toHaveBeenCalled();
+  });
+
+  it("is idempotent when cancelling an already-cancelled order", async () => {
+    repo.findById.mockResolvedValue(makeOrder({ status: "CANCELLED", cancelled_at: new Date() }));
+
+    const updated = await orderService.cancelOrder("u1", "order-1", {}, mockReq);
+    expect(updated.status).toBe("CANCELLED");
+    expect(paymentServiceMock.refund).not.toHaveBeenCalled();
+    expect(mockTx.order.updateMany).not.toHaveBeenCalled();
+    expect(invRepo.releaseQuantityForOrder).not.toHaveBeenCalled();
   });
 
   it("transitions status and completes delivery (OTP-verified) for a vendor", async () => {
@@ -214,5 +265,100 @@ describe("order service", () => {
     await expect(orderService.transitionStatus("u-vendor", "order-1", { status: "CONFIRMED" }, mockReq)).rejects.toMatchObject({
       statusCode: 403,
     });
+  });
+
+  it("rejects a backwards/arbitrary vendor transition", async () => {
+    vendorServiceMock.getMyVendor.mockResolvedValue({ id: "v1" } as any);
+    repo.findById.mockResolvedValue(makeOrder({ status: "PACKED" }));
+
+    await expect(
+      orderService.transitionStatus("u-vendor", "order-1", { status: "CONFIRMED" }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_STATUS" });
+    expect(repo.updateOrderStatus).not.toHaveBeenCalled();
+  });
+
+  it("routes a vendor cancellation through the refund-first lifecycle", async () => {
+    vendorServiceMock.getMyVendor.mockResolvedValue({ id: "v1" } as any);
+    repo.findById
+      .mockResolvedValueOnce(makeOrder({ payment_status: "PAID" }))
+      .mockResolvedValue(makeOrder({ status: "CANCELLED", payment_status: "REFUNDED" }));
+    paymentServiceMock.refund.mockResolvedValue({ status: "processed", payment: { status: "REFUNDED" } });
+
+    const updated = await orderService.transitionStatus(
+      "u-vendor",
+      "order-1",
+      { status: "CANCELLED", note: "Vendor cancelled" },
+      mockReq
+    );
+    expect(updated.status).toBe("CANCELLED");
+    expect(paymentServiceMock.refund).toHaveBeenCalledWith("u-vendor", "order-1", expect.objectContaining({ reason: "Vendor cancelled" }), mockReq);
+    expect(mockTx.order.updateMany).toHaveBeenCalled();
+    expect(invRepo.releaseQuantityForOrder).toHaveBeenCalledWith("order-1", mockTx);
+  });
+
+  it("only refunds a delivered order through the refund lifecycle", async () => {
+    repo.findById
+      .mockResolvedValueOnce(makeOrder({ status: "DELIVERED", payment_status: "PAID" }))
+      .mockResolvedValue(makeOrder({ status: "REFUNDED", payment_status: "REFUNDED" }));
+    paymentServiceMock.refund.mockResolvedValue({ status: "processed", payment: { status: "REFUNDED" } });
+
+    const updated = await orderService.requestRefund("u1", "order-1", "Not satisfied", mockReq);
+    expect(updated.status).toBe("REFUNDED");
+    expect(paymentServiceMock.refund).toHaveBeenCalledWith("u1", "order-1", expect.objectContaining({ reason: "Not satisfied" }), mockReq);
+    expect(repo.updateOrderStatus).not.toHaveBeenCalled();
+  });
+
+  it("rejects refund requests for non-delivered orders", async () => {
+    repo.findById.mockResolvedValue(makeOrder({ status: "CONFIRMED" }));
+    await expect(orderService.requestRefund("u1", "order-1", "reason", mockReq)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_STATUS",
+    });
+  });
+
+  it("rejects an already-rejected item", async () => {
+    vendorServiceMock.getMyVendor.mockResolvedValue({ id: "v1" } as any);
+    repo.findById.mockResolvedValue(
+      makeOrder({
+        items: [
+          { id: "item-1", product_id: "p1", product_name: "Tomato", quantity: 2, total_price: 20, status: "rejected" },
+        ],
+      })
+    );
+
+    await expect(orderService.rejectOrderItem("u-vendor", "order-1", "item-1", mockReq)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "BAD_REQUEST",
+    });
+    expect(namedPrismaMock.orderItem.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects an item, releases its reservation, and issues a partial refund", async () => {
+    vendorServiceMock.getMyVendor.mockResolvedValue({ id: "v1" } as any);
+    repo.findById.mockResolvedValue(
+      makeOrder({
+        payment_status: "PAID",
+        items: [
+          { id: "item-1", product_id: "p1", product_name: "Tomato", quantity: 2, total_price: 20, status: "active" },
+        ],
+      })
+    );
+    paymentServiceMock.refund.mockResolvedValue({ status: "processed", payment: { status: "PARTIALLY_REFUNDED" } });
+    repo.updateOrder.mockResolvedValue(makeOrder({ status: "CONFIRMED", payment_status: "PARTIALLY_REFUNDED" }));
+
+    const result = await orderService.rejectOrderItem("u-vendor", "order-1", "item-1", mockReq);
+    expect(result).toEqual({ success: true, item_id: "item-1" });
+    expect(namedPrismaMock.orderItem.updateMany).toHaveBeenCalledWith({
+      where: { id: "item-1", status: "active" },
+      data: { status: "rejected" },
+    });
+    expect(invRepo.releaseReserved).toHaveBeenCalledWith("p1", 2);
+    expect(paymentServiceMock.refund).toHaveBeenCalledWith(
+      "u-vendor",
+      "order-1",
+      expect.objectContaining({ amount: 20 }),
+      mockReq
+    );
+    expect(repo.updateOrder).toHaveBeenCalledWith("order-1", { payment_status: "PARTIALLY_REFUNDED" });
   });
 });

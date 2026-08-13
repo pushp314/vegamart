@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { couponService } from "../services/coupon.service";
+import * as couponRepo from "../repositories/coupon.repository";
 import { cartService } from "../services/cart.service";
 import { vendorService } from "../services/vendor.service";
 import { sendCreated, sendSuccess } from "../utils/ApiResponse";
@@ -60,11 +61,8 @@ export const listCoupons = asyncHandler(async (req: Request, res: Response) => {
  *     tags: [Coupons]
  */
 export const listAvailableCoupons = asyncHandler(async (_req: Request, res: Response) => {
-  const result = await couponService.listAdmin({
-    is_active: "true",
-    per_page: 20,
-  });
-  return sendSuccess(res, result.rows.map(c => ({
+  const rows = await couponRepo.listAvailableForCustomer(new Date());
+  return sendSuccess(res, rows.map(c => ({
     code: c.code,
     desc: c.type === "PERCENTAGE" ? `Flat ${Number(c.value)}% OFF` : c.type === "FIXED" ? `Flat ₹${Number(c.value)} OFF` : "Free Delivery",
   })));

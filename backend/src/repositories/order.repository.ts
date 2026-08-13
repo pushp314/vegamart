@@ -1,6 +1,8 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import prisma from "../database/prisma";
+
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 const baseSelect = {
   id: true,
@@ -205,8 +207,8 @@ export interface CreateOrderInput {
   }>;
 }
 
-export async function createOrder(input: CreateOrderInput): Promise<OrderRow> {
-  const row = await prisma.order.create({
+export async function createOrder(input: CreateOrderInput, db: DbClient = prisma): Promise<OrderRow> {
+  const row = await db.order.create({
     data: {
       order_number: input.order_number,
       user_id: input.user_id,
@@ -291,7 +293,8 @@ export async function updateOrderStatus(
     actorId?: string | null;
     timestamps?: Record<string, Date | string | null>;
     otp_code?: string | null;
-  }
+  },
+  db: DbClient = prisma
 ): Promise<OrderRow> {
   const eventData: Prisma.OrderEventUncheckedCreateWithoutOrderInput = {
     status: data.status as Prisma.OrderEventCreateInput["status"],
@@ -299,25 +302,28 @@ export async function updateOrderStatus(
     actor_type: data.actorType ?? null,
     actor_id: data.actorId ?? null,
   };
-  const row = await prisma.$transaction(async (tx) => {
+  const orderData: Prisma.OrderUpdateInput = {
+    status: data.status as Prisma.OrderUpdateInput["status"],
+    ...(data.timestamps ?? {}),
+    ...(data.otp_code !== undefined ? { otp_code: data.otp_code } : {}),
+  };
+  const apply = async (tx: DbClient) => {
     await tx.orderEvent.create({
       data: { ...eventData, order: { connect: { id } } },
     });
     return tx.order.update({
       where: { id },
-      data: {
-        status: data.status as Prisma.OrderUpdateInput["status"],
-        ...(data.timestamps ?? {}),
-        ...(data.otp_code !== undefined ? { otp_code: data.otp_code } : {}),
-      },
+      data: orderData,
       select: baseSelect,
     });
-  });
+  };
+  const row =
+    db === prisma ? await prisma.$transaction((tx) => apply(tx)) : await apply(db);
   return row as unknown as OrderRow;
 }
 
-export async function updateOrder(id: string, data: Prisma.OrderUpdateInput): Promise<OrderRow> {
-  const row = await prisma.order.update({
+export async function updateOrder(id: string, data: Prisma.OrderUpdateInput, db: DbClient = prisma): Promise<OrderRow> {
+  const row = await db.order.update({
     where: { id },
     data,
     select: baseSelect,

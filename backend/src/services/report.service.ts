@@ -14,6 +14,7 @@ import {
   type ExportColumn,
   type ExportFormat,
 } from "../utils/report-export";
+import { parseDateParam } from "../utils/time";
 
 export interface ReportDateRange {
   from: Date;
@@ -28,9 +29,9 @@ export function resolveDateRange(params: {
   const now = new Date();
 
   if (params.from && params.to) {
-    const from = new Date(params.from);
-    const to = new Date(params.to);
-    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+    const from = parseDateParam(params.from, false);
+    const to = parseDateParam(params.to, true);
+    if (!from || !to) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid date range.", { code: "INVALID_DATE_RANGE" });
     }
     if (from >= to) {

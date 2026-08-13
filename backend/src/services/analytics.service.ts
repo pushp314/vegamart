@@ -4,13 +4,14 @@ import * as analyticsRepo from "../repositories/analytics.repository";
 import { cacheService } from "../database/cache";
 import prisma from "../database/prisma";
 import log from "../config/logger";
+import { parseDateParam } from "../utils/time";
 
 function resolveRange(params: { from?: string; to?: string; days?: string }): analyticsRepo.DateRange {
   const now = new Date();
   if (params.from && params.to) {
-    const from = new Date(params.from);
-    const to = new Date(params.to);
-    if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from < to) {
+    const from = parseDateParam(params.from, false);
+    const to = parseDateParam(params.to, true);
+    if (from && to && from < to) {
       return { from, to };
     }
   }

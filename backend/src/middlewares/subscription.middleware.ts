@@ -120,18 +120,28 @@ export const checkVendorDailyOrderLimit = async (vendorId: string) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const counter = await prisma.dailyOrderCounter.findUnique({
-    where: {
-      vendor_id_date: {
-        vendor_id: vendorId,
-        date: today
-      }
+  // Atomic pre-check: create today's counter row (if missing) then read it under
+  // `FOR UPDATE`, so two concurrent checks serialise on the row instead of both
+  // passing the old `findUnique` + throw. The authoritative limit is still
+  // enforced at checkout by the conditional increment in
+  // `dailyOrderCounterRepo.incrementForVendor`; this only rejects up-front
+  // without consuming a slot.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      INSERT INTO daily_order_counters (id, vendor_id, date, count, created_at, updated_at)
+      VALUES (gen_random_uuid(), ${vendorId}::uuid, ${today}::date, 0, now(), now())
+      ON CONFLICT (vendor_id, date) DO NOTHING
+    `;
+    const rows = await tx.$queryRaw<Array<{ count: number }>>`
+      SELECT count FROM daily_order_counters
+      WHERE vendor_id = ${vendorId}::uuid AND date = ${today}::date
+      FOR UPDATE
+    `;
+    const count = rows[0]?.count ?? 0;
+    if (count >= orderLimit) {
+      throw new ApiError(HttpStatus.FORBIDDEN, `Vendor is currently busy and has reached their daily order limit.`, {
+        code: "DAILY_ORDER_LIMIT_REACHED"
+      });
     }
   });
-
-  if (counter && counter.count >= orderLimit) {
-    throw new ApiError(HttpStatus.FORBIDDEN, `Vendor is currently busy and has reached their daily order limit.`, {
-      code: "DAILY_ORDER_LIMIT_REACHED"
-    });
-  }
 };

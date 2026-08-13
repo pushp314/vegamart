@@ -1,6 +1,8 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import prisma from "../database/prisma";
+import { ApiError } from "../utils/ApiError";
+import { HttpStatus } from "../utils/httpStatus";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -112,11 +114,53 @@ export async function reserveQuantity(productId: string, quantity: number): Prom
   return result.count > 0;
 }
 
-export async function releaseReserved(productId: string, quantity: number): Promise<void> {
-  await prisma.inventoryItem.updateMany({
-    where: { product_id: productId, reserved: { gte: quantity } },
-    data: { reserved: { decrement: quantity } },
-  });
+/**
+ * Atomically reserves the requested quantities inside a transaction.
+ *
+ * For every product the inventory row is ensured to exist (seeded from the
+ * product's coarse `stock` when missing) and the reservation is applied with a
+ * conditional guard so concurrent checkouts can never over-reserve:
+ *
+ *   UPDATE ... SET reserved = reserved + qty
+ *   WHERE product_id = ? AND quantity - reserved >= qty
+ *
+ * A product that fails the guard aborts the whole checkout transaction, so no
+ * partial reservations are ever persisted. Returns nothing on success and
+ * throws `INSUFFICIENT_STOCK` on the first shortfall.
+ */
+export async function reserveAvailable(
+  items: Array<{ product_id: string; quantity: number; name: string }>,
+  db: DbClient = prisma
+): Promise<void> {
+  for (const item of items) {
+    await db.$executeRaw`
+      INSERT INTO inventory_items (id, product_id, quantity, reserved, low_stock_threshold, location, updated_by, created_at, updated_at)
+      SELECT gen_random_uuid(), p.id, p.stock, 0, 5, NULL, NULL, now(), now()
+      FROM products p
+      WHERE p.id = ${item.product_id}::uuid
+      ON CONFLICT (product_id) DO NOTHING
+    `;
+    const reserved = await db.$queryRaw<Array<{ id: string }>>`
+      UPDATE inventory_items
+      SET reserved = reserved + ${item.quantity}, updated_at = now()
+      WHERE product_id = ${item.product_id}::uuid
+        AND quantity - reserved >= ${item.quantity}
+      RETURNING id
+    `;
+    if (reserved.length === 0) {
+      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, `Insufficient stock for "${item.name}".`, {
+        code: "INSUFFICIENT_STOCK",
+      });
+    }
+  }
+}
+
+export async function releaseReserved(productId: string, quantity: number, db: DbClient = prisma): Promise<void> {
+  await db.$executeRaw`
+    UPDATE inventory_items
+    SET reserved = GREATEST(0, reserved - ${quantity}), updated_at = now()
+    WHERE product_id = ${productId}::uuid
+  `;
 }
 
 export async function consumeReserved(productId: string, quantity: number, db: DbClient = prisma): Promise<void> {
@@ -152,10 +196,18 @@ export async function reserveQuantityFromOrder(orderId: string, _req?: unknown):
   }
 }
 
-export async function releaseQuantityForOrder(orderId: string): Promise<void> {
-  const items = await listByOrder(orderId);
+/**
+ * Releases the reserved stock for every item of an order.
+ *
+ * Accepts an optional db so it can run inside a transaction (e.g. the atomic
+ * CANCELLED claim), keeping the inventory release exactly-once with the status
+ * transition. `GREATEST(0, ...)` guarantees reservations can never go negative
+ * even if the same order is released twice.
+ */
+export async function releaseQuantityForOrder(orderId: string, db: DbClient = prisma): Promise<void> {
+  const items = await listByOrder(orderId, db);
   for (const item of items) {
-    await releaseReserved(item.product_id, item.quantity);
+    await releaseReserved(item.product_id, item.quantity, db);
   }
 }
 

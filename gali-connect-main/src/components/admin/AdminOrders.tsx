@@ -239,7 +239,8 @@ export function AdminOrders() {
                       <div className="mt-2 text-sm flex gap-2 text-muted-foreground items-start">
                         <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
                         <span>
-                          {selectedOrder.address.street}, {selectedOrder.address.city}, {selectedOrder.address.state} {selectedOrder.address.pincode}
+                          {selectedOrder.address.full_address}
+                          {selectedOrder.address.landmark ? `, ${selectedOrder.address.landmark}` : ""}
                         </span>
                       </div>
                     )}

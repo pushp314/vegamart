@@ -195,48 +195,74 @@ export function StreetVendorMap() {
   useEffect(() => {
     let cancelled = false;
     let ws: WebSocket | null = null;
+    let connectTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectAttempts = 0;
 
-    // Delay WS creation slightly to avoid Strict Mode double-invoke race
-    const timer = setTimeout(() => {
-      if (cancelled) return;
-      ws = new WebSocket(`${WS_BASE_URL}/vendors/stream-roaming`);
+    const MAX_RECONNECT_ATTEMPTS = 10;
+    const BASE_RECONNECT_MS = 1000;
+    const MAX_RECONNECT_MS = 30000;
 
-      const applyLocation = (vendorId: string, lat: number, lng: number, isMoving: boolean) => {
-        setVendors((prev) => {
-          if (prev.some((v) => v.id === vendorId)) {
-            return prev.map((v) => (v.id === vendorId ? { ...v, lat, lng, isMoving } : v));
-          }
-          if (fetchedVendorIdsRef.current.has(vendorId)) return prev;
-          fetchedVendorIdsRef.current.add(vendorId);
-          api
-            .get<any>(`/vendors/${vendorId}`)
-            .then((res) => {
-              const v = res?.data?.data ?? res?.data;
-              if (!v || !v.latitude || !v.longitude || v.is_open === false) {
-                fetchedVendorIdsRef.current.delete(vendorId);
-                return;
-              }
-              setVendors((curr) =>
-                curr.some((x) => x.id === v.id)
-                  ? curr.map((x) => (x.id === v.id ? { ...x, lat, lng, isMoving } : x))
-                  : [
-                      ...curr,
-                      {
-                        id: v.id,
-                        name: v.business_name,
-                        category: v.category?.toLowerCase() || "vegetables",
-                        lat,
-                        lng,
-                        isMoving,
-                      },
-                    ],
-              );
-            })
-            .catch(() => {
+    const applyLocation = (vendorId: string, lat: number, lng: number, isMoving: boolean) => {
+      setVendors((prev) => {
+        if (prev.some((v) => v.id === vendorId)) {
+          return prev.map((v) => (v.id === vendorId ? { ...v, lat, lng, isMoving } : v));
+        }
+        if (fetchedVendorIdsRef.current.has(vendorId)) return prev;
+        fetchedVendorIdsRef.current.add(vendorId);
+        api
+          .get<any>(`/vendors/${vendorId}`)
+          .then((res) => {
+            const v = res?.data?.data ?? res?.data;
+            if (!v || !v.latitude || !v.longitude || v.is_open === false) {
               fetchedVendorIdsRef.current.delete(vendorId);
-            });
-          return prev;
-        });
+              return;
+            }
+            setVendors((curr) =>
+              curr.some((x) => x.id === v.id)
+                ? curr.map((x) => (x.id === v.id ? { ...x, lat, lng, isMoving } : x))
+                : [
+                    ...curr,
+                    {
+                      id: v.id,
+                      name: v.business_name,
+                      category: v.category?.toLowerCase() || "vegetables",
+                      lat,
+                      lng,
+                      isMoving,
+                    },
+                  ],
+            );
+          })
+          .catch(() => {
+            fetchedVendorIdsRef.current.delete(vendorId);
+          });
+        return prev;
+      });
+    };
+
+    const scheduleReconnect = () => {
+      if (cancelled || reconnectTimer) return;
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
+      const delay = Math.min(BASE_RECONNECT_MS * 2 ** reconnectAttempts, MAX_RECONNECT_MS);
+      reconnectAttempts += 1;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      try {
+        ws = new WebSocket(`${WS_BASE_URL}/vendors/stream-roaming`);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        reconnectAttempts = 0;
       };
 
       ws.onmessage = (event) => {
@@ -256,17 +282,47 @@ export function StreetVendorMap() {
         }
       };
 
+      // Closing here guarantees `onclose` fires even if the server never
+      // completes the handshake, so reconnection is not skipped on hard errors.
       ws.onerror = () => {
-        /* suppress console noise */
+        try {
+          ws?.close();
+        } catch {
+          /* noop */
+        }
       };
+
+      ws.onclose = () => {
+        ws = null;
+        scheduleReconnect();
+      };
+    };
+
+    // Delay WS creation slightly to avoid Strict Mode double-invoke race.
+    connectTimer = setTimeout(() => {
+      if (cancelled) return;
+      connect();
     }, 100);
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
-      if (ws && ws.readyState !== WebSocket.CLOSED && ws.readyState !== WebSocket.CLOSING) {
-        ws.close();
+      if (connectTimer) clearTimeout(connectTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        // Detach handlers first so the cleanup close cannot schedule a
+        // reconnect for a component that is being unmounted.
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.onmessage = null;
+        try {
+          if (ws.readyState !== WebSocket.CLOSED && ws.readyState !== WebSocket.CLOSING) {
+            ws.close();
+          }
+        } catch {
+          /* noop */
+        }
       }
+      ws = null;
     };
   }, []);
 

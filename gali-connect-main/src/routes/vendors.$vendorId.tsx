@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { api, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
+import { api, authStorage, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
@@ -82,19 +82,14 @@ function VendorDetail() {
 
   const toggleSubscriptionMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Please login to subscribe");
-      const res = await fetch("/api/v1/users/me/subscriptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ vendor_id: vendor.id }),
-      });
-      if (!res.ok) throw new Error("Failed to subscribe");
-      return res.json();
+      if (!authStorage.getAccessToken()) throw new Error("Please login to subscribe");
+      const res = await api.post<any>("/users/me/subscriptions", { vendor_id: vendor.id });
+      if (!res.success) throw new Error(res.error?.message || "Failed to subscribe");
+      return res.data;
     },
     onSuccess: (data: any) => {
-      setIsSubscribed(data.data?.subscribed);
-      if (data.data?.subscribed) {
+      setIsSubscribed(data?.subscribed);
+      if (data?.subscribed) {
         toast.success(
           `You will now receive notifications when ${vendor.business_name || "the vendor"} is nearby! 🔔`,
         );

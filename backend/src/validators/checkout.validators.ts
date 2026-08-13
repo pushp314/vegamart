@@ -4,6 +4,16 @@ const paymentMethodEnum = z.enum(["RAZORPAY", "COD"]);
 
 export const checkoutPreviewSchema = z.object({
   coupon_code: z.string().trim().min(1).max(50).optional(),
+  items: z
+    .array(
+      z.object({
+        product_id: z.string().uuid(),
+        quantity: z.coerce.number().int().min(1).max(50),
+      })
+    )
+    .min(1)
+    .max(100)
+    .optional(),
 }).strict();
 
 export const placeOrderSchema = z.object({

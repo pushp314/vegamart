@@ -1,5 +1,11 @@
 import type { Request, Response } from "express";
 
+import * as orderRepo from "../repositories/order.repository";
+import {
+  CANCELLABLE_ORDER_STATUSES,
+  cancelOrderLifecycle,
+  refundOrderLifecycle,
+} from "../services/order-lifecycle.service";
 import { paymentService } from "../services/payment.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
@@ -83,6 +89,40 @@ export const razorpayWebhook = asyncHandler(async (req: Request, res: Response) 
  *         description: Refund processed.
  */
 export const refundPayment = asyncHandler(async (req: Request, res: Response) => {
-  const result = await paymentService.refund(req.user!.id, req.params.order_id as string, req.body as RefundPaymentBody, req);
+  const body = req.body as RefundPaymentBody;
+  const result = (await paymentService.refund(req.user!.id, req.params.order_id as string, body, req)) as {
+    payment?: { status?: string };
+  };
+
+  // A full refund must propagate to the order so its state (and any reserved
+  // inventory) stays consistent with the money movement. The lifecycle re-reads
+  // the payment and treats an already-completed refund as success, so it only
+  // claims the terminal status and releases inventory. Partial refunds only
+  // touch the payment record.
+  if (result?.payment?.status === "REFUNDED") {
+    const order = await orderRepo.findById(req.params.order_id as string);
+    if (order) {
+      if (order.status === "DELIVERED") {
+        await refundOrderLifecycle({
+          order,
+          reason: body?.reason ?? null,
+          actorType: "admin",
+          actorId: req.user!.id,
+          req,
+        });
+      } else if (CANCELLABLE_ORDER_STATUSES.includes(order.status)) {
+        await cancelOrderLifecycle({
+          order,
+          reason: body?.reason ?? null,
+          actorType: "admin",
+          actorId: req.user!.id,
+          req,
+        });
+      } else if (order.status === "CANCELLED") {
+        await orderRepo.updateOrder(order.id, { payment_status: "REFUNDED" as never });
+      }
+    }
+  }
+
   return sendSuccess(res, result);
 });

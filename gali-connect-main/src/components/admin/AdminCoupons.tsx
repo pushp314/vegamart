@@ -3,6 +3,7 @@ import { Plus, Tag, Search, CheckCircle2, Ban } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import type { Coupon } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
@@ -88,7 +89,7 @@ export function AdminCoupons() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {coupons.map((coupon: any) => (
+        {coupons.map((coupon: Coupon) => (
           <div
             key={coupon.id}
             className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between"
@@ -108,7 +109,11 @@ export function AdminCoupons() {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground font-medium mb-1">
-                {coupon.type === "PERCENTAGE" ? `${coupon.value}% OFF` : `₹${coupon.value} OFF`}
+                {coupon.type === "PERCENTAGE"
+                  ? `${coupon.value}% OFF`
+                  : coupon.type === "FREE_DELIVERY"
+                    ? "Free Delivery"
+                    : `₹${coupon.value} OFF`}
               </p>
               <p className="text-xs text-muted-foreground/70">
                 Max Discount: ₹{coupon.max_discount}
@@ -187,7 +192,8 @@ export function AdminCoupons() {
                   className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
                   <option value="PERCENTAGE">Percentage</option>
-                  <option value="FLAT">Flat Amount</option>
+                  <option value="FIXED">Flat Amount</option>
+                  <option value="FREE_DELIVERY">Free Delivery</option>
                 </select>
               </div>
               <div className="space-y-2">

@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { Product } from "@/types";
+import type { Product, Vendor, CouponValidation } from "@/types";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
 import { Store, AlertTriangle, Trash2, ArrowRight } from "lucide-react";
 import {
@@ -169,7 +170,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const applyCoupon = async (code: string) => {
     try {
-      const res = await api.post<any>("/coupons/validate", {
+      const res = await api.post<CouponValidation>("/coupons/validate", {
         code,
         items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
       });
@@ -178,7 +179,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       const coupon = res.data;
       setAppliedCoupon(code);
-      setCouponDiscount(coupon.discount_amount || 0);
+      setCouponDiscount(coupon.discount || 0);
       return { success: true, message: "Coupon applied successfully" };
     } catch (err: any) {
       return { success: false, message: err.message || "Failed to apply coupon" };
@@ -190,16 +191,62 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setCouponDiscount(0);
   };
 
-  const subtotal = useMemo(
-    () => items.reduce((acc, item) => acc + item.product.price * item.quantity, 0),
-    [items]
-  );
+  const { isAuthenticated, isGuest, user } = useAuth();
+  const canPreview = !!isAuthenticated && !isGuest && user?.role === "customer" && items.length > 0;
 
-  const deliveryFee = subtotal > 0 ? (settings["platform.delivery_fee"] as number) || 30 : 0;
+  // Authoritative totals come from the backend checkout preview endpoint, which
+  // applies the exact same per-vendor delivery fee / free-delivery threshold /
+  // tax / coupon rules as order creation. The frontend never re-implements those
+  // business rules; the settings-based estimate below is only a fallback for
+  // guests, who cannot call the preview endpoint.
+  const previewRes = useQuery({
+    queryKey: ["checkout-preview", items, appliedCoupon],
+    queryFn: () =>
+      api.post<{
+        items_subtotal?: number;
+        delivery_fee?: number;
+        tax?: number;
+        discount?: number;
+        total?: number;
+      }>("/checkout/preview", {
+        coupon_code: appliedCoupon ?? undefined,
+        items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+      }),
+    enabled: canPreview,
+  });
+  const preview = previewRes?.data?.data;
+
+  const localSubtotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  const subtotal = preview ? Number(preview.items_subtotal ?? localSubtotal) : localSubtotal;
+  // Guest fallback mirrors the backend checkout `computeDeliveryFee`: the
+  // vendor's own delivery_fee/free_delivery_min_order win, otherwise the global
+  // settings apply, and a subtotal at/above the free-delivery threshold waives it.
+  const vendorProfile = firstProduct?.vendor as (Vendor & { delivery_fee?: number }) | undefined;
+  const vendorFee =
+    typeof vendorProfile?.delivery_fee === "number" && vendorProfile.delivery_fee > 0
+      ? vendorProfile.delivery_fee
+      : null;
+  const vendorFreeThreshold =
+    typeof vendorProfile?.free_delivery_min_order === "number"
+      ? vendorProfile.free_delivery_min_order
+      : null;
+  const settingsDeliveryFee = (settings["platform.delivery_fee"] as number) || 30;
+  const settingsFreeThreshold = (settings["platform.free_delivery_threshold"] as number) || 0;
+  const freeDeliveryThreshold = vendorFreeThreshold ?? settingsFreeThreshold;
+  const baseDeliveryFee = vendorFee ?? settingsDeliveryFee;
+  const deliveryFee = preview
+    ? Number(preview.delivery_fee ?? 0)
+    : subtotal > 0
+      ? freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold
+        ? 0
+        : baseDeliveryFee
+      : 0;
   const taxRate = (settings["platform.tax_rate_percent"] as number) || 5;
-  const tax = Math.round((subtotal * taxRate) / 100);
-  const discount = couponDiscount;
-  const total = Math.max(0, subtotal + deliveryFee + tax - discount);
+  const tax = preview ? Number(preview.tax ?? 0) : Math.round((subtotal * taxRate) / 100);
+  const discount = preview ? Number(preview.discount ?? couponDiscount) : couponDiscount;
+  const total = preview
+    ? Number(preview.total ?? 0)
+    : Math.max(0, subtotal + deliveryFee + tax - discount);
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   const pendingVendorName =

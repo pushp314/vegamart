@@ -9,9 +9,14 @@ jest.mock("../../src/database/prisma", () => ({
     notification: { deleteMany: jest.fn() },
     coupon: { updateMany: jest.fn() },
     order: { aggregate: jest.fn() },
-    vendorProfile: { findMany: jest.fn() },
+    vendorProfile: { findMany: jest.fn(), update: jest.fn() },
+    vendorSubscription: { updateMany: jest.fn() },
     auditLog: { findMany: jest.fn() },
   },
+}));
+
+jest.mock("../../src/services/notification.service", () => ({
+  notificationService: { vendor: jest.fn().mockResolvedValue(undefined) },
 }));
 
 import prisma from "../../src/database/prisma";
@@ -23,6 +28,7 @@ import {
   computeDailySalesReport,
   computeDailyVendorSummaries,
   expireExpiredCoupons,
+  expireExpiredMemberships,
 } from "../../src/jobs/job-tasks";
 
 const db = prisma as unknown as {
@@ -32,7 +38,8 @@ const db = prisma as unknown as {
   notification: { deleteMany: jest.Mock };
   coupon: { updateMany: jest.Mock };
   order: { aggregate: jest.Mock };
-  vendorProfile: { findMany: jest.Mock };
+  vendorProfile: { findMany: jest.Mock; update: jest.Mock };
+  vendorSubscription: { updateMany: jest.Mock };
   auditLog: { findMany: jest.Mock };
 };
 
@@ -102,5 +109,42 @@ describe("background jobs", () => {
     expect(summaries[0]!.revenue.toNumber()).toBe(150);
     expect(summaries[1]).toMatchObject({ vendor_id: "v2", orders: 0 });
     expect(summaries[1]!.revenue.toNumber()).toBe(0);
+  });
+
+  it("downgrades vendors whose membership has expired and notifies them", async () => {
+    db.vendorProfile.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "v1",
+          user_id: "u1",
+          business_name: "Sharma Store",
+          membership_plan: { includes_sponsorship: true, name: "Premium" },
+        },
+      ] as any);
+    db.vendorProfile.update.mockResolvedValue({ id: "v1" } as any);
+    db.vendorSubscription.updateMany.mockResolvedValue({ count: 1 } as any);
+
+    await expect(expireExpiredMemberships()).resolves.toBe(1);
+
+    expect(db.vendorProfile.update).toHaveBeenCalledWith({
+      where: { id: "v1" },
+      data: expect.objectContaining({
+        membership_plan: { disconnect: true },
+        membership_tier: "basic",
+        commission_rate: 5,
+        membership_expires_at: null,
+      }),
+    });
+    expect(db.vendorSubscription.updateMany).toHaveBeenCalledWith({
+      where: { vendor_id: "v1", status: { notIn: ["canceled", "expired", "completed"] } },
+      data: { status: "expired", auto_renew: false },
+    });
+  });
+
+  it("does not touch vendors when no membership has expired", async () => {
+    db.vendorProfile.findMany.mockResolvedValue([]);
+    await expect(expireExpiredMemberships()).resolves.toBe(0);
+    expect(db.vendorProfile.update).not.toHaveBeenCalled();
   });
 });

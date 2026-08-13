@@ -181,13 +181,19 @@ export const membershipPlanService = {
       commission_rate:
         plan?.commission_rate !== undefined
           ? plan.commission_rate
-          : input.commission_rate !== undefined && input.commission_rate !== null
-            ? input.commission_rate
-            : undefined,
+          : planId === null
+            ? input.commission_rate !== undefined && input.commission_rate !== null
+              ? input.commission_rate
+              : 5
+            : input.commission_rate !== undefined && input.commission_rate !== null
+              ? input.commission_rate
+              : undefined,
       is_sponsored:
         plan?.includes_sponsorship !== undefined
           ? plan.includes_sponsorship
-          : undefined,
+          : planId === null
+            ? false
+            : undefined,
     };
 
     const updated = await prisma.vendorProfile.update({

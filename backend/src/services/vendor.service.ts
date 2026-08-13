@@ -6,6 +6,9 @@ import log from "../config/logger";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import * as vendorRepo from "../repositories/vendor.repository";
+import * as productRepo from "../repositories/product.repository";
+import { existsById as categoryExists } from "../repositories/category.repository";
+import { listVendorEarningsRecent } from "./earning.service";
 import { findById as findUserById, update as updateUser } from "../repositories/user.repository";
 import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
 import { cacheService } from "../database/cache";
@@ -967,31 +970,143 @@ export const vendorService = {
 
   async bulkUploadProducts(userId: string, fileBuffer: Buffer) {
     const vendor = await this.getMyVendor(userId);
-    
-    // Parse CSV
-    const records: any[] = parse(fileBuffer, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true
+
+    let records: Array<Record<string, string>>;
+    try {
+      records = parse(fileBuffer, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+      });
+    } catch (err) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, `Could not parse CSV: ${(err as Error).message}`, {
+        code: "INVALID_CSV",
+      });
+    }
+    if (records.length === 0) {
+      return { count: 0 };
+    }
+
+    interface BulkRow {
+      name: string;
+      price: number;
+      mrp: number;
+      unit: string;
+      category_id: string;
+      stock: number;
+    }
+
+    // ── Validate every row before persisting anything ──
+    const validRows: BulkRow[] = [];
+    const errors: string[] = [];
+    const categoryCache = new Map<string, boolean>();
+
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      if (!record) continue; // noUncheckedIndexedAccess guard
+      const line = i + 2; // 1-based, skipping the header row
+      const name = String(record.name ?? "").trim();
+      const priceRaw = String(record.price ?? "").trim();
+      const mrpRaw = String(record.mrp ?? "").trim();
+      const categoryRaw = String(record.category_id ?? "").trim();
+      const unit = String(record.unit ?? "").trim() || "kg";
+      const stockRaw = String(record.stock ?? "").trim();
+
+      // Skip fully-empty rows (trailing blank lines produced by editors).
+      if (!name && !priceRaw && !mrpRaw && !categoryRaw && !stockRaw && !unit) continue;
+
+      if (!name) {
+        errors.push(`Row ${line}: "name" is required.`);
+        continue;
+      }
+      if (name.length > 160) {
+        errors.push(`Row ${line}: "name" must be 160 characters or fewer.`);
+        continue;
+      }
+
+      const price = Number(priceRaw);
+      if (!priceRaw || !Number.isFinite(price) || price < 0) {
+        errors.push(`Row ${line}: "price" must be a valid non-negative number.`);
+        continue;
+      }
+
+      let mrp = price;
+      if (mrpRaw) {
+        mrp = Number(mrpRaw);
+        if (!Number.isFinite(mrp) || mrp < 0) {
+          errors.push(`Row ${line}: "mrp" must be a valid non-negative number.`);
+          continue;
+        }
+      }
+
+      let stock = 0;
+      if (stockRaw) {
+        stock = Number(stockRaw);
+        if (!Number.isInteger(stock) || stock < 0) {
+          errors.push(`Row ${line}: "stock" must be a non-negative integer.`);
+          continue;
+        }
+      }
+
+      if (!categoryRaw) {
+        errors.push(`Row ${line}: "category_id" is required.`);
+        continue;
+      }
+      if (!categoryCache.has(categoryRaw)) {
+        categoryCache.set(categoryRaw, await categoryExists(categoryRaw));
+      }
+      if (!categoryCache.get(categoryRaw)) {
+        errors.push(`Row ${line}: category_id "${categoryRaw}" does not exist.`);
+        continue;
+      }
+
+      validRows.push({ name, price, mrp, unit, category_id: categoryRaw, stock });
+    }
+
+    if (errors.length > 0) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Bulk upload failed for ${errors.length} row(s). No products were imported.`,
+        { code: "INVALID_ROWS", details: { errors: errors.join("\n") } }
+      );
+    }
+
+    // ── Deterministic slug generation, deduped against existing products ──
+    const existingSlugs = await productRepo.listSlugs(vendor.id);
+    const taken = new Set(existingSlugs);
+    const rowsWithSlugs = validRows.map((row) => {
+      const slug = uniqueSlug(row.name, taken);
+      taken.add(slug);
+      return { ...row, slug };
     });
 
-    let inserted = 0;
-    for (const record of records) {
-      if (!record.name || !record.price) continue;
-      await prisma.product.create({
-        data: {
-          vendor_id: vendor.id,
-          category_id: record.category_id || undefined,
-          name: record.name,
-          slug: record.name.toLowerCase().replace(/\s+/g, '-'),
-          price: Number(record.price),
-          mrp: record.mrp ? Number(record.mrp) : Number(record.price),
-          unit: record.unit || "kg",
-        }
-      });
-      inserted++;
-    }
-    return { count: inserted };
+    // ── All-or-nothing persistence: a failure rolls back every product ──
+    const created = await prisma.$transaction(async (tx) => {
+      const createdIds: string[] = [];
+      for (const row of rowsWithSlugs) {
+        const product = await tx.product.create({
+          data: {
+            vendor_id: vendor.id,
+            category_id: row.category_id,
+            name: row.name,
+            slug: row.slug,
+            price: row.price,
+            mrp: row.mrp,
+            unit: row.unit,
+            stock: row.stock,
+            total_stock: row.stock,
+            is_available: row.stock > 0,
+          },
+          select: { id: true },
+        });
+        createdIds.push(product.id);
+      }
+      return createdIds;
+    });
+
+    await cacheService.invalidateNamespace("product");
+    return { count: created.length };
   },
 
   async getMyReviews(userId: string) {
@@ -1128,9 +1243,8 @@ export const vendorService = {
   async getVendorEarnings(userId: string, monthFilter?: string) {
     const vendor = await this.getMyVendor(userId);
     const stats = await vendorRepo.getVendorStats(vendor.id, monthFilter);
-    const commission = stats.total_earnings.toNumber();
     const revenue = stats.total_revenue.toNumber();
-    const [recent] = await Promise.all([
+    const [recent, transactions] = await Promise.all([
       prisma.order.findMany({
         where: { vendor_id: vendor.id, status: { notIn: ["CANCELLED", "FAILED"] } },
         orderBy: { created_at: "desc" },
@@ -1143,22 +1257,25 @@ export const vendorService = {
           created_at: true,
         },
       }),
+      listVendorEarningsRecent(vendor.id),
     ]);
     return {
-      today_earnings: Math.round(stats.today_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
-      weekly_earnings: Math.round(stats.weekly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
-      monthly_earnings: Math.round(stats.monthly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+      today_earnings: Math.round(stats.today_earnings.toNumber() * 100) / 100,
+      weekly_earnings: Math.round(stats.weekly_earnings.toNumber() * 100) / 100,
+      monthly_earnings: Math.round(stats.monthly_earnings.toNumber() * 100) / 100,
       today_revenue: Math.round(stats.today_revenue.toNumber() * 100) / 100,
       weekly_revenue: Math.round(stats.weekly_revenue.toNumber() * 100) / 100,
       monthly_revenue: Math.round(stats.monthly_revenue.toNumber() * 100) / 100,
       total_orders: stats.total_orders,
       active_orders: stats.active_orders,
       total_revenue: Math.round(revenue * 100) / 100,
-      total_commission: Math.round(commission * 100) / 100,
-      total_payout: Math.round((revenue - commission) * 100) / 100,
+      total_commission: Math.round(Math.max(0, stats.item_revenue.toNumber() - stats.gross_earnings.toNumber()) * 100) / 100,
+      total_refunds: Math.round(stats.refunded_earnings.toNumber() * 100) / 100,
+      total_payout: Math.round(stats.total_earnings.toNumber() * 100) / 100,
       pending_payout: Math.round(stats.pending_earnings.toNumber() * 100) / 100,
       product_count: stats.product_count,
       out_of_stock_count: stats.out_of_stock_count,
+      transactions,
       recent_transactions: recent.map((o) => ({
         id: o.id,
         order_number: o.order_number,

@@ -6,6 +6,12 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { NotFoundError } from "../utils/ApiError";
 import * as orderRepo from "../repositories/order.repository";
+import {
+  assertOrderTransition,
+  cancelOrderLifecycle,
+  refundOrderLifecycle,
+} from "./order-lifecycle.service";
+import { completeDelivery } from "./order-delivery.service";
 
 export interface AdminOrderQuery {
   page?: number;
@@ -249,13 +255,59 @@ export const adminOrderService = {
       throw new NotFoundError("Order not found.");
     }
 
-    const mappedStatus = status.toUpperCase() as never;
-    const updated = await orderRepo.updateOrderStatus(orderId, {
-      status: mappedStatus,
-      note: reason ?? `Admin updated status to ${status}.`,
-      actorType: "admin",
-      actorId: adminUserId,
-    });
+    const mappedStatus = status.toUpperCase();
+    if (order.status === mappedStatus) {
+      return order as unknown as orderRepo.OrderRow;
+    }
+    assertOrderTransition(order.status, mappedStatus);
+
+    // Admin overrides must trigger the same side effects as the primary flows:
+    // CANCELLED runs the refund-first cancel saga, REFUNDED runs the refund-
+    // first refund saga, and DELIVERED consumes inventory + creates earnings.
+    // All other transitions are plain, machine-validated status updates.
+    let updated: orderRepo.OrderRow;
+    if (mappedStatus === "CANCELLED") {
+      const detail = await orderRepo.findById(orderId);
+      if (!detail) {
+        throw new NotFoundError("Order not found.");
+      }
+      updated = await cancelOrderLifecycle({
+        order: detail,
+        reason,
+        actorType: "admin",
+        actorId: adminUserId,
+        req,
+      });
+    } else if (mappedStatus === "REFUNDED") {
+      const detail = await orderRepo.findById(orderId);
+      if (!detail) {
+        throw new NotFoundError("Order not found.");
+      }
+      updated = await refundOrderLifecycle({
+        order: detail,
+        reason,
+        actorType: "admin",
+        actorId: adminUserId,
+        req,
+      });
+    } else if (mappedStatus === "DELIVERED") {
+      updated = await completeDelivery({
+        orderId,
+        otp: "",
+        allowedStates: ["READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"],
+        note: reason ?? "Order marked as delivered by admin.",
+        actorType: "admin",
+        actorId: adminUserId,
+        skipOtp: true,
+      });
+    } else {
+      updated = await orderRepo.updateOrderStatus(orderId, {
+        status: mappedStatus,
+        note: reason ?? `Admin updated status to ${status}.`,
+        actorType: "admin",
+        actorId: adminUserId,
+      });
+    }
 
     await auditService.record(
       {
@@ -263,6 +315,7 @@ export const adminOrderService = {
         action: AUDIT_ACTIONS.ORDER_STATUS_CHANGED,
         entityType: "order",
         entityId: orderId,
+        oldValues: { status: order.status },
         newValues: { status: mappedStatus, reason },
       },
       req

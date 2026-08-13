@@ -8,6 +8,7 @@ export interface AuthUser {
   vendor_id?: string | null;
   delivery_id?: string | null;
   is_verified: boolean;
+  session_id?: string | null;
 }
 
 export interface ApiErrorDetail {

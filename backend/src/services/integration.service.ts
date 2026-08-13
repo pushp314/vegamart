@@ -12,6 +12,7 @@ import { checkoutService } from "./checkout.service";
 import { addressService } from "./address.service";
 import { notificationService } from "./notification.service";
 import * as vendorRepo from "../repositories/vendor.repository";
+import { listVendorEarningsRecent } from "./earning.service";
 import * as orderRepo from "../repositories/order.repository";
 import * as userRepo from "../repositories/user.repository";
 import * as roleRepo from "../repositories/role.repository";
@@ -85,8 +86,8 @@ export const integrationService = {
       id: first?.order.id ?? null,
       order_number: first?.order.order_number ?? null,
       status: first?.order.status ?? null,
-      total: first?.order.total?.toNumber() ?? 0,
-      delivery_fee: first?.order.delivery_fee?.toNumber() ?? 0,
+      total: first?.order.total ?? 0,
+      delivery_fee: first?.order.delivery_fee ?? 0,
       payment_method: first?.order.payment_method ?? method,
       razorpay_order_id: payment?.razorpay_order_id ?? null,
       summary: result.summary,
@@ -94,7 +95,7 @@ export const integrationService = {
         id: order.id,
         order_number: order.order_number,
         status: order.status,
-        total: order.total.toNumber(),
+        total: order.total,
         razorpay_order_id: p?.razorpay_order_id ?? null,
       })),
     };
@@ -266,9 +267,8 @@ export const integrationService = {
   async getVendorEarnings(userId: string) {
     const vendor = await getMyVendorOrFail(userId);
     const stats = await vendorRepo.getVendorStats(vendor.id);
-    const commission = stats.total_earnings.toNumber();
     const revenue = stats.total_revenue.toNumber();
-    const [recent] = await Promise.all([
+    const [recent, transactions] = await Promise.all([
       prisma.order.findMany({
         where: { vendor_id: vendor.id, status: { notIn: ["CANCELLED", "FAILED"] } },
         orderBy: { created_at: "desc" },
@@ -281,17 +281,22 @@ export const integrationService = {
           created_at: true,
         },
       }),
+      listVendorEarningsRecent(vendor.id),
     ]);
     return {
-      today_earnings: 0,
+      today_earnings: Math.round(stats.today_earnings.toNumber() * 100) / 100,
+      weekly_earnings: Math.round(stats.weekly_earnings.toNumber() * 100) / 100,
+      monthly_earnings: Math.round(stats.monthly_earnings.toNumber() * 100) / 100,
       total_orders: stats.total_orders,
       active_orders: stats.active_orders,
       total_revenue: Math.round(revenue * 100) / 100,
-      total_commission: Math.round(commission * 100) / 100,
-      total_payout: Math.round((revenue - commission) * 100) / 100,
+      total_commission: Math.round(Math.max(0, stats.item_revenue.toNumber() - stats.gross_earnings.toNumber()) * 100) / 100,
+      total_refunds: Math.round(stats.refunded_earnings.toNumber() * 100) / 100,
+      total_payout: Math.round(stats.total_earnings.toNumber() * 100) / 100,
       pending_payout: Math.round(stats.pending_earnings.toNumber() * 100) / 100,
       product_count: stats.product_count,
       out_of_stock_count: stats.out_of_stock_count,
+      transactions,
       recent_transactions: recent.map((o) => ({
         id: o.id,
         order_number: o.order_number,

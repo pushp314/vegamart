@@ -1,6 +1,8 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import prisma from "../database/prisma";
+
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 const baseSelect = {
   id: true,
@@ -129,6 +131,33 @@ export async function listActiveBetween(from: Date, until: Date): Promise<Coupon
   return rows.map(mapRow);
 }
 
+/**
+ * Lists coupons a customer can actually use right now: active, inside their
+ * validity window, and not exhausted (`usage_limit = 0` means unlimited).
+ *
+ * `used_count < usage_limit` is a column-to-column comparison Prisma cannot
+ * express in its typed `where`, so it runs as a bounded raw query. The atomic
+ * `claimUsage` lock remains the authoritative guard against over-consumption;
+ * this is a best-effort, up-to-date listing for the checkout coupon picker.
+ */
+export async function listAvailableForCustomer(now: Date): Promise<CouponRow[]> {
+  const rows = await prisma.$queryRaw<Array<Record<string, unknown>>>`
+    SELECT id, code, type, value, max_discount, min_order_value, usage_limit, per_user_limit,
+           used_count, valid_from, valid_until, is_active, applies_to_vendor_ids,
+           applies_to_product_ids, applies_to_category_ids, created_by_vendor_id,
+           created_at, updated_at
+    FROM coupons
+    WHERE deleted_at IS NULL
+      AND is_active = true
+      AND valid_from <= ${now}
+      AND valid_until >= ${now}
+      AND (usage_limit = 0 OR used_count < usage_limit)
+    ORDER BY valid_until ASC
+    LIMIT 20
+  `;
+  return rows.map(mapRow);
+}
+
 export async function countUsages(couponId: string): Promise<number> {
   return prisma.couponUsage.count({ where: { coupon_id: couponId } });
 }
@@ -191,14 +220,72 @@ export async function softDelete(id: string): Promise<void> {
   });
 }
 
-export async function recordUsage(couponId: string, orderId: string, userId: string, discount: number): Promise<void> {
-  await prisma.$transaction([
-    prisma.couponUsage.create({
-      data: { coupon_id: couponId, order_id: orderId, user_id: userId, discount },
-    }),
-    prisma.coupon.update({
-      where: { id: couponId },
-      data: { used_count: { increment: 1 } },
-    }),
-  ]);
+async function runClaim(
+  db: DbClient,
+  couponId: string,
+  orderId: string,
+  userId: string,
+  discount: number
+): Promise<boolean> {
+  const [locked] = await db.$queryRaw<
+    Array<{ id: string; used_count: number; usage_limit: number; per_user_limit: number }>
+  >`
+    SELECT id, used_count, usage_limit, per_user_limit
+    FROM coupons
+    WHERE id = ${couponId}::uuid AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+  if (!locked) {
+    return false;
+  }
+  if (locked.usage_limit > 0 && locked.used_count >= locked.usage_limit) {
+    return false;
+  }
+  if (locked.per_user_limit > 0) {
+    const usedByUser = await db.couponUsage.count({
+      where: { coupon_id: couponId, user_id: userId },
+    });
+    if (usedByUser >= locked.per_user_limit) {
+      return false;
+    }
+  }
+  await db.coupon.update({
+    where: { id: couponId },
+    data: { used_count: { increment: 1 } },
+  });
+  await db.couponUsage.create({
+    data: { coupon_id: couponId, order_id: orderId, user_id: userId, discount },
+  });
+  return true;
+}
+
+/**
+ * Atomically claims one usage of a coupon for a checkout.
+ *
+ * The coupon row is locked (`SELECT ... FOR UPDATE`) so concurrent claims on the
+ * same coupon serialise: the global `usage_limit` and the per-user limit are
+ * re-validated inside the lock right before the usage is recorded, which closes
+ * the check-then-increment race that previously let concurrent checkouts exceed
+ * the limits. The usage is recorded (used_count +1 and one CouponUsage row) only
+ * after the caller has successfully created the order, so a failed checkout never
+ * consumes coupon usage.
+ *
+ * When `db` is a transaction client the claim runs on that transaction so it
+ * participates in the caller's all-or-nothing checkout. On a standalone call it
+ * wraps its own transaction.
+ *
+ * Returns `false` when the coupon or one of its limits is already exhausted, so
+ * callers can abort without recording partial usage.
+ */
+export async function claimUsage(
+  couponId: string,
+  orderId: string,
+  userId: string,
+  discount: number,
+  db: DbClient = prisma
+): Promise<boolean> {
+  if (db === prisma) {
+    return prisma.$transaction((tx) => runClaim(tx, couponId, orderId, userId, discount));
+  }
+  return runClaim(db, couponId, orderId, userId, discount);
 }

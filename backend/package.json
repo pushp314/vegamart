@@ -28,6 +28,7 @@
     "prisma:seed:roaming": "tsx prisma/seed-roaming.ts",
     "prisma:seed:delivery": "tsx prisma/seed-delivery.ts",
     "prisma:reset": "prisma migrate reset --schema prisma/schema.prisma",
+    "backfill:earnings": "tsx src/scripts/backfill-earnings.ts",
     "db:push": "prisma db push --schema prisma/schema.prisma",
     "test": "jest",
     "test:watch": "jest --watch",

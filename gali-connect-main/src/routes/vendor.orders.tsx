@@ -126,14 +126,9 @@ function VendorOrdersPage() {
 
   const rejectItemMutation = useMutation({
     mutationFn: async ({ orderId, itemId }: { orderId: string; itemId: string }) => {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/v1/vendors/orders/${orderId}/items/${itemId}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.message || "Failed to reject item");
+      const res = await api.post(`/vendors/orders/${orderId}/items/${itemId}/reject`);
+      if (!res.success) {
+        throw new Error(res.error?.message || "Failed to reject item");
       }
     },
     onSuccess: () => {
@@ -337,7 +332,8 @@ function VendorOrdersPage() {
                         <div>
                           <p className="font-medium text-foreground">{o.address.label || "Delivery Address"}</p>
                           <p className="text-muted-foreground">
-                            {o.address.street}, {o.address.city}, {o.address.state} {o.address.pincode}
+                            {o.address.full_address}
+                            {o.address.landmark ? `, ${o.address.landmark}` : ""}
                           </p>
                         </div>
                       )}

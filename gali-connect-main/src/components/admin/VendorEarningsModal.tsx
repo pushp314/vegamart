@@ -102,14 +102,14 @@ export function VendorEarningsModal({ vendor, onClose }: VendorEarningsModalProp
                   <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     Platform Fees
                   </div>
-                  <div className="font-bold text-rose-500">-₹{earnings.total_earnings || 0}</div>
+                  <div className="font-bold text-rose-500">-₹{earnings.total_commission || 0}</div>
                 </div>
                 <div className="rounded-2xl border border-border bg-emerald-500/10 p-4 space-y-1 text-center border-emerald-200">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                     Net Payout
                   </div>
                   <div className="font-bold text-emerald-600">
-                    ₹{((earnings.total_revenue || 0) - (earnings.total_earnings || 0)).toFixed(2)}
+                    ₹{earnings.total_payout || 0}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-border bg-muted/50 p-4 space-y-1 text-center">

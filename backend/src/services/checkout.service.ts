@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import type { Prisma } from "@prisma/client";
 import prisma from "../database/prisma";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
@@ -20,8 +21,11 @@ import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { generateDeliveryOtp, generateInvoiceNumber, generateOrderNumber } from "../utils/order";
-import { checkVendorDailyOrderLimit } from "../middlewares/subscription.middleware";
+import * as checkoutIdempotencyRepo from "../repositories/checkout-idempotency.repository";
+import * as dailyOrderCounterRepo from "../repositories/daily-order-counter.repository";
+import { membershipPlanService } from "./membership-plan.service";
 import { analyticsService } from "./analytics.service";
+import { cartFromItems } from "../utils/cart";
 import type { CheckoutPreviewBody, CreateOrderFromCartBody, PlaceOrderBody } from "../validators/checkout.validators";
 
 interface VendorGroup {
@@ -65,6 +69,81 @@ function computeDeliveryFee(
   return fee;
 }
 
+interface SerializedOrder {
+  id: string;
+  order_number: string;
+  vendor_id: string;
+  status: string;
+  total: number;
+  delivery_fee: number;
+  payment_method: string;
+  eta_minutes: number | null;
+  created_at: Date | string;
+}
+
+interface SerializedPayment {
+  id: string;
+  method: string;
+  amount: number;
+  status: string;
+  razorpay_order_id: string | null;
+}
+
+interface CheckoutResult {
+  summary: CheckoutSummary;
+  orders: Array<{ order: SerializedOrder; payment: SerializedPayment }>;
+}
+
+function startOfToday(): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+/**
+ * Canonical fingerprint of a checkout request. Any reuse of the same idempotency
+ * key with different parameters (address, method, coupon or items) is a conflict.
+ */
+function computeRequestHash(userId: string, input: PlaceOrderBody, summary: CheckoutSummary): string {
+  const items = summary.groups
+    .flatMap((g) => g.items.map((i) => `${i.product_id}:${i.quantity}`))
+    .sort()
+    .join(",");
+  return [
+    userId,
+    input.address_id,
+    input.payment_method ?? "RAZORPAY",
+    input.coupon_code ?? "",
+    items,
+  ].join("|");
+}
+
+function serializeOrder(
+  order: orderRepo.OrderRow,
+  payment: paymentRepo.PaymentRow
+): { order: SerializedOrder; payment: SerializedPayment } {
+  return {
+    order: {
+      id: order.id,
+      order_number: order.order_number,
+      vendor_id: order.vendor_id,
+      status: order.status,
+      total: Number(order.total),
+      delivery_fee: Number(order.delivery_fee),
+      payment_method: order.payment_method,
+      eta_minutes: order.eta_minutes,
+      created_at: order.created_at,
+    },
+    payment: {
+      id: payment.id,
+      method: payment.method,
+      amount: Number(payment.amount),
+      status: payment.status,
+      razorpay_order_id: payment.razorpay_order_id,
+    },
+  };
+}
+
 export interface CheckoutSummaryItem {
   product_id: string;
   name: string;
@@ -93,13 +172,18 @@ export interface CheckoutSummary {
   discount: number;
   tax: number;
   total: number;
+  tax_rate: number;
   coupon: { id: string; code: string; type: string; discount: number } | null;
+  /** Per-vendor eligible coupon discount; used only downstream when orders are created. */
+  group_discounts: Record<string, number>;
   currency: string;
 }
 
 export const checkoutService = {
   async preview(userId: string, input: CheckoutPreviewBody, req: Request): Promise<CheckoutSummary> {
-    const cart = await cartService.getMyCart(userId);
+    const cart = input.items?.length
+      ? await cartFromItems(userId, input.items)
+      : await cartService.getMyCart(userId);
     const groups = groupByVendor(cart);
     const summary = await this.buildSummary(cart, groups, input, userId);
     await auditService.record(
@@ -147,8 +231,8 @@ export const checkoutService = {
       }
 
       const settings = await settingsService.getAllSettings();
-      const globalDeliveryFee = (settings["pricing.delivery_fee"] as number) || 0;
-      const globalFreeDeliveryThreshold = (settings["pricing.free_delivery_threshold"] as number) || 0;
+      const globalDeliveryFee = (settings[SETTING_KEYS.DELIVERY_FEE] as number) || 0;
+      const globalFreeDeliveryThreshold = (settings[SETTING_KEYS.FREE_DELIVERY_THRESHOLD] as number) || 0;
 
       const vendorDeliveryFee = computeDeliveryFee(
         group.subtotal, 
@@ -183,19 +267,21 @@ export const checkoutService = {
     deliveryFee = Math.round(deliveryFee * 100) / 100;
 
     let discount = 0;
+    let groupDiscounts: Record<string, number> = {};
     let couponInfo: CheckoutSummary["coupon"] = null;
 
     if (input.coupon_code) {
-      const { coupon, discount: couponDiscount } = await couponService.validateForCart(input.coupon_code, cart, userId);
-      discount = Math.round(couponDiscount * 100) / 100;
-      const freeDelivery = coupon.type === "FREE_DELIVERY";
+      const result = await couponService.validateForCart(input.coupon_code, cart, userId);
+      discount = Math.round(result.discount * 100) / 100;
+      groupDiscounts = result.group_discounts ?? {};
+      const freeDelivery = result.coupon.type === "FREE_DELIVERY";
       if (freeDelivery) {
         deliveryFee = 0;
       }
-      couponInfo = { id: coupon.id, code: coupon.code, type: coupon.type, discount };
+      couponInfo = { id: result.coupon.id, code: result.coupon.code, type: result.coupon.type, discount };
     }
 
-    const taxRatePercent = (settings["pricing.tax_rate"] as number) || TAX_RATE_PERCENT;
+    const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
 
     const taxable = Math.max(0, itemsSubtotal - discount);
     const tax = Math.round((taxable * taxRatePercent) / 100 * 100) / 100;
@@ -208,7 +294,9 @@ export const checkoutService = {
       discount,
       tax,
       total,
+      tax_rate: taxRatePercent,
       coupon: couponInfo,
+      group_discounts: groupDiscounts,
       currency: DEFAULT_CURRENCY,
     };
   },
@@ -235,102 +323,260 @@ export const checkoutService = {
     );
   },
 
-  async placeOrder(userId: string, input: PlaceOrderBody, req: Request) {
+  async placeOrder(userId: string, input: PlaceOrderBody, req: Request): Promise<CheckoutResult> {
     const cart = await cartService.getMyCart(userId);
     const groups = groupByVendor(cart);
     const summary = await this.buildSummary(cart, groups, input, userId);
 
     const address = await findAddressById(input.address_id);
-    if (!address || address.user_id !== userId) {
+    if (!address || address.user_id !== userId || address.deleted_at) {
       throw new NotFoundError("Address not found.");
-    }
-    if (address.deleted_at) {
-      throw new NotFoundError("Address not found.");
-    }
-
-    await this.validateStock(groups);
-    
-    // Check daily order limit for all involved vendors
-    for (const group of groups) {
-      await checkVendorDailyOrderLimit(group.vendor_id);
     }
 
     const idempotencyKey = input.idempotency_key ?? undefined;
-    const orders = [];
     const paymentMethod = input.payment_method ?? "RAZORPAY";
+    const requestHash = idempotencyKey ? computeRequestHash(userId, input, summary) : null;
 
-    for (const group of summary.groups) {
-      const orderNumber = generateOrderNumber();
-      const order = await orderRepo.createOrder({
-        order_number: orderNumber,
-        user_id: userId,
-        vendor_id: group.vendor_id,
-        address_id: address.id,
-        coupon_id: summary.coupon?.id ?? null,
-        coupon_discount: 0,
-        items_subtotal: group.items_subtotal,
-        delivery_fee: group.delivery_fee,
-        tax: 0,
-        total: 0,
-        payment_method: paymentMethod,
-        items: group.items.map((item) => ({
-          product_id: item.product_id,
-          product_name: item.name,
-          unit: item.unit,
-          selected_unit: item.selected_unit,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.line_total,
-        })),
-      });
+    // Idempotent replay fast-path: reusing the same key must return the original
+    // result (never a second order). A key used with different request params is
+    // rejected outright.
+    if (idempotencyKey) {
+      const existing = await checkoutIdempotencyRepo.findByKey(idempotencyKey, userId);
+      if (existing) {
+        if (existing.request_hash && existing.request_hash !== requestHash) {
+          throw new ApiError(HttpStatus.CONFLICT, "Idempotency key was already used for a different request.", {
+            code: "IDEMPOTENCY_REUSE_CONFLICT",
+          });
+        }
+        if (!existing.response) {
+          throw new ApiError(HttpStatus.CONFLICT, "A checkout with this idempotency key is already in progress. Please retry.", {
+            code: "IDEMPOTENCY_IN_PROGRESS",
+          });
+        }
+        return existing.response as unknown as CheckoutResult;
+      }
+    }
 
-      // Allocate shared summary values: subtotal/discount/tax are apportioned per group.
+    // Pre-compute the per-vendor totals once so the gateway, the persistence step
+    // and the stored idempotent response all agree.
+    const computations = summary.groups.map((group) => {
       const groupSubtotal = group.items_subtotal;
-      const groupDiscount = summary.discount > 0
-        ? Math.round((summary.discount * groupSubtotal / summary.items_subtotal) * 100) / 100
-        : 0;
+      const groupDiscount = Math.round((summary.group_discounts?.[group.vendor_id] ?? 0) * 100) / 100;
       const groupTaxable = Math.max(0, groupSubtotal - groupDiscount);
-      const groupTax = Math.round((groupTaxable * TAX_RATE_PERCENT) / 100 * 100) / 100;
+      const groupTax = Math.round((groupTaxable * (summary.tax_rate ?? TAX_RATE_PERCENT)) / 100 * 100) / 100;
       const groupTotal = Math.round((groupSubtotal + group.delivery_fee - groupDiscount + groupTax) * 100) / 100;
+      return { group, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
+    });
 
-      const invoiceNumber = generateInvoiceNumber(orderNumber);
-      const updated = await orderRepo.updateOrder(order.id, {
-        discount: groupDiscount,
-        tax: groupTax,
-        total: groupTotal,
-        invoice_number: invoiceNumber,
-        idempotency_key: idempotencyKey ?? null,
-        otp_code: generateDeliveryOtp(),
-        otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
-      });
+    // Read each vendor's daily order limit before the transaction. A slightly
+    // stale read is safe: the atomic counter enforces the limit strictly.
+    const dailyLimits = await Promise.all(
+      computations.map((c) =>
+        membershipPlanService
+          .getMyMembership(c.group.vendor_id)
+          .then((membership) => membership?.plan?.daily_order_limit ?? 5)
+          .catch(() => 5)
+      )
+    );
 
-      await orderRepo.updateOrderStatus(order.id, {
-        status: "PENDING",
-        note: "Order placed. Awaiting payment confirmation.",
-        actorType: "customer",
-        actorId: userId,
-      });
+    // Gateway intents are created before the transaction (their ids are recorded
+    // inside it). On a rollback any orphaned intent simply expires at the gateway
+    // and is never re-created, because replays return the persisted result.
+    const gatewayOrders = await Promise.all(
+      computations.map((c) =>
+        paymentMethod === "RAZORPAY"
+          ? razorpayGateway.createOrder({
+              amountPaise: Math.round(c.groupTotal * 100),
+              currency: DEFAULT_CURRENCY,
+              receipt: c.orderNumber,
+              notes: { order_number: c.orderNumber, user_id: userId },
+            })
+          : undefined
+      )
+    );
 
-      // Increment daily order counter
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      await prisma.dailyOrderCounter.upsert({
-        where: {
-          vendor_id_date: {
-            vendor_id: group.vendor_id,
-            date: today
+    const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Reserve the key first: the unique `idempotency_key` serialises
+        // concurrent duplicates — the loser fails this insert with P2002 and its
+        // entire transaction is rolled back before anything is written.
+        if (idempotencyKey) {
+          await checkoutIdempotencyRepo.create(tx, {
+            idempotency_key: idempotencyKey,
+            user_id: userId,
+            request_hash: requestHash as string,
+          });
+        }
+
+        for (let i = 0; i < computations.length; i++) {
+          const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
+
+          const order = await orderRepo.createOrder(
+            {
+              order_number: orderNumber,
+              user_id: userId,
+              vendor_id: group.vendor_id,
+              address_id: address.id,
+              coupon_id: summary.coupon?.id ?? null,
+              coupon_discount: 0,
+              items_subtotal: group.items_subtotal,
+              delivery_fee: group.delivery_fee,
+              tax: 0,
+              total: 0,
+              payment_method: paymentMethod,
+              items: group.items.map((item) => ({
+                product_id: item.product_id,
+                product_name: item.name,
+                unit: item.unit,
+                selected_unit: item.selected_unit,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                total_price: item.line_total,
+              })),
+            },
+            tx
+          );
+
+          const updated = await orderRepo.updateOrder(
+            order.id,
+            {
+              discount: groupDiscount,
+              tax: groupTax,
+              total: groupTotal,
+              invoice_number: generateInvoiceNumber(orderNumber),
+              otp_code: generateDeliveryOtp(),
+              otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+            },
+            tx
+          );
+
+          await orderRepo.updateOrderStatus(
+            order.id,
+            {
+              status: "PENDING",
+              note: "Order placed. Awaiting payment confirmation.",
+              actorType: "customer",
+              actorId: userId,
+            },
+            tx
+          );
+
+          // Atomic daily order counter: conditional insert-or-increment. Returns
+          // null when the vendor has already hit their limit, aborting the tx.
+          const counter = await dailyOrderCounterRepo.incrementForVendor(
+            group.vendor_id,
+            startOfToday(),
+            dailyLimits[i] ?? 5,
+            tx
+          );
+          if (counter === null) {
+            throw new ApiError(
+              HttpStatus.FORBIDDEN,
+              "Vendor is currently busy and has reached their daily order limit.",
+              { code: "DAILY_ORDER_LIMIT_REACHED" }
+            );
           }
-        },
-        update: { count: { increment: 1 } },
-        create: {
-          vendor_id: group.vendor_id,
-          date: today,
-          count: 1
+
+          let payment;
+          if (paymentMethod === "RAZORPAY") {
+            payment = await paymentRepo.createForOrder(
+              {
+                order_id: order.id,
+                amount: groupTotal,
+                method: "RAZORPAY",
+                razorpay_order_id: gatewayOrders[i]?.id,
+              },
+              tx
+            );
+          } else {
+            payment = await paymentRepo.createForOrder(
+              {
+                order_id: order.id,
+                amount: groupTotal,
+                method: "COD",
+              },
+              tx
+            );
+            await orderRepo.updateOrderStatus(
+              order.id,
+              { status: "CONFIRMED", note: "Order confirmed for Cash on Delivery.", actorType: "system" },
+              tx
+            );
+          }
+
+          serializedOrders.push(serializeOrder(updated, payment));
+        }
+
+        // Atomic inventory reservation: the conditional guard aborts the whole
+        // checkout when any product is short, so over-committed reservations can
+        // never leak into the database.
+        const reservationItems = computations.flatMap((c) =>
+          c.group.items.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            name: item.name,
+          }))
+        );
+        await inventoryRepo.reserveAvailable(reservationItems, tx);
+
+        // Coupon claim in the same transaction: an exhausted coupon rolls back the
+        // whole checkout (orders, reservations, counters) atomically.
+        if (summary.coupon) {
+          const firstOrderId = serializedOrders[0]?.order.id;
+          const claimed = firstOrderId
+            ? await couponRepo.claimUsage(summary.coupon.id, firstOrderId, userId, summary.discount, tx)
+            : false;
+          if (!claimed) {
+            throw new ApiError(HttpStatus.BAD_REQUEST, "Coupon usage limit has been reached. Please try again.", {
+              code: "COUPON_EXHAUSTED",
+            });
+          }
+        }
+
+        // Persist the serialized result for idempotent replays.
+        if (idempotencyKey) {
+          await checkoutIdempotencyRepo.setResponse(tx, idempotencyKey, userId, {
+            summary,
+            orders: serializedOrders,
+          } as unknown as Prisma.InputJsonValue);
         }
       });
+    } catch (err) {
+      // A concurrent duplicate won the idempotency insert. Read the winner: if it
+      // already carries a response, replay it; otherwise the winner is still
+      // committing, so tell the caller to retry.
+      if ((err as { code?: string })?.code === "P2002" && idempotencyKey) {
+        const winner = await checkoutIdempotencyRepo.findByKey(idempotencyKey, userId);
+        if (!winner) {
+          throw new ApiError(HttpStatus.CONFLICT, "A checkout with this idempotency key is already in progress. Please retry.", {
+            code: "IDEMPOTENCY_IN_PROGRESS",
+          });
+        }
+        if (winner.request_hash && winner.request_hash !== requestHash) {
+          throw new ApiError(HttpStatus.CONFLICT, "Idempotency key was already used for a different request.", {
+            code: "IDEMPOTENCY_REUSE_CONFLICT",
+          });
+        }
+        if (!winner.response) {
+          throw new ApiError(HttpStatus.CONFLICT, "A checkout with this idempotency key is already in progress. Please retry.", {
+            code: "IDEMPOTENCY_IN_PROGRESS",
+          });
+        }
+        return winner.response as unknown as CheckoutResult;
+      }
+      throw err;
+    }
 
-      // Populate analytics tables (best-effort; failures are logged, not thrown)
+    await cartRepo.clear(cart.id);
+
+    // Best-effort analytics, notifications and audit run after the commit and
+    // can never fail or re-run a transaction.
+    for (let i = 0; i < computations.length; i++) {
+      const { group, groupTotal } = computations[i]!;
+      const entry = serializedOrders[i];
+      if (!entry) continue;
       await analyticsService.recordOrder(
         group.vendor_id,
         group.items.map((item) => ({
@@ -340,92 +586,24 @@ export const checkoutService = {
         })),
         groupTotal
       );
-      await analyticsService.recordCustomer(group.vendor_id, userId, order.id);
-
-      let payment;
-      if (paymentMethod === "RAZORPAY") {
-        const razorpayOrder = await razorpayGateway.createOrder({
-          amountPaise: Math.round(groupTotal * 100),
-          currency: DEFAULT_CURRENCY,
-          receipt: orderNumber,
-          notes: { order_number: orderNumber, user_id: userId },
-        });
-        payment = await paymentRepo.createForOrder({
-          order_id: order.id,
-          amount: groupTotal,
-          method: "RAZORPAY",
-          razorpay_order_id: razorpayOrder.id,
-        });
-      } else {
-        payment = await paymentRepo.createForOrder({
-          order_id: order.id,
-          amount: groupTotal,
-          method: "COD",
-        });
-        await orderRepo.updateOrderStatus(order.id, {
-          status: "CONFIRMED",
-          note: "Order confirmed for Cash on Delivery.",
-          actorType: "system",
-        });
-      }
-
-      orders.push({ order: updated, payment });
+      await analyticsService.recordCustomer(group.vendor_id, userId, entry.order.id);
     }
 
-    await cartRepo.clear(cart.id);
-
-    if (summary.coupon) {
-      const perOrderDiscount = Math.round((summary.discount / summary.groups.length) * 100) / 100;
-      for (const order of orders) {
-        await couponRepo.recordUsage(summary.coupon.id, order.order.id, userId, perOrderDiscount);
-      }
-    }
-
-    for (const order of orders) {
+    for (const entry of serializedOrders) {
       await notificationService.orderStatus(
         userId,
-        order.order.order_number,
+        entry.order.order_number,
         "Order placed",
-        `Your order ${order.order.order_number} has been placed successfully.`,
-        { order_id: order.order.id }
+        `Your order ${entry.order.order_number} has been placed successfully.`,
+        { order_id: entry.order.id }
       );
     }
 
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.ORDER_PLACED, entityType: "order", entityId: orders.map((o) => o.order.id).join(","), newValues: { count: orders.length, total: summary.total, payment_method: paymentMethod } },
+      { userId, action: AUDIT_ACTIONS.ORDER_PLACED, entityType: "order", entityId: serializedOrders.map((o) => o.order.id).join(","), newValues: { count: serializedOrders.length, total: summary.total, payment_method: paymentMethod } },
       req
     );
 
-    return { summary, orders };
-  },
-
-  async validateStock(groups: VendorGroup[]): Promise<void> {
-    for (const group of groups) {
-      for (const item of group.items) {
-        const product = item.product;
-        if (product.stock < item.quantity) {
-          throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, `Insufficient stock for "${product.name}".`, {
-            code: "INSUFFICIENT_STOCK",
-          });
-        }
-        const inventory = await inventoryRepo.findByProductId(item.product_id);
-        const available = inventory ? inventory.quantity - inventory.reserved : null;
-        if (available !== null && available < item.quantity) {
-          throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, `Insufficient stock for "${item.product.name}".`, {
-            code: "INSUFFICIENT_STOCK",
-          });
-        }
-      }
-    }
-  },
-
-  async reserveInventory(orders: Array<{ order: orderRepo.OrderRow; payment: paymentRepo.PaymentRow }>): Promise<void> {
-    for (const { order } of orders) {
-      const detail = await orderRepo.findById(order.id);
-      if (!detail) continue;
-      for (const item of detail.items) {
-        await inventoryRepo.reserveQuantity(item.product_id, item.quantity);
-      }
-    }
+    return { summary, orders: serializedOrders };
   },
 };

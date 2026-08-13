@@ -21,6 +21,8 @@ jest.mock("../../src/repositories/payment.repository", () => ({
   createForOrder: jest.fn(),
   incrementAttempts: jest.fn(),
   claimAsPaid: jest.fn(),
+  claimRefund: jest.fn(),
+  clearRefundClaim: jest.fn(),
 }));
 
 jest.mock("../../src/repositories/order.repository", () => ({
@@ -54,11 +56,16 @@ jest.mock("../../src/database/cache", () => ({
   },
 }));
 
+jest.mock("../../src/services/earning.service", () => ({
+  reverseOrderEarnings: jest.fn().mockResolvedValue(undefined),
+}));
+
 import * as paymentRepo from "../../src/repositories/payment.repository";
 import * as orderRepo from "../../src/repositories/order.repository";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
 import * as transactionRepo from "../../src/repositories/transaction.repository";
 import { razorpayGateway } from "../../src/payments/razorpay.gateway";
+import { reverseOrderEarnings } from "../../src/services/earning.service";
 
 const payRepo = paymentRepo as jest.Mocked<typeof paymentRepo>;
 const orderRepoMock = orderRepo as jest.Mocked<typeof orderRepo>;
@@ -167,7 +174,7 @@ describe("payment service - verifyPayment", () => {
     expect(orderRepoMock.updateOrder).toHaveBeenCalledWith("order-1", { payment_status: "PAID" });
     expect(orderRepoMock.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "CONFIRMED" }));
     expect(txRepo.create).toHaveBeenCalledWith(expect.objectContaining({ amount: 240, reference: "rzp-pay-1" }));
-    expect(invRepo.reserveQuantityFromOrder).toHaveBeenCalledWith("order-1", mockReq);
+    expect(invRepo.reserveQuantityFromOrder).not.toHaveBeenCalled();
   });
 
   it("rejects a captured amount that does not match the order total", async () => {
@@ -288,7 +295,7 @@ describe("payment service - webhook", () => {
     expect(result.handled).toBe("payment.captured");
     expect(txRepo.create).toHaveBeenCalledWith(expect.objectContaining({ amount: 240, reference: "rzp-pay-1" }));
     expect(orderRepoMock.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "CONFIRMED" }));
-    expect(invRepo.reserveQuantityFromOrder).toHaveBeenCalledWith("order-1", undefined);
+    expect(invRepo.reserveQuantityFromOrder).not.toHaveBeenCalled();
   });
 
   it("rejects a payment.captured webhook whose amount does not match the order", async () => {
@@ -338,17 +345,112 @@ describe("payment service - refund", () => {
       statusCode: 400,
       code: "NOT_PAID",
     });
+    expect(payRepo.claimRefund).not.toHaveBeenCalled();
   });
 
-  it("refunds a paid payment", async () => {
+  it("rejects a refund amount that exceeds the remaining refundable balance", async () => {
     orderRepoMock.findById.mockResolvedValue(makeOrder());
-    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PAID" }));
+    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PAID", amount: dec(240) }));
+
+    await expect(
+      paymentService.refund("admin-1", "order-1", { amount: 241 }, mockReq)
+    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_REFUND_AMOUNT" });
+    expect(payRepo.claimRefund).not.toHaveBeenCalled();
+  });
+
+  it("refunds a paid payment (order status and inventory are owned by the caller lifecycle)", async () => {
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PAID", amount: dec(240) }));
+    payRepo.claimRefund.mockResolvedValue(1);
     gatewayMock.refundPayment.mockResolvedValue({ id: "ref-1", status: "processed" });
-    payRepo.updatePayment.mockResolvedValue(makePayment({ status: "REFUNDED", refund_id: "ref-1" }));
+    payRepo.updatePayment.mockResolvedValue(makePayment({ status: "REFUNDED", refund_id: "ref-1", refund_amount: dec(240) }));
 
     const result = (await paymentService.refund("admin-1", "order-1", {}, mockReq)) as { refund_id: string; status: string };
     expect(result.refund_id).toBe("ref-1");
-    expect(invRepo.releaseQuantityForOrder).toHaveBeenCalledWith("order-1");
-    expect(orderRepoMock.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "REFUNDED" }));
+    expect(payRepo.claimRefund).toHaveBeenCalledWith("pay-1");
+    expect(payRepo.updatePayment).toHaveBeenCalledWith(
+      "pay-1",
+      expect.objectContaining({ status: "REFUNDED", refund_amount: 240 })
+    );
+    expect(txRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: "CREDIT", amount: 240, reference: "ref-1" }));
+    // The refund is a payment-level operation only: order status + inventory
+    // release are decided by the caller (cancel/refund lifecycle), never here.
+    expect(orderRepoMock.updateOrderStatus).not.toHaveBeenCalled();
+    expect(orderRepoMock.updateOrder).not.toHaveBeenCalled();
+    expect(invRepo.releaseQuantityForOrder).not.toHaveBeenCalled();
+  });
+
+  it("clears the refund claim and propagates when the gateway call fails", async () => {
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PAID", amount: dec(240) }));
+    payRepo.claimRefund.mockResolvedValue(1);
+    gatewayMock.refundPayment.mockRejectedValue(new Error("refund gateway timeout"));
+
+    await expect(paymentService.refund("admin-1", "order-1", {}, mockReq)).rejects.toThrow(
+      "refund gateway timeout"
+    );
+    expect(payRepo.clearRefundClaim).toHaveBeenCalledWith("pay-1");
+    expect(payRepo.updatePayment).not.toHaveBeenCalled();
+    expect(txRepo.create).not.toHaveBeenCalled();
+  });
+
+  it("does not double-refund when a concurrent refund already claimed the payment", async () => {
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    payRepo.findByOrderId
+      .mockResolvedValueOnce(makePayment({ status: "PAID", amount: dec(240) }))
+      .mockResolvedValue(makePayment({ status: "REFUNDED", refund_id: "ref-x", refund_amount: dec(240) }));
+    payRepo.claimRefund.mockResolvedValue(0);
+
+    const result = await paymentService.refund("admin-1", "order-1", {}, mockReq);
+    expect(result).toMatchObject({ status: "REFUNDED", refund_id: "ref-x" });
+    expect(gatewayMock.refundPayment).not.toHaveBeenCalled();
+    expect(txRepo.create).not.toHaveBeenCalled();
+  });
+
+  it("does not double-refund when a refund is already in progress", async () => {
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PAID", amount: dec(240) }));
+    payRepo.claimRefund.mockResolvedValue(0);
+    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PAID" }));
+
+    await expect(paymentService.refund("admin-1", "order-1", {}, mockReq)).rejects.toMatchObject({
+      statusCode: 409,
+      code: "REFUND_IN_PROGRESS",
+    });
+    expect(gatewayMock.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it("reverses vendor + delivery earnings proportionally, anchored on the refund id", async () => {
+    (reverseOrderEarnings as jest.Mock).mockClear();
+    orderRepoMock.findById.mockResolvedValue(makeOrder({ delivery_partner_id: "p1" }));
+    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PAID", amount: dec(240) }));
+    payRepo.claimRefund.mockResolvedValue(1);
+    gatewayMock.refundPayment.mockResolvedValue({ id: "ref-1", status: "processed" });
+    payRepo.updatePayment.mockResolvedValue(makePayment({ status: "PARTIALLY_REFUNDED", refund_id: "ref-1", refund_amount: dec(120) }));
+
+    await paymentService.refund("admin-1", "order-1", { amount: 120 }, mockReq);
+
+    expect(reverseOrderEarnings).toHaveBeenCalledTimes(1);
+    const [orderArg, fraction, refId] = (reverseOrderEarnings as jest.Mock).mock.calls[0];
+    expect(orderArg).toEqual({
+      id: "order-1",
+      vendor_id: "v1",
+      delivery_partner_id: "p1",
+      total: 240,
+    });
+    expect(fraction).toBeCloseTo(0.5, 5);
+    expect(refId).toBe("ref-1");
+  });
+
+  it("does not reverse earnings for a payment that was never paid (no-op guard)", async () => {
+    (reverseOrderEarnings as jest.Mock).mockClear();
+    orderRepoMock.findById.mockResolvedValue(makeOrder());
+    payRepo.findByOrderId.mockResolvedValue(makePayment({ status: "PENDING" }));
+
+    await expect(paymentService.refund("admin-1", "order-1", {}, mockReq)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "NOT_PAID",
+    });
+    expect(reverseOrderEarnings).not.toHaveBeenCalled();
   });
 });

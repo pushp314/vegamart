@@ -188,9 +188,16 @@ export async function expireExpiredMemberships(): Promise<number> {
     await prisma.vendorProfile.update({
       where: { id: vendor.id },
       data: {
+        membership_tier: "basic",
+        membership_plan: { disconnect: true },
+        membership_expires_at: null,
         is_sponsored: demoteSponsorship ? false : undefined,
         commission_rate: 5,
       },
+    });
+    await prisma.vendorSubscription.updateMany({
+      where: { vendor_id: vendor.id, status: { notIn: ["canceled", "expired", "completed"] } },
+      data: { status: "expired", auto_renew: false },
     });
     await notificationService.vendor(
       vendor.user_id,

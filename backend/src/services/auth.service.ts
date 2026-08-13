@@ -10,13 +10,13 @@ import { exchangeGoogleCode } from "./google-oauth.service";
 import { generateAndStoreOtp, otpPurposeLabel, verifyOtp } from "./otp.service";
 import { createRefreshToken, hashRefreshToken, isValidRefreshTokenFormat, signAccessToken } from "./token.service";
 import { createSession, countActive as countActiveSessionsForUser, findActiveById, revoke, revokeAllForUser as revokeAllSessionsForUser, updateLastActivity } from "../repositories/session.repository";
-import { createRefreshToken as createRefreshTokenRepo, findByTokenHash, revoke as revokeRefreshToken, revokeAllForSession, revokeAllForUser as revokeAllTokensForUser } from "../repositories/refresh-token.repository";
+import { createRefreshToken as createRefreshTokenRepo, findByTokenHash, revoke as revokeRefreshToken, revokeAllForSession, revokeAllForUser as revokeAllTokensForUser, revokeAllForUserExceptSession, rotate as rotateRefreshToken } from "../repositories/refresh-token.repository";
 import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
 import { createOtp, findByHash as findOtpByHash, markUsed as markOtpUsed, revokeActiveFor } from "../repositories/otp.repository";
 import { create as createUserRepo, findByEmail, findById as findUserById, incrementLoginFailures, markEmailVerified, resetLoginFailures, setLastLogin, setLocked, update as updateUserRepo, updatePassword, UserWithRoleAndPermissions } from "../repositories/user.repository";
 import { assertStrongPassword, hashPassword, normalizeEmail, verifyPassword } from "../utils/password";
 import { checkPasswordExpiry, enforcePasswordPolicy } from "../utils/password-policy";
-import { ApiError, ForbiddenError, UnauthorizedError, ValidationError } from "../utils/ApiError";
+import { ApiError, UnauthorizedError, ValidationError } from "../utils/ApiError";
 import { generateOpaqueToken, sha256Hex } from "../utils/crypto";
 import { parseDeviceInfo } from "../utils/device";
 import { HttpStatus } from "../utils/httpStatus";
@@ -40,7 +40,7 @@ export interface RegisterInput {
   role?: string;
 }
 
-const SELF_SERVICE_ROLES = new Set(["customer", "vendor", "delivery"]);
+const SELF_SERVICE_ROLES = new Set(["customer"]);
 
 function sendRoleWelcomeEmail(role: string, email: string, name: string): void {
   if (role === "vendor") {
@@ -130,7 +130,7 @@ export const authService = {
     const role = input.role ?? "customer";
 
     if (!SELF_SERVICE_ROLES.has(role)) {
-      throw new ValidationError({ role: "Role must be one of: customer, vendor, delivery." });
+      throw new ValidationError({ role: "Role must be one of: customer." });
     }
 
     assertStrongPassword(input.password);
@@ -231,26 +231,34 @@ export const authService = {
         { userId: undefined, action: AUDIT_ACTIONS.USER_LOGIN_FAILED, entityType: "user", entityId: undefined },
         req
       );
+      securityEventFromReq("LOGIN_ACCOUNT_NOT_FOUND", req, { email });
       throw new UnauthorizedError("Invalid email or password.");
     }
 
-    if (user.deleted_at) {
-      // Account was removed by an admin. Point them to re-registration instead of a dead-end.
-      throw new ApiError(HttpStatus.UNAUTHORIZED, "This account has been deleted. Please create a new account with this email.", {
-        code: "ACCOUNT_DELETED",
+    if (user.deleted_at || user.status !== UserStatus.ACTIVE) {
+      // Deleted, inactive, suspended or banned accounts all return the same generic
+      // response so an attacker cannot enumerate account state. The specific reason
+      // is recorded internally only.
+      await auditService.record(
+        { userId: user.id, action: AUDIT_ACTIONS.USER_LOGIN_FAILED, entityType: "user", entityId: user.id },
+        req
+      );
+      securityEventFromReq("LOGIN_ACCOUNT_BLOCKED", req, {
+        userId: user.id,
+        email,
+        reason: user.deleted_at ? "deleted" : user.status,
       });
-    }
-
-    if (user.status === UserStatus.SUSPENDED || user.status === UserStatus.BANNED) {
-      throw new ForbiddenError("This account has been suspended. Contact support.");
+      throw new UnauthorizedError("Invalid email or password.");
     }
 
     if (user.locked_until && user.locked_until.getTime() > Date.now()) {
       const retryAfterSeconds = Math.ceil((user.locked_until.getTime() - Date.now()) / 1000);
-      throw new ApiError(HttpStatus.UNAUTHORIZED, "Account temporarily locked due to too many failed attempts.", {
-        code: "ACCOUNT_LOCKED",
-        details: { retry_after: String(retryAfterSeconds) },
-      });
+      await auditService.record(
+        { userId: user.id, action: AUDIT_ACTIONS.USER_LOGIN_FAILED, entityType: "user", entityId: user.id },
+        req
+      );
+      securityEventFromReq("LOGIN_ACCOUNT_LOCKED", req, { userId: user.id, email, retryAfterSeconds });
+      throw new UnauthorizedError("Invalid email or password.");
     }
 
     const passwordValid = await verifyPassword(password, user.password_hash);
@@ -265,11 +273,12 @@ export const authService = {
           { userId: user.id, action: AUDIT_ACTIONS.USER_LOGIN_FAILED, entityType: "user", entityId: user.id },
           req
         );
-        throw new ApiError(
-          HttpStatus.UNAUTHORIZED,
-          `Too many failed attempts. Account locked for ${env.ACCOUNT_LOCK_MINUTES} minutes.`,
-          { code: "ACCOUNT_LOCKED", details: { retry_after: String(env.ACCOUNT_LOCK_MINUTES * 60) } }
-        );
+        securityEventFromReq("LOGIN_ACCOUNT_LOCKED", req, {
+          userId: user.id,
+          email,
+          retryAfterSeconds: env.ACCOUNT_LOCK_MINUTES * 60,
+        });
+        throw new UnauthorizedError("Invalid email or password.");
       }
 
       await auditService.record(
@@ -301,11 +310,12 @@ export const authService = {
     await verifyOtp(email, OtpPurpose.LOGIN, otp);
 
     const user = await findByEmail(email);
-    if (!user || user.deleted_at) {
+    if (!user || user.deleted_at || user.status !== UserStatus.ACTIVE) {
+      securityEventFromReq("OTP_LOGIN_ACCOUNT_BLOCKED", req, {
+        email,
+        reason: !user ? "not_found" : user.deleted_at ? "deleted" : user.status,
+      });
       throw new UnauthorizedError("Invalid email or password.");
-    }
-    if (user.status === UserStatus.SUSPENDED || user.status === UserStatus.BANNED) {
-      throw new ForbiddenError("This account has been suspended. Contact support.");
     }
 
     await setLastLogin(user.id);
@@ -377,8 +387,13 @@ export const authService = {
       return createSessionAndTokens(user.id, req);
     }
 
-    if (user.status === UserStatus.SUSPENDED || user.status === UserStatus.BANNED) {
-      throw new ForbiddenError("This account has been suspended. Contact support.");
+    if (user.status !== UserStatus.ACTIVE) {
+      securityEventFromReq("GOOGLE_LOGIN_ACCOUNT_BLOCKED", req, {
+        userId: user.id,
+        email: profile.email,
+        reason: user.status,
+      });
+      throw new UnauthorizedError("Your account is no longer active.");
     }
 
     if (user.provider !== "google" || !user.provider_id) {
@@ -410,7 +425,29 @@ export const authService = {
 
     const record = await findByTokenHash(hashRefreshToken(refreshToken));
 
-    if (!record || record.revoked_at || record.expires_at.getTime() < Date.now()) {
+    if (!record || record.expires_at.getTime() < Date.now()) {
+      throw new UnauthorizedError("Refresh token is invalid or expired.");
+    }
+
+    // Reuse detection: if this token has already been rotated, the presented
+    // record will carry a replaced_by pointer. Revoking the whole session makes
+    // a stolen/replayed token useless and alerts the fleet. Checked before the
+    // revoked_at test because rotation also sets revoked_at — replaying an old
+    // rotated token must reach this branch, not the generic expiry error.
+    if (record.replaced_by) {
+      securityEventFromReq("REFRESH_TOKEN_REUSE", req, {
+        userId: record.user_id,
+        sessionId: record.session_id,
+        tokenId: record.id,
+      });
+      if (record.session_id) {
+        await revoke(record.session_id);
+        await revokeAllForSession(record.session_id);
+      }
+      throw new UnauthorizedError("Refresh token is invalid or expired.");
+    }
+
+    if (record.revoked_at) {
       throw new UnauthorizedError("Refresh token is invalid or expired.");
     }
 
@@ -430,11 +467,9 @@ export const authService = {
       throw new UnauthorizedError("Your account is no longer active.");
     }
 
-    await revokeRefreshToken(record.id);
-
     const refresh = createRefreshToken();
     const refreshExpiry = new Date(Date.now() + parseDurationToMs(env.JWT_REFRESH_EXPIRES_IN));
-    await createRefreshTokenRepo({
+    const created = await createRefreshTokenRepo({
       user_id: user.id,
       token_hash: refresh.token_hash,
       session_id: session.id,
@@ -442,6 +477,22 @@ export const authService = {
       ip_address: record.ip_address,
       user_agent: record.user_agent,
     });
+
+    // Atomically rotate. If this update hits zero rows, another concurrent
+    // request already rotated the token — treat it as reuse and revoke.
+    const didRotate = await rotateRefreshToken(record.id, created.id);
+    if (!didRotate) {
+      securityEventFromReq("REFRESH_TOKEN_REUSE", req, {
+        userId: user.id,
+        sessionId: session.id,
+        tokenId: record.id,
+      });
+      if (session.id) {
+        await revoke(session.id);
+        await revokeAllForSession(session.id);
+      }
+      throw new UnauthorizedError("Refresh token is invalid or expired.");
+    }
 
     await updateLastActivity(session.id);
 
@@ -546,18 +597,36 @@ export const authService = {
   async forgotPassword(emailInput: string, req: Request): Promise<void> {
     const email = normalizeEmail(emailInput);
     const user = await findByEmail(email);
-    if (!user) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "No account found with this email address.", {
-        code: "ACCOUNT_NOT_FOUND",
+
+    // Always respond generically to prevent account enumeration. The reset code is
+    // only issued to existing, active accounts.
+    if (!user || user.deleted_at || user.status !== UserStatus.ACTIVE) {
+      securityEventFromReq("PASSWORD_RESET_BLOCKED", req, {
+        email,
+        reason: !user ? "not_found" : user.deleted_at ? "deleted" : user.status,
       });
+      return;
     }
 
-    const { plain } = await generateAndStoreOtp(email, OtpPurpose.PASSWORD_RESET);
-    void emailService.sendPasswordResetOtp(email, plain, OTP_TTL_MINUTES);
-    await auditService.record(
-      { userId: user.id, action: AUDIT_ACTIONS.PASSWORD_RESET_REQUESTED, entityType: "user", entityId: user.id },
-      req
-    );
+    try {
+      const { plain } = await generateAndStoreOtp(email, OtpPurpose.PASSWORD_RESET);
+      void emailService.sendPasswordResetOtp(email, plain, OTP_TTL_MINUTES);
+      await auditService.record(
+        { userId: user.id, action: AUDIT_ACTIONS.PASSWORD_RESET_REQUESTED, entityType: "user", entityId: user.id },
+        req
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "OTP_RESEND_COOLDOWN") {
+        // The user already has a valid, unexpired code — keep their response
+        // identical to the no-account case so existence stays hidden.
+        await auditService.record(
+          { userId: user.id, action: AUDIT_ACTIONS.PASSWORD_RESET_REQUESTED, entityType: "user", entityId: user.id },
+          req
+        );
+        return;
+      }
+      throw err;
+    }
   },
 
   async resetPassword(emailInput: string, otp: string, newPassword: string, req: Request): Promise<void> {
@@ -614,6 +683,17 @@ export const authService = {
       newPassword
     );
     await updatePassword(authUser.id, passwordHash, history);
+
+    // After a password change, revoke every session and refresh token for this
+    // user except the current device so the authenticated flow keeps working
+    // while other devices are signed out.
+    if (authUser.session_id) {
+      await revokeAllSessionsForUser(authUser.id, authUser.session_id);
+      await revokeAllForUserExceptSession(authUser.id, authUser.session_id);
+    } else {
+      await revokeAllSessionsForUser(authUser.id);
+      await revokeAllTokensForUser(authUser.id);
+    }
 
     await auditService.record(
       { userId: authUser.id, action: AUDIT_ACTIONS.PASSWORD_CHANGED, entityType: "user", entityId: authUser.id },

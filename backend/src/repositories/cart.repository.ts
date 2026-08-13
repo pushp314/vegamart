@@ -89,18 +89,16 @@ export async function findByUserId(userId: string): Promise<CartRow | null> {
 }
 
 export async function getOrCreate(userId: string): Promise<CartRow> {
-  const existing = await prisma.cart.findUnique({
+  // Single atomic upsert: concurrent calls for a brand-new user can no longer
+  // race (find-then-create) and trip the unique(user_id) constraint, leaving one
+  // orphaned cart or a 500. The `user_id` unique index serialises them.
+  const row = await prisma.cart.upsert({
     where: { user_id: userId },
+    update: {},
+    create: { user_id: userId },
     select: baseSelect,
   });
-  if (existing) {
-    return mapRow(existing);
-  }
-  const created = await prisma.cart.create({
-    data: { user_id: userId },
-    select: baseSelect,
-  });
-  return mapRow(created);
+  return mapRow(row);
 }
 
 export async function addItem(

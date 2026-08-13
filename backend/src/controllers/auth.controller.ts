@@ -26,7 +26,8 @@ function respondWithSession(res: Response, session: AuthSessionResult, status: n
  * /auth/register:
  *   post:
  *     summary: Create a new account
- *     description: Registers a customer, vendor or delivery account and returns a session.
+ *     description: Registers a customer account and returns a session. Vendor and delivery
+ *                  self-registration is not supported; use the admin onboarding flow instead.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -40,7 +41,7 @@ function respondWithSession(res: Response, session: AuthSessionResult, status: n
  *               email: { type: string, format: email }
  *               phone: { type: string }
  *               password: { type: string, format: password }
- *               role: { type: string, enum: [customer, vendor, delivery] }
+ *               role: { type: string, enum: [customer] }
  *     responses:
  *       201:
  *         description: Account created and session issued.

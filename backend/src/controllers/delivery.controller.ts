@@ -169,5 +169,5 @@ export const submitDeliveryKyc = asyncHandler(async (req: Request, res: Response
 });
 
 export const getDeliveryTracking = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await deliveryService.getDeliveryTracking(req.params.id as string));
+  return sendSuccess(res, await deliveryService.getDeliveryTracking(req.user!, req.params.id as string));
 });

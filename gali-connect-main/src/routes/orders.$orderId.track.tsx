@@ -314,8 +314,6 @@ function OrderIdTrackingPage() {
                       [order.address?.address_line1, order.address?.landmark]
                         .filter(Boolean)
                         .join(", ")}
-                    {order.address?.city ? `, ${order.address.city}` : ""}
-                    {order.address?.pincode ? ` — ${order.address.pincode}` : ""}
                   </div>
                 </div>
               </div>

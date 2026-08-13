@@ -68,9 +68,6 @@ export function AdminCreatePartner() {
       }
 
       const tempToken = authRes.data.access_token;
-      const apiBase =
-        import.meta.env.VITE_API_BASE_URL ||
-        (window.location.hostname === "localhost" ? "http://localhost:8080/api/v1" : "/api/v1");
 
       if (partnerType === "vendor") {
         if (!businessName || !address || !pincode) {
@@ -80,7 +77,7 @@ export function AdminCreatePartner() {
         }
 
         // Step 2: Register Vendor using user token
-        const rawRes = await fetch(`${apiBase}/vendors/register`, {
+        const vendorRes = await api.request<any>("/vendors/register", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -98,13 +95,14 @@ export function AdminCreatePartner() {
             subscription_plan: "pro",
           }),
         });
-        const vendorRes = await rawRes.json();
 
         if (vendorRes.success) {
           const vId = vendorRes.data?.id || vendorRes.data?.data?.id;
           // Step 3: Approve vendor automatically
           if (vId) {
-            const approveRes = await api.put<any>(`/admin/vendors/${vId}/approve`);
+            const approveRes = await api.post<any>(`/admin/vendors/${vId}/review`, {
+              decision: "approve",
+            });
             if (!approveRes.success) {
               setLoading(false);
               toast.error(formatErrorMessage(approveRes.error, "Vendor created but failed to approve"));
@@ -133,7 +131,7 @@ export function AdminCreatePartner() {
         }
       } else {
         // Delivery Partner Creation
-        const rawRes = await fetch(`${apiBase}/delivery/apply`, {
+        const deliveryRes = await api.request<any>("/delivery/apply", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -146,12 +144,13 @@ export function AdminCreatePartner() {
             city,
           }),
         });
-        const deliveryRes = await rawRes.json();
 
         if (deliveryRes.success) {
           const dId = deliveryRes.data?.id || deliveryRes.data?.data?.id;
           if (dId) {
-            const approveRes = await api.put<any>(`/admin/delivery/${dId}/approve`);
+            const approveRes = await api.post<any>(`/admin/delivery-partners/${dId}/review`, {
+              decision: "approve",
+            });
             if (!approveRes.success) {
               setLoading(false);
               toast.error(approveRes.error?.message || "Partner created but failed to approve");

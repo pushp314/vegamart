@@ -46,6 +46,23 @@ describe("auth validators", () => {
       expect(result.success).toBe(false);
     });
 
+    it("rejects vendor or delivery self-registration", () => {
+      const vendor = registerSchema.safeParse({
+        name: "Asha",
+        email: "vendor@example.com",
+        password: "StrongPass1!",
+        role: "vendor",
+      });
+      const delivery = registerSchema.safeParse({
+        name: "Asha",
+        email: "delivery@example.com",
+        password: "StrongPass1!",
+        role: "delivery",
+      });
+      expect(vendor.success).toBe(false);
+      expect(delivery.success).toBe(false);
+    });
+
     it("rejects an invalid phone number", () => {
       const result = registerSchema.safeParse({
         name: "Asha",

@@ -103,3 +103,40 @@ export type Category = {
   is_active: boolean;
   vendor_count?: number;
 };
+
+/**
+ * Delivery address attached to an order detail. The backend projects this from
+ * the Address model and does NOT expose line1/street/city/pincode on orders -
+ * `full_address` is the canonical, human-readable address string.
+ */
+export type OrderAddress = {
+  id: string;
+  label: string;
+  full_address: string;
+  landmark: string | null;
+  country: string | null;
+};
+
+export type CouponType = "PERCENTAGE" | "FIXED" | "FREE_DELIVERY";
+
+export type Coupon = {
+  id: string;
+  code: string;
+  type: CouponType;
+  value: number;
+  max_discount: number | null;
+  min_order_value: number | null;
+  usage_limit: number;
+  per_user_limit: number;
+  valid_from: string;
+  valid_until: string;
+  is_active: boolean;
+};
+
+/** Shape returned by POST /coupons/validate. */
+export type CouponValidation = {
+  coupon: Pick<Coupon, "id" | "code" | "type">;
+  discount: number;
+  eligible_subtotal: number;
+  group_discounts: Record<string, number>;
+};

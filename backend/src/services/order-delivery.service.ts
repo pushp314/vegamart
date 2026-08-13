@@ -4,6 +4,7 @@ import type { OrderStatus } from "@prisma/client";
 import prisma from "../database/prisma";
 import { OTP_MAX_ATTEMPTS } from "../constants";
 import * as inventoryRepo from "../repositories/inventory.repository";
+import { createOrderEarnings } from "./earning.service";
 import type { OrderRow } from "../repositories/order.repository";
 import { safeEqual } from "../utils/crypto";
 import { ApiError } from "../utils/ApiError";
@@ -93,8 +94,10 @@ export interface CompleteDeliveryInput {
   otp: string;
   allowedStates: readonly string[];
   note?: string | null;
-  actorType: "delivery" | "vendor";
+  actorType: "delivery" | "vendor" | "admin";
   actorId: string;
+  /** Admin override: commit DELIVERED without requiring the OTP to match. */
+  skipOtp?: boolean;
 }
 
 /**
@@ -115,8 +118,10 @@ export async function completeDelivery(input: CompleteDeliveryInput): Promise<Or
     const where: Prisma.OrderWhereInput = {
       id: input.orderId,
       status: { in: [...input.allowedStates] as OrderStatus[] },
-      otp_code: input.otp,
     };
+    if (!input.skipOtp) {
+      where.otp_code = input.otp;
+    }
     if (input.partnerId) {
       where.delivery_partner_id = input.partnerId;
     }
@@ -158,7 +163,35 @@ export async function completeDelivery(input: CompleteDeliveryInput): Promise<Or
       create: { order_id: input.orderId, status: "DELIVERED" as never },
     });
 
-    const row = await tx.order.findUnique({ where: { id: input.orderId } });
+    // Immutable earning ledger rows are created in the same transaction that
+    // wins the atomic DELIVERED claim, so replayed/raced completions (count === 0)
+    // can never double-create vendor or delivery earnings.
+    const row = await tx.order.findUnique({
+      where: { id: input.orderId },
+      include: {
+        items: { select: { total_price: true, status: true } },
+        vendor: { select: { commission_rate: true } },
+      },
+    });
+    if (row) {
+      await createOrderEarnings(
+        {
+          id: row.id,
+          vendor_id: row.vendor_id,
+          delivery_partner_id: row.delivery_partner_id,
+          items_subtotal: row.items_subtotal.toNumber(),
+          delivery_fee: row.delivery_fee.toNumber(),
+          discount: row.discount.toNumber(),
+          commission_rate: row.vendor?.commission_rate.toNumber() ?? 0,
+          items: row.items.map((item) => ({
+            total_price: item.total_price.toNumber(),
+            status: item.status,
+          })),
+        },
+        tx
+      );
+    }
+
     return row as unknown as OrderRow;
   });
 }

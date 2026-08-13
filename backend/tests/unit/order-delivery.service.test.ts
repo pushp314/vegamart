@@ -20,8 +20,13 @@ jest.mock("../../src/repositories/inventory.repository", () => ({
   consumeQuantityForOrder: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock("../../src/services/earning.service", () => ({
+  createOrderEarnings: jest.fn().mockResolvedValue(undefined),
+}));
+
 import prisma from "../../src/database/prisma";
 import * as inventoryRepo from "../../src/repositories/inventory.repository";
+import { createOrderEarnings } from "../../src/services/earning.service";
 import {
   assertValidDeliveryOtp,
   verifyDeliveryOtp,
@@ -45,7 +50,23 @@ function makeOrder(overrides: Partial<DeliveryOtpOrder> = {}): DeliveryOtpOrder 
 }
 
 function makeRow(overrides: Record<string, unknown> = {}) {
-  return { id: "order-1", status: "DELIVERED", otp_code: null, ...overrides };
+  return {
+    id: "order-1",
+    vendor_id: "v1",
+    delivery_partner_id: null,
+    status: "DELIVERED",
+    otp_code: null,
+    items_subtotal: dec(1000),
+    delivery_fee: dec(30),
+    discount: dec(0),
+    items: [{ total_price: dec(1000), status: "active" }],
+    vendor: { commission_rate: dec(5) },
+    ...overrides,
+  };
+}
+
+function dec(value: number) {
+  return { toNumber: () => value } as any;
 }
 
 describe("assertValidDeliveryOtp", () => {
@@ -173,6 +194,42 @@ describe("completeDelivery", () => {
       expect.objectContaining({ where: { order_id: "order-1" }, update: { status: "DELIVERED" } })
     );
     expect(result.status).toBe("DELIVERED");
+  });
+
+  it("creates vendor + delivery earnings once for the completed order", async () => {
+    (createOrderEarnings as jest.Mock).mockClear();
+    mockPrismaTx.order.updateMany.mockResolvedValue({ count: 1 });
+    mockPrismaTx.order.findUnique.mockResolvedValue(makeRow({ delivery_partner_id: "p1" }));
+
+    await completeDelivery({
+      orderId: "order-1",
+      partnerId: "p1",
+      otp: "123456",
+      allowedStates: DELIVERY_PARTNER_DELIVERY_STATES,
+      actorType: "delivery",
+      actorId: "u1",
+    });
+
+    expect(createOrderEarnings).toHaveBeenCalledTimes(1);
+    const [, tx] = (createOrderEarnings as jest.Mock).mock.calls[0];
+    expect(tx).toBe(mockPrismaTx);
+  });
+
+  it("does not create earnings when the atomic claim fails (replayed completion)", async () => {
+    (createOrderEarnings as jest.Mock).mockClear();
+    mockPrismaTx.order.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      completeDelivery({
+        orderId: "order-1",
+        otp: "123456",
+        allowedStates: DELIVERY_PARTNER_DELIVERY_STATES,
+        actorType: "delivery",
+        actorId: "u1",
+      })
+    ).rejects.toMatchObject({ statusCode: 409, code: "INVALID_DELIVERY_STATE" });
+
+    expect(createOrderEarnings).not.toHaveBeenCalled();
   });
 
   it("does not consume inventory when the atomic claim fails (already delivered / skipped state)", async () => {

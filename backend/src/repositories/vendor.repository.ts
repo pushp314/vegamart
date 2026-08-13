@@ -450,13 +450,23 @@ export interface AdminVendorStats {
   total_orders: number;
   active_orders: number;
   total_revenue: import("@prisma/client").Prisma.Decimal;
+  /** Gross order item revenue (Σ items_subtotal − discount) for non-cancelled/non-failed orders. */
+  item_revenue: import("@prisma/client").Prisma.Decimal;
+  /** Net earnings = Σ all vendorEarning rows (positive earnings minus REFUND reversals). Authoritative payout basis. */
   total_earnings: import("@prisma/client").Prisma.Decimal;
+  /** Σ positive (non-REFUND) vendorEarning rows, before refund reversals. */
+  gross_earnings: import("@prisma/client").Prisma.Decimal;
+  /** Total reversed (refunded) earnings, expressed as a positive number. */
+  refunded_earnings: import("@prisma/client").Prisma.Decimal;
   pending_earnings: import("@prisma/client").Prisma.Decimal;
   product_count: number;
   out_of_stock_count: number;
   today_revenue: import("@prisma/client").Prisma.Decimal;
   weekly_revenue: import("@prisma/client").Prisma.Decimal;
   monthly_revenue: import("@prisma/client").Prisma.Decimal;
+  today_earnings: import("@prisma/client").Prisma.Decimal;
+  weekly_earnings: import("@prisma/client").Prisma.Decimal;
+  monthly_earnings: import("@prisma/client").Prisma.Decimal;
 }
 
 export async function getVendorStats(id: string, monthFilter?: string): Promise<AdminVendorStats> {
@@ -475,17 +485,25 @@ export async function getVendorStats(id: string, monthFilter?: string): Promise<
     endOfMonth = new Date(parseInt(yearStr), parseInt(monthStr), 0, 23, 59, 59, 999);
   }
 
+  const nonCancelledWhere: import("@prisma/client").Prisma.OrderWhereInput = { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] } };
+
   const [
     totalOrders,
     activeOrders,
     revenueAgg,
     earningsAgg,
+    grossEarningsAgg,
+    refundedEarningsAgg,
     pendingEarnings,
+    itemRevenueAgg,
     productCount,
     outOfStock,
     todayRevenueAgg,
     weeklyRevenueAgg,
     monthlyRevenueAgg,
+    todayEarnings,
+    weeklyEarnings,
+    monthlyEarnings,
   ] = await Promise.all([
     prisma.order.count({
       where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] } },
@@ -502,38 +520,72 @@ export async function getVendorStats(id: string, monthFilter?: string): Promise<
       _sum: { amount: true },
     }),
     prisma.vendorEarning.aggregate({
+      where: { vendor_id: id, type: { not: "REFUND" } },
+      _sum: { amount: true },
+    }),
+    prisma.vendorEarning.aggregate({
+      where: { vendor_id: id, type: "REFUND" },
+      _sum: { amount: true },
+    }),
+    prisma.vendorEarning.aggregate({
       where: { vendor_id: id, status: "PENDING" },
       _sum: { amount: true },
+    }),
+    prisma.order.aggregate({
+      where: nonCancelledWhere,
+      _sum: { items_subtotal: true, discount: true },
     }),
     prisma.product.count({ where: { vendor_id: id, deleted_at: null } }),
     prisma.product.count({
       where: { vendor_id: id, deleted_at: null, inventory: { some: { quantity: { lte: 0 } } } },
     }),
     prisma.order.aggregate({
-      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: monthFilter ? startOfMonth : startOfToday, lte: endOfMonth } },
+      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: startOfToday, lte: now } },
       _sum: { total: true },
     }),
     prisma.order.aggregate({
-      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: monthFilter ? startOfMonth : startOfWeek, lte: endOfMonth } },
+      where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: startOfWeek, lte: now } },
       _sum: { total: true },
     }),
     prisma.order.aggregate({
       where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { total: true },
     }),
+    prisma.vendorEarning.aggregate({
+      where: { vendor_id: id, created_at: { gte: startOfToday, lte: now } },
+      _sum: { amount: true },
+    }),
+    prisma.vendorEarning.aggregate({
+      where: { vendor_id: id, created_at: { gte: startOfWeek, lte: now } },
+      _sum: { amount: true },
+    }),
+    prisma.vendorEarning.aggregate({
+      where: { vendor_id: id, created_at: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
+    }),
   ]);
+
+  const refunded = refundedEarningsAgg._sum.amount ?? new Prisma.Decimal(0);
+  const itemSubtotal = itemRevenueAgg._sum.items_subtotal ?? new Prisma.Decimal(0);
+  const itemDiscount = itemRevenueAgg._sum.discount ?? new Prisma.Decimal(0);
 
   return {
     total_orders: totalOrders,
     active_orders: activeOrders,
     total_revenue: revenueAgg._sum.total ?? new Prisma.Decimal(0),
+    item_revenue: itemSubtotal.minus(itemDiscount),
     total_earnings: earningsAgg._sum.amount ?? new Prisma.Decimal(0),
+    gross_earnings: grossEarningsAgg._sum.amount ?? new Prisma.Decimal(0),
+    refunded_earnings: refunded.negated(),
     pending_earnings: pendingEarnings._sum.amount ?? new Prisma.Decimal(0),
     product_count: productCount,
     out_of_stock_count: outOfStock,
     today_revenue: todayRevenueAgg._sum.total ?? new Prisma.Decimal(0),
     weekly_revenue: weeklyRevenueAgg._sum.total ?? new Prisma.Decimal(0),
     monthly_revenue: monthlyRevenueAgg._sum.total ?? new Prisma.Decimal(0),
+    today_earnings: todayEarnings._sum.amount ?? new Prisma.Decimal(0),
+    weekly_earnings: weeklyEarnings._sum.amount ?? new Prisma.Decimal(0),
+    monthly_earnings: monthlyEarnings._sum.amount ?? new Prisma.Decimal(0),
   };
 }
 

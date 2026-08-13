@@ -27,6 +27,7 @@ function buildGuestUser(): Express.Request["user"] {
     vendor_id: null,
     delivery_id: null,
     is_verified: false,
+    session_id: null,
   };
 }
 
@@ -54,6 +55,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
       vendor_id: null,
       delivery_id: null,
       is_verified: false,
+      session_id: claims.session_id ?? null,
     };
 
     next();
@@ -91,6 +93,7 @@ export function optionalAuthenticate(req: Request, _res: Response, next: NextFun
       vendor_id: null,
       delivery_id: null,
       is_verified: false,
+      session_id: claims.session_id ?? null,
     };
     next();
   } catch {

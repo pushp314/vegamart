@@ -7,11 +7,11 @@ import { notificationService } from "./notification.service";
 import { cacheService } from "../database/cache";
 import * as paymentRepo from "../repositories/payment.repository";
 import * as orderRepo from "../repositories/order.repository";
-import * as inventoryRepo from "../repositories/inventory.repository";
 import * as transactionRepo from "../repositories/transaction.repository";
 import { findById as findOrderById } from "../repositories/order.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { subscriptionPaymentService } from "./subscription-payment.service";
+import { reverseOrderEarnings } from "./earning.service";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -128,11 +128,16 @@ export const paymentService = {
 
     const updatedPayment = await paymentRepo.findByRazorpayOrderId(input.razorpay_order_id) ?? payment;
     await orderRepo.updateOrder(order.id, { payment_status: "PAID" });
-    await orderRepo.updateOrderStatus(order.id, {
-      status: "CONFIRMED",
-      note: "Payment verified. Order confirmed.",
-      actorType: "system",
-    });
+    // Only a non-terminal order may be confirmed. If the order was cancelled or
+    // otherwise left the confirmation flow while payment settled, the payment is
+    // recorded as PAID but the order is never revived.
+    if (order.status === "PENDING" || order.status === "CONFIRMED") {
+      await orderRepo.updateOrderStatus(order.id, {
+        status: "CONFIRMED",
+        note: "Payment verified. Order confirmed.",
+        actorType: "system",
+      });
+    }
 
     await transactionRepo.create({
       order_id: order.id,
@@ -144,8 +149,6 @@ export const paymentService = {
       reference: input.razorpay_payment_id,
       metadata: { razorpay_order_id: input.razorpay_order_id },
     });
-
-    await inventoryRepo.reserveQuantityFromOrder(order.id, req);
 
     await notificationService.payment(userId, "Payment successful", `Your payment for ${order.order_number} was successful.`, {
       order_id: order.id,
@@ -253,11 +256,16 @@ export const paymentService = {
     if (claimed === 0) return;
 
     await orderRepo.updateOrder(order.id, { payment_status: "PAID" });
-    await orderRepo.updateOrderStatus(order.id, {
-      status: "CONFIRMED",
-      note: "Payment confirmed via webhook.",
-      actorType: "system",
-    });
+    // Guard the CONFIRMED transition: a payment that settled after the order was
+    // cancelled (or already moved on) must not revive the order. The payment is
+    // still recorded as PAID and the platform can refund it.
+    if (order.status === "PENDING" || order.status === "CONFIRMED") {
+      await orderRepo.updateOrderStatus(order.id, {
+        status: "CONFIRMED",
+        note: "Payment confirmed via webhook.",
+        actorType: "system",
+      });
+    }
 
     await transactionRepo.create({
       order_id: order.id,
@@ -269,8 +277,6 @@ export const paymentService = {
       reference: entity.id ?? null,
       metadata: { razorpay_order_id: razorpayOrderId, source: "webhook" },
     });
-
-    await inventoryRepo.reserveQuantityFromOrder(order.id, undefined);
 
     await notificationService.payment(order.user_id, "Payment successful", `Your payment for ${order.order_number} was successful.`, {
       order_id: order.id,
@@ -290,41 +296,58 @@ export const paymentService = {
     if (payment.status === "REFUNDED") {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Payment has already been refunded.", { code: "ALREADY_REFUNDED" });
     }
-    if (payment.status !== "PAID") {
+    if (payment.status !== "PAID" && payment.status !== "PARTIALLY_REFUNDED") {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Only paid payments can be refunded.", { code: "NOT_PAID" });
     }
 
-    const refundAmount = input.amount ?? payment.amount.toNumber();
-    if (refundAmount <= 0 || refundAmount > payment.amount.toNumber()) {
+    const paidAmount = payment.amount.toNumber();
+    const refundedSoFar = payment.refund_amount?.toNumber() ?? 0;
+    const remaining = Math.max(0, paidAmount - refundedSoFar);
+    const refundAmount = input.amount ?? remaining;
+    if (refundAmount <= 0 || refundAmount > remaining) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid refund amount.", { code: "INVALID_REFUND_AMOUNT" });
     }
 
-    const refund = await razorpayGateway.refundPayment(payment.razorpay_payment_id!, {
-      amountPaise: Math.round(refundAmount * 100),
-      notes: input.reason,
-    });
+    // Atomic claim: only the first caller that marks the payment as refund-in-
+    // progress proceeds to the gateway. Concurrent or replayed refunds lose the
+    // claim and short-circuit here.
+    const claimed = await paymentRepo.claimRefund(payment.id);
+    if (claimed === 0) {
+      const current = await paymentRepo.findByOrderId(orderId);
+      if (current?.status === "REFUNDED") {
+        return {
+          refund_id: current.refund_id ?? null,
+          amount: remaining,
+          status: "REFUNDED",
+          payment: current,
+        };
+      }
+      throw new ApiError(HttpStatus.CONFLICT, "A refund for this payment is already being processed.", {
+        code: "REFUND_IN_PROGRESS",
+      });
+    }
 
-    const fullyRefunded = refundAmount >= payment.amount.toNumber();
+    let refund;
+    try {
+      refund = await razorpayGateway.refundPayment(payment.razorpay_payment_id!, {
+        amountPaise: Math.round(refundAmount * 100),
+        notes: input.reason,
+      });
+    } catch (err) {
+      // The gateway call failed - release the claim so the refund can be retried
+      // and leave the payment (and order) fully recoverable.
+      await paymentRepo.clearRefundClaim(payment.id);
+      throw err;
+    }
+
+    const cumulativeRefunded = Math.round((refundedSoFar + refundAmount) * 100) / 100;
+    const fullyRefunded = cumulativeRefunded >= paidAmount;
     const updatedPayment = await paymentRepo.updatePayment(payment.id, {
       refund_id: refund.id,
-      refund_amount: refundAmount,
+      refund_amount: cumulativeRefunded,
       refund_status: refund.status,
       status: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED",
     });
-
-    await orderRepo.updateOrder(order.id, {
-      payment_status: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED",
-      refunded_at: fullyRefunded ? new Date() : null,
-      refund_reason: input.reason ?? null,
-    });
-    if (fullyRefunded) {
-      await orderRepo.updateOrderStatus(order.id, {
-        status: "REFUNDED",
-        note: input.reason ? `Refunded: ${input.reason}` : "Order refunded.",
-        actorType: "admin",
-      });
-      await inventoryRepo.releaseQuantityForOrder(order.id);
-    }
 
     await transactionRepo.create({
       order_id: order.id,
@@ -336,6 +359,21 @@ export const paymentService = {
       reference: refund.id,
       metadata: { reason: input.reason ?? null },
     });
+
+    // Reverse the vendor's and delivery partner's earnings proportionally to the
+    // refunded share (anchored on the gateway refund id so a replayed refund event
+    // can never double-create an adjustment). Orders cancelled before delivery
+    // never earned anything, so this is a safe no-op for them.
+    await reverseOrderEarnings(
+      {
+        id: order.id,
+        vendor_id: order.vendor_id,
+        delivery_partner_id: order.delivery_partner_id,
+        total: order.total.toNumber(),
+      },
+      refundAmount / paidAmount,
+      refund.id
+    );
 
     await notificationService.payment(order.user_id, "Refund processed", `A refund of ₹${refundAmount.toFixed(2)} has been processed for ${order.order_number}.`, {
       order_id: order.id,

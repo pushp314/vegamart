@@ -1,10 +1,11 @@
 import type { OtpPurpose } from "@prisma/client";
 
+import { env } from "../config";
 import { OTP_LENGTH, OTP_MAX_ATTEMPTS, OTP_TTL_MINUTES } from "../constants";
 import {
   createOtp,
   findLatest,
-  incrementAttempts,
+  incrementAttemptsIfBelow,
   markUsed,
   revokeActiveFor,
 } from "../repositories/otp.repository";
@@ -28,6 +29,24 @@ export async function generateAndStoreOtp(
   identifier: string,
   purpose: OtpPurpose
 ): Promise<GeneratedOtp> {
+  const latest = await findLatest(identifier, purpose);
+
+  // Resend cooldown: block repeated code generation for the same identifier and
+  // purpose so an unauthenticated caller cannot spam emails/OTPs. The previous
+  // active code is untouched so the user's existing code stays valid.
+  if (latest && !latest.is_used && !isExpired(latest.expires_at)) {
+    const elapsedMs = Date.now() - latest.created_at.getTime();
+    const cooldownMs = env.OTP_RESEND_COOLDOWN_SECONDS * 1000;
+    if (elapsedMs < cooldownMs) {
+      const waitSeconds = Math.ceil((env.OTP_RESEND_COOLDOWN_SECONDS * 1000 - elapsedMs) / 1000);
+      throw new ApiError(
+        HttpStatus.TOO_MANY_REQUESTS,
+        `Too many requests. Please wait ${waitSeconds}s before requesting a new code.`,
+        { code: "OTP_RESEND_COOLDOWN", details: { retry_after: String(waitSeconds) } }
+      );
+    }
+  }
+
   const plain = generateOtp(OTP_LENGTH);
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
@@ -41,6 +60,10 @@ export async function generateAndStoreOtp(
   });
 
   return { plain, expiresAt };
+}
+
+function isExpired(expiresAt: Date): boolean {
+  return expiresAt.getTime() < Date.now();
 }
 
 export async function verifyOtp(
@@ -58,7 +81,7 @@ export async function verifyOtp(
     throw new ValidationError({ otp: "This code has already been used." });
   }
 
-  if (record.expires_at.getTime() < Date.now()) {
+  if (isExpired(record.expires_at)) {
     throw new ValidationError({ otp: "This code has expired. Please request a new one." });
   }
 
@@ -72,7 +95,18 @@ export async function verifyOtp(
 
   const hash = sha256Hex(otp);
   if (!safeEqual(hash, record.otp_hash)) {
-    await incrementAttempts(record.id, record.attempts + 1);
+    // Atomic bounded increment: concurrent wrong guesses cannot overshoot
+    // OTP_MAX_ATTEMPTS because the counter is only incremented while below the
+    // max. A `false` return means another request already consumed the last
+    // allowed guess.
+    const incremented = await incrementAttemptsIfBelow(record.id, OTP_MAX_ATTEMPTS);
+    if (!incremented) {
+      throw new ApiError(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "Too many incorrect attempts. Please request a new code.",
+        { code: "OTP_ATTEMPTS_EXCEEDED" }
+      );
+    }
     throw new ValidationError({ otp: "Incorrect code. Please try again." });
   }
 

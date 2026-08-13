@@ -203,6 +203,7 @@ model User {
   password_reset_tokens PasswordResetToken[]
   notifications         Notification[]
   orders                Order[]               @relation("CustomerOrders")
+  checkout_idempotencies CheckoutIdempotency[]
   cart                  Cart?
   wishlist_items        WishlistItem[]
   coupon_usages         CouponUsage[]
@@ -868,6 +869,21 @@ model Order {
   @@map("orders")
 }
 
+model CheckoutIdempotency {
+  id              String   @id @default(uuid()) @db.Uuid
+  idempotency_key String   @unique @db.VarChar(120)
+  user_id         String   @db.Uuid
+  request_hash    String?  @db.VarChar(128)
+  response        Json?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("checkout_idempotencies")
+}
+
 model OrderEvent {
   id         String      @id @default(uuid()) @db.Uuid
   order_id   String      @db.Uuid
@@ -1038,12 +1054,17 @@ model VendorEarning {
   amount     Decimal        @db.Decimal(10, 2)
   status     EarningsStatus @default(PENDING)
   settled_at DateTime?
-  created_at DateTime       @default(now())
-  updated_at DateTime       @updatedAt
+  // Ties an earning (e.g. a REFUND reversal) to the source event such as a
+  // payment/refund id. Null for initial order earnings. Enforced unique per order
+  // so a replayed refund callback can never double-create its reversal row.
+  reference_id String? @db.VarChar(120)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
 
   vendor VendorProfile @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
   order  Order         @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
+  @@unique([order_id, reference_id])
   @@index([vendor_id, status])
   @@index([order_id])
   @@map("vendor_earnings")
@@ -1057,12 +1078,14 @@ model DeliveryEarning {
   amount              Decimal        @db.Decimal(10, 2)
   status              EarningsStatus @default(PENDING)
   settled_at          DateTime?
+  reference_id        String?        @db.VarChar(120)
   created_at          DateTime       @default(now())
   updated_at          DateTime       @updatedAt
 
   delivery_partner DeliveryProfile @relation(fields: [delivery_partner_id], references: [id], onDelete: Cascade)
   order            Order           @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
+  @@unique([order_id, reference_id])
   @@index([delivery_partner_id, status])
   @@index([order_id])
   @@map("delivery_earnings")

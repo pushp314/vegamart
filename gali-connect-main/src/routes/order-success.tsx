@@ -26,8 +26,8 @@ function OrderSuccess() {
   const orderNumber = order?.order_number || orderId || "—";
   const vendorName =
     order?.vendor?.business_name || order?.vendor?.profile?.owner_name || "Your Vendor";
-  const deliveryAddress = order?.address
-    ? `${order.address.line1}${order.address.landmark ? `, ${order.address.landmark}` : ""}, ${order.address.city}`
+  const deliveryAddress = order?.address?.full_address
+    ? `${order.address.full_address}${order.address.landmark ? `, ${order.address.landmark}` : ""}`
     : "Your delivery address";
   const orderStatus = String(order?.status || "preparing").toLowerCase();
 

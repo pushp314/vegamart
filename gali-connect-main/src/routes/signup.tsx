@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Sparkles, User, Mail, Phone, Lock, Loader2, Store } from "lucide-react";
-import { useAuth, UserRole } from "@/context/auth-context";
+import { ArrowRight, Sparkles, User, Mail, Phone, Lock, Loader2 } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
 import { PasswordInput } from "@/components/ui/password-input";
 import { getSafeRedirect } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,7 +27,6 @@ function Signup() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setAccountRole] = useState<UserRole>("customer");
   const [agreed, setAgreed] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -69,20 +68,13 @@ function Signup() {
       email,
       phone: phone ? `+91${phone}` : undefined,
       password,
-      role,
     });
     setSubmitting(false);
 
     if (res.success) {
       toast.success(`Welcome to Vegamart, ${name}!`);
       const redirect = getSafeRedirect();
-      if (redirect) {
-        navigate({ to: redirect });
-      } else if (role === "vendor" || res.role === "vendor") {
-        navigate({ to: "/become-vendor" });
-      } else {
-        navigate({ to: "/" });
-      }
+      navigate({ to: redirect || "/" });
     } else {
       toast.error(res.message || "Registration failed");
     }
@@ -137,31 +129,9 @@ function Signup() {
           <span className="h-px flex-1 bg-border" />
         </div>
 
-        {/* Account Type Selector */}
-        <div className="mt-5 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setAccountRole("customer")}
-            className={`flex items-center justify-center gap-2 rounded-2xl border p-3 text-xs font-semibold transition-all ${
-              role === "customer"
-                ? "border-primary bg-emerald-50 text-primary shadow-xs"
-                : "bg-muted text-muted-foreground hover:bg-card"
-            }`}
-          >
-            <User className="h-4 w-4" /> I'm a Customer
-          </button>
-          <button
-            type="button"
-            onClick={() => setAccountRole("vendor")}
-            className={`flex items-center justify-center gap-2 rounded-2xl border p-3 text-xs font-semibold transition-all ${
-              role === "vendor"
-                ? "border-primary bg-emerald-50 text-primary shadow-xs"
-                : "bg-muted text-muted-foreground hover:bg-card"
-            }`}
-          >
-            <Store className="h-4 w-4" /> I'm a Vendor
-          </button>
-        </div>
+        <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
+          <User className="h-3.5 w-3.5" /> Registering as a customer. Vendors and delivery partners are onboarded through the admin panel.
+        </p>
 
         <form className="mt-5 space-y-3.5" onSubmit={handleSubmit}>
           <label className="block">

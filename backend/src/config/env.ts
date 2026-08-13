@@ -47,6 +47,7 @@ const envSchema = z
     ACCOUNT_LOCK_MINUTES: z.coerce.number().int().positive().default(15),
     EMAIL_VERIFICATION_REQUIRED: booleanFromString,
     VERIFY_EMAIL_TOKEN_TTL_HOURS: z.coerce.number().int().positive().default(24),
+    OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
 
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),

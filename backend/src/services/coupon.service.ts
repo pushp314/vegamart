@@ -4,7 +4,7 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import * as couponRepo from "../repositories/coupon.repository";
 import type { CartRow } from "../repositories/cart.repository";
-import prisma from "../database/prisma";
+import { cartFromItems } from "../utils/cart";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import type { CreateCouponBody, UpdateCouponBody } from "../validators/coupon.validators";
@@ -12,6 +12,16 @@ import type { CreateCouponBody, UpdateCouponBody } from "../validators/coupon.va
 function parseCsv(value: string | null): string[] {
   if (!value) return [];
   return value.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+export interface CouponValidationResult {
+  coupon: couponRepo.CouponRow;
+  /** Total discount across all eligible items (authoritative cart-level discount). */
+  discount: number;
+  /** Subtotal of only the items this coupon can be applied to. */
+  eligible_subtotal: number;
+  /** Per-vendor eligible discount; only vendors with eligible items are present. */
+  group_discounts: Record<string, number>;
 }
 
 export const couponService = {
@@ -200,66 +210,24 @@ export const couponService = {
     );
   },
 
-  async validateForCart(code: string, cart: CartRow, userId: string): Promise<{ coupon: couponRepo.CouponRow; discount: number }> {
-    const coupon = await this.validate(code, cart, userId);
-    return coupon;
+  async validateForCart(
+    code: string,
+    cart: CartRow,
+    userId: string
+  ): Promise<CouponValidationResult> {
+    return this.validate(code, cart, userId);
   },
 
   async validateForItems(
     code: string,
     items: Array<{ product_id: string; quantity: number }>,
     userId: string
-  ): Promise<{ coupon: couponRepo.CouponRow; discount: number }> {
-    const ids = [...new Set(items.map((i) => i.product_id))];
-    const products = await prisma.product.findMany({
-      where: { id: { in: ids }, deleted_at: null },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        unit: true,
-        price: true,
-        mrp: true,
-        is_active: true,
-        is_available: true,
-        stock: true,
-        vendor_id: true,
-        category_id: true,
-      },
-    });
-    const byId = new Map(products.map((p) => [p.id, p]));
-    const now = new Date();
-    const cart: CartRow = {
-      id: "",
-      user_id: userId,
-      created_at: now,
-      updated_at: now,
-      items: items.flatMap((i) => {
-        const product = byId.get(i.product_id);
-        if (!product) {
-          return [];
-        }
-        return [
-          {
-            id: "",
-            product_id: product.id,
-            quantity: Math.max(1, i.quantity),
-            selected_unit: null,
-            price_snapshot: product.price,
-            created_at: now,
-            updated_at: now,
-            product: {
-              ...product,
-              images: [],
-            },
-          },
-        ];
-      }),
-    };
+  ): Promise<CouponValidationResult> {
+    const cart = await cartFromItems(userId, items);
     return this.validate(code, cart, userId);
   },
 
-  async validate(code: string, cart: CartRow, userId: string): Promise<{ coupon: couponRepo.CouponRow; discount: number }> {
+  async validate(code: string, cart: CartRow, userId: string): Promise<CouponValidationResult> {
     const coupon = await couponRepo.findByCode(code.toUpperCase());
     const now = new Date();
 
@@ -279,47 +247,96 @@ export const couponService = {
       }
     }
 
-    const { subtotal, vendorIds, productIds, categoryIds } = this.cartContext(cart);
+    const { eligibleSubtotal, vendorSubtotals } = this.computeEligibility(coupon, cart);
 
-    if (coupon.min_order_value !== null && subtotal < coupon.min_order_value.toNumber()) {
+    if (coupon.min_order_value !== null && eligibleSubtotal < coupon.min_order_value.toNumber()) {
       throw new ApiError(HttpStatus.BAD_REQUEST, `Minimum order value for this coupon is ₹${coupon.min_order_value.toFixed(2)}.`, { code: "MIN_ORDER_VALUE" });
     }
 
+    const hasRestriction =
+      parseCsv(coupon.applies_to_vendor_ids).length > 0 ||
+      parseCsv(coupon.applies_to_product_ids).length > 0 ||
+      parseCsv(coupon.applies_to_category_ids).length > 0;
+    if (hasRestriction && eligibleSubtotal === 0) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Coupon is not applicable to the items in your cart.", { code: "COUPON_NOT_APPLICABLE" });
+    }
+
+    const discount = this.computeDiscount(coupon, eligibleSubtotal);
+    const group_discounts = this.allocateDiscount(discount, vendorSubtotals);
+
+    return { coupon, discount, eligible_subtotal: eligibleSubtotal, group_discounts };
+  },
+
+  /**
+   * Authoritative eligibility context for a coupon against a cart: the subtotal of
+   * ONLY the items the coupon can be applied to (vendor/product/category
+   * restrictions are honoured), and the per-vendor breakdown of that eligible
+   * subtotal. This is the single place eligibility is derived, so checkout always
+   * discounts vendor orders against their own eligible items.
+   */
+  computeEligibility(coupon: couponRepo.CouponRow, cart: CartRow): {
+    eligibleSubtotal: number;
+    vendorSubtotals: Map<string, number>;
+  } {
     const vendorList = parseCsv(coupon.applies_to_vendor_ids);
-    if (vendorList.length > 0 && !vendorIds.some((v) => vendorList.includes(v))) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Coupon is not applicable to the items in your cart.", { code: "COUPON_NOT_APPLICABLE" });
-    }
-
     const productList = parseCsv(coupon.applies_to_product_ids);
-    if (productList.length > 0 && !productIds.some((p) => productList.includes(p))) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Coupon is not applicable to the items in your cart.", { code: "COUPON_NOT_APPLICABLE" });
-    }
-
     const categoryList = parseCsv(coupon.applies_to_category_ids);
-    if (categoryList.length > 0 && !categoryIds.some((c) => categoryList.includes(c))) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Coupon is not applicable to the items in your cart.", { code: "COUPON_NOT_APPLICABLE" });
-    }
 
-    const discount = this.computeDiscount(coupon, subtotal, cart);
-    return { coupon, discount };
-  },
-
-  cartContext(cart: CartRow): { subtotal: number; vendorIds: string[]; productIds: string[]; categoryIds: string[] } {
-    let subtotal = 0;
-    const vendorIds = new Set<string>();
-    const productIds = new Set<string>();
-    const categoryIds = new Set<string>();
+    const vendorSubtotals = new Map<string, number>();
+    let eligibleSubtotal = 0;
     for (const item of cart.items) {
-      const price = item.price_snapshot.toNumber();
-      subtotal += price * item.quantity;
-      vendorIds.add(item.product.vendor_id);
-      productIds.add(item.product.id);
-      categoryIds.add(item.product.category_id);
+      if (vendorList.length > 0 && !vendorList.includes(item.product.vendor_id)) continue;
+      if (productList.length > 0 && !productList.includes(item.product.id)) continue;
+      if (categoryList.length > 0 && !categoryList.includes(item.product.category_id)) continue;
+      const line = item.price_snapshot.toNumber() * item.quantity;
+      eligibleSubtotal += line;
+      vendorSubtotals.set(
+        item.product.vendor_id,
+        Math.round(((vendorSubtotals.get(item.product.vendor_id) ?? 0) + line) * 100) / 100
+      );
     }
-    return { subtotal, vendorIds: [...vendorIds], productIds: [...productIds], categoryIds: [...categoryIds] };
+    return { eligibleSubtotal: Math.round(eligibleSubtotal * 100) / 100, vendorSubtotals };
   },
 
-  computeDiscount(coupon: couponRepo.CouponRow, subtotal: number, _cart: CartRow): number {
+  /**
+   * Distributes a cart-level discount across vendors proportionally to each
+   * vendor's eligible subtotal. Vendors with no eligible items receive no share,
+   * so a vendor-restricted coupon can never discount another vendor's order. The
+   * allocated shares always sum back to `discount` (rounding is absorbed by the
+   * vendor with the largest eligible subtotal).
+   */
+  allocateDiscount(discount: number, vendorSubtotals: Map<string, number>): Record<string, number> {
+    const entries = [...vendorSubtotals.entries()];
+    const totalEligible = entries.reduce((sum, [, sub]) => sum + sub, 0);
+    if (totalEligible <= 0) return {};
+    const shares: Array<[string, number]> = entries.map(([vendorId, sub]) => [
+      vendorId,
+      Math.round(((discount * sub) / totalEligible) * 100) / 100,
+    ]);
+    const allocated = shares.reduce((sum, [, d]) => sum + d, 0);
+    const remainder = Math.round((discount - allocated) * 100) / 100;
+    if (remainder !== 0 && shares.length > 0) {
+      // Absorb the rounding remainder into the vendor with the largest eligible subtotal.
+      let bestIndex = 0;
+      let bestSubtotal = -1;
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i] as [string, number];
+        if (entry[1] > bestSubtotal) {
+          bestSubtotal = entry[1];
+          bestIndex = i;
+        }
+      }
+      const target = shares[bestIndex] as [string, number];
+      shares[bestIndex] = [target[0], Math.round((target[1] + remainder) * 100) / 100];
+    }
+    const result: Record<string, number> = {};
+    for (const [vendorId, share] of shares) {
+      if (share > 0) result[vendorId] = share;
+    }
+    return result;
+  },
+
+  computeDiscount(coupon: couponRepo.CouponRow, subtotal: number): number {
     if (coupon.type === "FREE_DELIVERY") {
       return 0;
     }
@@ -332,6 +349,9 @@ export const couponService = {
     if (coupon.max_discount !== null) {
       discount = Math.min(discount, coupon.max_discount.toNumber());
     }
+    // A FIXED (or oversized percentage) discount must never exceed the eligible
+    // subtotal — the final payable amount can therefore never go negative.
+    discount = Math.min(discount, subtotal);
     return Math.max(0, Math.round(discount * 100) / 100);
   },
 };

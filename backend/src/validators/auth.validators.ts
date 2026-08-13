@@ -22,7 +22,7 @@ export const registerSchema = z.object({
     .string()
     .min(PASSWORD_RULES.MIN_LENGTH, `Password must be at least ${PASSWORD_RULES.MIN_LENGTH} characters.`)
     .max(PASSWORD_RULES.MAX_LENGTH, "Password must be at most 72 characters."),
-  role: z.enum(["customer", "vendor", "delivery"]).optional(),
+  role: z.enum(["customer"]).optional(),
 }).strict();
 
 export const loginSchema = z.object({

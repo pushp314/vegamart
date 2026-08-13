@@ -75,6 +75,34 @@ const ORDER_STATUS_MAP: Record<string, string> = {
   // requires OTP verification through the dedicated delivered endpoint.
 };
 
+// States from which a delivery partner may claim an order. All terminal and
+// post-assignment states (PICKED_UP onward) are intentionally excluded.
+const ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES = [
+  "PENDING",
+  "CONFIRMED",
+  "PREPARING",
+  "PACKED",
+  "READY_FOR_PICKUP",
+] as const;
+
+const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["status"] = {
+  in: [...ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES],
+};
+
+// States surfaced in the unassigned requests queue and therefore "explicitly
+// available" to any approved partner.
+const AVAILABLE_DELIVERY_REQUEST_STATUSES = ["CONFIRMED", "READY_FOR_PICKUP"] as const;
+
+const AVAILABLE_DELIVERY_REQUEST_FILTER: Prisma.OrderWhereInput["status"] = {
+  in: [...AVAILABLE_DELIVERY_REQUEST_STATUSES],
+};
+
+// Cash-on-delivery orders are collected at the door; every other payment method
+// must be settled before a delivery partner can be assigned.
+function requiresUpfrontPayment(paymentMethod: string): boolean {
+  return paymentMethod !== "COD";
+}
+
 // Forward-only state machine for the delivery-partner status endpoint.
 // DELIVERED is never a target here (OTP-gated endpoint only), and backwards
 // transitions are rejected. OUT_FOR_DELIVERY is only reachable after PICKED_UP,
@@ -117,6 +145,71 @@ import {
   DELIVERY_PARTNER_DELIVERY_STATES,
   verifyDeliveryOtp,
 } from "./order-delivery.service";
+import { assertOrderTransition } from "./order-lifecycle.service";
+
+interface TrackingRequester {
+  id: string;
+  role: string;
+}
+
+type TrackingViewer =
+  | { kind: "customer"; canSeeDriverInfo: false }
+  | { kind: "delivery"; canSeeDriverInfo: boolean }
+  | { kind: "vendor"; canSeeDriverInfo: true }
+  | { kind: "admin"; canSeeDriverInfo: true };
+
+/**
+ * Resolves what tracking data a requester may see for an order.
+ *
+ * - Customers may only track their own orders (never another customer's).
+ * - Delivery partners may track orders assigned to them, plus orders that are
+ *   still unassigned in the requests queue (explicitly available to them).
+ * - Vendors may track orders for their own store; admins may track anything.
+ * - Driver PII (name/phone/vehicle) is only granted to the assigned partner,
+ *   the order's vendor, and admins - never to customers or random users.
+ */
+async function resolveTrackingAccess(
+  user: TrackingRequester,
+  order: import("../repositories/order.repository").OrderDetail
+): Promise<TrackingViewer> {
+  if (user.role === ROLES.ADMIN || user.role === ROLES.SUPER_ADMIN) {
+    return { kind: "admin", canSeeDriverInfo: true };
+  }
+
+  if (user.role === ROLES.CUSTOMER) {
+    if (order.user_id !== user.id) {
+      throw new ForbiddenError("You can only track your own orders.");
+    }
+    return { kind: "customer", canSeeDriverInfo: false };
+  }
+
+  if (user.role === ROLES.DELIVERY_PARTNER) {
+    const partner = await deliveryRepo.findByUserId(user.id);
+    if (!partner) {
+      throw new ForbiddenError("Delivery partner profile not found.");
+    }
+    if (order.delivery_partner_id === partner.id) {
+      return { kind: "delivery", canSeeDriverInfo: true };
+    }
+    if (
+      order.delivery_partner_id === null &&
+      (AVAILABLE_DELIVERY_REQUEST_STATUSES as readonly string[]).includes(order.status)
+    ) {
+      return { kind: "delivery", canSeeDriverInfo: false };
+    }
+    throw new ForbiddenError("You can only track orders assigned to you.");
+  }
+
+  if (user.role === ROLES.VENDOR) {
+    const vendor = await vendorRepo.findByUserId(user.id);
+    if (!vendor || vendor.id !== order.vendor_id) {
+      throw new ForbiddenError("You can only track orders for your own store.");
+    }
+    return { kind: "vendor", canSeeDriverInfo: true };
+  }
+
+  throw new ForbiddenError("You are not allowed to view this order's tracking.");
+}
 
 export const deliveryService = {
   async getMyStats(userId: string) {
@@ -480,7 +573,7 @@ export const deliveryService = {
       where: {
         deleted_at: null,
         delivery_partner_id: null,
-        status: { in: ["CONFIRMED", "READY_FOR_PICKUP"] },
+        status: AVAILABLE_DELIVERY_REQUEST_FILTER,
         vendor: { is: { status: "APPROVED" } },
       },
       orderBy: { created_at: "asc" },
@@ -502,9 +595,11 @@ export const deliveryService = {
       delivery_fee: r.delivery_fee.toNumber(),
       total_amount: r.total.toNumber(),
       created_at: r.created_at,
-      vendor: r.vendor,
-      user: r.customer,
-      address: { ...r.address, street_address: r.address.full_address },
+      vendor: r.vendor ?? null,
+      user: r.customer ?? null,
+      address: r.address
+        ? { ...r.address, street_address: r.address.full_address }
+        : null,
     }));
   },
 
@@ -536,9 +631,11 @@ export const deliveryService = {
       total_amount: r.total.toNumber(),
       delivery_fee: r.delivery_fee.toNumber(),
       created_at: r.created_at,
-      vendor: r.vendor,
-      user: r.customer,
-      address: { ...r.address, street_address: r.address.full_address },
+      vendor: r.vendor ?? null,
+      user: r.customer ?? null,
+      address: r.address
+        ? { ...r.address, street_address: r.address.full_address }
+        : null,
     }));
   },
 
@@ -557,9 +654,34 @@ export const deliveryService = {
     if (order.delivery_partner_id) {
       throw new ConflictError("This order already has a delivery partner assigned.");
     }
+    if (!(ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES as readonly string[]).includes(order.status)) {
+      throw new ApiError(
+        HttpStatus.CONFLICT,
+        `Order cannot be accepted in its current state (${order.status}).`,
+        { code: "ORDER_NOT_ACCEPTABLE" }
+      );
+    }
+    if (requiresUpfrontPayment(order.payment_method) && order.payment_status !== "PAID") {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Order payment is not complete.", { code: "ORDER_PAYMENT_REQUIRED" });
+    }
+
+    // The conditional updateMany is the authoritative guard: a claim only lands
+    // when the order is still unassigned, still in an acceptable state, and
+    // (for paid orders) still paid. Two partners racing to accept the same
+    // order resolve here - exactly one updateMany matches, the other sees
+    // count === 0. The pre-query above is only for friendly error messages.
+    const claimWhere: Prisma.OrderWhereInput = {
+      id: orderId,
+      delivery_partner_id: null,
+      status: ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER,
+    };
+    if (requiresUpfrontPayment(order.payment_method)) {
+      claimWhere.payment_status = "PAID";
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const claimed = await tx.order.updateMany({
-        where: { id: orderId, delivery_partner_id: null },
+        where: claimWhere,
         data: { delivery_partner_id: partner.id, eta_minutes: etaMinutes },
       });
       if (claimed.count === 0) {
@@ -619,6 +741,7 @@ export const deliveryService = {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid delivery status.", { code: "INVALID_STATUS" });
     }
     assertDeliveryTransition(order.status, mapped);
+    assertOrderTransition(order.status, mapped);
     const timestamps: Record<string, Date> = {};
     if (mapped === "PICKED_UP") timestamps.picked_up_at = new Date();
     if (mapped === "OUT_FOR_DELIVERY") timestamps.started_at = new Date();
@@ -737,18 +860,19 @@ export const deliveryService = {
     return kyc;
   },
 
-  async getDeliveryTracking(orderId: string) {
+  async getDeliveryTracking(user: TrackingRequester, orderId: string) {
     const order = await orderRepo.findById(orderId);
     if (!order) {
       throw new NotFoundError("Order not found.");
     }
+    const viewer = await resolveTrackingAccess(user, order);
     const [tracking, address, vendor] = await Promise.all([
       prisma.deliveryTracking.findUnique({ where: { order_id: orderId } }),
       addressRepo.findById(order.address_id),
       vendorRepo.findById(order.vendor_id),
     ]);
     let driverInfo = null;
-    if (order.delivery_partner_id) {
+    if (viewer.canSeeDriverInfo && order.delivery_partner_id) {
       const partner = await prisma.deliveryProfile.findUnique({ where: { id: order.delivery_partner_id } });
       if (partner) {
         const driverUser = await userRepo.findById(partner.user_id, {});

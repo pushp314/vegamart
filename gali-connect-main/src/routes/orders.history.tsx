@@ -36,16 +36,17 @@ function statusBadgeClass(status: string): string {
 }
 
 function OrderHistoryPage() {
-  const refresh = () => new Promise<void>((res) => setTimeout(res, 700));
   const navigate = useNavigate();
   const { user, isAuthenticated, isGuest, isLoading: authLoading } = useAuth();
   const { addToCart, clearCart } = useCart();
 
-  const { data: res, isLoading } = useQuery({
+  const { data: res, isLoading, refetch } = useQuery({
     queryKey: ["orderHistory"],
     queryFn: () => api.get<any[]>("/orders"),
     enabled: !!user && !isGuest,
   });
+
+  const refresh = () => refetch();
 
   const orders = (res?.data || []).filter((o: any) =>
     PAST_STATUSES.includes(String(o.status || "").toLowerCase()),

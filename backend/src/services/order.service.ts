@@ -6,6 +6,11 @@ import { auditService } from "./audit.service";
 import { notificationService } from "./notification.service";
 import { vendorService } from "./vendor.service";
 import { paymentService } from "./payment.service";
+import {
+  assertOrderTransition,
+  cancelOrderLifecycle,
+  refundOrderLifecycle,
+} from "./order-lifecycle.service";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
 import { completeDelivery, VENDOR_DELIVERY_STATES, verifyDeliveryOtp } from "./order-delivery.service";
@@ -75,28 +80,25 @@ export const orderService = {
     if (order.user_id !== userId) {
       throw new ForbiddenError("You do not own this order.");
     }
+    if (order.status === "CANCELLED") {
+      return order as unknown as orderRepo.OrderRow;
+    }
     if (!CUSTOMER_CANCELABLE.has(order.status)) {
       throw new ApiError(HttpStatus.BAD_REQUEST, `Order cannot be cancelled in its current status (${order.status}).`, {
         code: "NOT_CANCELLABLE",
       });
     }
 
-    const updated = await orderRepo.updateOrderStatus(order.id, {
-      status: "CANCELLED",
-      note: input.reason ? `Cancelled by customer: ${input.reason}` : "Cancelled by customer.",
+    // Refund-first lifecycle: a failed refund leaves the order in its prior
+    // state (payment still PAID, inventory still reserved) so cancellation can
+    // be retried. The CANCELLED claim + inventory release are atomic.
+    const updated = await cancelOrderLifecycle({
+      order,
+      reason: input.reason ?? null,
       actorType: "customer",
       actorId: userId,
-      timestamps: { cancelled_at: new Date(), cancel_reason: input.reason ?? null },
+      req,
     });
-
-    if (order.payment_status === "PAID") {
-      try {
-        await paymentService.refund(userId, order.id, { reason: input.reason }, req);
-      } catch (err) {
-        await inventoryRepo.releaseQuantityForOrder(order.id);
-        throw err;
-      }
-    }
 
     await notificationService.orderStatus(userId, order.order_number, "Order cancelled", `Your order ${order.order_number} has been cancelled.`, {
       order_id: order.id,
@@ -120,6 +122,27 @@ export const orderService = {
       throw new ForbiddenError("You do not own this order.");
     }
 
+    // Reject arbitrary/backwards transitions before any side effects run.
+    assertOrderTransition(order.status, input.status);
+
+    if (input.status === "CANCELLED") {
+      const updated = await cancelOrderLifecycle({
+        order,
+        reason: input.note ?? null,
+        actorType: "vendor",
+        actorId: userId,
+        req,
+      });
+      await notificationService.orderStatus(order.user_id, order.order_number, "Order update", `Your order ${order.order_number} is now cancelled.`, {
+        order_id: order.id,
+      });
+      await auditService.record(
+        { userId, action: AUDIT_ACTIONS.ORDER_STATUS_CHANGED, entityType: "order", entityId: order.id, oldValues: { status: order.status }, newValues: { status: "CANCELLED" } },
+        req
+      );
+      return updated;
+    }
+
     const timestamps: Record<string, Date> = {};
     switch (input.status) {
       case "CONFIRMED":
@@ -139,9 +162,6 @@ export const orderService = {
       case "DELIVERED":
         await verifyDeliveryOtp(order, input.otp_code ?? "", VENDOR_DELIVERY_STATES);
         timestamps.delivered_at = new Date();
-        break;
-      case "CANCELLED":
-        timestamps.cancelled_at = new Date();
         break;
       default:
         throw new ApiError(HttpStatus.BAD_REQUEST, `Unsupported status transition: ${input.status}.`, {
@@ -167,15 +187,6 @@ export const orderService = {
         actorId: userId,
         timestamps,
       });
-
-      if (input.status === "CANCELLED" && order.payment_status === "PAID") {
-        try {
-          await paymentService.refund(userId, order.id, { reason: input.note }, req);
-        } catch (err) {
-          await inventoryRepo.releaseQuantityForOrder(order.id);
-          throw err;
-        }
-      }
     }
 
     if (input.status === "DELIVERED") {
@@ -227,11 +238,14 @@ export const orderService = {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Refunds can only be requested for delivered orders.", { code: "INVALID_STATUS" });
     }
 
-    const updated = await orderRepo.updateOrderStatus(orderId, {
-      status: "REFUNDED",
-      note: `Refund requested: ${reason}`,
+    // Refund-first lifecycle: the order is only claimed REFUNDED after the money
+    // has moved, so a failed refund leaves the delivered order recoverable.
+    const updated = await refundOrderLifecycle({
+      order,
+      reason,
       actorType: "customer",
       actorId: userId,
+      req,
     });
 
     await auditService.record(
@@ -260,16 +274,31 @@ export const orderService = {
     if (!item) throw new NotFoundError("Item not found in order");
     if (item.status === "rejected") throw new ApiError(HttpStatus.BAD_REQUEST, "Item is already rejected");
 
-    // Update item status in DB
-    await prisma.orderItem.update({
-      where: { id: itemId },
-      data: { status: "rejected" }
+    // Atomic claim: only the first rejector flips the item to rejected, so a
+    // replayed/concurrent call can never release the reservation twice.
+    const claimed = await prisma.orderItem.updateMany({
+      where: { id: itemId, status: "active" },
+      data: { status: "rejected" },
     });
+    if (claimed.count === 0) throw new ApiError(HttpStatus.BAD_REQUEST, "Item is already rejected");
+
+    // Release the rejected item's reservation (made at checkout) so its stock
+    // becomes available again.
+    await inventoryRepo.releaseReserved(item.product_id, item.quantity);
 
     // If order was paid, issue partial refund for the item's total_price
-    if (order.payment_status === "PAID") {
-      // Passing amount for partial refund
-      await paymentService.refund(userId, order.id, { reason: `Item out of stock: ${item.product_name}`, amount: Number(item.total_price) }, req);
+    if (order.payment_status === "PAID" || order.payment_status === "PARTIALLY_REFUNDED") {
+      const refundResult = (await paymentService.refund(
+        userId,
+        order.id,
+        { reason: `Item out of stock: ${item.product_name}`, amount: Number(item.total_price) },
+        req
+      )) as { payment?: { status?: string } };
+      if (refundResult?.payment?.status) {
+        await orderRepo.updateOrder(order.id, {
+          payment_status: refundResult.payment.status as never,
+        });
+      }
     }
 
     await notificationService.orderStatus(order.user_id, order.order_number, "Item Rejected", `The vendor rejected an item (${item.product_name}) from your order. A partial refund will be processed if paid online.`, { order_id: order.id });

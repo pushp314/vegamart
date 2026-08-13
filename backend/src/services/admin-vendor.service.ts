@@ -177,14 +177,16 @@ export const adminVendorService = {
   },
 
   async earnings(vendorId: string, monthFilter?: string) {
-    const vendorData = await this.getById(vendorId);
-    const vendor = vendorData.vendor;
     const rows = await vendorRepo.getVendorStats(vendorId, monthFilter);
     return {
       ...rows,
-      today_earnings: Math.round(rows.today_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
-      weekly_earnings: Math.round(rows.weekly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
-      monthly_earnings: Math.round(rows.monthly_revenue.toNumber() * (1 - vendor.commission_rate.toNumber() / 100) * 100) / 100,
+      today_earnings: Math.round(rows.today_earnings.toNumber() * 100) / 100,
+      weekly_earnings: Math.round(rows.weekly_earnings.toNumber() * 100) / 100,
+      monthly_earnings: Math.round(rows.monthly_earnings.toNumber() * 100) / 100,
+      total_commission: Math.round(Math.max(0, rows.item_revenue.toNumber() - rows.gross_earnings.toNumber()) * 100) / 100,
+      total_payout: Math.round(rows.total_earnings.toNumber() * 100) / 100,
+      total_refunds: Math.round(rows.refunded_earnings.toNumber() * 100) / 100,
+      pending_payout: Math.round(rows.pending_earnings.toNumber() * 100) / 100,
     };
   },
   async updateMembership(

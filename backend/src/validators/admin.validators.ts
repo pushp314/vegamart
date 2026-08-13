@@ -3,6 +3,11 @@ import { z } from "zod";
 import { MAX_PAGE_SIZE } from "../constants";
 import { PASSWORD_RULES } from "../constants/auth";
 
+const dateParam = z.union([
+  z.string().datetime(),
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD or ISO datetime format."),
+]);
+
 export const adminPaginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
@@ -20,16 +25,16 @@ export const adminPaginationQuerySchema = z.object({
 }).strict();
 
 export const reportDateQuerySchema = z.object({
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: dateParam.optional(),
+  to: dateParam.optional(),
   days: z.coerce.number().int().min(1).max(3650).optional(),
   period: z.enum(["daily", "weekly", "monthly"]).optional(),
   format: z.enum(["csv", "xlsx", "pdf"]).optional(),
 }).strict();
 
 export const reportOrdersQuerySchema = z.object({
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: dateParam.optional(),
+  to: dateParam.optional(),
   days: z.coerce.number().int().min(1).max(3650).optional(),
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
@@ -41,8 +46,8 @@ export const reportOrdersQuerySchema = z.object({
 }).strict();
 
 export const customReportQuerySchema = z.object({
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: dateParam.optional(),
+  to: dateParam.optional(),
   days: z.coerce.number().int().min(1).max(3650).optional(),
   group_by: z
     .enum(["status", "payment_method", "payment_status", "city", "day", "week", "month"])
@@ -51,15 +56,15 @@ export const customReportQuerySchema = z.object({
 }).strict();
 
 export const analyticsQuerySchema = z.object({
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: dateParam.optional(),
+  to: dateParam.optional(),
   days: z.coerce.number().int().min(1).max(3650).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 }).strict();
 
 export const growthQuerySchema = z.object({
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: dateParam.optional(),
+  to: dateParam.optional(),
 }).strict();
 
 export const userIdParamsSchema = z.object({
