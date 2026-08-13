@@ -30,8 +30,11 @@ configure_nginx() {
         exit 1
     fi
 
-    sed -e "s/{{DOMAIN}}/${domain}/g" "deploy/templates/nginx.conf" > "$config_dest"
-
+    if [[ ! -f "$config_dest" ]]; then
+        sed -e "s/{{DOMAIN}}/${domain}/g" "deploy/templates/nginx.conf" > "$config_dest"
+    else
+        log_info "Nginx config already exists, skipping template copy to preserve SSL settings."
+    fi
     if [[ ! -L "$symlink_dest" ]]; then
         ln -s "$config_dest" "$symlink_dest"
     fi
