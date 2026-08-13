@@ -233,7 +233,9 @@ function RootComponent() {
               <InstallAppBanner />
             </ClientOnly>
             {!isPortalRoute && <BottomNav />}
-            <Toaster position="top-center" />
+            <ClientOnly>
+              <Toaster position="top-center" />
+            </ClientOnly>
           </WishlistProvider>
         </CartProvider>
       </AuthProvider>
