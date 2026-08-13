@@ -4,10 +4,12 @@
  */
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:8080/api/v1"
-    : "/api/v1");
+  typeof window === "undefined"
+    ? "http://127.0.0.1:8080/api/v1" // Use internal network during SSR to avoid NAT hairpinning timeouts
+    : import.meta.env.VITE_API_BASE_URL ||
+      (typeof window !== "undefined" && window.location.hostname === "localhost"
+        ? "http://localhost:8080/api/v1"
+        : "/api/v1");
 
 export const WS_BASE_URL = (() => {
   if (API_BASE_URL.startsWith("http")) {
