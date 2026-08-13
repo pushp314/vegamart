@@ -51,6 +51,32 @@ sed -i "s|^REDIS_URL=.*|REDIS_URL=${REDIS_URL}|" /opt/vegamart/shared/.env || ec
 sed -i "s|^VEGAMART_DOMAIN=.*|VEGAMART_DOMAIN=${VEGAMART_DOMAIN}|" /opt/vegamart/shared/.env || echo "VEGAMART_DOMAIN=${VEGAMART_DOMAIN}" >> /opt/vegamart/shared/.env
 sed -i "s|^SSL_EMAIL=.*|SSL_EMAIL=${SSL_EMAIL}|" /opt/vegamart/shared/.env || echo "SSL_EMAIL=${SSL_EMAIL}" >> /opt/vegamart/shared/.env
 
+# Update URLs based on domain structure
+sed -i "s|^CLIENT_URL=.*|CLIENT_URL=https://${VEGAMART_DOMAIN}|" /opt/vegamart/shared/.env || echo "CLIENT_URL=https://${VEGAMART_DOMAIN}" >> /opt/vegamart/shared/.env
+sed -i "s|^APP_URL=.*|APP_URL=https://api.${VEGAMART_DOMAIN}|" /opt/vegamart/shared/.env || echo "APP_URL=https://api.${VEGAMART_DOMAIN}" >> /opt/vegamart/shared/.env
+sed -i "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=https://api.${VEGAMART_DOMAIN}/api/v1|" /opt/vegamart/shared/.env || echo "VITE_API_BASE_URL=https://api.${VEGAMART_DOMAIN}/api/v1" >> /opt/vegamart/shared/.env
+
+# Patch any empty R2 or Razorpay credentials in existing .env files with placeholders to prevent backend crashes
+sed -i "s|^R2_ACCOUNT_ID=$|R2_ACCOUNT_ID=placeholder|" /opt/vegamart/shared/.env
+sed -i "s|^R2_ACCESS_KEY_ID=$|R2_ACCESS_KEY_ID=placeholder|" /opt/vegamart/shared/.env
+sed -i "s|^R2_SECRET_ACCESS_KEY=$|R2_SECRET_ACCESS_KEY=placeholder|" /opt/vegamart/shared/.env
+sed -i "s|^R2_BUCKET_NAME=$|R2_BUCKET_NAME=vegamart|" /opt/vegamart/shared/.env
+sed -i "s|^R2_PUBLIC_URL=$|R2_PUBLIC_URL=https://cdn.example.com|" /opt/vegamart/shared/.env
+sed -i "s|^RAZORPAY_KEY_ID=$|RAZORPAY_KEY_ID=placeholder|" /opt/vegamart/shared/.env
+sed -i "s|^RAZORPAY_KEY_SECRET=$|RAZORPAY_KEY_SECRET=placeholder|" /opt/vegamart/shared/.env
+sed -i "s|^RAZORPAY_WEBHOOK_SECRET=$|RAZORPAY_WEBHOOK_SECRET=placeholder|" /opt/vegamart/shared/.env
+
+# Generate secure JWT secrets if still using defaults
+if grep -q "change_me_access_secret_at_least_32_chars_long" /opt/vegamart/shared/.env; then
+    NEW_JWT_ACCESS=$(openssl rand -hex 32)
+    sed -i "s|^JWT_ACCESS_SECRET=.*|JWT_ACCESS_SECRET=${NEW_JWT_ACCESS}|" /opt/vegamart/shared/.env
+fi
+
+if grep -q "change_me_refresh_secret_at_least_32_chars_long" /opt/vegamart/shared/.env; then
+    NEW_JWT_REFRESH=$(openssl rand -hex 32)
+    sed -i "s|^JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=${NEW_JWT_REFRESH}|" /opt/vegamart/shared/.env
+fi
+
 load_env
 
 # Firewall

@@ -31,7 +31,7 @@ configure_ssl() {
         exit 1
     fi
 
-    if certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" --redirect; then
+    if certbot --nginx -d "$domain" -d "api.$domain" --non-interactive --agree-tos -m "$email" --redirect; then
         log_success "SSL configured successfully for '$domain'."
     else
         log_warn "Certbot failed. This may happen if DNS hasn't propagated yet."
