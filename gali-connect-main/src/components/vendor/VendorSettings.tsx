@@ -44,6 +44,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
     setIsUploadingLogo(true);
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("folder", "vendors");
 
     try {
       const res: any = await api.post("/uploads", formData);
