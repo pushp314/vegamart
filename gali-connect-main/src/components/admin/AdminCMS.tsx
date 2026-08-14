@@ -268,8 +268,9 @@ export function AdminCMS() {
   });
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="w-full overflow-x-auto pb-4">
+      <div className="min-w-[1024px] space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 px-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
             Advertisement & CMS
@@ -1029,6 +1030,7 @@ export function AdminCMS() {
           </form>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
