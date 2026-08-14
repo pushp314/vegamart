@@ -75,6 +75,9 @@ self.addEventListener("fetch", (event) => {
               caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
             }
             return response;
+          }).catch(() => {
+            // Return a fallback or just let it fail gracefully without unhandled rejection
+            return new Response("", { status: 503, statusText: "Service Unavailable" });
           }),
       ),
     );
@@ -91,6 +94,8 @@ self.addEventListener("fetch", (event) => {
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return response;
+        }).catch(() => {
+          return new Response("", { status: 503, statusText: "Service Unavailable" });
         }),
     ),
   );
