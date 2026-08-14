@@ -158,11 +158,6 @@ export function AdminCategories() {
                     <p className="text-xs text-muted-foreground mt-0.5">Slug: {category.slug}</p>
                   </div>
                 </div>
-                {category.description && (
-                  <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
-                    {category.description}
-                  </p>
-                )}
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span
                     className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${category.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
@@ -222,7 +217,6 @@ export function AdminCategories() {
               const fd = new FormData(e.target as HTMLFormElement);
               const data = {
                 name: fd.get("name"),
-                description: fd.get("description") || undefined,
                 image_url: fd.get("image_url") || undefined,
                 sort_order: Number(fd.get("sort_order")) || 0,
                 is_active: fd.get("is_active") === "on",
@@ -241,12 +235,6 @@ export function AdminCategories() {
                 Category Name
               </label>
               <Input name="name" defaultValue={editingCategory?.name} required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">
-                Description
-              </label>
-              <Input name="description" defaultValue={editingCategory?.description} />
             </div>
             <div className="space-y-1">
               <div className="flex justify-between items-center">
