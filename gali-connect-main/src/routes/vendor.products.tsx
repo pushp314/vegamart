@@ -361,7 +361,8 @@ function VendorProductsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full overflow-x-auto pb-4">
+      <div className="min-w-[1024px] space-y-6 px-1">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -594,7 +595,7 @@ function VendorProductsPage() {
 
       {/* Add / Edit Product Modal */}
       <Dialog open={productModalOpen} onOpenChange={setProductModalOpen}>
-        <DialogContent className="rounded-3xl border-border max-w-xl">
+        <DialogContent className="rounded-3xl border-border max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">
               {editingProduct ? "Edit Product Listing" : "Add New Product"}
@@ -910,7 +911,7 @@ function VendorProductsPage() {
 
       {/* Delete Confirmation Modal */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="rounded-3xl border-border max-w-sm">
+        <DialogContent className="rounded-3xl border-border max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display flex items-center gap-2 text-rose-600">
               <AlertCircle className="h-5 w-5" /> Delete Product
@@ -944,7 +945,7 @@ function VendorProductsPage() {
 
       {/* Image Gallery Modal */}
       <Dialog open={galleryModalOpen} onOpenChange={setGalleryModalOpen}>
-        <DialogContent className="rounded-3xl border-border max-w-2xl">
+        <DialogContent className="rounded-3xl border-border max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display flex items-center gap-2">
               <ImageIcon className="h-5 w-5 text-emerald-600" /> Image Gallery
@@ -985,6 +986,7 @@ function VendorProductsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

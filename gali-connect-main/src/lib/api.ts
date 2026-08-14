@@ -306,6 +306,60 @@ class ApiClient {
   delete<T>(endpoint: string) {
     return this.request<T>(endpoint, { method: "DELETE" });
   }
+
+  uploadWithProgress<T>(
+    endpoint: string,
+    formData: FormData,
+    onProgress: (progress: { loaded: number; total: number; speed: number }) => void
+  ): Promise<ApiResponse<T>> {
+    return new Promise((resolve) => {
+      const url = `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+      const xhr = new XMLHttpRequest();
+      const startTime = Date.now();
+
+      xhr.open("POST", url);
+
+      const headers = this.getHeaders() as Record<string, string>;
+      delete headers["Content-Type"];
+
+      for (const [key, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(key, value);
+      }
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const timeElapsed = Math.max((Date.now() - startTime) / 1000, 0.1);
+          const speed = e.loaded / timeElapsed; // bytes per second
+          onProgress({
+            loaded: e.loaded,
+            total: e.total,
+            speed,
+          });
+        }
+      };
+
+      xhr.onload = () => {
+        try {
+          const json = JSON.parse(xhr.responseText);
+          resolve(json);
+        } catch {
+          resolve({
+            success: false,
+            error: { code: "INVALID_RESPONSE", message: "Backend returned a response that could not be parsed." },
+          } as ApiResponse<T>);
+        }
+      };
+
+      xhr.onerror = () => {
+        resolve({
+          success: false,
+          error: { code: "NETWORK_ERROR", message: "Network error during upload" },
+        } as ApiResponse<T>);
+      };
+
+      xhr.send(formData);
+    });
+  }
 }
 
 export const api = new ApiClient();

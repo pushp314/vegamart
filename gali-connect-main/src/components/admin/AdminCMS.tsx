@@ -45,6 +45,7 @@ export function AdminCMS() {
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [videoAdUrl, setVideoAdUrl] = useState("");
   const [videoUploadError, setVideoUploadError] = useState("");
+  const [videoUploadProgress, setVideoUploadProgress] = useState<{ loaded: number; total: number; speed: number } | null>(null);
 
   const thumbnailUploadRef = useRef<HTMLInputElement>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
@@ -189,12 +190,15 @@ export function AdminCMS() {
 
     setVideoUploadError("");
     setIsUploadingVideo(true);
+    setVideoUploadProgress(null);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("folder", "videos");
 
     try {
-      const res: any = await api.post("/upload/video", formData);
+      const res: any = await api.uploadWithProgress("/upload/video", formData, (progress) => {
+        setVideoUploadProgress(progress);
+      });
       if (!res.success) {
         const msg = formatErrorMessage(res.error, "Failed to upload video to Cloudflare R2");
         setVideoUploadError(msg);
@@ -216,6 +220,7 @@ export function AdminCMS() {
       toast.error(msg);
     } finally {
       setIsUploadingVideo(false);
+      setVideoUploadProgress(null);
       if (videoUploadRef.current) videoUploadRef.current.value = "";
     }
   };
@@ -897,7 +902,28 @@ export function AdminCMS() {
                   </span>
                 </Button>
               </div>
-              {videoAdUrl && (
+              {isUploadingVideo && videoUploadProgress && (
+                <div className="mt-3 space-y-1.5 animate-in fade-in">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                    <span>
+                      {(videoUploadProgress.loaded / (1024 * 1024)).toFixed(2)} MB /{" "}
+                      {(videoUploadProgress.total / (1024 * 1024)).toFixed(2)} MB
+                    </span>
+                    <span>
+                      {(videoUploadProgress.speed / (1024 * 1024)).toFixed(2)} MB/s
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-300 ease-out"
+                      style={{
+                        width: `${Math.min(100, Math.round((videoUploadProgress.loaded / videoUploadProgress.total) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              {videoAdUrl && !isUploadingVideo && (
                 <div className="mt-2 relative rounded-xl overflow-hidden border border-emerald-500/30 bg-black aspect-video">
                   <video src={videoAdUrl} controls className="w-full h-full object-contain" />
                   <div className="absolute top-1.5 left-1.5 bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
