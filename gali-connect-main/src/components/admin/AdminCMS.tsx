@@ -607,7 +607,7 @@ export function AdminCMS() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Image className="h-5 w-5 text-emerald-500" /> Create Hero Banner Slide
@@ -762,7 +762,7 @@ export function AdminCMS() {
           }
         }}
       >
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-emerald-500" /> Upload 30-Second Video Ad to
@@ -970,7 +970,7 @@ export function AdminCMS() {
 
       {/* Announcement Create Modal */}
       <Dialog open={isAnnouncementModalOpen} onOpenChange={setIsAnnouncementModalOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Announcement</DialogTitle>
           </DialogHeader>
