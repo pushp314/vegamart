@@ -200,14 +200,14 @@ function Home() {
             <SearchBar />
           </div>
           <Hero />
-          <SponsoredVendors />
-          <FeaturedProducts />
-          <ShopWiseProducts />
           <Categories />
           <LiveBanner />
           <LiveVendors defaultAddress={activeAddress} />
-          <ShopsNearYou defaultAddress={activeAddress} />
           <Offers />
+          <ShopWiseProducts />
+          <SponsoredVendors />
+          <FeaturedProducts />
+          <ShopsNearYou defaultAddress={activeAddress} />
           <Recommended />
           <RecentlyViewed />
           <Trending />
@@ -874,15 +874,16 @@ function ShopWiseProducts() {
                 </Link>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+              <div className="mt-4 flex overflow-x-auto gap-3 md:gap-4 pb-4 snap-x hide-scrollbar">
                 {group.products.map((p) => (
-                  <ProductCard
-                    key={p.id}
-                    product={p}
-                    linkTo="/vendors/$vendorId"
-                    linkParams={{ vendorId: v.id }}
-                    linkSearch={{ product: p.id }}
-                  />
+                  <div key={p.id} className="shrink-0 snap-start w-[140px] md:w-[180px]">
+                    <ProductCard
+                      product={p}
+                      linkTo="/vendors/$vendorId"
+                      linkParams={{ vendorId: v.id }}
+                      linkSearch={{ product: p.id }}
+                    />
+                  </div>
                 ))}
               </div>
 
@@ -902,7 +903,6 @@ function ShopWiseProducts() {
 }
 
 function Categories() {
-  const [expanded, setExpanded] = useState(false);
   const { data: res } = useQuery({
     queryKey: ["publicCategories"],
     queryFn: () => api.get<any[]>("/categories"),
@@ -911,8 +911,6 @@ function Categories() {
 
   const dbCats = res?.data || [];
   const activeCats = dbCats.filter((c: any) => c.is_active !== false);
-  const hasMore = activeCats.length > 7;
-  const displayCats = expanded || !hasMore ? activeCats : activeCats.slice(0, 6);
 
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">
@@ -920,26 +918,26 @@ function Categories() {
         Shop by category
       </h2>
       <p className="text-[13px] md:text-sm text-muted-foreground">Everything your gali offers</p>
-      <div className="mt-4 grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
+      <div className="mt-4 flex overflow-x-auto gap-4 md:gap-6 pb-4 snap-x hide-scrollbar px-1">
         <Link
           to="/street-vendors"
-          className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
+          className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none shrink-0 snap-start w-[72px] md:w-[90px]"
         >
-          <div className="grid aspect-square w-full place-items-center rounded-2xl bg-emerald-700 text-white">
+          <div className="grid aspect-square w-full place-items-center rounded-2xl bg-emerald-700 text-white shadow-sm">
             <MapPin className="h-7 w-7 md:h-8 md:w-8" strokeWidth={1.75} />
           </div>
           <span className="text-[11.5px] md:text-[13px] font-medium text-center leading-tight">
             Live Vendor
           </span>
         </Link>
-        {displayCats.map((c: any) => (
+        {activeCats.map((c: any) => (
           <Link
             key={c.id}
             to="/categories/$categorySlug"
             params={{ categorySlug: c.slug }}
-            className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
+            className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none shrink-0 snap-start w-[72px] md:w-[90px]"
           >
-            <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted text-muted-foreground overflow-hidden">
+            <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted text-muted-foreground overflow-hidden shadow-sm">
               {c.image_url ? (
                 <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
               ) : (
@@ -951,22 +949,6 @@ function Categories() {
             </span>
           </Link>
         ))}
-        {hasMore && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
-          >
-            <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted/50 border-2 border-dashed border-muted-foreground/30 text-muted-foreground transition hover:border-primary/50 hover:text-primary">
-              <ChevronDown
-                className={`h-7 w-7 md:h-8 md:w-8 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
-                strokeWidth={1.75}
-              />
-            </div>
-            <span className="text-[11.5px] md:text-[13px] font-medium text-center leading-tight">
-              {expanded ? "Less" : "More"}
-            </span>
-          </button>
-        )}
       </div>
     </section>
   );

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { StreetVendorMap } from "@/components/marketplace/street-vendor-map";
 import { Store, Phone, Star, Sparkles, Navigation } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/street-vendors")({
 });
 
 function StreetVendorsRoute() {
+  const navigate = useNavigate();
   const { data: vendorsRes, isLoading } = useQuery({
     queryKey: ["allVendors"],
     queryFn: () => api.get<any[]>("/vendors"),
@@ -59,7 +60,8 @@ function StreetVendorsRoute() {
               return (
                 <div
                   key={vendor.id}
-                  className="rounded-2xl border bg-card p-4 shadow-soft hover:shadow-glow hover:border-emerald-500/40 transition-all space-y-3"
+                  onClick={() => navigate({ to: "/vendors/$vendorId", params: { vendorId: vendor.id } })}
+                  className="rounded-2xl border bg-card p-4 shadow-soft hover:shadow-glow hover:border-emerald-500/40 transition-all space-y-3 cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1 min-w-0">
@@ -113,6 +115,7 @@ function StreetVendorsRoute() {
                   <div className="grid grid-cols-2 gap-2">
                     <a
                       href={`tel:${phoneNum}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-[11px] h-9 transition-colors"
                     >
                       <Phone className="h-3 w-3 text-emerald-600" /> Call
