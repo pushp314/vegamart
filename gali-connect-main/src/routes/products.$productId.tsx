@@ -227,44 +227,44 @@ function ProductDetail() {
               {discount}% OFF
             </span>
           )}
+
+          {/* Mobile Thumbnails Overlaid */}
+          {gallery.length > 1 && (
+            <div className="absolute bottom-4 left-0 right-0 z-20 flex justify-center lg:hidden">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 max-w-full">
+                {gallery.map((src, i) => {
+                  const isVideo = src.match(/\.(mp4|webm|ogg)$/i);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setImageIdx(i)}
+                      className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 transition bg-muted flex items-center justify-center shadow-md ${
+                        imageIdx === i ? "border-primary" : "border-white/60 opacity-80"
+                      }`}
+                      aria-label={`View media ${i + 1}`}
+                    >
+                      {isVideo ? (
+                        <>
+                          <video
+                            src={src}
+                            className="absolute inset-0 h-full w-full object-cover opacity-50"
+                          />
+                          <PlayCircle className="h-5 w-5 text-white drop-shadow-md relative z-10" />
+                        </>
+                      ) : (
+                        <img src={src} alt="" className="h-full w-full object-cover" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Thumbnails */}
-        {gallery.length > 1 && (
-          <div className="mx-auto max-w-3xl px-4 mt-4 lg:hidden">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {gallery.map((src, i) => {
-                const isVideo = src.match(/\.(mp4|webm|ogg)$/i);
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setImageIdx(i)}
-                    className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition bg-muted flex items-center justify-center ${
-                      imageIdx === i ? "border-primary" : "border-border opacity-70"
-                    }`}
-                    aria-label={`View media ${i + 1}`}
-                  >
-                    {isVideo ? (
-                      <>
-                        <video
-                          src={src}
-                          className="absolute inset-0 h-full w-full object-cover opacity-50"
-                        />
-                        <PlayCircle className="h-6 w-6 text-white drop-shadow-md relative z-10" />
-                      </>
-                    ) : (
-                      <img src={src} alt="" className="h-full w-full object-cover" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <main className="mx-auto max-w-3xl px-4 mt-5 lg:mx-0 lg:max-w-none lg:px-0 lg:mt-0">
+        <main className="mx-auto max-w-3xl px-4 -mt-6 relative z-30 lg:mx-0 lg:max-w-none lg:px-0 lg:mt-0 lg:z-auto">
           {/* Info card */}
-          <section className="rounded-2xl bg-card border p-5 shadow-sm">
+          <section className="rounded-t-[32px] rounded-b-[24px] lg:rounded-2xl bg-card border p-5 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.1)] lg:shadow-sm">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-2 py-0.5 text-[10.5px] font-black text-amber-700">
                 <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
@@ -422,77 +422,81 @@ function ProductDetail() {
             </div>
           </section>
 
-          {/* About */}
-          {product.description && (
-            <section className="mt-4 rounded-2xl bg-card border p-5 shadow-sm">
-              <h2 className="font-display text-[16px] font-bold">About this product</h2>
-              <p className="mt-2 text-[13.5px] text-muted-foreground leading-relaxed">
-                {product.description}
-              </p>
-            </section>
-          )}
-
-          {/* Related */}
-          {related.length > 0 && (
-            <section className="mt-6">
-              <h2 className="font-display text-[16px] font-bold mb-3">You may also like</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-                {related.map((p) => {
-                  const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
-                  const imageUrl =
-                    p.images?.[0]?.url ||
-                    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
-                  return (
-                    <Link
-                      key={p.id}
-                      to="/products/$productId"
-                      params={{ productId: p.id }}
-                      className="rounded-2xl bg-card border overflow-hidden shadow-sm"
-                    >
-                      <div className="relative aspect-square bg-muted">
-                        <img src={imageUrl} alt={p.name} className="h-full w-full object-cover" />
-                        {disc > 0 && (
-                          <span className="absolute top-2 left-2 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white">
-                            {disc}% OFF
-                          </span>
-                        )}
-                      </div>
-                      <div className="p-3">
-                        <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
-                          <Star className="h-3 w-3 fill-primary text-primary" /> {p.rating || "0.0"}
-                        </div>
-                        <h3 className="mt-0.5 font-semibold text-[13.5px] truncate">{p.name}</h3>
-                        <p className="text-[11.5px] text-muted-foreground">{p.unit}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-sm">₹{p.price}</span>
-                            {p.mrp > p.price && (
-                              <span className="ml-1 text-[10.5px] text-muted-foreground line-through">
-                                ₹{p.mrp}
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            aria-label={`Add ${p.name}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              addToCart(p, 1);
-                              toast.success(`Added ${p.name} to cart`);
-                            }}
-                            className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          )}
         </main>
+      </div>
+
+      {/* Full-width bottom sections (About & Related) */}
+      <div className="lg:mx-auto lg:max-w-6xl lg:px-6">
+        {/* About */}
+        {product.description && (
+          <section className="mt-4 lg:mt-8 mx-4 lg:mx-0 rounded-2xl bg-card border p-5 shadow-sm">
+            <h2 className="font-display text-[16px] lg:text-xl font-bold">About this product</h2>
+            <p className="mt-2 text-[13.5px] lg:text-[15px] text-muted-foreground leading-relaxed max-w-4xl">
+              {product.description}
+            </p>
+          </section>
+        )}
+
+        {/* Related */}
+        {related.length > 0 && (
+          <section className="mt-6 lg:mt-10 mx-4 lg:mx-0">
+            <h2 className="font-display text-[16px] lg:text-xl font-bold mb-3 lg:mb-5">You may also like</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+              {related.map((p) => {
+                const disc = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
+                const imageUrl =
+                  p.images?.[0]?.url ||
+                  "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                return (
+                  <Link
+                    key={p.id}
+                    to="/products/$productId"
+                    params={{ productId: p.id }}
+                    className="rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
+                  >
+                    <div className="relative aspect-square bg-muted p-3 flex items-center justify-center">
+                      <img src={imageUrl} alt={p.name} className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-sm" />
+                      {disc > 0 && (
+                        <span className="absolute top-2 left-2 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                          {disc}% OFF
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-3 pt-2">
+                      <div className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 mb-1">
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {p.rating || "0.0"}
+                      </div>
+                      <h3 className="font-semibold text-[13.5px] leading-tight line-clamp-2 text-foreground/90">{p.name}</h3>
+                      <p className="mt-1 text-[11.5px] text-muted-foreground">{p.unit}</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm leading-none">₹{p.price}</span>
+                          {p.mrp > p.price && (
+                            <span className="mt-1 text-[10.5px] text-muted-foreground line-through leading-none">
+                              ₹{p.mrp}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          aria-label={`Add ${p.name}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            addToCart(p, 1);
+                            toast.success(`Added ${p.name} to cart`);
+                          }}
+                          className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm hover:scale-105 transition-transform"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
 

@@ -51,48 +51,46 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="md:hidden fixed inset-x-0 bottom-0 z-[120] pointer-events-none"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-[120] bg-card border-t border-border pb-safe shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.1)]"
     >
-      <div className="pointer-events-auto fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border pb-[env(safe-area-inset-bottom)]">
-        <div className="flex justify-around items-center min-h-[4.5rem] py-2 px-4">
-          {TABS.map((t) => {
-            const active = t.match(pathname);
-            const Icon = t.icon;
-            return (
-              <Link
-                key={t.id}
-                to={t.to}
-                aria-current={active ? "page" : undefined}
-                aria-label={t.label}
-                className={`flex flex-col items-center gap-1.5 w-16 transition-colors tap-highlight-none ${
-                  active ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <span className="relative">
-                  <Icon className="h-6 w-6" strokeWidth={active ? 2.4 : 2} />
-                  {t.id === "cart" && itemCount > 0 && (
-                    <motion.span
-                      key={itemCount}
-                      initial={{ scale: 0.4 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 14 }}
-                      className="absolute -top-1.5 -right-2 bg-rose-600 text-white h-4 min-w-4 px-1 rounded-full flex items-center justify-center text-[9px] font-black border-2 border-background shadow-lg"
-                    >
-                      {itemCount > 99 ? "99+" : itemCount}
-                    </motion.span>
-                  )}
-                  {active && (
-                    <motion.span
-                      layoutId="customer-bottom-nav-dot"
-                      className="absolute -bottom-2 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
-                    />
-                  )}
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider">{t.label}</span>
-              </Link>
-            );
-          })}
-        </div>
+      <div className="flex justify-around items-center h-[72px] px-2">
+        {TABS.map((t) => {
+          const active = t.match(pathname);
+          const Icon = t.icon;
+          return (
+            <Link
+              key={t.id}
+              to={t.to}
+              aria-current={active ? "page" : undefined}
+              aria-label={t.label}
+              className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors tap-highlight-none ${
+                active ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <span className="relative">
+                <Icon className="h-6 w-6" strokeWidth={active ? 2.4 : 2} />
+                {t.id === "cart" && itemCount > 0 && (
+                  <motion.span
+                    key={itemCount}
+                    initial={{ scale: 0.4 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 14 }}
+                    className="absolute -top-1.5 -right-2 bg-rose-600 text-white h-4 min-w-4 px-1 rounded-full flex items-center justify-center text-[9px] font-black border-2 border-background shadow-sm"
+                  >
+                    {itemCount > 99 ? "99+" : itemCount}
+                  </motion.span>
+                )}
+                {active && (
+                  <motion.span
+                    layoutId="customer-bottom-nav-dot"
+                    className="absolute -bottom-2.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
+                  />
+                )}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider">{t.label}</span>
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );
