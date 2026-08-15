@@ -167,7 +167,7 @@ function Checkout() {
         let paymentReceived = false;
         const options = {
           key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
-          amount: Math.round((order.total ?? total) * 100), // use backend-computed total (paise)
+          amount: Math.round((pay?.amount ?? order.total ?? total) * 100), // use backend-computed payment amount (paise)
           currency: "INR",
           name: "Vegamart",
           description: `Order ${order.order_number}`,
@@ -273,8 +273,7 @@ function Checkout() {
     });
   };
 
-  // Keep hooks unconditional; this guard intentionally follows all hooks.
-  if (!authLoading && (!isAuthenticated || isGuest)) {
+  if (!authLoading && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <AppHeader title="Checkout" subtitle="Login Required" />

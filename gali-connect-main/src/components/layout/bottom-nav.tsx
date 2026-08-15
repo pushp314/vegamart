@@ -53,8 +53,8 @@ export function BottomNav() {
       aria-label="Primary"
       className="md:hidden fixed inset-x-0 bottom-0 z-[120] pointer-events-none"
     >
-      <div className="pointer-events-auto fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border pb-safe">
-        <div className="flex justify-around items-center h-20 px-4">
+      <div className="pointer-events-auto fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border pb-[env(safe-area-inset-bottom)]">
+        <div className="flex justify-around items-center min-h-[4.5rem] py-2 px-4">
           {TABS.map((t) => {
             const active = t.match(pathname);
             const Icon = t.icon;

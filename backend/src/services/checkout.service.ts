@@ -234,7 +234,7 @@ export const checkoutService = {
       const globalDeliveryFee = (settings[SETTING_KEYS.DELIVERY_FEE] as number) || 0;
       const globalFreeDeliveryThreshold = (settings[SETTING_KEYS.FREE_DELIVERY_THRESHOLD] as number) || 0;
 
-      const vendorDeliveryFee = computeDeliveryFee(
+      const vendorDeliveryFee = input.delivery_slot === "Self Pickup" ? 0 : computeDeliveryFee(
         group.subtotal, 
         globalFreeDeliveryThreshold, 
         globalDeliveryFee,
@@ -316,6 +316,7 @@ export const checkoutService = {
       {
         address_id: input.address_id,
         coupon_code: input.coupon_code,
+        delivery_slot: input.delivery_slot,
         payment_method: input.payment_method,
         idempotency_key: input.idempotency_key,
       },
@@ -327,6 +328,16 @@ export const checkoutService = {
     const cart = await cartService.getMyCart(userId);
     const groups = groupByVendor(cart);
     const summary = await this.buildSummary(cart, groups, input, userId);
+
+    for (const group of summary.groups) {
+      if (group.items_subtotal < group.min_order) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `Minimum order for ${group.vendor_name} is ₹${group.min_order}. Please add more items.`,
+          { code: "MIN_ORDER_NOT_MET" }
+        );
+      }
+    }
 
     const address = await findAddressById(input.address_id);
     if (!address || address.user_id !== userId || address.deleted_at) {
@@ -379,20 +390,24 @@ export const checkoutService = {
       )
     );
 
-    // Gateway intents are created before the transaction (their ids are recorded
-    // inside it). On a rollback any orphaned intent simply expires at the gateway
-    // and is never re-created, because replays return the persisted result.
+    // Gateway intents are created before the transaction
     const gatewayOrders = await Promise.all(
-      computations.map((c) =>
-        paymentMethod === "RAZORPAY"
+      computations.map((c) => {
+        let amountToCharge = c.groupTotal;
+        if (input.delivery_slot === "Self Pickup" && amountToCharge > 0) {
+          // Require 10% upfront online payment for Self Pickup
+          amountToCharge = Math.max(1, Math.round(amountToCharge * 0.10 * 100) / 100);
+        }
+        
+        return paymentMethod === "RAZORPAY"
           ? razorpayGateway.createOrder({
-              amountPaise: Math.round(c.groupTotal * 100),
+              amountPaise: Math.round(amountToCharge * 100),
               currency: DEFAULT_CURRENCY,
               receipt: c.orderNumber,
-              notes: { order_number: c.orderNumber, user_id: userId },
+              notes: { order_number: c.orderNumber, user_id: userId, delivery_slot: input.delivery_slot || "" },
             })
           : undefined
-      )
+      })
     );
 
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
@@ -481,10 +496,14 @@ export const checkoutService = {
 
           let payment;
           if (paymentMethod === "RAZORPAY") {
+            let amountCharged = groupTotal;
+            if (input.delivery_slot === "Self Pickup" && amountCharged > 0) {
+              amountCharged = Math.max(1, Math.round(amountCharged * 0.10 * 100) / 100);
+            }
             payment = await paymentRepo.createForOrder(
               {
                 order_id: order.id,
-                amount: groupTotal,
+                amount: amountCharged,
                 method: "RAZORPAY",
                 razorpay_order_id: gatewayOrders[i]?.id,
               },

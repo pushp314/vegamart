@@ -63,7 +63,7 @@ export interface SubscriptionSchedule {
   totalCount: number;
 }
 
-const MAX_SUBSCRIPTION_YEARS = 100;
+const MAX_SUBSCRIPTION_YEARS = 10;
 
 export function subscriptionScheduleFor(billingPeriod: string): SubscriptionSchedule {
   switch (billingPeriod) {
