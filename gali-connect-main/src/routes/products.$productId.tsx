@@ -203,7 +203,7 @@ function ProductDetail() {
               </button>
             </div>
           </div>
-          <div className="aspect-square w-full overflow-hidden bg-black/5 flex items-center justify-center">
+          <div className="aspect-square w-full overflow-hidden bg-white flex items-center justify-center">
             {gallery[imageIdx]?.match(/\.(mp4|webm|ogg)$/i) ? (
               <video
                 src={gallery[imageIdx]}
@@ -218,7 +218,7 @@ function ProductDetail() {
               <img
                 src={gallery[imageIdx]}
                 alt={product.name}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             )}
           </div>
@@ -230,7 +230,7 @@ function ProductDetail() {
 
           {/* Mobile Thumbnails Overlaid */}
           {gallery.length > 1 && (
-            <div className="absolute bottom-4 left-0 right-0 z-20 flex justify-center lg:hidden">
+            <div className="absolute bottom-10 left-0 right-0 z-20 flex justify-center lg:hidden">
               <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 max-w-full">
                 {gallery.map((src, i) => {
                   const isVideo = src.match(/\.(mp4|webm|ogg)$/i);
