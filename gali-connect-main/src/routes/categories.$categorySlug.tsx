@@ -99,26 +99,48 @@ function CategoryPage() {
         back={false}
       />
       <PullToRefresh onRefresh={refresh}>
-        <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 pb-28 md:pb-16">
-          {/* Mobile category chips */}
-          <div className="lg:hidden -mx-4 flex gap-2 overflow-x-auto no-scrollbar px-4 pb-1">
-            {categories.map((c) => (
-              <Link
-                key={c.id}
-                to="/categories/$categorySlug"
-                params={{ categorySlug: c.slug }}
-                className={`shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[12.5px] font-semibold transition-colors border ${
-                  c.slug === activeCategory.slug
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-card text-foreground border-border hover:border-primary/40"
-                }`}
-              >
-                {c.name}
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-4 lg:mt-0 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 lg:gap-8">
+        <main className="mx-auto max-w-6xl md:px-6 lg:px-8 md:pt-8 pb-28 md:pb-16">
+          <div className="flex items-start lg:grid lg:grid-cols-[240px_1fr] lg:gap-8">
+            {/* Mobile sidebar */}
+            <aside className="lg:hidden w-[85px] shrink-0 bg-muted/30 sticky top-[65px] h-[calc(100dvh-65px)] overflow-y-auto no-scrollbar border-r flex flex-col z-20">
+              {categories.map((c) => {
+                const isActive = c.slug === activeCategory.slug;
+                return (
+                  <Link
+                    key={c.id}
+                    to="/categories/$categorySlug"
+                    params={{ categorySlug: c.slug }}
+                    className={`flex flex-col items-center gap-1.5 p-2 py-4 text-center relative transition-colors ${
+                      isActive ? "bg-background" : "hover:bg-background/50"
+                    }`}
+                  >
+                    {isActive && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand rounded-r-md" />
+                    )}
+                    <div className="h-[46px] w-[46px] overflow-hidden rounded-[14px] bg-background flex items-center justify-center shadow-sm border border-border/50 p-1">
+                      {c.image_url ? (
+                        <img
+                          src={c.image_url}
+                          alt={c.name}
+                          className="w-full h-full object-cover rounded-[10px]"
+                        />
+                      ) : c.icon ? (
+                        <span className="text-2xl">{c.icon}</span>
+                      ) : (
+                        <div className="w-full h-full bg-brand/10 rounded-[10px]" />
+                      )}
+                    </div>
+                    <span
+                      className={`text-[10px] leading-[1.2] ${
+                        isActive ? "font-bold text-foreground" : "font-medium text-muted-foreground"
+                      }`}
+                    >
+                      {c.name}
+                    </span>
+                  </Link>
+                );
+              })}
+            </aside>
             {/* Desktop sidebar */}
             <aside className="hidden lg:block">
               <div className="sticky top-24 rounded-2xl bg-card border p-3">
@@ -159,7 +181,7 @@ function CategoryPage() {
             </aside>
 
             {/* Content */}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1 px-3 py-4 lg:px-0 lg:py-0 w-full">
               {loadingVendors ? (
                 <div className="mt-6 text-center text-sm text-muted-foreground">
                   Loading vendors...
