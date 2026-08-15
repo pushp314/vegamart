@@ -311,8 +311,8 @@ function CategoryPage() {
                             {discountPercent}% OFF
                           </div>
                         )}
-                        <div className="relative aspect-square w-full bg-muted p-3">
-                          <img src={imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain rounded-xl mix-blend-multiply" />
+                        <div className="relative h-[110px] sm:h-[130px] w-full bg-muted/40 p-4 flex items-center justify-center">
+                          <img src={imageUrl} alt={p.name} loading="lazy" className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-sm" />
                         </div>
                         <div className="p-3 pt-0 flex flex-col flex-1">
                           <div className="text-[10px] text-amber-600 flex items-center gap-1 mb-1 font-bold tracking-tight">
