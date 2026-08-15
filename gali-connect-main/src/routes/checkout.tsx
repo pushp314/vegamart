@@ -55,6 +55,8 @@ function Checkout() {
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
 
+  const selectedDeliverySlot = deliveryOption;
+
   const { data: publicSettingsRes } = useQuery({
     queryKey: ["publicSettings"],
     queryFn: () => api.get<any>("/settings/public"),
@@ -297,6 +299,15 @@ function Checkout() {
       </div>
     );
   }
+
+  const selectedDeliveryId = DELIVERY_OPTIONS[deliveryOption]?.id;
+  const isSelfPickup = selectedDeliveryId === "self_pickup";
+  
+  const displayDeliveryFee = isSelfPickup ? 0 : deliveryFee;
+  const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + tax - discount);
+  const upfrontPaymentAmount = isSelfPickup && payment !== "cod" 
+    ? Math.max(1, Math.round(finalOrderTotal * 0.10 * 100) / 100) 
+    : finalOrderTotal;
 
   return (
     <div className="min-h-screen bg-background pb-32 md:pb-16">
@@ -562,7 +573,7 @@ function Checkout() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Delivery Fee</span>
                   <span className="font-semibold tabular-nums text-emerald-700">
-                    {deliveryFee === 0 ? "FREE" : `₹${deliveryFee.toFixed(2)}`}
+                    {displayDeliveryFee === 0 ? "FREE" : `₹${displayDeliveryFee.toFixed(2)}`}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -577,11 +588,37 @@ function Checkout() {
                 )}
               </dl>
 
-              <div className="pt-3 border-t flex items-center justify-between">
-                <span className="font-display text-sm font-bold">Total Payable</span>
-                <span className="font-display text-xl font-bold tabular-nums text-primary">
-                  ₹{total.toFixed(2)}
-                </span>
+              <div className="pt-3 border-t space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-display text-sm font-bold">Total Order Value</span>
+                  <span className="font-display text-sm font-bold tabular-nums">
+                    ₹{finalOrderTotal.toFixed(2)}
+                  </span>
+                </div>
+                {isSelfPickup && payment !== "cod" && (
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span className="text-xs font-semibold">10% Advance Payment</span>
+                    <span className="text-xs font-bold tabular-nums">
+                      ₹{upfrontPaymentAmount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {isSelfPickup && payment !== "cod" && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-medium">Balance at Store</span>
+                    <span className="text-xs font-medium tabular-nums">
+                      ₹{(finalOrderTotal - upfrontPaymentAmount).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-display text-sm font-bold">
+                    {isSelfPickup && payment !== "cod" ? "To Pay Now" : "Total Payable"}
+                  </span>
+                  <span className="font-display text-xl font-bold tabular-nums text-primary">
+                    ₹{upfrontPaymentAmount.toFixed(2)}
+                  </span>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 text-[10.5px] text-muted-foreground bg-muted p-2.5 rounded-2xl">
@@ -616,10 +653,10 @@ function Checkout() {
           <div className="pointer-events-auto flex items-center gap-3 rounded-3xl bg-primary text-primary-foreground p-2 pl-5 shadow-glow">
             <div className="flex-1 min-w-0">
               <div className="text-[10px] font-bold uppercase tracking-wider opacity-80">
-                Total Payable
+                {isSelfPickup && payment !== "cod" ? "To Pay Now (10%)" : "Total Payable"}
               </div>
               <div className="font-display text-lg font-bold leading-none tabular-nums">
-                ₹{total.toFixed(2)}
+                ₹{upfrontPaymentAmount.toFixed(2)}
               </div>
             </div>
             <button
