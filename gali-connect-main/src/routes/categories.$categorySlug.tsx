@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Star, MapPin, Clock, Search, Store } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
@@ -23,6 +23,7 @@ type DailyLocationWithDistance = DailyLocationData & { distance_km?: number };
 
 function CategoryPage() {
   const { categorySlug } = Route.useParams();
+  const navigate = useNavigate();
   const { activeAddress, displayLocation } = useLocation();
   const queryClient = useQueryClient();
   const { addToCart } = useCart();
@@ -49,15 +50,37 @@ function CategoryPage() {
     [categories, categorySlug],
   );
 
-  const subcategories = useMemo(() => {
+  const sidebarItems = useMemo(() => {
     if (!activeCategory) return [];
     const children = categories.filter((c) => c.parent_id === activeCategory.id);
     if (children.length > 0) return children;
     if (activeCategory.parent_id) {
       return categories.filter((c) => c.parent_id === activeCategory.parent_id);
     }
-    return [];
+    // Fallback to all top-level categories if no children exist
+    return categories.filter((c) => !c.parent_id);
   }, [categories, activeCategory]);
+
+  const isShowingSubcategories = useMemo(() => {
+    if (!activeCategory || sidebarItems.length === 0) return false;
+    // If the first item in sidebar has a parent_id, then we are showing subcategories
+    return !!sidebarItems[0].parent_id;
+  }, [sidebarItems, activeCategory]);
+
+  const handleSidebarClick = (category: Category | null) => {
+    if (category === null) {
+      setActiveSubcategory(null);
+      return;
+    }
+    
+    if (isShowingSubcategories) {
+      setActiveSubcategory(category.id);
+    } else {
+      // Navigating to a different top-level category
+      setActiveSubcategory(null);
+      navigate({ to: "/categories/$categorySlug", params: { categorySlug: category.slug } });
+    }
+  };
 
   const { data: vendorsRes, isLoading: loadingVendors } = useQuery({
     queryKey: ["vendors", activeCategory?.id, activeSubcategory],
@@ -140,33 +163,35 @@ function CategoryPage() {
       />
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar (Subcategories) */}
-        {subcategories.length > 0 && (
-          <aside className="w-[85px] lg:w-[100px] shrink-0 bg-white border-r overflow-y-auto no-scrollbar shadow-sm z-10">
-            <div className="flex flex-col py-2">
-              <button
-                onClick={() => setActiveSubcategory(null)}
-                className={`relative flex flex-col items-center gap-1.5 p-3 text-center transition-colors ${
-                  activeSubcategory === null
-                    ? "text-foreground font-bold"
-                    : "text-muted-foreground font-medium hover:bg-muted/30"
-                }`}
-              >
-                <div className="h-[48px] w-[48px] shrink-0 rounded-2xl overflow-hidden bg-muted/30 flex items-center justify-center p-1">
-                   <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?w=100&h=100&fit=crop" alt="All" className="h-full w-full object-cover rounded-xl" />
-                </div>
-                <span className="text-[11px] leading-tight break-words hyphens-auto w-full">All</span>
-                {activeSubcategory === null && (
-                  <div className="absolute right-0 top-1/4 bottom-1/4 w-1.5 bg-emerald-700 rounded-l-full" />
-                )}
-              </button>
+        {/* Left Sidebar */}
+        <aside className="w-[85px] lg:w-[100px] shrink-0 bg-white border-r overflow-y-auto no-scrollbar shadow-sm z-10">
+          <div className="flex flex-col py-2">
+            <button
+              onClick={() => handleSidebarClick(null)}
+              className={`relative flex flex-col items-center gap-1.5 p-3 text-center transition-colors ${
+                activeSubcategory === null
+                  ? "text-foreground font-bold"
+                  : "text-muted-foreground font-medium hover:bg-muted/30"
+              }`}
+            >
+              <div className="h-[48px] w-[48px] shrink-0 rounded-2xl overflow-hidden bg-muted/30 flex items-center justify-center p-1">
+                 <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?w=100&h=100&fit=crop" alt="All" className="h-full w-full object-cover rounded-xl" />
+              </div>
+              <span className="text-[11px] leading-tight break-words hyphens-auto w-full">All</span>
+              {activeSubcategory === null && (
+                <div className="absolute right-0 top-1/4 bottom-1/4 w-1.5 bg-emerald-700 rounded-l-full" />
+              )}
+            </button>
 
-              {subcategories.map((c) => (
+            {sidebarItems.map((c) => {
+              const isActive = isShowingSubcategories ? activeSubcategory === c.id : c.id === activeCategory.id;
+              
+              return (
                 <button
                   key={c.id}
-                  onClick={() => setActiveSubcategory(c.id)}
+                  onClick={() => handleSidebarClick(c)}
                   className={`relative flex flex-col items-center gap-1.5 p-3 text-center transition-colors ${
-                    activeSubcategory === c.id
+                    isActive
                       ? "text-foreground font-bold"
                       : "text-muted-foreground font-medium hover:bg-muted/30"
                   }`}
@@ -181,14 +206,14 @@ function CategoryPage() {
                     )}
                   </div>
                   <span className="text-[11px] leading-tight break-words hyphens-auto w-full">{c.name}</span>
-                  {activeSubcategory === c.id && (
+                  {isActive && (
                     <div className="absolute right-0 top-1/4 bottom-1/4 w-1.5 bg-emerald-700 rounded-l-full" />
                   )}
                 </button>
-              ))}
-            </div>
-          </aside>
-        )}
+              );
+            })}
+          </div>
+        </aside>
 
         {/* Right Content Area */}
         <main className="flex-1 overflow-y-auto pb-28 md:pb-16 bg-muted/10 relative">
