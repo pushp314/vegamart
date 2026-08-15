@@ -129,10 +129,10 @@ export function ProductCard({
           <span>•</span> <span>{product.unit}</span>
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
-          <div>
-            <span className="text-sm font-bold">₹{product.price}</span>
+          <div className="flex flex-col justify-center">
+            <span className="text-sm font-bold leading-none">₹{product.price}</span>
             {product.mrp > product.price && (
-              <span className="ml-1.5 text-[11px] text-muted-foreground line-through">
+              <span className="mt-1 text-[10px] text-muted-foreground line-through leading-none">
                 ₹{product.mrp}
               </span>
             )}
@@ -140,7 +140,7 @@ export function ProductCard({
           <Button
             size="sm"
             disabled={outOfStock}
-            className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3 disabled:opacity-50 disabled:hover:bg-brand"
+            className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3 shrink-0 disabled:opacity-50 disabled:hover:bg-brand"
             onClick={(e) => {
               e.stopPropagation();
               addToCart(product, 1);
