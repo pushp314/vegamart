@@ -141,7 +141,7 @@ export const razorpayGateway = {
   },
 
   verifySignature(input: { orderId: string; paymentId: string; signature: string }): boolean {
-    const secret = env.RAZORPAY_WEBHOOK_SECRET || env.RAZORPAY_KEY_SECRET;
+    const secret = env.RAZORPAY_KEY_SECRET;
     if (!secret) {
       return false;
     }
@@ -151,7 +151,7 @@ export const razorpayGateway = {
   },
 
   verifySubscriptionSignature(input: { paymentId: string; subscriptionId: string; signature: string }): boolean {
-    const secret = env.RAZORPAY_WEBHOOK_SECRET || env.RAZORPAY_KEY_SECRET;
+    const secret = env.RAZORPAY_KEY_SECRET;
     if (!secret) {
       return false;
     }
