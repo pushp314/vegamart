@@ -28,21 +28,20 @@ interface CapturedPaymentEntity {
   currency?: string;
 }
 
-function expectedAmountPaise(order: { total: { toNumber: () => number } }): number {
-  return Math.round(order.total.toNumber() * 100);
+function expectedAmountPaise(amount: number): number {
+  return Math.round(amount * 100);
 }
 
 /**
  * Verifies that a captured payment entity from Razorpay matches the persisted
  * order: it belongs to the expected razorpay order, has an acceptable status,
- * and the captured amount + currency equal the server-derived order total.
- * The expected amount is derived from the persisted order, never from the
+ * and the captured amount + currency equal the expected payment amount.
+ * The expected amount is derived from the persisted payment, never from the
  * frontend or from a client-supplied value.
  */
 function assertCapturedPayment(
   entity: CapturedPaymentEntity,
-  payment: { razorpay_order_id: string | null; currency: string },
-  order: { total: { toNumber: () => number } }
+  payment: { razorpay_order_id: string | null; currency: string; amount: { toNumber: () => number } }
 ): void {
   if (!entity.id || !entity.order_id || !entity.status || typeof entity.amount !== "number") {
     throw new ApiError(HttpStatus.BAD_REQUEST, "Payment verification failed: incomplete gateway data.", {
@@ -59,8 +58,8 @@ function assertCapturedPayment(
       code: "PAYMENT_STATUS_NOT_ACCEPTABLE",
     });
   }
-  if (entity.amount !== expectedAmountPaise(order)) {
-    throw new ApiError(HttpStatus.BAD_REQUEST, "Captured amount does not match the order total.", {
+  if (entity.amount !== expectedAmountPaise(payment.amount.toNumber())) {
+    throw new ApiError(HttpStatus.BAD_REQUEST, "Captured amount does not match the expected payment amount.", {
       code: "PAYMENT_AMOUNT_MISMATCH",
     });
   }
@@ -108,10 +107,10 @@ export const paymentService = {
       });
     }
 
-    // The expected amount is derived from the persisted order; the frontend is
+    // The expected amount is derived from the persisted payment; the frontend is
     // never trusted for the payable amount. Signature + amount + currency + order
     // mapping must all hold before the payment is marked paid.
-    assertCapturedPayment(entity, payment, order);
+    assertCapturedPayment(entity, payment);
 
     // Atomic claim: only the first request that transitions this payment to PAID
     // proceeds with the downstream side effects. Replayed/concurrent callbacks
@@ -244,7 +243,7 @@ export const paymentService = {
     const order = await findOrderById(payment.order_id);
     if (!order) return;
 
-    assertCapturedPayment(entity, payment, order);
+    assertCapturedPayment(entity, payment);
 
     // Atomic claim: only one callback (webhook or client verify) applies the
     // paid transition; duplicates short-circuit before any side effect.
