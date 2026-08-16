@@ -34,6 +34,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   );
   const [contactPhone, setContactPhone] = useState(profile.phone || "");
   const [providesDelivery, setProvidesDelivery] = useState(profile.provides_delivery ?? false);
+  const [taxRate, setTaxRate] = useState(profile.tax_rate !== undefined && profile.tax_rate !== null ? String(profile.tax_rate) : "");
   const [logoUrl, setLogoUrl] = useState(profile.logo_url || "");
   const [bannerUrls, setBannerUrls] = useState<string[]>(profile.banner_urls || []);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
@@ -82,6 +83,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
     if (profile.advance_payment_percentage !== undefined) setAdvancePaymentPercentage(String(profile.advance_payment_percentage));
     if (profile.phone !== undefined) setContactPhone(profile.phone || "");
     if (profile.provides_delivery !== undefined) setProvidesDelivery(!!profile.provides_delivery);
+    if (profile.tax_rate !== undefined) setTaxRate(profile.tax_rate !== null ? String(profile.tax_rate) : "");
     if (profile.logo_url !== undefined) setLogoUrl(profile.logo_url || "");
     if (profile.banner_urls !== undefined) setBannerUrls(profile.banner_urls || []);
   }, [profile]);
@@ -106,6 +108,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
       delivery_fee: deliveryFee ? Number(deliveryFee) : 0,
       advance_payment_percentage: advancePaymentPercentage ? Number(advancePaymentPercentage) : 10,
       phone: contactPhone || null,
+      tax_rate: taxRate !== "" ? Number(taxRate) : null,
       logo_url: logoUrl || null,
       banner_urls: bannerUrls,
     });
@@ -340,6 +343,28 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 onChange={(e) => setFreeDeliveryMin(e.target.value)}
                 className="h-10 rounded-2xl text-xs bg-muted/40"
               />
+            </div>
+            <div className="space-y-1.5 max-w-md">
+              <Label
+                htmlFor="taxRate"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              >
+                Custom Tax Rate % (Optional)
+              </Label>
+              <Input
+                id="taxRate"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="Leave blank to use platform default"
+                value={taxRate}
+                onChange={(e) => setTaxRate(e.target.value)}
+                className="h-10 rounded-2xl text-xs bg-muted/40"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Set a custom tax rate for your products. Leave blank to use the platform's default tax rate.
+              </p>
             </div>
           </CardContent>
         </Card>

@@ -53,6 +53,13 @@ function groupByVendor(cart: cartRepo.CartRow): VendorGroup[] {
   return [...groups.values()];
 }
 
+/** Case-insensitive check for self-pickup delivery slot. */
+function isSelfPickupSlot(deliverySlot?: string | null): boolean {
+  if (!deliverySlot) return false;
+  const normalized = deliverySlot.toLowerCase().replace(/[\s_-]+/g, "");
+  return normalized === "selfpickup";
+}
+
 function computeDeliveryFee(
   vendorSubtotal: number, 
   globalFreeDeliveryThreshold: number, 
@@ -237,7 +244,7 @@ export const checkoutService = {
       const globalFreeDeliveryThreshold = (settings[SETTING_KEYS.FREE_DELIVERY_THRESHOLD] as number) || 0;
       const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
 
-      const vendorDeliveryFee = input.delivery_slot === "Self Pickup" ? 0 : computeDeliveryFee(
+      const vendorDeliveryFee = isSelfPickupSlot(input.delivery_slot) ? 0 : computeDeliveryFee(
         group.subtotal, 
         globalFreeDeliveryThreshold, 
         globalDeliveryFee,
@@ -417,7 +424,7 @@ export const checkoutService = {
     const gatewayOrders = await Promise.all(
       computations.map((c) => {
         let amountToCharge = c.groupTotal;
-        if (input.delivery_slot === "Self Pickup" && amountToCharge > 0) {
+        if (isSelfPickupSlot(input.delivery_slot) && amountToCharge > 0) {
           // Require upfront online payment for Self Pickup based on vendor settings
           const advancePct = c.group.advance_payment_percentage ?? 10;
           amountToCharge = advancePct === 0 ? amountToCharge : Math.max(1, Math.round(amountToCharge * (advancePct / 100) * 100) / 100);
@@ -468,7 +475,7 @@ export const checkoutService = {
               tax: 0,
               total: 0,
               payment_method: paymentMethod,
-              delivery_note: input.delivery_slot === "Self Pickup" ? "Self Pickup" : undefined,
+              delivery_note: isSelfPickupSlot(input.delivery_slot) ? "Self Pickup" : (input.delivery_slot || undefined),
               items: group.items.map((item) => ({
                 product_id: item.product_id,
                 product_name: item.name,
@@ -525,7 +532,7 @@ export const checkoutService = {
           let payment;
           if (paymentMethod === "RAZORPAY") {
             let amountCharged = groupTotal;
-            if (input.delivery_slot === "Self Pickup" && amountCharged > 0) {
+            if (isSelfPickupSlot(input.delivery_slot) && amountCharged > 0) {
               const advancePct = group.advance_payment_percentage ?? 10;
               amountCharged = advancePct === 0 ? amountCharged : Math.max(1, Math.round(amountCharged * (advancePct / 100) * 100) / 100);
             }
