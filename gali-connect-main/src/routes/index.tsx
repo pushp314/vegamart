@@ -207,8 +207,6 @@ function Home() {
           <ShopsNearYou defaultAddress={activeAddress} />
           <ShopWiseProducts />
           <Trending />
-
-          {/* Additional Sections */}
           <LiveBanner />
           <FeaturedProducts />
           <Recommended />
