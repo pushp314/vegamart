@@ -39,6 +39,7 @@ interface CartContextType {
   clearCart: () => void;
   applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => void;
+  summary?: any;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -279,6 +280,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         clearCart,
         applyCoupon,
         removeCoupon,
+        summary: preview,
       }}
     >
       {children}

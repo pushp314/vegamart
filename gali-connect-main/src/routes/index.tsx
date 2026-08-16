@@ -200,6 +200,7 @@ function Home() {
             <SearchBar />
           </div>
           <Hero />
+          <Categories />
           <SponsoredVendors />
           <Offers />
           <LiveVendors defaultAddress={activeAddress} />
@@ -208,7 +209,6 @@ function Home() {
           <Trending />
 
           {/* Additional Sections */}
-          <Categories />
           <LiveBanner />
           <FeaturedProducts />
           <Recommended />

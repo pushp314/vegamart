@@ -48,6 +48,7 @@ function Checkout() {
     appliedCoupon,
     applyCoupon,
     removeCoupon,
+    summary,
   } = useCart();
 
   const [payment, setPayment] = useState("upi");
