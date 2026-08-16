@@ -195,6 +195,7 @@ export interface CreateOrderInput {
   tax: number;
   total: number;
   payment_method: string;
+  delivery_note?: string | null;
   items: Array<{
     product_id: string;
     product_name: string;
@@ -221,6 +222,7 @@ export async function createOrder(input: CreateOrderInput, db: DbClient = prisma
       tax: input.tax,
       total: input.total,
       payment_method: input.payment_method as Prisma.OrderCreateInput["payment_method"],
+      delivery_note: input.delivery_note ?? null,
       items: {
         create: input.items.map((item) => ({
           product_id: item.product_id,

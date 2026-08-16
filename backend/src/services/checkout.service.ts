@@ -467,6 +467,7 @@ export const checkoutService = {
               tax: 0,
               total: 0,
               payment_method: paymentMethod,
+              delivery_note: input.delivery_slot === "Self Pickup" ? "Self Pickup" : undefined,
               items: group.items.map((item) => ({
                 product_id: item.product_id,
                 product_name: item.name,
