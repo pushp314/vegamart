@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   MapPin,
   ChevronDown,
+  ChevronUp,
   Search,
   ShoppingCart,
   ArrowRight,
@@ -911,6 +912,10 @@ function Categories() {
 
   const dbCats = res?.data || [];
   const activeCats = dbCats.filter((c: any) => c.is_active !== false);
+  const VISIBLE_COUNT = 6;
+  const [showAll, setShowAll] = useState(false);
+  const hasMore = activeCats.length > VISIBLE_COUNT;
+  const visibleCats = !showAll && hasMore ? activeCats.slice(0, VISIBLE_COUNT) : activeCats;
 
   return (
     <section className="px-4 md:px-0 pt-6 md:pt-10">
@@ -918,10 +923,10 @@ function Categories() {
         Shop by category
       </h2>
       <p className="text-[13px] md:text-sm text-muted-foreground">Everything your gali offers</p>
-      <div className="mt-4 flex overflow-x-auto gap-4 md:gap-6 pb-4 snap-x hide-scrollbar px-1">
+      <div className="mt-4 grid grid-cols-4 md:grid-cols-8 gap-4 md:gap-6 px-1">
         <Link
           to="/street-vendors"
-          className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none shrink-0 snap-start w-[72px] md:w-[90px]"
+          className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
         >
           <div className="grid aspect-square w-full place-items-center rounded-2xl bg-emerald-700 text-white shadow-sm">
             <MapPin className="h-7 w-7 md:h-8 md:w-8" strokeWidth={1.75} />
@@ -930,12 +935,12 @@ function Categories() {
             Live Vendor
           </span>
         </Link>
-        {activeCats.map((c: any) => (
+        {visibleCats.map((c: any) => (
           <Link
             key={c.id}
             to="/categories/$categorySlug"
             params={{ categorySlug: c.slug }}
-            className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none shrink-0 snap-start w-[72px] md:w-[90px]"
+            className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
           >
             <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted text-muted-foreground overflow-hidden shadow-sm">
               {c.image_url ? (
@@ -951,6 +956,24 @@ function Categories() {
             </span>
           </Link>
         ))}
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="flex flex-col items-center gap-1.5 md:gap-2 tap-highlight-none"
+          >
+            <div className="grid aspect-square w-full place-items-center rounded-2xl bg-emerald-50 text-primary shadow-sm">
+              {showAll ? (
+                <ChevronUp className="h-7 w-7 md:h-8 md:w-8" strokeWidth={2} />
+              ) : (
+                <Plus className="h-7 w-7 md:h-8 md:w-8" strokeWidth={2} />
+              )}
+            </div>
+            <span className="text-[11.5px] md:text-[13px] font-medium text-center leading-tight">
+              {showAll ? "Show less" : "Show more"}
+            </span>
+          </button>
+        )}
       </div>
     </section>
   );

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Store,
   Bike,
@@ -14,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { api, formatErrorMessage } from "@/lib/api";
+import type { Category } from "@/types";
 import { toast } from "sonner";
 
 export function AdminCreatePartner() {
@@ -38,6 +40,18 @@ export function AdminCreatePartner() {
 
   const [loading, setLoading] = useState(false);
   const [lastCreated, setLastCreated] = useState<any>(null);
+
+  const { data: categoriesRes } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api.get<Category[]>("/categories"),
+  });
+  const categories = categoriesRes?.data || [];
+
+  useEffect(() => {
+    if (categories.length > 0 && !categories.some((c) => c.name === category)) {
+      setCategory(categories[0].name);
+    }
+  }, [categories, category]);
 
   const inputCls =
     "w-full rounded-2xl bg-muted/60 border border-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all";
@@ -73,6 +87,11 @@ export function AdminCreatePartner() {
         if (!businessName || !address || !pincode) {
           setLoading(false);
           toast.error("Please fill in all store details");
+          return;
+        }
+        if (categories.length === 0 || !category) {
+          setLoading(false);
+          toast.error("No categories available. Add one from Category Management first.");
           return;
         }
 
@@ -388,12 +407,14 @@ export function AdminCreatePartner() {
                   onChange={(e) => setCategory(e.target.value)}
                   className={inputCls}
                 >
-                  <option value="vegetables">🥦 Vegetables & Sabzi</option>
-                  <option value="fruits">🍎 Fresh Fruits</option>
-                  <option value="dairy">🥛 Dairy & Milk</option>
-                  <option value="bakery">🥐 Bakery & Snacks</option>
-                  <option value="juice">☕ Chai & Juice</option>
-                  <option value="grocery">🛒 Grocery</option>
+                  <option value="" disabled>
+                    {categories.length === 0 ? "No categories available" : "Select a category"}
+                  </option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.icon ? `${c.icon} ${c.name}` : c.name}
+                    </option>
+                  ))}
                 </select>
               </label>
 
