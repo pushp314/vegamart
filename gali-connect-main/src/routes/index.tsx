@@ -202,12 +202,12 @@ function Home() {
           <Hero />
           <Categories />
           <SponsoredVendors />
+          <LiveBanner />
           <LiveVendors defaultAddress={activeAddress} />
-          <Offers />
           <ShopsNearYou defaultAddress={activeAddress} />
+          <Offers />
           <ShopWiseProducts />
           <Trending />
-          <LiveBanner />
           <FeaturedProducts />
           <Recommended />
           <RecentlyViewed />
