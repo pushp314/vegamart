@@ -16,6 +16,7 @@ export const SETTING_KEYS = {
   MULTI_STORE_CHECKOUT_ENABLED: "platform.multi_store_checkout_enabled",
   DELIVERIES_ACTIVE: "platform.deliveries_active",
   DEFAULT_DELIVERY_RADIUS_KM: "platform.default_delivery_radius_km",
+  HOMEPAGE_SECTIONS: "platform.homepage_sections",
 } as const;
 
 export type SettingValue =
@@ -31,6 +32,22 @@ export interface SettingDefinition {
   description: string;
   is_public: boolean;
 }
+
+export const DEFAULT_HOMEPAGE_SECTIONS = [
+  { id: "hero", label: "Hero Banner & Promotions", description: "Top carousel banners and video spotlight", enabled: true },
+  { id: "categories", label: "Categories Grid", description: "Fresh produce and department shortcuts", enabled: true },
+  { id: "sponsored_vendors", label: "Sponsored Vendors & Premium Stores", description: "Featured local merchants with badges", enabled: true },
+  { id: "live_banner", label: "Live Network Alert Banner", description: "Real-time moving street vendor count banner", enabled: true },
+  { id: "live_vendors", label: "Nearby Live Street Vendors", description: "Live moving carts with GPS distance and speed", enabled: true },
+  { id: "shops_near_you", label: "Fixed Shops & Kirana Stores", description: "Nearby trusted brick-and-mortar grocery shops", enabled: true },
+  { id: "offers", label: "Discounts & Bank Offers", description: "Active promo coupons, wallet offers and discounts", enabled: true },
+  { id: "shopwise_products", label: "Shop-wise Fresh Produce", description: "Curated product shelves organized by merchant", enabled: true },
+  { id: "trending", label: "Trending & Best Sellers", description: "High-demand fresh products ordered nearby", enabled: true },
+  { id: "featured_products", label: "Featured Deals & Essentials", description: "Daily essentials and handpicked product deals", enabled: true },
+  { id: "recommended", label: "Recommended For You", description: "Smart product recommendations based on preferences", enabled: true },
+  { id: "recently_viewed", label: "Recently Viewed Items", description: "Quick access to products the customer viewed", enabled: true },
+  { id: "brand_footer", label: "Why VegaMart & Trust Badges", description: "Safety guarantees, quality promise, and brand footer", enabled: true },
+];
 
 export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
   [SETTING_KEYS.PLATFORM_NAME]: {
@@ -150,6 +167,13 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "number",
     default: 10,
     description: "Default maximum delivery radius in kilometres.",
+    is_public: true,
+  },
+  [SETTING_KEYS.HOMEPAGE_SECTIONS]: {
+    key: SETTING_KEYS.HOMEPAGE_SECTIONS,
+    type: "string",
+    default: JSON.stringify(DEFAULT_HOMEPAGE_SECTIONS),
+    description: "Ordered JSON array of home page sections and their visibility.",
     is_public: true,
   },
 };

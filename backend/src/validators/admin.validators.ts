@@ -178,6 +178,7 @@ export const settingsUpdateSchema = z
     "notifications.announcement_enabled": z.boolean().optional(),
     "support.email": z.string().trim().email().optional(),
     "support.phone": z.string().trim().max(30).optional(),
+    "platform.homepage_sections": z.string().trim().max(10000).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one setting must be provided.",

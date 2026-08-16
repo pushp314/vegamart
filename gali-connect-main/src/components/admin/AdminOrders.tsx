@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Eye, Loader2, ShoppingBag, MapPin, User, Store } from "lucide-react";
+import { Search, Eye, Loader2, ShoppingBag, MapPin, User, Store, Phone } from "lucide-react";
 import { format } from "date-fns";
 
 interface Order {
@@ -42,8 +42,14 @@ interface Order {
   payment_method: string;
   payment_status: string;
   created_at: string;
-  customer: { id: string; name: string; email: string } | null;
-  vendor: { id: string; business_name: string } | null;
+  customer: { id: string; name: string; email: string; phone?: string | null } | null;
+  vendor: {
+    id: string;
+    business_name: string;
+    phone?: string | null;
+    address?: string | null;
+    city?: string | null;
+  } | null;
   item_count: number;
   items?: {
     product_name: string;
@@ -52,6 +58,9 @@ interface Order {
     total_price?: number;
     image_url?: string;
     status?: string;
+    product?: {
+      images?: { url: string }[];
+    };
   }[];
   address?: any;
 }
@@ -178,17 +187,61 @@ export function AdminOrders() {
                       onClick={() => setSelectedOrder(order)}
                     >
                       <TableCell className="font-mono text-sm">{order.order_number}</TableCell>
-                      <TableCell>{order.customer?.name ?? "N/A"}</TableCell>
-                      <TableCell>{order.vendor?.business_name ?? "N/A"}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
+                          <span className="font-semibold text-foreground">{order.customer?.name ?? "N/A"}</span>
+                          {order.customer?.phone ? (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <Phone className="h-3 w-3 text-emerald-600 shrink-0" />
+                              {order.customer.phone}
+                            </span>
+                          ) : order.customer?.email ? (
+                            <span className="text-xs text-muted-foreground truncate max-w-[140px]">{order.customer.email}</span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-foreground">{order.vendor?.business_name ?? "N/A"}</span>
+                          {order.vendor?.phone ? (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <Phone className="h-3 w-3 text-emerald-600 shrink-0" />
+                              {order.vendor.phone}
+                            </span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
                           <span className="font-semibold">{order.item_count} Items</span>
                           {order.items && order.items.length > 0 && (
-                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                              {order.items
-                                .map((i) => `${i.quantity}x ${i.product_name}`)
-                                .join(", ")}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {order.items.slice(0, 2).map((i: any, itemIdx: number) => {
+                                const itemImg = i.image_url || i.product?.images?.[0]?.url;
+                                return (
+                                  <div
+                                    key={itemIdx}
+                                    className="flex items-center gap-1.5 bg-muted/60 border border-border/70 rounded-lg px-2 py-0.5 text-xs text-muted-foreground"
+                                  >
+                                    <div className="h-4 w-4 rounded bg-muted overflow-hidden shrink-0 grid place-items-center">
+                                      {itemImg ? (
+                                        <img src={itemImg} alt="" className="h-full w-full object-cover" />
+                                      ) : (
+                                        <ShoppingBag className="h-3 w-3 text-muted-foreground/60" />
+                                      )}
+                                    </div>
+                                    <span className="truncate max-w-[110px] font-medium text-foreground">
+                                      {i.quantity}x {i.product_name}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              {order.items.length > 2 && (
+                                <span className="text-[10px] text-muted-foreground font-bold">
+                                  +{order.items.length - 2} more
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </TableCell>
@@ -268,12 +321,20 @@ export function AdminOrders() {
                     <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
                       <User className="h-4 w-4" /> Customer
                     </div>
-                    <div className="rounded-xl border border-border bg-muted/20 p-4">
-                      <p className="font-semibold">{detail.customer?.name || "N/A"}</p>
-                      <p className="text-sm text-muted-foreground">{detail.customer?.email}</p>
+                    <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-1.5">
+                      <p className="font-bold text-foreground">{detail.customer?.name || "N/A"}</p>
+                      {detail.customer?.phone ? (
+                        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1.5 w-fit font-medium">
+                          <Phone className="h-3 w-3" />
+                          {detail.customer.phone}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No mobile number</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{detail.customer?.email}</p>
                       {detail.address && (
-                        <div className="mt-2 text-sm flex gap-2 text-muted-foreground items-start">
-                          <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+                        <div className="mt-2 text-xs flex gap-2 text-muted-foreground items-start border-t pt-2">
+                          <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-600" />
                           <span>
                             {detail.address.full_address}
                             {detail.address.landmark ? `, ${detail.address.landmark}` : ""}
@@ -287,9 +348,19 @@ export function AdminOrders() {
                     <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
                       <Store className="h-4 w-4" /> Vendor
                     </div>
-                    <div className="rounded-xl border border-border bg-muted/20 p-4">
-                      <p className="font-semibold">{detail.vendor?.business_name || "N/A"}</p>
-                      <p className="text-sm text-muted-foreground">{detail.vendor?.id}</p>
+                    <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-1.5">
+                      <p className="font-bold text-foreground">{detail.vendor?.business_name || "N/A"}</p>
+                      {detail.vendor?.phone ? (
+                        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1.5 w-fit font-medium">
+                          <Phone className="h-3 w-3" />
+                          {detail.vendor.phone}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No mobile number</p>
+                      )}
+                      {detail.vendor?.address && (
+                        <p className="text-xs text-muted-foreground">{detail.vendor.address}{detail.vendor.city ? `, ${detail.vendor.city}` : ""}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -300,73 +371,93 @@ export function AdminOrders() {
                   </div>
                   <div className="rounded-xl border border-border overflow-hidden">
                     <div className="divide-y divide-border/50 bg-card">
-                      {(detail.items || []).map((item: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className={`flex justify-between items-center p-4 hover:bg-muted/30 transition-colors ${item.status === "rejected" ? "opacity-50" : ""}`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
-                              {item.image_url ? (
-                                <img
-                                  src={item.image_url}
-                                  alt="Item"
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
-                              )}
+                      {(detail.items || []).map((item: any, idx: number) => {
+                        const itemImg = item.image_url || item.product?.images?.[0]?.url;
+                        const isRejected = item.status === "rejected";
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex justify-between items-center p-4 hover:bg-muted/30 transition-colors ${
+                              isRejected ? "bg-rose-50/20 opacity-60" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="h-11 w-11 rounded-xl bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
+                                {itemImg ? (
+                                  <img
+                                    src={itemImg}
+                                    alt={item.product_name}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLElement).style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
+                                )}
+                              </div>
+                              <div>
+                                <p
+                                  className={`font-semibold ${
+                                    isRejected ? "line-through text-muted-foreground" : ""
+                                  }`}
+                                >
+                                  {item.quantity}x {item.product_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  ₹{item.unit_price} each
+                                </p>
+                                {isRejected && (
+                                  <span className="mt-1 inline-block rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                                    Rejected by Vendor
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div>
+                            <div className="text-right">
                               <p
-                                className={`font-semibold ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
+                                className={`font-bold ${
+                                  isRejected ? "line-through text-muted-foreground" : ""
+                                }`}
                               >
-                                {item.quantity}x {item.product_name}
+                                ₹{item.total_price}
                               </p>
-                              <p className="text-xs text-muted-foreground">
-                                ₹{item.unit_price} each
-                              </p>
-                              {item.status === "rejected" && (
-                                <span className="mt-1 inline-block rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
-                                  Rejected
+                              {isRejected && (
+                                <span className="text-[10px] text-rose-600 font-bold">
+                                  Excluded from Total
                                 </span>
                               )}
                             </div>
                           </div>
-                          <p
-                            className={`font-bold ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
-                          >
-                            ₹{item.total_price}
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     <div className="bg-muted/30 p-4 border-t border-border space-y-1.5 text-sm">
                       <div className="flex justify-between text-muted-foreground">
-                        <span>Items Subtotal</span>
-                        <span className="tabular-nums">₹{Number(detail.items_subtotal || 0)}</span>
+                        <span>Accepted Items Subtotal</span>
+                        <span className="tabular-nums">₹{Number(detail.items_subtotal || 0).toFixed(2)}</span>
                       </div>
                       {Number(detail.delivery_fee) > 0 && (
                         <div className="flex justify-between text-muted-foreground">
                           <span>Delivery Fee</span>
-                          <span className="tabular-nums">+ ₹{Number(detail.delivery_fee)}</span>
+                          <span className="tabular-nums">+ ₹{Number(detail.delivery_fee).toFixed(2)}</span>
                         </div>
                       )}
                       {Number(detail.tax) > 0 && (
                         <div className="flex justify-between text-muted-foreground">
                           <span>Taxes</span>
-                          <span className="tabular-nums">+ ₹{Number(detail.tax)}</span>
+                          <span className="tabular-nums">+ ₹{Number(detail.tax).toFixed(2)}</span>
                         </div>
                       )}
                       {Number(detail.discount) > 0 && (
                         <div className="flex justify-between text-emerald-600 font-medium">
                           <span>Discount</span>
-                          <span className="tabular-nums">- ₹{Number(detail.discount)}</span>
+                          <span className="tabular-nums">- ₹{Number(detail.discount).toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-border/50">
-                        <span>Total</span>
-                        <span className="text-emerald-600">₹{detail.total}</span>
+                        <span>Updated Total</span>
+                        <span className="text-emerald-600">₹{Number(detail.total || 0).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>

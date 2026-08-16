@@ -176,11 +176,89 @@ const CATS: Cat[] = [
   },
 ];
 
+const DEFAULT_HOMEPAGE_SECTIONS = [
+  { id: "hero", label: "Hero Banner & Promotions", enabled: true },
+  { id: "categories", label: "Categories Grid", enabled: true },
+  { id: "sponsored_vendors", label: "Sponsored Vendors & Premium Stores", enabled: true },
+  { id: "live_banner", label: "Live Network Alert Banner", enabled: true },
+  { id: "live_vendors", label: "Nearby Live Street Vendors", enabled: true },
+  { id: "shops_near_you", label: "Fixed Shops & Kirana Stores", enabled: true },
+  { id: "offers", label: "Discounts & Bank Offers", enabled: true },
+  { id: "shopwise_products", label: "Shop-wise Fresh Produce", enabled: true },
+  { id: "trending", label: "Trending & Best Sellers", enabled: true },
+  { id: "featured_products", label: "Featured Deals & Essentials", enabled: true },
+  { id: "recommended", label: "Recommended For You", enabled: true },
+  { id: "recently_viewed", label: "Recently Viewed Items", enabled: true },
+  { id: "brand_footer", label: "Why VegaMart & Trust Badges", enabled: true },
+];
+
+function renderSectionById(id: string, activeAddress: any) {
+  switch (id) {
+    case "hero":
+    case "banners":
+      return <Hero key={id} />;
+    case "categories":
+      return <Categories key={id} />;
+    case "sponsored_vendors":
+    case "featured_vendors":
+      return <SponsoredVendors key={id} />;
+    case "live_banner":
+    case "nearby_radar":
+      return <LiveBanner key={id} />;
+    case "live_vendors":
+    case "street_vendors":
+      return <LiveVendors key={id} defaultAddress={activeAddress} />;
+    case "shops_near_you":
+      return <ShopsNearYou key={id} defaultAddress={activeAddress} />;
+    case "offers":
+    case "offers_coupons":
+    case "deals_of_day":
+      return <Offers key={id} />;
+    case "shopwise_products":
+    case "vegetables_fruits":
+      return <ShopWiseProducts key={id} />;
+    case "trending":
+    case "best_sellers":
+      return <Trending key={id} />;
+    case "featured_products":
+      return <FeaturedProducts key={id} />;
+    case "recommended":
+      return <Recommended key={id} />;
+    case "recently_viewed":
+      return <RecentlyViewed key={id} />;
+    case "brand_footer":
+    case "trust_badges":
+    case "app_download":
+      return <BrandFooter key={id} />;
+    default:
+      return null;
+  }
+}
+
 function Home() {
   const { activeAddress, displayLocation } = useLocation();
   const queryClient = useQueryClient();
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  const { data: publicSettings } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<Record<string, any>>("/settings"),
+    staleTime: 60_000,
+  });
+
+  const orderedSections = useMemo(() => {
+    const raw = publicSettings?.data?.["platform.homepage_sections"];
+    if (raw) {
+      try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((s: any) => s && s.enabled !== false);
+        }
+      } catch {}
+    }
+    return DEFAULT_HOMEPAGE_SECTIONS.filter((s) => s.enabled);
+  }, [publicSettings]);
 
   // Non-customer roles must never see the marketplace — send them to their portal.
   useEffect(() => {
@@ -200,19 +278,7 @@ function Home() {
             <Header displayLocation={displayLocation} />
             <SearchBar />
           </div>
-          <Hero />
-          <Categories />
-          <SponsoredVendors />
-          <LiveBanner />
-          <LiveVendors defaultAddress={activeAddress} />
-          <ShopsNearYou defaultAddress={activeAddress} />
-          <Offers />
-          <ShopWiseProducts />
-          <Trending />
-          <FeaturedProducts />
-          <Recommended />
-          <RecentlyViewed />
-          <BrandFooter />
+          {orderedSections.map((sec: any) => renderSectionById(sec.id, activeAddress))}
         </main>
       </PullToRefresh>
     </div>

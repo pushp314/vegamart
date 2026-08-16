@@ -290,29 +290,22 @@ export function AdminSettings() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border">
           <CardHeader>
-            <CardTitle>Pricing</CardTitle>
-            <CardDescription>Fees and thresholds</CardDescription>
+            <CardTitle>Pricing & Delivery Fees</CardTitle>
+            <CardDescription>
+              Dynamically configure customer delivery charges, free delivery eligibility, and minimum order purchase requirements.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tax Rate (%)</Label>
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Delivery Fee (₹)</span>
+                <span className="text-[11px] text-muted-foreground font-normal">Flat fee per order</span>
+              </Label>
               <Input
                 type="number"
-                value={settings["platform.tax_rate_percent"] ?? 0}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    "platform.tax_rate_percent": Number(e.target.value),
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Delivery Fee (₹)</Label>
-              <Input
-                type="number"
+                min={0}
                 value={settings["platform.delivery_fee"] ?? 0}
                 onChange={(e) =>
                   setSettings({
@@ -321,11 +314,19 @@ export function AdminSettings() {
                   })
                 }
               />
+              <p className="text-[11px] text-muted-foreground">
+                Base delivery partner fee charged to the customer at checkout unless waived by vendor or free delivery threshold.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label>Free Delivery Threshold (₹)</Label>
+
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Free Delivery Threshold (₹)</span>
+                <span className="text-[11px] text-muted-foreground font-normal">0 to disable</span>
+              </Label>
               <Input
                 type="number"
+                min={0}
                 value={settings["platform.free_delivery_threshold"] ?? 0}
                 onChange={(e) =>
                   setSettings({
@@ -334,16 +335,46 @@ export function AdminSettings() {
                   })
                 }
               />
+              <p className="text-[11px] text-muted-foreground">
+                Orders with an item subtotal equal to or exceeding this amount automatically receive free delivery.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label>Min Order Value (₹)</Label>
+
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Minimum Order Purchase (₹)</span>
+                <span className="text-[11px] text-muted-foreground font-normal">0 for no minimum</span>
+              </Label>
               <Input
                 type="number"
+                min={0}
                 value={settings["platform.min_order_value"] ?? 0}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
                     "platform.min_order_value": Number(e.target.value),
+                  })
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Minimum cart subtotal required for customer checkout across VegaMart.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Tax Rate (%)</span>
+                <span className="text-[11px] text-muted-foreground font-normal">GST percentage</span>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={settings["platform.tax_rate_percent"] ?? 0}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    "platform.tax_rate_percent": Number(e.target.value),
                   })
                 }
               />

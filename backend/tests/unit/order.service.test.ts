@@ -40,8 +40,8 @@ jest.mock("../../src/services/earning.service", () => ({
 
 jest.mock("../../src/database/prisma", () => ({
   __esModule: true,
-  default: { $transaction: jest.fn(), orderItem: { updateMany: jest.fn() } },
-  prisma: { $transaction: jest.fn(), orderItem: { updateMany: jest.fn() } },
+  default: { $transaction: jest.fn(), orderItem: { updateMany: jest.fn() }, orderEvent: { create: jest.fn() } },
+  prisma: { $transaction: jest.fn(), orderItem: { updateMany: jest.fn() }, orderEvent: { create: jest.fn() } },
 }));
 
 jest.mock("../../src/services/order-delivery.service", () => ({
@@ -82,7 +82,12 @@ const prismaMock = defaultPrisma as any;
 const namedPrismaMock = namedPrisma as any;
 
 function dec(value: number) {
-  return { toNumber: () => value, toFixed: (n: number) => value.toFixed(n) } as any;
+  return {
+    toNumber: () => value,
+    toFixed: (n: number) => value.toFixed(n),
+    valueOf: () => value,
+    [Symbol.toPrimitive]: () => value,
+  } as any;
 }
 
 function makeOrder(overrides: Record<string, unknown> = {}) {
@@ -102,6 +107,10 @@ function makeOrder(overrides: Record<string, unknown> = {}) {
     total: dec(240),
     payment_method: "RAZORPAY",
     payment_status: "PENDING",
+    payment: {
+      amount: dec(240),
+      refund_amount: dec(0),
+    },
     invoice_number: null,
     otp_code: null,
     delivery_note: null,
@@ -128,7 +137,10 @@ describe("order service", () => {
     prismaMock.$transaction.mockImplementation((cb: (tx: typeof mockTx) => unknown) => cb(mockTx));
     mockTx.order.updateMany.mockResolvedValue({ count: 1 });
     mockTx.orderEvent.create.mockResolvedValue({ id: "ev1" });
+    prismaMock.orderItem.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.orderEvent.create.mockResolvedValue({ id: "ev1" });
     namedPrismaMock.orderItem.updateMany.mockResolvedValue({ count: 1 });
+    namedPrismaMock.orderEvent.create.mockResolvedValue({ id: "ev1" });
   });
 
   it("lists a customer's orders", async () => {
@@ -335,7 +347,7 @@ describe("order service", () => {
       statusCode: 400,
       code: "BAD_REQUEST",
     });
-    expect(namedPrismaMock.orderItem.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.orderItem.updateMany).not.toHaveBeenCalled();
   });
 
   it("rejects an item, releases its reservation, and issues a partial refund", async () => {
@@ -352,8 +364,8 @@ describe("order service", () => {
     repo.updateOrder.mockResolvedValue(makeOrder({ status: "CONFIRMED", payment_status: "PARTIALLY_REFUNDED" }));
 
     const result = await orderService.rejectOrderItem("u-vendor", "order-1", "item-1", mockReq);
-    expect(result).toEqual({ success: true, item_id: "item-1" });
-    expect(namedPrismaMock.orderItem.updateMany).toHaveBeenCalledWith({
+    expect(result).toMatchObject({ success: true, item_id: "item-1" });
+    expect(prismaMock.orderItem.updateMany).toHaveBeenCalledWith({
       where: { id: "item-1", status: "active" },
       data: { status: "rejected" },
     });
@@ -361,9 +373,18 @@ describe("order service", () => {
     expect(paymentServiceMock.refund).toHaveBeenCalledWith(
       "u-vendor",
       "order-1",
-      expect.objectContaining({ amount: 20 }),
+      expect.objectContaining({ amount: 21 }),
       mockReq
     );
-    expect(repo.updateOrder).toHaveBeenCalledWith("order-1", { payment_status: "PARTIALLY_REFUNDED" });
+    expect(repo.updateOrder).toHaveBeenCalledWith(
+      "order-1",
+      expect.objectContaining({
+        items_subtotal: 180,
+        discount: 0,
+        tax: 9,
+        total: 219,
+        payment_status: "PARTIALLY_REFUNDED",
+      })
+    );
   });
 });

@@ -160,6 +160,7 @@ export interface CheckoutSummaryItem {
   unit_price: number;
   line_total: number;
   tax_rate?: number;
+  image_url?: string | null;
 }
 
 export interface CheckoutGroup {
@@ -242,6 +243,7 @@ export const checkoutService = {
       const settings = await settingsService.getAllSettings();
       const globalDeliveryFee = (settings[SETTING_KEYS.DELIVERY_FEE] as number) || 0;
       const globalFreeDeliveryThreshold = (settings[SETTING_KEYS.FREE_DELIVERY_THRESHOLD] as number) || 0;
+      const globalMinOrderValue = (settings[SETTING_KEYS.MIN_ORDER_VALUE] as number) || 0;
       const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
 
       const vendorDeliveryFee = isSelfPickupSlot(input.delivery_slot) ? 0 : computeDeliveryFee(
@@ -251,6 +253,9 @@ export const checkoutService = {
         vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null,
         vendor.delivery_fee ? vendor.delivery_fee.toNumber() : 0
       );
+      const effectiveMinOrder = vendor.min_order && vendor.min_order.toNumber() > 0
+        ? vendor.min_order.toNumber()
+        : globalMinOrderValue;
       summaryGroups.push({
         vendor_id: group.vendor_id,
         vendor_name: vendor.business_name,
@@ -263,10 +268,11 @@ export const checkoutService = {
           unit_price: item.price_snapshot.toNumber(),
           line_total: item.price_snapshot.toNumber() * item.quantity,
           tax_rate: (item.product as any).tax_rate ? Number((item.product as any).tax_rate) : (vendor as any).tax_rate ? Number((vendor as any).tax_rate) : taxRatePercent,
+          image_url: item.product?.images?.[0]?.url ?? null,
         })),
         items_subtotal: Math.round(group.subtotal * 100) / 100,
         delivery_fee: Math.round(vendorDeliveryFee * 100) / 100,
-        min_order: vendor.min_order.toNumber(),
+        min_order: effectiveMinOrder,
         provides_delivery: vendor.provides_delivery,
         is_open: vendor.is_open,
         advance_payment_percentage: (vendor as any).advance_payment_percentage?.toNumber() ?? 10,
@@ -484,6 +490,7 @@ export const checkoutService = {
                 quantity: item.quantity,
                 unit_price: item.unit_price,
                 total_price: item.line_total,
+                image_url: item.image_url ?? null,
               })),
             },
             tx

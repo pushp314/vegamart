@@ -89,10 +89,10 @@ export type VendorRow = {
   delivery_fee: import("@prisma/client").Prisma.Decimal;
   free_delivery_min_order: import("@prisma/client").Prisma.Decimal | null;
   provides_delivery: boolean;
-  advance_payment_percentage: import("@prisma/client").Prisma.Decimal;
-  delivery_options: string[];
-  tax_rate: import("@prisma/client").Prisma.Decimal | null;
-  banner_urls: string[];
+  advance_payment_percentage?: import("@prisma/client").Prisma.Decimal;
+  delivery_options?: string[];
+  tax_rate?: import("@prisma/client").Prisma.Decimal | null;
+  banner_urls?: string[];
   rating: number;
   review_count: number;
   is_open: boolean;

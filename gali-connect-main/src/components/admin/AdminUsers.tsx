@@ -1,4 +1,4 @@
-import { Users, Power, PowerOff, Search, UserCheck, UserX, Trash2 } from "lucide-react";
+import { Users, Power, PowerOff, Search, UserCheck, UserX, Trash2, Phone } from "lucide-react";
 import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
 interface AdminUsersProps {
@@ -119,6 +119,12 @@ export function AdminUsers({
                         <p className="font-bold text-[15px] text-foreground">
                           {u.name || "Unknown User"}
                         </p>
+                        {u.phone && (
+                          <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            {u.phone}
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-0.5">{u.email}</p>
                       </div>
                     </div>

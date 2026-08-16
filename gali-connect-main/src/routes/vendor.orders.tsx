@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X } from "lucide-react";
+import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X, Phone } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ function VendorOrdersPage() {
   const queryClient = useQueryClient();
   const [otpTarget, setOtpTarget] = useState<any | null>(null);
   const [otpInput, setOtpInput] = useState("");
+  const [rejectTarget, setRejectTarget] = useState<{ orderId: string; item: any } | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -130,9 +131,11 @@ function VendorOrdersPage() {
       if (!res.success) {
         throw new Error(res.error?.message || "Failed to reject item");
       }
+      return res.data;
     },
     onSuccess: () => {
-      toast.success("Item rejected successfully");
+      setRejectTarget(null);
+      toast.success("Item rejected. Order bill updated and customer notified.");
       queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
     },
     onError: (err: any) => {
@@ -324,9 +327,19 @@ function VendorOrdersPage() {
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <p className="font-semibold text-foreground">{o.user?.name || o.customer_name || "Customer"}</p>
-                        {o.user?.phone && <p className="text-muted-foreground">{o.user.phone}</p>}
-                        {o.user?.email && <p className="text-muted-foreground">{o.user.email}</p>}
+                        <p className="font-semibold text-foreground">{o.user?.name || o.customer?.name || o.customer_name || "Customer"}</p>
+                        {(o.user?.phone || o.customer?.phone) && (
+                          <a
+                            href={`tel:${o.user?.phone || o.customer?.phone}`}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg hover:bg-emerald-100 transition-colors mt-0.5"
+                          >
+                            <Phone className="h-3 w-3" />
+                            {o.user?.phone || o.customer?.phone}
+                          </a>
+                        )}
+                        {(o.user?.email || o.customer?.email) && (
+                          <p className="text-muted-foreground text-[11px] mt-0.5">{o.user?.email || o.customer?.email}</p>
+                        )}
                       </div>
                       {o.address && (
                         <div>
@@ -350,41 +363,91 @@ function VendorOrdersPage() {
                       </span>
                     </div>
                     <div className="divide-y divide-border/50">
-                      {o.items.map((item: any, idx: number) => (
-                        <div key={idx} className={`flex justify-between items-center p-3 text-xs bg-card hover:bg-muted/30 transition-colors ${item.status === 'rejected' ? 'opacity-50' : ''}`}>
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
-                              {item.image_url || item.product?.images?.[0]?.url ? (
-                                <img src={item.image_url || item.product?.images?.[0]?.url} alt="Item" className="h-full w-full object-cover" />
-                              ) : (
-                                <ShoppingBag className="h-4 w-4 text-muted-foreground/50" />
-                              )}
+                      {o.items.map((item: any, idx: number) => {
+                        const itemImg = item.image_url || item.product?.images?.[0]?.url;
+                        const isRejected = item.status === "rejected";
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex justify-between items-center p-3 text-xs bg-card hover:bg-muted/30 transition-colors ${
+                              isRejected ? "bg-rose-50/20 opacity-60" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="h-10 w-10 rounded-xl bg-muted border border-border overflow-hidden shrink-0 grid place-items-center">
+                                {itemImg ? (
+                                  <img
+                                    src={itemImg}
+                                    alt={item.product_name || item.name}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLElement).style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <ShoppingBag className="h-4 w-4 text-muted-foreground/50" />
+                                )}
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span
+                                  className={`font-bold ${
+                                    isRejected
+                                      ? "line-through text-muted-foreground"
+                                      : "text-foreground"
+                                  }`}
+                                >
+                                  {item.quantity}x{" "}
+                                  <span className="font-medium ml-1">
+                                    {item.product_name || item.name || item.product?.name || "Item"}
+                                  </span>
+                                </span>
+                                {item.unit && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    ({item.unit})
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="text-[10px] text-rose-600 font-bold mt-0.5">
+                                    Rejected (Item removed & bill updated)
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex flex-col">
-                              <span className={`font-bold text-foreground ${item.status === 'rejected' ? 'line-through' : ''}`}>
-                                {item.quantity}x <span className="text-muted-foreground font-medium ml-1">{item.product_name || item.name || item.product?.name || "Item"}</span>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span
+                                className={`font-semibold ${
+                                  isRejected
+                                    ? "line-through text-muted-foreground"
+                                    : "text-foreground"
+                                }`}
+                              >
+                                ₹
+                                {Number(
+                                  item.total_price || item.unit_price * item.quantity || 0
+                                ).toLocaleString("en-IN")}
                               </span>
-                              {item.unit && <span className="text-[10px] text-muted-foreground">{item.unit}</span>}
-                              {item.status === 'rejected' && <span className="text-[10px] text-rose-600 font-bold mt-0.5">Rejected (Refunded)</span>}
+                              {!isRejected &&
+                                (o.status?.toUpperCase() === "PENDING" ||
+                                  o.status?.toUpperCase() === "CONFIRMED") && (
+                                  <button
+                                    onClick={() =>
+                                      setRejectTarget({ orderId: o.id, item })
+                                    }
+                                    className="text-[10px] flex items-center gap-1 text-rose-600 hover:text-rose-700 font-bold px-2 py-0.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 transition-colors"
+                                    disabled={rejectItemMutation.isPending}
+                                  >
+                                    <X className="h-3 w-3" /> Reject Item
+                                  </button>
+                                )}
                             </div>
                           </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <span className={`font-semibold text-foreground ${item.status === 'rejected' ? 'line-through text-muted-foreground' : ''}`}>₹{(item.total_price || item.unit_price * item.quantity || 0).toLocaleString("en-IN")}</span>
-                            {item.status !== 'rejected' && (o.status?.toUpperCase() === 'PENDING' || o.status?.toUpperCase() === 'CONFIRMED') && (
-                              <button onClick={() => {
-                                if (window.confirm(`Are you sure you want to reject ${item.product_name}? This will refund the item's cost to the customer.`)) {
-                                  rejectItemMutation.mutate({ orderId: o.id, itemId: item.id });
-                                }
-                              }} className="text-[10px] flex items-center gap-1 text-rose-600 hover:text-rose-700 font-bold" disabled={rejectItemMutation.isPending}><X className="h-3 w-3"/> Reject</button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                    
+
                     <div className="bg-muted/10 p-3 space-y-1.5 border-t border-border/50 text-xs">
                       <div className="flex justify-between text-muted-foreground">
-                        <span>Items Subtotal</span>
+                        <span>Accepted Items Subtotal</span>
                         <span>₹{Number(o.items_subtotal || o.total || 0).toLocaleString("en-IN")}</span>
                       </div>
                       {Number(o.delivery_fee) > 0 && (
@@ -406,7 +469,7 @@ function VendorOrdersPage() {
                         </div>
                       )}
                       <div className="flex justify-between font-bold text-foreground pt-1 border-t border-border/50 mt-1">
-                        <span>Total Paid</span>
+                        <span>Total Payable / Paid</span>
                         <span className="text-emerald-600">₹{Number(o.total || 0).toLocaleString("en-IN")}</span>
                       </div>
                     </div>
@@ -464,6 +527,7 @@ function VendorOrdersPage() {
       )}
 
       {/* OTP Dialog */}
+      {/* Delivery OTP Dialog */}
       <Dialog open={!!otpTarget} onOpenChange={(open) => !open && setOtpTarget(null)}>
         <DialogContent className="rounded-3xl border-border max-w-sm">
           <DialogHeader>
@@ -503,6 +567,68 @@ function VendorOrdersPage() {
               )}
               Verify & Complete Delivery
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Item Confirmation Dialog */}
+      <Dialog
+        open={!!rejectTarget}
+        onOpenChange={(open) => !open && setRejectTarget(null)}
+      >
+        <DialogContent className="rounded-3xl border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-center text-rose-600 flex items-center justify-center gap-2">
+              <X className="h-5 w-5" /> Reject Item?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-center leading-relaxed">
+              Are you sure you cannot fulfill{" "}
+              <strong className="text-foreground">
+                {rejectTarget?.item?.product_name || rejectTarget?.item?.name}
+              </strong>
+              ?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-xs">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-3 text-rose-800 text-[11px] space-y-1">
+              <p className="font-semibold">Automatic updates will occur:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-rose-700">
+                <li>This item is removed from the order bill.</li>
+                <li>The order total is automatically recalculated.</li>
+                <li>The customer is notified in real-time.</li>
+                <li>Prepaid amounts are refunded automatically.</li>
+              </ul>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setRejectTarget(null)}
+                className="flex-1 rounded-2xl border border-border py-2.5 font-bold text-xs hover:bg-muted/50 transition-colors"
+                disabled={rejectItemMutation.isPending}
+              >
+                Keep Item
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (rejectTarget) {
+                    rejectItemMutation.mutate({
+                      orderId: rejectTarget.orderId,
+                      itemId: rejectTarget.item.id,
+                    });
+                  }
+                }}
+                disabled={rejectItemMutation.isPending}
+                className="flex-1 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white py-2.5 font-bold text-xs shadow-md transition-colors inline-flex items-center justify-center gap-1.5"
+              >
+                {rejectItemMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+                Reject & Update Bill
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

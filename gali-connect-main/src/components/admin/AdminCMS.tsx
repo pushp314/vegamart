@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { api, formatErrorMessage } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,15 +17,49 @@ import {
   Plus,
   AlertCircle,
   Info,
+  LayoutGrid,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpToLine,
+  ArrowDownToLine,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  Save,
+  GripVertical,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
+export interface HomePageSectionItem {
+  id: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+}
+
+export const DEFAULT_HOMEPAGE_SECTIONS: HomePageSectionItem[] = [
+  { id: "hero", label: "Hero Banner & Promotions", description: "Top carousel banners and video spotlight", enabled: true },
+  { id: "categories", label: "Categories Grid", description: "Fresh produce and department shortcuts", enabled: true },
+  { id: "sponsored_vendors", label: "Sponsored Vendors & Premium Stores", description: "Featured local merchants with badges", enabled: true },
+  { id: "live_banner", label: "Live Network Alert Banner", description: "Real-time moving street vendor count banner", enabled: true },
+  { id: "live_vendors", label: "Nearby Live Street Vendors", description: "Live moving carts with GPS distance and speed", enabled: true },
+  { id: "shops_near_you", label: "Fixed Shops & Kirana Stores", description: "Nearby trusted brick-and-mortar grocery shops", enabled: true },
+  { id: "offers", label: "Discounts & Bank Offers", description: "Active promo coupons, wallet offers and discounts", enabled: true },
+  { id: "shopwise_products", label: "Shop-wise Fresh Produce", description: "Curated product shelves organized by merchant", enabled: true },
+  { id: "trending", label: "Trending & Best Sellers", description: "High-demand fresh products ordered nearby", enabled: true },
+  { id: "featured_products", label: "Featured Deals & Essentials", description: "Daily essentials and handpicked product deals", enabled: true },
+  { id: "recommended", label: "Recommended For You", description: "Smart product recommendations based on preferences", enabled: true },
+  { id: "recently_viewed", label: "Recently Viewed Items", description: "Quick access to products the customer viewed", enabled: true },
+  { id: "brand_footer", label: "Why VegaMart & Trust Badges", description: "Safety guarantees, quality promise, and brand footer", enabled: true },
+];
+
 export function AdminCMS() {
   const queryClient = useQueryClient();
-  const [activeSubTab, setActiveSubTab] = useState<"banners" | "video_ads" | "announcements">(
+  const [activeSubTab, setActiveSubTab] = useState<"banners" | "video_ads" | "announcements" | "sections">(
     "banners",
   );
   const [slidesPage, setSlidesPage] = useState(1);
@@ -66,6 +100,96 @@ export function AdminCMS() {
     queryKey: ["adminAnnouncements", announcementsPage],
     queryFn: () => api.get<any>(`/admin/announcements?page=${announcementsPage}&per_page=20`),
   });
+
+  const { data: settingsRes, isLoading: settingsLoading } = useQuery({
+    queryKey: ["adminSettings"],
+    queryFn: () => api.get<any>("/settings/admin"),
+  });
+
+  const [sections, setSections] = useState<HomePageSectionItem[]>(DEFAULT_HOMEPAGE_SECTIONS);
+  const [hasSectionsChanges, setHasSectionsChanges] = useState(false);
+
+  useEffect(() => {
+    if (settingsRes?.data) {
+      const raw = settingsRes.data["platform.homepage_sections"];
+      if (raw) {
+        try {
+          const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const existingIds = new Set(parsed.map((p: any) => p.id));
+            const merged = [
+              ...parsed.map((p: any) => {
+                const def = DEFAULT_HOMEPAGE_SECTIONS.find((d) => d.id === p.id);
+                return {
+                  id: p.id,
+                  label: def?.label || p.label || p.id,
+                  description: def?.description || p.description || "",
+                  enabled: p.enabled !== false,
+                };
+              }),
+              ...DEFAULT_HOMEPAGE_SECTIONS.filter((d) => !existingIds.has(d.id)),
+            ];
+            setSections(merged);
+          }
+        } catch {}
+      }
+    }
+  }, [settingsRes]);
+
+  const saveSectionsMutation = useMutation({
+    mutationFn: (newSections: HomePageSectionItem[]) =>
+      api.put("/settings/admin", {
+        "platform.homepage_sections": JSON.stringify(newSections),
+      }),
+    onSuccess: () => {
+      toast.success("Home page section arrangement saved successfully!");
+      setHasSectionsChanges(false);
+      queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+      queryClient.invalidateQueries({ queryKey: ["publicSettings"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to save section arrangement");
+    },
+  });
+
+  const handleMoveSection = (index: number, direction: "up" | "down" | "top" | "bottom") => {
+    const next = [...sections];
+    if (direction === "up" && index > 0) {
+      const temp = next[index];
+      next[index] = next[index - 1];
+      next[index - 1] = temp;
+    } else if (direction === "down" && index < next.length - 1) {
+      const temp = next[index];
+      next[index] = next[index + 1];
+      next[index + 1] = temp;
+    } else if (direction === "top" && index > 0) {
+      const [item] = next.splice(index, 1);
+      next.unshift(item);
+    } else if (direction === "bottom" && index < next.length - 1) {
+      const [item] = next.splice(index, 1);
+      next.push(item);
+    }
+    setSections(next);
+    setHasSectionsChanges(true);
+  };
+
+  const handleToggleSection = (id: string) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s))
+    );
+    setHasSectionsChanges(true);
+  };
+
+  const handleResetSections = () => {
+    setSections(DEFAULT_HOMEPAGE_SECTIONS);
+    setHasSectionsChanges(true);
+    toast.info("Reset to default order. Click 'Save Arrangement' to apply.");
+  };
+
+  const handleToggleAllSections = (enable: boolean) => {
+    setSections((prev) => prev.map((s) => ({ ...s, enabled: enable })));
+    setHasSectionsChanges(true);
+  };
 
   const slides = slidesRes?.data || [];
   const videoAds = videoAdsRes?.data || [];
@@ -314,7 +438,7 @@ export function AdminCMS() {
       </div>
 
       {/* Sub Tabs Header */}
-      <div className="flex gap-2 p-1 bg-muted border border-border rounded-2xl w-fit">
+      <div className="flex flex-wrap gap-2 p-1 bg-muted border border-border rounded-2xl w-fit">
         <button
           onClick={() => setActiveSubTab("banners")}
           className={`px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
@@ -345,6 +469,20 @@ export function AdminCMS() {
           }`}
         >
           Announcements
+        </button>
+        <button
+          onClick={() => setActiveSubTab("sections")}
+          className={`px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            activeSubTab === "sections"
+              ? "bg-card text-emerald-600 shadow-sm border border-emerald-500/20"
+              : "text-muted-foreground"
+          }`}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 text-emerald-500" />
+          Section Arrangement Maker
+          {hasSectionsChanges && (
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+          )}
         </button>
       </div>
 
@@ -599,6 +737,237 @@ export function AdminCMS() {
           pagination={announcementsPagination}
           onPageChange={setAnnouncementsPage}
         />
+      )}
+
+      {/* SECTION ARRANGEMENT MAKER TAB */}
+      {activeSubTab === "sections" && (
+        <div className="space-y-6">
+          {/* Header Controls Banner */}
+          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-lg font-bold text-foreground">
+                  Home Page Section Arrangement Maker
+                </h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Alter the exact positioning and visibility of each section on the customer homepage. Use Up/Down buttons to reorder and toggle switches to show/hide.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetSections}
+                className="text-xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Reset to Default
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleToggleAllSections(true)}
+                className="text-xs"
+              >
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                Enable All
+              </Button>
+              <Button
+                onClick={() => saveSectionsMutation.mutate(sections)}
+                disabled={saveSectionsMutation.isPending}
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md"
+              >
+                {saveSectionsMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Save Arrangement {hasSectionsChanges && "*"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Stats Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Total Sections
+              </span>
+              <p className="text-xl font-black text-foreground mt-1">{sections.length}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Active on Home
+              </span>
+              <p className="text-xl font-black text-emerald-600 mt-1">
+                {sections.filter((s) => s.enabled).length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Hidden Sections
+              </span>
+              <p className="text-xl font-black text-amber-600 mt-1">
+                {sections.filter((s) => !s.enabled).length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Top Priority Section
+              </span>
+              <p className="text-sm font-bold text-foreground mt-1 truncate">
+                {sections[0]?.label || "None"}
+              </p>
+            </div>
+          </div>
+
+          {/* Reorderable Section List */}
+          <div className="space-y-3">
+            {sections.map((section, idx) => {
+              const isFirst = idx === 0;
+              const isLast = idx === sections.length - 1;
+              return (
+                <div
+                  key={section.id}
+                  className={`rounded-2xl border p-4 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                    section.enabled
+                      ? "bg-card border-border shadow-sm hover:border-emerald-300"
+                      : "bg-muted/40 border-dashed border-border/70 opacity-60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-8 w-8 rounded-xl bg-muted border border-border text-xs font-black grid place-items-center shrink-0 text-muted-foreground">
+                      #{idx + 1}
+                    </div>
+
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground">
+                          {section.label}
+                        </span>
+                        <span
+                          className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            section.enabled
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-muted text-muted-foreground border-border"
+                          }`}
+                        >
+                          {section.enabled ? "Visible" : "Hidden"}
+                        </span>
+                      </div>
+                      {section.description && (
+                        <p className="text-xs text-muted-foreground truncate max-w-xl">
+                          {section.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions & Position Controls */}
+                  <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                    {/* Visibility Toggle */}
+                    <Button
+                      variant={section.enabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleToggleSection(section.id)}
+                      className={`h-8 px-3 text-xs ${
+                        section.enabled
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      title={section.enabled ? "Hide Section" : "Show Section"}
+                    >
+                      {section.enabled ? (
+                        <>
+                          <Eye className="h-3.5 w-3.5 mr-1" /> Visible
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="h-3.5 w-3.5 mr-1" /> Hidden
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Move to Top */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={isFirst}
+                      onClick={() => handleMoveSection(idx, "top")}
+                      className="h-8 w-8"
+                      title="Move to Top"
+                    >
+                      <ArrowUpToLine className="h-3.5 w-3.5" />
+                    </Button>
+
+                    {/* Move Up */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={isFirst}
+                      onClick={() => handleMoveSection(idx, "up")}
+                      className="h-8 w-8"
+                      title="Move Up"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+
+                    {/* Move Down */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={isLast}
+                      onClick={() => handleMoveSection(idx, "down")}
+                      className="h-8 w-8"
+                      title="Move Down"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+
+                    {/* Move to Bottom */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={isLast}
+                      onClick={() => handleMoveSection(idx, "bottom")}
+                      className="h-8 w-8"
+                      title="Move to Bottom"
+                    >
+                      <ArrowDownToLine className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Sticky Save Bar if changes are pending */}
+          {hasSectionsChanges && (
+            <div className="sticky bottom-4 rounded-2xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 p-4 shadow-lg flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
+              <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 text-sm font-medium">
+                <SlidersHorizontal className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>You have unsaved changes in home page section order.</span>
+              </div>
+              <Button
+                onClick={() => saveSectionsMutation.mutate(sections)}
+                disabled={saveSectionsMutation.isPending}
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shrink-0"
+              >
+                {saveSectionsMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Arrangement Now
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Banner Create Modal */}

@@ -117,6 +117,13 @@ export interface OrderDetail extends OrderRow {
   vendor: {
     id: string;
     business_name: string;
+    phone?: string | null;
+  } | null;
+  customer?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
   } | null;
   address: {
     id: string;
@@ -141,6 +148,15 @@ const detailSelect = {
       total_price: true,
       image_url: true,
       status: true,
+      product: {
+        select: {
+          images: {
+            select: { url: true },
+            take: 1,
+            orderBy: { sort_order: "asc" as const },
+          },
+        },
+      },
     },
     orderBy: { created_at: "asc" as const },
   },
@@ -163,7 +179,7 @@ const detailSelect = {
     },
   },
   coupon: { select: { id: true, code: true, type: true } },
-  vendor: { select: { id: true, business_name: true } },
+  vendor: { select: { id: true, business_name: true, phone: true } },
   customer: {
     select: {
       id: true,
@@ -241,12 +257,31 @@ export async function createOrder(input: CreateOrderInput, db: DbClient = prisma
   return row as unknown as OrderRow;
 }
 
+function mapOrderDetail(row: any): OrderDetail | null {
+  if (!row) return null;
+  return {
+    ...row,
+    items: (row.items || []).map((item: any) => ({
+      id: item.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      unit: item.unit,
+      selected_unit: item.selected_unit ?? null,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total_price: item.total_price,
+      image_url: item.image_url || item.product?.images?.[0]?.url || null,
+      status: item.status || "active",
+    })),
+  } as OrderDetail;
+}
+
 export async function findById(id: string): Promise<OrderDetail | null> {
   const row = await prisma.order.findUnique({
     where: { id, deleted_at: null },
     select: detailSelect,
   });
-  return row as unknown as OrderDetail | null;
+  return mapOrderDetail(row);
 }
 
 export async function findByOrderNumber(orderNumber: string): Promise<OrderRow | null> {
@@ -283,7 +318,7 @@ export async function listOrders(
     }),
     prisma.order.count({ where }),
   ]);
-  return { rows: rows as unknown as OrderDetail[], total };
+  return { rows: rows.map(mapOrderDetail).filter(Boolean) as OrderDetail[], total };
 }
 
 export async function updateOrderStatus(

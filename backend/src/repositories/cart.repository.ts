@@ -61,7 +61,7 @@ export type CartRow = {
       unit: string;
       price: import("@prisma/client").Prisma.Decimal;
       mrp: import("@prisma/client").Prisma.Decimal;
-      tax_rate: import("@prisma/client").Prisma.Decimal;
+      tax_rate?: import("@prisma/client").Prisma.Decimal | null;
       is_active: boolean;
       is_available: boolean;
       stock: number;

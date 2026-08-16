@@ -1,4 +1,4 @@
-import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown, Trash2 } from "lucide-react";
+import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown, Trash2, Phone } from "lucide-react";
 import { useState } from "react";
 import { KYCReviewModal } from "./KYCReviewModal";
 import { VendorMembershipModal } from "./VendorMembershipModal";
@@ -186,6 +186,12 @@ export function AdminVendors({
                               </span>
                             )}
                           </p>
+                          {(v.phone || v.user?.phone) && (
+                            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              {v.phone || v.user?.phone}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {v.user?.email || v.city || "—"}
                           </p>

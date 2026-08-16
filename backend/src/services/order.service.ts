@@ -1,11 +1,12 @@
 import type { Request } from "express";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
-import { prisma } from "../database/prisma";
+import prisma from "../database/prisma";
 import { auditService } from "./audit.service";
 import { notificationService } from "./notification.service";
 import { vendorService } from "./vendor.service";
 import { paymentService } from "./payment.service";
+import { realtime } from "../realtime/realtime";
 import {
   assertOrderTransition,
   cancelOrderLifecycle,
@@ -286,16 +287,18 @@ export const orderService = {
     // becomes available again.
     await inventoryRepo.releaseReserved(item.product_id, item.quantity);
 
+    const toNum = (val: any) => (typeof val === "number" ? val : typeof val?.toNumber === "function" ? val.toNumber() : Number(val || 0));
+
     // Recompute the bill from the remaining accepted items. Discount and tax are
     // applied proportionally to the item subtotal at checkout, so the same ratio
     // carries over when an item is removed. The delivery fee is held constant.
-    const oldSubtotal = Number(order.items_subtotal);
-    const oldDiscount = Number(order.discount);
-    const oldTax = Number(order.tax);
-    const oldTotal = Number(order.total);
-    const deliveryFee = Number(order.delivery_fee);
+    const oldSubtotal = toNum(order.items_subtotal);
+    const oldDiscount = toNum(order.discount);
+    const oldTax = toNum(order.tax);
+    const oldTotal = toNum(order.total);
+    const deliveryFee = toNum(order.delivery_fee);
 
-    const rejectedPrice = Number(item.total_price);
+    const rejectedPrice = toNum(item.total_price);
     const newSubtotal = Math.max(0, Math.round((oldSubtotal - rejectedPrice) * 100) / 100);
     const subtotalRatio = oldSubtotal > 0 ? newSubtotal / oldSubtotal : 0;
     const newDiscount = Math.round(oldDiscount * subtotalRatio * 100) / 100;
@@ -344,6 +347,13 @@ export const orderService = {
         { order_id: order.id, updated_total: 0, status: "CANCELLED" }
       );
 
+      realtime.publishOrderStatus(order.id, "CANCELLED");
+
+      await auditService.record(
+        { userId, action: AUDIT_ACTIONS.ORDER_STATUS_CHANGED, entityType: "order", entityId: order.id, oldValues: { status: order.status }, newValues: { status: "CANCELLED", reason: "All items rejected" } },
+        req
+      );
+
       return { success: true, item_id: itemId, order_status: "CANCELLED", updated_total: 0 };
     }
 
@@ -353,8 +363,8 @@ export const orderService = {
     // multiple rejections and never exceeds the gateway's remaining balance.
     let refundAmount = 0;
     let refundedStatus: string | undefined;
-    const paidAmount = order.payment ? Number(order.payment.amount) : 0;
-    const refundedSoFar = order.payment ? Number(order.payment.refund_amount ?? 0) : 0;
+    const paidAmount = order.payment ? toNum(order.payment.amount) : 0;
+    const refundedSoFar = order.payment ? toNum(order.payment.refund_amount ?? 0) : 0;
     const remaining = Math.max(0, paidAmount - refundedSoFar);
     const delta = Math.max(0, oldTotal - newTotal);
     if ((order.payment_status === "PAID" || order.payment_status === "PARTIALLY_REFUNDED") && delta > 0 && oldTotal > 0 && remaining > 0) {
@@ -392,6 +402,13 @@ export const orderService = {
       "Order Updated - Item Rejected",
       `The vendor could not fulfil ${item.product_name} (Qty ${item.quantity}). Your updated order total is Rs ${newTotal}.${refundAmount > 0 ? ` A refund of Rs ${refundAmount} has been initiated.` : ""}`,
       { order_id: order.id, rejected_item: item.product_name, updated_total: newTotal, refund_amount: refundAmount }
+    );
+
+    realtime.publishOrderStatus(order.id, order.status);
+
+    await auditService.record(
+      { userId, action: AUDIT_ACTIONS.ORDER_STATUS_CHANGED, entityType: "order", entityId: order.id, oldValues: { total: oldTotal }, newValues: { rejected_item: item.product_name, updated_total: newTotal, refund_amount: refundAmount } },
+      req
     );
 
     return {

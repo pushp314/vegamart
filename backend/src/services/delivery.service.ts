@@ -710,13 +710,13 @@ export const deliveryService = {
       payment_method: r.payment_method,
       payment_status: r.payment_status,
       gateway_method: extractGatewayMethod(r.payment),
-      items: r.items.map((i) => ({
+      items: (r.items || []).map((i) => ({
         product_name: i.product_name,
         quantity: i.quantity,
         image_url: i.image_url,
         selected_unit: i.selected_unit,
       })),
-      product_image: r.items[0]?.image_url ?? null,
+      product_image: (r.items || [])[0]?.image_url ?? null,
       created_at: r.created_at,
       vendor: r.vendor ?? null,
       user: r.customer ?? null,

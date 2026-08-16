@@ -81,16 +81,30 @@ export const adminOrderService = {
           created_at: true,
           updated_at: true,
           customer: { select: { id: true, name: true, email: true, phone: true } },
-          vendor: { select: { id: true, business_name: true, slug: true } },
+          vendor: { select: { id: true, business_name: true, slug: true, phone: true } },
           delivery_partner: {
             select: {
               id: true,
-              user: { select: { name: true } },
+              user: { select: { name: true, phone: true } },
             },
           },
           _count: { select: { items: true } },
           items: {
-            select: { product_name: true, quantity: true },
+            select: {
+              product_name: true,
+              quantity: true,
+              image_url: true,
+              status: true,
+              product: {
+                select: {
+                  images: {
+                    select: { url: true },
+                    take: 1,
+                    orderBy: { sort_order: "asc" },
+                  },
+                },
+              },
+            },
           },
         },
       }),
@@ -114,13 +128,18 @@ export const adminOrderService = {
           ? { id: o.customer.id, name: o.customer.name, email: o.customer.email, phone: o.customer.phone }
           : null,
         vendor: o.vendor
-          ? { id: o.vendor.id, business_name: o.vendor.business_name, slug: o.vendor.slug }
+          ? { id: o.vendor.id, business_name: o.vendor.business_name, slug: o.vendor.slug, phone: o.vendor.phone }
           : null,
         delivery_partner: o.delivery_partner
-          ? { id: o.delivery_partner.id, name: o.delivery_partner.user?.name ?? "Partner" }
+          ? { id: o.delivery_partner.id, name: o.delivery_partner.user?.name ?? "Partner", phone: o.delivery_partner.user?.phone ?? null }
           : null,
         item_count: o._count.items,
-        items: o.items.map((i) => ({ product_name: i.product_name, quantity: i.quantity })),
+        items: o.items.map((i) => ({
+          product_name: i.product_name,
+          quantity: i.quantity,
+          image_url: i.image_url || i.product?.images?.[0]?.url || null,
+          status: i.status,
+        })),
       })),
       total,
       page,
@@ -201,7 +220,17 @@ export const adminOrderService = {
             unit: true,
             status: true,
             image_url: true,
-            product: { select: { id: true, name: true } },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                images: {
+                  select: { url: true },
+                  take: 1,
+                  orderBy: { sort_order: "asc" },
+                },
+              },
+            },
           },
         },
         events: {
@@ -232,14 +261,14 @@ export const adminOrderService = {
       payment: order.payment
         ? { ...order.payment, amount: Number(order.payment.amount) }
         : null,
-      items: order.items.map((i) => ({
+      items: order.items.map((i: any) => ({
         id: i.id,
         quantity: i.quantity,
         unit_price: Number(i.unit_price),
         total_price: Number(i.total_price),
         product_name: i.product_name,
         unit: i.unit,
-        image_url: i.image_url,
+        image_url: i.image_url || i.product?.images?.[0]?.url || null,
         status: i.status,
       })),
     };

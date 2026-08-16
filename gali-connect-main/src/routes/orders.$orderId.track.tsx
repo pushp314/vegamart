@@ -8,6 +8,10 @@ import {
   PackageX,
   User,
   ArrowRight,
+  ShoppingBag,
+  AlertCircle,
+  Phone,
+  Store,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import {
@@ -319,6 +323,63 @@ function OrderIdTrackingPage() {
                 </span>
               </div>
 
+              {/* Customer & Contact Details */}
+              {order.customer && (
+                <div className="flex items-center justify-between bg-muted/50 p-3.5 rounded-2xl text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-blue-100 text-blue-800 grid place-items-center shrink-0">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-foreground">
+                        {order.customer.name || "Customer"}
+                      </div>
+                      {order.customer.phone ? (
+                        <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
+                          <Phone className="h-3 w-3" />
+                          {order.customer.phone}
+                        </p>
+                      ) : order.customer.email ? (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{order.customer.email}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Vendor & Store Details */}
+              {order.vendor && (
+                <div className="flex items-center justify-between bg-muted/50 p-3.5 rounded-2xl text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 grid place-items-center shrink-0">
+                      <Store className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-foreground">
+                        {order.vendor.business_name || "Merchant Store"}
+                      </div>
+                      {order.vendor.phone && (
+                        <a
+                          href={`tel:${order.vendor.phone}`}
+                          className="text-[11px] font-semibold text-emerald-700 hover:underline flex items-center gap-1 mt-0.5"
+                        >
+                          <Phone className="h-3 w-3" />
+                          {order.vendor.phone}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  {order.vendor.phone && (
+                    <a
+                      href={`tel:${order.vendor.phone}`}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-1.5"
+                    >
+                      <Phone className="h-3.5 w-3.5" /> Call Store
+                    </a>
+                  )}
+                </div>
+              )}
+
               {/* Delivery Address */}
               <div className="flex items-start gap-3 bg-muted/50 p-3.5 rounded-2xl text-xs">
                 <MapPin className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
@@ -335,42 +396,122 @@ function OrderIdTrackingPage() {
 
               {/* Products List */}
               <div className="space-y-2 pt-2">
-                <div className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
-                  Items Ordered
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
+                    Items Ordered ({items.length})
+                  </span>
+                  {items.some((i: any) => i.status === "rejected") && (
+                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                      Contains Rejected Items
+                    </span>
+                  )}
                 </div>
+
+                {items.some((i: any) => i.status === "rejected") && (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3.5 space-y-1">
+                    <div className="flex items-center gap-2 font-bold text-rose-800 text-xs">
+                      <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                      <span>
+                        Order Updated: {items.filter((i: any) => i.status === "rejected").length}{" "}
+                        {items.filter((i: any) => i.status === "rejected").length === 1
+                          ? "item was"
+                          : "items were"}{" "}
+                        unavailable & rejected by vendor
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-rose-700 leading-snug pl-6">
+                      The vendor could not fulfill the highlighted items. Your bill has been updated
+                      automatically.
+                      {Number(order.payment?.refund_amount ?? 0) > 0 ||
+                      order.payment_status === "PARTIALLY_REFUNDED"
+                        ? ` A refund of ₹${Number(order.payment?.refund_amount ?? 0).toFixed(2)} has been initiated.`
+                        : String(order.payment_method || "cod").toLowerCase() === "cod"
+                          ? ` Please pay the updated total of ₹${(totalAmount || 0).toFixed(2)} on delivery.`
+                          : ""}
+                    </p>
+                  </div>
+                )}
+
                 <div className="divide-y border rounded-2xl overflow-hidden bg-background">
                   {items.length > 0 ? (
-                    items.map((item: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center justify-between p-3 text-xs ${item.status === "rejected" ? "opacity-60" : ""}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="grid h-6 w-6 place-items-center rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                            {item.quantity}x
-                          </span>
-                          <span
-                            className={`font-bold text-foreground ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
-                          >
-                            {item.product_name || item.name}
-                          </span>
-                          <span className="text-muted-foreground text-[11px]">
-                            ({item.unit || "unit"})
-                          </span>
-                          {item.status === "rejected" && (
-                            <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
-                              Rejected
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className={`font-bold text-foreground tabular-nums ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
+                    items.map((item: any, idx: number) => {
+                      const isRejected = item.status === "rejected";
+                      const itemImg = item.image_url || item.product?.images?.[0]?.url;
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-center justify-between p-3 text-xs gap-3 ${
+                            isRejected ? "bg-rose-50/30 opacity-75" : ""
+                          }`}
                         >
-                          ₹
-                          {((item.unit_price || item.price || 0) * (item.quantity || 1)).toFixed(2)}
-                        </span>
-                      </div>
-                    ))
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-11 w-11 rounded-xl bg-muted border border-border overflow-hidden shrink-0 grid place-items-center">
+                              {itemImg ? (
+                                <img
+                                  src={itemImg}
+                                  alt={item.product_name || item.name}
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex flex-col">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`font-bold ${
+                                    isRejected
+                                      ? "line-through text-muted-foreground"
+                                      : "text-foreground"
+                                  }`}
+                                >
+                                  {item.quantity}x {item.product_name || item.name}
+                                </span>
+                                {item.unit && (
+                                  <span className="text-muted-foreground text-[11px]">
+                                    ({item.unit})
+                                  </span>
+                                )}
+                              </div>
+                              {isRejected ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-0.5">
+                                  <AlertCircle className="h-3 w-3" /> Rejected & removed from bill
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">
+                                  ₹{Number(item.unit_price || item.price || 0).toFixed(2)} each
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span
+                              className={`font-bold tabular-nums text-sm ${
+                                isRejected
+                                  ? "line-through text-muted-foreground"
+                                  : "text-foreground"
+                              }`}
+                            >
+                              ₹
+                              {(
+                                (item.unit_price || item.price || 0) *
+                                (item.quantity || 1)
+                              ).toFixed(2)}
+                            </span>
+                            {isRejected && (
+                              <div className="text-[10px] font-bold text-rose-600 uppercase">
+                                Rejected
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
                   ) : (
                     <div className="p-3 text-center text-xs text-muted-foreground">
                       No item details available.
@@ -382,7 +523,7 @@ function OrderIdTrackingPage() {
               {/* Bill Summary */}
               <div className="pt-2 space-y-1.5 text-xs text-muted-foreground border-t">
                 <div className="flex justify-between">
-                  <span>Item Subtotal</span>
+                  <span>Accepted Items Subtotal</span>
                   <span className="tabular-nums font-semibold">
                     ₹{(itemsSubtotal || 0).toFixed(2)}
                   </span>
@@ -403,8 +544,20 @@ function OrderIdTrackingPage() {
                     <span className="tabular-nums">- ₹{discount.toFixed(2)}</span>
                   </div>
                 )}
+                {Number(order.payment?.refund_amount ?? 0) > 0 && (
+                  <div className="flex justify-between text-rose-600 font-medium bg-rose-50/60 px-2 py-1 rounded-lg">
+                    <span>Refunded for Rejected Item(s)</span>
+                    <span className="tabular-nums font-bold">
+                      - ₹{Number(order.payment?.refund_amount ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between pt-2 border-t text-sm font-extrabold text-foreground">
-                  <span>Total Paid</span>
+                  <span>
+                    {String(order.payment_method || "cod").toLowerCase() === "cod"
+                      ? "Amount to Pay on Delivery"
+                      : "Total Paid"}
+                  </span>
                   <span className="text-emerald-600 tabular-nums">
                     ₹{(totalAmount || 0).toFixed(2)}
                   </span>

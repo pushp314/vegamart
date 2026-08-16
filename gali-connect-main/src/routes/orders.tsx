@@ -273,6 +273,42 @@ function OrdersList() {
                       </Link>
                     </div>
 
+                    {Array.isArray(o.items) && o.items.length > 0 && (
+                      <div className="flex items-center gap-2 overflow-x-auto py-1">
+                        {o.items.map((it: any, iIdx: number) => {
+                          const itImg = it.image_url || it.product?.images?.[0]?.url;
+                          const isRej = it.status === "rejected";
+                          return (
+                            <div
+                              key={iIdx}
+                              className={`h-9 w-9 rounded-lg border overflow-hidden shrink-0 grid place-items-center bg-muted relative ${
+                                isRej ? "opacity-40 border-rose-300" : "border-border"
+                              }`}
+                              title={`${it.quantity}x ${it.product_name || it.name}${
+                                isRej ? " (Rejected)" : ""
+                              }`}
+                            >
+                              {itImg ? (
+                                <img
+                                  src={itImg}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <ShoppingBag className="h-4 w-4 text-muted-foreground/50" />
+                              )}
+                            </div>
+                          );
+                        })}
+                        <span className="text-[11px] text-muted-foreground pl-1">
+                          {o.items.length} {o.items.length === 1 ? "item" : "items"}
+                        </span>
+                      </div>
+                    )}
+
                     {o.otp_code && (
                       <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-3">
                         <div className="min-w-0">
