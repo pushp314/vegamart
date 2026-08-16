@@ -24,6 +24,7 @@ const baseSelect = {
           unit: true,
           price: true,
           mrp: true,
+          tax_rate: true,
           is_active: true,
           is_available: true,
           stock: true,
@@ -60,6 +61,7 @@ export type CartRow = {
       unit: string;
       price: import("@prisma/client").Prisma.Decimal;
       mrp: import("@prisma/client").Prisma.Decimal;
+      tax_rate: import("@prisma/client").Prisma.Decimal;
       is_active: boolean;
       is_available: boolean;
       stock: number;

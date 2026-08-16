@@ -1,6 +1,8 @@
 import { env } from "../config";
 import log from "../config/logger";
 import { hmacSha256Hex, safeEqualHashes } from "../utils/crypto";
+import { ApiError } from "../utils/ApiError";
+import { HttpStatus } from "../utils/httpStatus";
 
 const RAZORPAY_API = "https://api.razorpay.com/v1";
 
@@ -106,7 +108,8 @@ async function request<T>(path: string, options: { method?: string; body?: Recor
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     log.error(`[razorpay] API error ${res.status}`, { context: "razorpay", path, response: json });
-    throw new Error(`Razorpay API error: ${res.status} ${JSON.stringify(json)}`);
+    const errorDesc = (json as any)?.error?.description || JSON.stringify(json);
+    throw new ApiError(HttpStatus.BAD_REQUEST, `Payment Gateway Error: ${errorDesc}`, { code: "PAYMENT_GATEWAY_ERROR" });
   }
   return json as T;
 }

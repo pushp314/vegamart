@@ -241,8 +241,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ? 0
         : baseDeliveryFee
       : 0;
-  const taxRate = (settings["platform.tax_rate_percent"] as number) || 5;
-  const tax = preview ? Number(preview.tax ?? 0) : Math.round((subtotal * taxRate) / 100);
+  const taxRatePercent = (settings["platform.tax_rate_percent"] as number) || 5;
+  const localTax = items.reduce((acc, item) => {
+    const itemTaxRate = item.product.tax_rate ?? 0;
+    const itemDiscount = localSubtotal > 0 ? (item.product.price * item.quantity / localSubtotal) * couponDiscount : 0;
+    const itemTaxable = Math.max(0, item.product.price * item.quantity - itemDiscount);
+    return acc + (itemTaxable * itemTaxRate) / 100;
+  }, 0);
+  const tax = preview ? Number(preview.tax ?? 0) : Math.round(localTax);
   const discount = preview ? Number(preview.discount ?? couponDiscount) : couponDiscount;
   const total = preview
     ? Number(preview.total ?? 0)

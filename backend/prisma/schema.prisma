@@ -631,6 +631,7 @@ model Product {
   description    String?   @db.Text
   price          Decimal   @db.Decimal(10, 2)
   mrp            Decimal   @db.Decimal(10, 2)
+  tax_rate       Decimal   @default(0) @db.Decimal(5, 2)
   unit           String    @db.VarChar(50)
   variants       Json?     @db.JsonB
   tag            String?   @db.VarChar(60)

@@ -77,6 +77,7 @@ export type Product = {
   description?: string;
   price: number;
   mrp: number;
+  tax_rate?: number;
   unit: string;
   variants?: { unit: string; price: number; mrp: number }[];
   is_active: boolean;

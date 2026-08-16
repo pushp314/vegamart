@@ -22,6 +22,7 @@ export async function cartFromItems(
       unit: true,
       price: true,
       mrp: true,
+      tax_rate: true,
       is_active: true,
       is_available: true,
       stock: true,

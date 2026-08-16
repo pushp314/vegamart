@@ -21,6 +21,7 @@ export const createProductSchema = z.object({
   description: z.string().max(5000).optional().nullable(),
   price: z.coerce.number().min(0),
   mrp: z.coerce.number().min(0).optional().nullable(),
+  tax_rate: z.coerce.number().min(0).max(100).optional(),
   unit: z.string().trim().min(1).max(50),
   variants: z.array(productVariantSchema).max(20).optional(),
   tag: z.string().trim().max(60).optional().nullable(),

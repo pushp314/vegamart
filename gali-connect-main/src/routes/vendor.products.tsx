@@ -38,6 +38,7 @@ type Product = {
   name: string;
   price: number;
   mrp?: number;
+  tax_rate?: number;
   unit: string;
   variants?: { unit: string; price: number; mrp?: number }[];
   stock?: number;
@@ -96,6 +97,7 @@ function VendorProductsPage() {
   const [prodName, setProdName] = useState("");
   const [prodPrice, setProdPrice] = useState("");
   const [prodMrp, setProdMrp] = useState("");
+  const [prodTaxRate, setProdTaxRate] = useState("0");
   const [prodUnit, setProdUnit] = useState("1 kg");
   const [prodVariants, setProdVariants] = useState<{ unit: string; price: string; mrp: string }[]>([]);
   const [prodStock, setProdStock] = useState("");
@@ -182,6 +184,7 @@ function VendorProductsPage() {
     setProdName("");
     setProdPrice("");
     setProdMrp("");
+    setProdTaxRate("0");
     setProdUnit("1 kg");
     setProdVariants([]);
     setProdStock("10");
@@ -197,6 +200,7 @@ function VendorProductsPage() {
     setProdName(p.name);
     setProdPrice(String(p.price));
     setProdMrp(p.mrp ? String(p.mrp) : "");
+    setProdTaxRate(p.tax_rate != null ? String(p.tax_rate) : "0");
     setProdUnit(p.unit || "1 kg");
     setProdVariants(
       Array.isArray(p.variants)
@@ -239,6 +243,7 @@ function VendorProductsPage() {
         name: prodName,
         price: Number(prodPrice),
         mrp: prodMrp ? Number(prodMrp) : undefined,
+        tax_rate: prodTaxRate ? Number(prodTaxRate) : 0,
         unit: prodUnit,
         variants:
           prodVariants.length > 0
@@ -785,6 +790,22 @@ function VendorProductsPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Tax Rate (GST %)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={prodTaxRate}
+                onChange={(e) => setProdTaxRate(e.target.value)}
+                placeholder="0"
+                className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
             </div>
 
             <div className="space-y-1">

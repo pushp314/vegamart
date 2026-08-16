@@ -8,12 +8,10 @@ import {
   Plus,
   ShieldCheck,
   Truck,
-  Clock,
   MapPin,
   ArrowLeft,
   ArrowRight,
   MessageSquare,
-  ChevronLeft,
   PlayCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";

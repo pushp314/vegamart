@@ -152,6 +152,7 @@ export interface CheckoutSummaryItem {
   quantity: number;
   unit_price: number;
   line_total: number;
+  tax_rate?: number;
 }
 
 export interface CheckoutGroup {
@@ -252,6 +253,7 @@ export const checkoutService = {
           quantity: item.quantity,
           unit_price: item.price_snapshot.toNumber(),
           line_total: item.price_snapshot.toNumber() * item.quantity,
+          tax_rate: (item.product as any).tax_rate ? Number((item.product as any).tax_rate) : 0,
         })),
         items_subtotal: Math.round(group.subtotal * 100) / 100,
         delivery_fee: Math.round(vendorDeliveryFee * 100) / 100,
@@ -283,8 +285,20 @@ export const checkoutService = {
 
     const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
 
-    const taxable = Math.max(0, itemsSubtotal - discount);
-    const tax = Math.round((taxable * taxRatePercent) / 100 * 100) / 100;
+    let totalTax = 0;
+    for (const group of summaryGroups) {
+      const groupDiscount = groupDiscounts[group.vendor_id] ?? 0;
+      const discountRatio = group.items_subtotal > 0 ? groupDiscount / group.items_subtotal : 0;
+      let groupTaxRaw = 0;
+      for (const item of group.items) {
+        const itemDiscount = item.line_total * discountRatio;
+        const itemTaxable = Math.max(0, item.line_total - itemDiscount);
+        groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
+      }
+      totalTax += Math.round(groupTaxRaw * 100) / 100;
+    }
+
+    const tax = totalTax;
     const total = Math.round((itemsSubtotal + deliveryFee - discount + tax) * 100) / 100;
 
     return {
@@ -373,8 +387,14 @@ export const checkoutService = {
     const computations = summary.groups.map((group) => {
       const groupSubtotal = group.items_subtotal;
       const groupDiscount = Math.round((summary.group_discounts?.[group.vendor_id] ?? 0) * 100) / 100;
-      const groupTaxable = Math.max(0, groupSubtotal - groupDiscount);
-      const groupTax = Math.round((groupTaxable * (summary.tax_rate ?? TAX_RATE_PERCENT)) / 100 * 100) / 100;
+      const discountRatio = groupSubtotal > 0 ? groupDiscount / groupSubtotal : 0;
+      let groupTaxRaw = 0;
+      for (const item of group.items) {
+        const itemDiscount = item.line_total * discountRatio;
+        const itemTaxable = Math.max(0, item.line_total - itemDiscount);
+        groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
+      }
+      const groupTax = Math.round(groupTaxRaw * 100) / 100;
       const groupTotal = Math.round((groupSubtotal + group.delivery_fee - groupDiscount + groupTax) * 100) / 100;
       return { group, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
     });
