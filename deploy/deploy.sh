@@ -39,6 +39,7 @@ distribute_env "$release_dir"
 # Backend Build
 log_info "Installing backend dependencies and building..."
 su - vegamart -c "cd $release_dir/backend && npm install --no-audit --no-fund"
+su - vegamart -c "cd $release_dir/backend && npm run prisma:generate"
 su - vegamart -c "cd $release_dir/backend && npm run build"
 
 # Frontend Build
