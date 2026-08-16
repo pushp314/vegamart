@@ -200,17 +200,20 @@ function Home() {
             <SearchBar />
           </div>
           <Hero />
+          <SponsoredVendors />
+          <Offers />
+          <LiveVendors defaultAddress={activeAddress} />
+          <ShopsNearYou defaultAddress={activeAddress} />
+          <ShopWiseProducts />
+          <Trending />
+
+          {/* Additional Sections */}
           <Categories />
           <LiveBanner />
-          <LiveVendors defaultAddress={activeAddress} />
-          <Offers />
-          <ShopWiseProducts />
-          <SponsoredVendors />
           <FeaturedProducts />
-          <ShopsNearYou defaultAddress={activeAddress} />
           <Recommended />
           <RecentlyViewed />
-          <Trending />
+          
           <BrandFooter />
         </main>
       </PullToRefresh>
@@ -1370,18 +1373,6 @@ function RecentlyViewed() {
                     <div>
                       <span className="font-bold text-[15px]">₹{p.price}</span>
                     </div>
-                    <button
-                      aria-label={`Add ${p.name}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        addToCart(cartProduct as any, 1);
-                        toast.success(`Added ${p.name} to cart`);
-                      }}
-                      className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </button>
                   </div>
                 </div>
               </Link>
@@ -1483,18 +1474,6 @@ function Trending() {
                         </span>
                       )}
                     </div>
-                    <button
-                      aria-label={`Add ${p.name}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        addToCart(p, 1);
-                        toast.success(`Added ${p.name} to cart`);
-                      }}
-                      className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
                   </div>
                 </div>
               </Link>
@@ -1639,18 +1618,6 @@ function Recommended() {
                         </span>
                       )}
                     </div>
-                    <button
-                      aria-label={`Add ${p.name}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        addToCart(p, 1);
-                        toast.success(`Added ${p.name} to cart`);
-                      }}
-                      className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
                   </div>
                 </div>
               </Link>

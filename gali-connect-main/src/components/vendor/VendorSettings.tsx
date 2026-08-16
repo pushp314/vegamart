@@ -26,6 +26,12 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   const [freeDeliveryMin, setFreeDeliveryMin] = useState(
     profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : "",
   );
+  const [deliveryFee, setDeliveryFee] = useState(
+    profile.delivery_fee !== undefined ? String(profile.delivery_fee) : "0",
+  );
+  const [advancePaymentPercentage, setAdvancePaymentPercentage] = useState(
+    profile.advance_payment_percentage !== undefined ? String(profile.advance_payment_percentage) : "10",
+  );
   const [contactPhone, setContactPhone] = useState(profile.phone || "");
   const [providesDelivery, setProvidesDelivery] = useState(profile.provides_delivery ?? false);
   const [logoUrl, setLogoUrl] = useState(profile.logo_url || "");
@@ -69,6 +75,8 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
       setFreeDeliveryMin(
         profile.free_delivery_min_order ? String(profile.free_delivery_min_order) : "",
       );
+    if (profile.delivery_fee !== undefined) setDeliveryFee(String(profile.delivery_fee));
+    if (profile.advance_payment_percentage !== undefined) setAdvancePaymentPercentage(String(profile.advance_payment_percentage));
     if (profile.phone !== undefined) setContactPhone(profile.phone || "");
     if (profile.provides_delivery !== undefined) setProvidesDelivery(!!profile.provides_delivery);
     if (profile.logo_url !== undefined) setLogoUrl(profile.logo_url || "");
@@ -91,6 +99,8 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
       gstin: gstin,
       provides_delivery: providesDelivery,
       free_delivery_min_order: freeDeliveryMin ? Number(freeDeliveryMin) : null,
+      delivery_fee: deliveryFee ? Number(deliveryFee) : 0,
+      advance_payment_percentage: advancePaymentPercentage ? Number(advancePaymentPercentage) : 10,
       phone: contactPhone || null,
       logo_url: logoUrl || null,
     });
@@ -268,26 +278,67 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 >
                   <Bike className="h-5 w-5" />
                 </span>
-                <div>
-                  <div className="text-xs font-bold text-foreground">Offer Store Delivery</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                    When enabled, customers will see "Vendor Delivery" as an option for your
-                    products during checkout.
+                <div className="text-left">
+                  <div className="text-sm font-semibold">Provide Vendor Delivery</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Toggle to enable local deliveries directly by your store
                   </div>
                 </div>
               </div>
-              <span
-                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                  providesDelivery ? "bg-emerald-500" : "bg-muted"
+              <div
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  providesDelivery ? "bg-emerald-500" : "bg-muted-foreground/30"
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                    providesDelivery ? "translate-x-5" : "translate-x-0.5"
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    providesDelivery ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
-              </span>
+              </div>
             </button>
+
+            {providesDelivery && (
+              <div className="space-y-1.5 max-w-md pt-2 pl-2">
+                <Label
+                  htmlFor="deliveryFee"
+                  className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  Standard Delivery Fee (₹)
+                </Label>
+                <Input
+                  id="deliveryFee"
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 40"
+                  value={deliveryFee}
+                  onChange={(e) => setDeliveryFee(e.target.value)}
+                  className="h-10 rounded-2xl text-xs bg-muted/40"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5 max-w-md pt-4">
+              <Label
+                htmlFor="advancePaymentPercentage"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              >
+                Advance Payment for Self Pickup (%)
+              </Label>
+              <Input
+                id="advancePaymentPercentage"
+                type="number"
+                min="0"
+                max="100"
+                placeholder="e.g. 10"
+                value={advancePaymentPercentage}
+                onChange={(e) => setAdvancePaymentPercentage(e.target.value)}
+                className="h-10 rounded-2xl text-xs bg-muted/40"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Percentage of order total required as upfront online payment when customers choose Self Pickup.
+              </p>
+            </div>
           </CardContent>
         </Card>
 

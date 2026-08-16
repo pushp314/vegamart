@@ -212,7 +212,8 @@ function RootComponent() {
   // The /search page is a full-screen overlay with its own search header, so it
   // also hides the desktop navbar to avoid showing two search bars.
   const isPortalRoute =
-    pathname.startsWith("/vendor") ||
+    pathname.startsWith("/vendor/") ||
+    pathname === "/vendor" ||
     pathname.startsWith("/delivery") ||
     pathname.startsWith("/admin");
   const isFullScreenRoute = isPortalRoute || pathname.startsWith("/search");

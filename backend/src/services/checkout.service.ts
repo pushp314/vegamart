@@ -164,6 +164,7 @@ export interface CheckoutGroup {
   min_order: number;
   provides_delivery: boolean;
   is_open: boolean;
+  advance_payment_percentage?: number;
 }
 
 export interface CheckoutSummary {
@@ -260,6 +261,7 @@ export const checkoutService = {
         min_order: vendor.min_order.toNumber(),
         provides_delivery: vendor.provides_delivery,
         is_open: vendor.is_open,
+        advance_payment_percentage: (vendor as any).advance_payment_percentage?.toNumber() ?? 10,
       });
       itemsSubtotal += group.subtotal;
       deliveryFee += vendorDeliveryFee;
@@ -415,8 +417,9 @@ export const checkoutService = {
       computations.map((c) => {
         let amountToCharge = c.groupTotal;
         if (input.delivery_slot === "Self Pickup" && amountToCharge > 0) {
-          // Require 10% upfront online payment for Self Pickup
-          amountToCharge = Math.max(1, Math.round(amountToCharge * 0.10 * 100) / 100);
+          // Require upfront online payment for Self Pickup based on vendor settings
+          const advancePct = c.group.advance_payment_percentage ?? 10;
+          amountToCharge = Math.max(1, Math.round(amountToCharge * (advancePct / 100) * 100) / 100);
         }
         
         return paymentMethod === "RAZORPAY"
@@ -518,7 +521,8 @@ export const checkoutService = {
           if (paymentMethod === "RAZORPAY") {
             let amountCharged = groupTotal;
             if (input.delivery_slot === "Self Pickup" && amountCharged > 0) {
-              amountCharged = Math.max(1, Math.round(amountCharged * 0.10 * 100) / 100);
+              const advancePct = group.advance_payment_percentage ?? 10;
+              amountCharged = Math.max(1, Math.round(amountCharged * (advancePct / 100) * 100) / 100);
             }
             payment = await paymentRepo.createForOrder(
               {

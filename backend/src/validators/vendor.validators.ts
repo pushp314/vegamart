@@ -29,6 +29,7 @@ export const createVendorSchema = z.object({
   business_hours: z.string().max(500).optional().nullable(),
   min_order: z.coerce.number().min(0).optional(),
   delivery_fee: z.coerce.number().min(0).optional(),
+  advance_payment_percentage: z.coerce.number().min(0).max(100).optional(),
   free_delivery_min_order: z.coerce.number().min(0).optional().nullable(),
   provides_delivery: z.boolean().optional(),
   owner_name: z.string().trim().max(120).optional().nullable(),

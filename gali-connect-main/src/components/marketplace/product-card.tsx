@@ -11,11 +11,13 @@ export function ProductCard({
   linkTo,
   linkParams,
   linkSearch,
+  hideAddToCart,
 }: {
   product: Product;
   linkTo?: string;
   linkParams?: Record<string, string>;
   linkSearch?: Record<string, unknown>;
+  hideAddToCart?: boolean;
 }) {
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -137,18 +139,20 @@ export function ProductCard({
               </span>
             )}
           </div>
-          <Button
-            size="sm"
-            disabled={outOfStock}
-            className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3 shrink-0 disabled:opacity-50 disabled:hover:bg-brand"
-            onClick={(e) => {
-              e.stopPropagation();
-              addToCart(product, 1);
-              toast.success(`Added ${product.name} to cart`);
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" /> {outOfStock ? "Unavailable" : "Add"}
-          </Button>
+          {!hideAddToCart && (
+            <Button
+              size="sm"
+              disabled={outOfStock}
+              className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3 shrink-0 disabled:opacity-50 disabled:hover:bg-brand"
+              onClick={(e) => {
+                e.stopPropagation();
+                addToCart(product, 1);
+                toast.success(`Added ${product.name} to cart`);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" /> {outOfStock ? "Unavailable" : "Add"}
+            </Button>
+          )}
         </div>
       </div>
     </div>
