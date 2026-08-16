@@ -1,14 +1,22 @@
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient();
 
-// This forces TS to tell me if the object is missing any required fields!
-const item: Prisma.OrderItemCreateWithoutOrderInput = {
-  product_id: "00000000-0000-0000-0000-000000000000",
-  product_name: "Test",
-  unit: "kg",
-  selected_unit: null,
-  quantity: 1,
-  unit_price: 100,
-  total_price: 100,
-  image_url: null,
-};
-console.log("TS compiles!");
+async function main() {
+  try {
+    const data: any = {
+      discount: 0,
+      tax: 0,
+      total: 15.6,
+      invoice_number: "INV-12345",
+      otp_code: "123456",
+      otp_expires_at: new Date(),
+    };
+    await prisma.order.update({
+      where: { id: "00000000-0000-0000-0000-000000000000" },
+      data,
+    });
+  } catch (err: any) {
+    console.log("PRISMA ERROR:", err.message.substring(0, 500));
+  }
+}
+main();
