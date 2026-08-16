@@ -305,8 +305,9 @@ function Checkout() {
   
   const displayDeliveryFee = isSelfPickup ? 0 : deliveryFee;
   const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + tax - discount);
+  const advancePct = summary?.groups?.[0]?.advance_payment_percentage ?? 10;
   const upfrontPaymentAmount = isSelfPickup && payment !== "cod" 
-    ? Math.max(1, Math.round(finalOrderTotal * 0.10 * 100) / 100) 
+    ? (advancePct === 0 ? finalOrderTotal : Math.max(1, Math.round(finalOrderTotal * (advancePct / 100) * 100) / 100)) 
     : finalOrderTotal;
 
   return (
@@ -595,15 +596,15 @@ function Checkout() {
                     ₹{finalOrderTotal.toFixed(2)}
                   </span>
                 </div>
-                {isSelfPickup && payment !== "cod" && (
+                {isSelfPickup && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
                   <div className="flex items-center justify-between text-emerald-700">
-                    <span className="text-xs font-semibold">10% Advance Payment</span>
+                    <span className="text-xs font-semibold">{advancePct}% Advance Payment</span>
                     <span className="text-xs font-bold tabular-nums">
                       ₹{upfrontPaymentAmount.toFixed(2)}
                     </span>
                   </div>
                 )}
-                {isSelfPickup && payment !== "cod" && (
+                {isSelfPickup && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span className="text-xs font-medium">Balance at Store</span>
                     <span className="text-xs font-medium tabular-nums">

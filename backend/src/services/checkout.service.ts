@@ -419,10 +419,13 @@ export const checkoutService = {
         if (input.delivery_slot === "Self Pickup" && amountToCharge > 0) {
           // Require upfront online payment for Self Pickup based on vendor settings
           const advancePct = c.group.advance_payment_percentage ?? 10;
-          amountToCharge = Math.max(1, Math.round(amountToCharge * (advancePct / 100) * 100) / 100);
+          amountToCharge = advancePct === 0 ? amountToCharge : Math.max(1, Math.round(amountToCharge * (advancePct / 100) * 100) / 100);
+        }
+        if (amountToCharge > 0 && amountToCharge < 1) {
+          amountToCharge = 1; // Razorpay minimum is 1 INR
         }
         
-        return paymentMethod === "RAZORPAY"
+        return paymentMethod === "RAZORPAY" && amountToCharge > 0
           ? razorpayGateway.createOrder({
               amountPaise: Math.round(amountToCharge * 100),
               currency: DEFAULT_CURRENCY,
@@ -522,17 +525,31 @@ export const checkoutService = {
             let amountCharged = groupTotal;
             if (input.delivery_slot === "Self Pickup" && amountCharged > 0) {
               const advancePct = group.advance_payment_percentage ?? 10;
-              amountCharged = Math.max(1, Math.round(amountCharged * (advancePct / 100) * 100) / 100);
+              amountCharged = advancePct === 0 ? amountCharged : Math.max(1, Math.round(amountCharged * (advancePct / 100) * 100) / 100);
             }
-            payment = await paymentRepo.createForOrder(
-              {
-                order_id: order.id,
-                amount: amountCharged,
-                method: "RAZORPAY",
-                razorpay_order_id: gatewayOrders[i]?.id,
-              },
-              tx
-            );
+            if (amountCharged > 0 && amountCharged < 1) {
+              amountCharged = 1;
+            }
+            if (amountCharged === 0) {
+              payment = await paymentRepo.createForOrder(
+                {
+                  order_id: order.id,
+                  amount: 0,
+                  method: "COD",
+                },
+                tx
+              );
+            } else {
+              payment = await paymentRepo.createForOrder(
+                {
+                  order_id: order.id,
+                  amount: amountCharged,
+                  method: "RAZORPAY",
+                  razorpay_order_id: gatewayOrders[i]?.id,
+                },
+                tx
+              );
+            }
           } else {
             payment = await paymentRepo.createForOrder(
               {
