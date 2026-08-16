@@ -202,8 +202,8 @@ function Home() {
           <Hero />
           <Categories />
           <SponsoredVendors />
-          <Offers />
           <LiveVendors defaultAddress={activeAddress} />
+          <Offers />
           <ShopsNearYou defaultAddress={activeAddress} />
           <ShopWiseProducts />
           <Trending />

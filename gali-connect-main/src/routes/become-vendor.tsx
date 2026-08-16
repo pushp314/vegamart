@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Store, MapPin, Phone, CheckCircle2, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
+import type { Category } from "@/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/become-vendor")({
@@ -40,6 +42,18 @@ function BecomeVendorPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const { data: categoriesRes } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api.get<Category[]>("/categories"),
+  });
+  const categories = categoriesRes?.data || [];
+
+  useEffect(() => {
+    if (categories.length > 0 && !categories.some((c) => c.name === category)) {
+      setCategory(categories[0].name);
+    }
+  }, [categories, category]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAuthenticated && (!authName || !authEmail || !authPassword)) {
@@ -48,6 +62,10 @@ function BecomeVendorPage() {
     }
     if (!businessName || !phone || !address || !pincode) {
       toast.error("Please fill in all required business details");
+      return;
+    }
+    if (categories.length === 0 || !category) {
+      toast.error("No categories available. Please try again later.");
       return;
     }
 
@@ -269,12 +287,14 @@ function BecomeVendorPage() {
                       onChange={(e) => setCategory(e.target.value)}
                       className="w-full rounded-2xl bg-muted border border-border h-12 px-3 text-sm font-bold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                     >
-                      <option value="vegetables">🥦 Vegetables & Sabzi</option>
-                      <option value="fruits">🍎 Fresh Fruits</option>
-                      <option value="dairy">🥛 Dairy & Milk</option>
-                      <option value="bakery">🥐 Bakery & Snacks</option>
-                      <option value="juice">☕ Chai & Juice</option>
-                      <option value="grocery">🛒 Grocery</option>
+                      <option value="" disabled>
+                        {categories.length === 0 ? "No categories available" : "Select a category"}
+                      </option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.icon ? `${c.icon} ${c.name}` : c.name}
+                        </option>
+                      ))}
                     </select>
                   </label>
 
