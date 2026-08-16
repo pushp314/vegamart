@@ -26,6 +26,7 @@ const baseSelect = {
   delivery_fee: true,
   free_delivery_min_order: true,
   provides_delivery: true,
+  advance_payment_percentage: true,
   rating: true,
   review_count: true,
   is_open: true,

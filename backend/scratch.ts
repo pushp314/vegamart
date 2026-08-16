@@ -1,8 +1,14 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
-async function main() {
-  const role = await prisma.role.findUnique({ where: { slug: 'admin' }, include: { role_permissions: { include: { permission: true } } } });
-  const slugs = role?.role_permissions.map(rp => rp.permission.slug);
-  console.log("Admin permissions:", slugs);
-}
-main().catch(console.error).finally(() => prisma.$disconnect());
+import { PrismaClient, Prisma } from "@prisma/client";
+
+// This forces TS to tell me if the object is missing any required fields!
+const item: Prisma.OrderItemCreateWithoutOrderInput = {
+  product_id: "00000000-0000-0000-0000-000000000000",
+  product_name: "Test",
+  unit: "kg",
+  selected_unit: null,
+  quantity: 1,
+  unit_price: 100,
+  total_price: 100,
+  image_url: null,
+};
+console.log("TS compiles!");

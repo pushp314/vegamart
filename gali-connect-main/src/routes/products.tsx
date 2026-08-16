@@ -225,7 +225,7 @@ function ProductsPage() {
             </div>
             <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {filtered.map((row) => (
-                <ProductCard key={row.id} product={row as Product} />
+                <ProductCard key={row.id} product={row as Product} hideAddToCart={true} />
               ))}
             </div>
           </>

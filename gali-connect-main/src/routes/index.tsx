@@ -211,7 +211,6 @@ function Home() {
           <FeaturedProducts />
           <Recommended />
           <RecentlyViewed />
-          
           <BrandFooter />
         </main>
       </PullToRefresh>

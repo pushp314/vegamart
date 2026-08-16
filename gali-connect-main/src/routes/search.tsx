@@ -210,7 +210,7 @@ function SearchPage() {
                           onClick={() => handleProductClick(product.id)}
                           className="cursor-pointer"
                         >
-                          <ProductCard product={product as Product} />
+                          <ProductCard product={product as Product} hideAddToCart={true} />
                         </div>
                       ))}
                     </div>

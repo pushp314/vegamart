@@ -143,14 +143,15 @@ export function ProductCard({
             <Button
               size="sm"
               disabled={outOfStock}
-              className="relative z-[5] h-8 rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-3 shrink-0 disabled:opacity-50 disabled:hover:bg-brand"
+              className="relative z-[5] h-8 min-w-[70px] rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-2.5 font-bold shadow-sm shrink-0 disabled:opacity-50 disabled:hover:bg-brand flex items-center justify-center gap-1"
               onClick={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 addToCart(product, 1);
                 toast.success(`Added ${product.name} to cart`);
               }}
             >
-              <Plus className="h-3.5 w-3.5" /> {outOfStock ? "Unavailable" : "Add"}
+              <Plus className="h-3.5 w-3.5" /> <span className="text-[11px] uppercase tracking-wider">Add</span>
             </Button>
           )}
         </div>

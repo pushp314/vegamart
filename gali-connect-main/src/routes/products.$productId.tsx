@@ -84,7 +84,14 @@ function ProductDetail() {
     enabled: !!product.vendor_id && !product.vendor,
   });
 
+  const { data: categoryRes } = useQuery({
+    queryKey: ["category", product.category_id],
+    queryFn: () => api.get<{id: string; name: string; slug: string}>(`/categories/${product.category_id}`),
+    enabled: !!product.category_id,
+  });
+
   const vendor = product.vendor || vendorRes?.data;
+  const category = categoryRes?.data;
 
   const { data: relatedRes } = useQuery({
     queryKey: ["products", { category_id: product.category_id }],
@@ -280,6 +287,13 @@ function ProductDetail() {
                 <MessageSquare className="h-3 w-3" /> Rate this product
               </button>
             </div>
+            
+            {category && (
+              <div className="mt-4 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary tracking-wide">
+                {category.name}
+              </div>
+            )}
+            
             <h1 className="mt-2 font-display text-2xl font-bold leading-tight">{product.name}</h1>
             {vendor && (
               <p className="mt-1 text-[13px] text-muted-foreground">
@@ -452,8 +466,8 @@ function ProductDetail() {
                     params={{ productId: p.id }}
                     className="rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
                   >
-                    <div className="relative aspect-square bg-muted p-3 flex items-center justify-center">
-                      <img src={imageUrl} alt={p.name} className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-sm" />
+                    <div className="relative aspect-square bg-white border-b overflow-hidden flex items-center justify-center p-2">
+                      <img src={imageUrl} alt={p.name} className="max-h-full max-w-full object-contain" />
                       {disc > 0 && (
                         <span className="absolute top-2 left-2 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
                           {disc}% OFF

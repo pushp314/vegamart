@@ -225,7 +225,7 @@ export async function createOrder(input: CreateOrderInput, db: DbClient = prisma
       delivery_note: input.delivery_note ?? null,
       items: {
         create: input.items.map((item) => ({
-          product_id: item.product_id,
+          product: { connect: { id: item.product_id } },
           product_name: item.product_name,
           unit: item.unit,
           selected_unit: item.selected_unit ?? null,
