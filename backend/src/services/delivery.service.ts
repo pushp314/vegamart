@@ -1,4 +1,3 @@
-
 import * as roleRepo from "../repositories/role.repository";
 import * as userRepo from "../repositories/user.repository";
 import * as orderRepo from "../repositories/order.repository";
@@ -6,25 +5,40 @@ import { realtime } from "../realtime/realtime";
 import { notificationService } from "./notification.service";
 import { ROLES } from "../constants/roles";
 import { ConflictError, ForbiddenError } from "../utils/ApiError";
-import type { DeliveryRegisterBody, DeliveryApplyBody, DeliveryOrderStatusBody, DeliveryLocationBody, DeliveredOtpBody, DeliveryKycBody } from "../validators/integration.validators";
+import type {
+  DeliveryRegisterBody,
+  DeliveryApplyBody,
+  DeliveryOrderStatusBody,
+  DeliveryLocationBody,
+  DeliveredOtpBody,
+  DeliveryKycBody,
+} from "../validators/integration.validators";
 
 async function upgradeRole(userId: string, slug: string): Promise<void> {
   const role = await roleRepo.findBySlug(slug);
   if (!role) {
-    throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "Role not found.", { code: "ROLE_NOT_FOUND" });
+    throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "Role not found.", {
+      code: "ROLE_NOT_FOUND",
+    });
   }
   await userRepo.changeRole(userId, role.id);
 }
 
 async function getKyc(userId: string, type: string) {
-  return prisma.kycRecord.findUnique({ where: { user_id_type: { user_id: userId, type } } });
+  return prisma.kycRecord.findUnique({
+    where: { user_id_type: { user_id: userId, type } },
+  });
 }
 
 // If a soft-deleted profile already exists for this user (deleted account re-registered),
 // restore it instead of failing on the unique user_id. Otherwise create a fresh one.
 async function restoreOrCreateProfile(
   userId: string,
-  input: { vehicle_type: string; vehicle_number?: string; license_number?: string }
+  input: {
+    vehicle_type: string;
+    vehicle_number?: string;
+    license_number?: string;
+  },
 ) {
   const previous = await prisma.deliveryProfile.findFirst({
     where: { user_id: userId },
@@ -36,7 +50,10 @@ async function restoreOrCreateProfile(
       data: {
         deleted_at: null,
         vehicle_type: input.vehicle_type,
-        vehicle_number: input.vehicle_number && input.vehicle_number.trim() ? input.vehicle_number : "NA",
+        vehicle_number:
+          input.vehicle_number && input.vehicle_number.trim()
+            ? input.vehicle_number
+            : "NA",
         license_number: input.license_number ?? "",
         status: "PENDING",
         is_verified: false,
@@ -49,7 +66,10 @@ async function restoreOrCreateProfile(
     data: {
       user_id: userId,
       vehicle_type: input.vehicle_type,
-      vehicle_number: input.vehicle_number && input.vehicle_number.trim() ? input.vehicle_number : "NA",
+      vehicle_number:
+        input.vehicle_number && input.vehicle_number.trim()
+          ? input.vehicle_number
+          : "NA",
       license_number: input.license_number ?? "",
       status: "PENDING",
       is_verified: false,
@@ -85,13 +105,17 @@ const ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES = [
   "READY_FOR_PICKUP",
 ] as const;
 
-const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["status"] = {
-  in: [...ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES],
-};
+const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["status"] =
+  {
+    in: [...ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES],
+  };
 
 // States surfaced in the unassigned requests queue and therefore "explicitly
 // available" to any approved partner.
-const AVAILABLE_DELIVERY_REQUEST_STATUSES = ["CONFIRMED", "READY_FOR_PICKUP"] as const;
+const AVAILABLE_DELIVERY_REQUEST_STATUSES = [
+  "CONFIRMED",
+  "READY_FOR_PICKUP",
+] as const;
 
 const AVAILABLE_DELIVERY_REQUEST_FILTER: Prisma.OrderWhereInput["status"] = {
   in: [...AVAILABLE_DELIVERY_REQUEST_STATUSES],
@@ -103,13 +127,30 @@ function requiresUpfrontPayment(paymentMethod: string): boolean {
   return paymentMethod !== "COD";
 }
 
+// The Razorpay payment entity stored in `payments.gateway_response` carries the
+// real instrument the customer used (upi / card / netbanking / emi / wallet),
+// which is more specific than the order-level `payment_method` (RAZORPAY/COD).
+function extractGatewayMethod(
+  payment: { gateway_response?: unknown } | null | undefined,
+): string | null {
+  if (!payment?.gateway_response) return null;
+  const gw = payment.gateway_response as { method?: string } | null;
+  return gw?.method ?? null;
+}
+
 // Forward-only state machine for the delivery-partner status endpoint.
 // DELIVERED is never a target here (OTP-gated endpoint only), and backwards
 // transitions are rejected. OUT_FOR_DELIVERY is only reachable after PICKED_UP,
 // so a partner cannot skip the pickup step before completing a delivery.
 const DELIVERY_TRANSITIONS: Record<string, Set<string>> = {
   PENDING: new Set(["CONFIRMED"]),
-  CONFIRMED: new Set(["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
+  CONFIRMED: new Set([
+    "CONFIRMED",
+    "PREPARING",
+    "PACKED",
+    "READY_FOR_PICKUP",
+    "PICKED_UP",
+  ]),
   PREPARING: new Set(["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
   PACKED: new Set(["PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
   READY_FOR_PICKUP: new Set(["READY_FOR_PICKUP", "PICKED_UP"]),
@@ -128,7 +169,7 @@ function assertDeliveryTransition(current: string, next: string): void {
     throw new ApiError(
       HttpStatus.BAD_REQUEST,
       `Cannot transition order from ${current} to ${next}.`,
-      { code: "INVALID_STATUS" }
+      { code: "INVALID_STATUS" },
     );
   }
 }
@@ -170,7 +211,7 @@ type TrackingViewer =
  */
 async function resolveTrackingAccess(
   user: TrackingRequester,
-  order: import("../repositories/order.repository").OrderDetail
+  order: import("../repositories/order.repository").OrderDetail,
 ): Promise<TrackingViewer> {
   if (user.role === ROLES.ADMIN || user.role === ROLES.SUPER_ADMIN) {
     return { kind: "admin", canSeeDriverInfo: true };
@@ -193,7 +234,9 @@ async function resolveTrackingAccess(
     }
     if (
       order.delivery_partner_id === null &&
-      (AVAILABLE_DELIVERY_REQUEST_STATUSES as readonly string[]).includes(order.status)
+      (AVAILABLE_DELIVERY_REQUEST_STATUSES as readonly string[]).includes(
+        order.status,
+      )
     ) {
       return { kind: "delivery", canSeeDriverInfo: false };
     }
@@ -208,7 +251,9 @@ async function resolveTrackingAccess(
     return { kind: "vendor", canSeeDriverInfo: true };
   }
 
-  throw new ForbiddenError("You are not allowed to view this order's tracking.");
+  throw new ForbiddenError(
+    "You are not allowed to view this order's tracking.",
+  );
 }
 
 export const deliveryService = {
@@ -238,7 +283,11 @@ export const deliveryService = {
       recentDeliveries,
     ] = await Promise.all([
       prisma.order.count({
-        where: { delivery_partner_id: partner.id, status: "DELIVERED", deleted_at: null },
+        where: {
+          delivery_partner_id: partner.id,
+          status: "DELIVERED",
+          deleted_at: null,
+        },
       }),
       prisma.order.count({
         where: {
@@ -330,7 +379,10 @@ export const deliveryService = {
     };
   },
 
-  async getMyEarnings(userId: string, query: { period?: string; page?: number; per_page?: number }) {
+  async getMyEarnings(
+    userId: string,
+    query: { period?: string; page?: number; per_page?: number },
+  ) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
@@ -414,9 +466,13 @@ export const deliveryService = {
       throw new NotFoundError("Delivery partner profile not found.");
     }
     if (partner.status !== "APPROVED") {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Delivery partner must be approved.", {
-        code: "DELIVERY_NOT_APPROVED",
-      });
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Delivery partner must be approved.",
+        {
+          code: "DELIVERY_NOT_APPROVED",
+        },
+      );
     }
 
     const availabilityStatus = isAvailable ? "ONLINE" : "OFFLINE";
@@ -432,9 +488,12 @@ export const deliveryService = {
         action: AUDIT_ACTIONS.DELIVERY_REGISTERED,
         entityType: "delivery",
         entityId: partner.id,
-        newValues: { is_available: isAvailable, availability_status: availabilityStatus },
+        newValues: {
+          is_available: isAvailable,
+          availability_status: availabilityStatus,
+        },
       },
-      req
+      req,
     );
 
     return {
@@ -444,13 +503,23 @@ export const deliveryService = {
     };
   },
 
-  async updateProfile(userId: string, input: Record<string, unknown>, req: Request) {
+  async updateProfile(
+    userId: string,
+    input: Record<string, unknown>,
+    req: Request,
+  ) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
 
-    const allowed = ["vehicle_type", "vehicle_number", "license_number"];
+    const allowed = [
+      "vehicle_type",
+      "vehicle_number",
+      "license_number",
+      "base_delivery_fee",
+      "fee_per_km",
+    ];
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in input && input[key] !== undefined) {
@@ -462,7 +531,10 @@ export const deliveryService = {
       return partner;
     }
 
-    const updated = await deliveryRepo.updateDelivery(partner.id, data as never);
+    const updated = await deliveryRepo.updateDelivery(
+      partner.id,
+      data as never,
+    );
     await cacheService.invalidateNamespace("delivery");
     await auditService.record(
       {
@@ -472,7 +544,7 @@ export const deliveryService = {
         entityId: partner.id,
         newValues: data,
       },
-      req
+      req,
     );
 
     return updated;
@@ -480,7 +552,11 @@ export const deliveryService = {
   // ---------------------------------------------------------------------------
   // Delivery partner module
   // ---------------------------------------------------------------------------
-  async registerDelivery(userId: string, input: DeliveryRegisterBody, req: Request) {
+  async registerDelivery(
+    userId: string,
+    input: DeliveryRegisterBody,
+    req: Request,
+  ) {
     const existing = await deliveryRepo.findByUserId(userId);
     if (existing) {
       return existing;
@@ -491,8 +567,14 @@ export const deliveryService = {
     }
     const partner = await restoreOrCreateProfile(userId, input);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.DELIVERY_REGISTERED, entityType: "delivery", entityId: partner.id, newValues: { vehicle_type: input.vehicle_type } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.DELIVERY_REGISTERED,
+        entityType: "delivery",
+        entityId: partner.id,
+        newValues: { vehicle_type: input.vehicle_type },
+      },
+      req,
     );
     return partner;
   },
@@ -504,7 +586,10 @@ export const deliveryService = {
     }
 
     const userUpdates: Record<string, string> = {};
-    if (typeof input.full_name === "string" && input.full_name.trim().length > 0) {
+    if (
+      typeof input.full_name === "string" &&
+      input.full_name.trim().length > 0
+    ) {
       userUpdates.name = input.full_name.trim();
     }
     if (typeof input.phone === "string" && input.phone.trim().length > 0) {
@@ -521,8 +606,14 @@ export const deliveryService = {
 
     const partner = await restoreOrCreateProfile(userId, input);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.DELIVERY_REGISTERED, entityType: "delivery", entityId: partner.id, newValues: { vehicle_type: input.vehicle_type } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.DELIVERY_REGISTERED,
+        entityType: "delivery",
+        entityId: partner.id,
+        newValues: { vehicle_type: input.vehicle_type },
+      },
+      req,
     );
     return partner;
   },
@@ -546,6 +637,8 @@ export const deliveryService = {
       vehicle_type: partner.vehicle_type,
       vehicle_number: partner.vehicle_number,
       license_number: partner.license_number,
+      base_delivery_fee: Number(partner.base_delivery_fee ?? 0),
+      fee_per_km: Number(partner.fee_per_km ?? 0),
       status: partner.status.toLowerCase(),
       is_verified: partner.is_verified,
       is_available: partner.is_available,
@@ -583,10 +676,29 @@ export const deliveryService = {
         order_number: true,
         delivery_fee: true,
         total: true,
+        delivery_note: true,
+        payment_method: true,
+        payment_status: true,
         created_at: true,
+        payment: { select: { gateway_response: true } },
+        items: {
+          select: {
+            product_name: true,
+            quantity: true,
+            image_url: true,
+            selected_unit: true,
+          },
+        },
         vendor: { select: { business_name: true, address: true, city: true } },
         customer: { select: { id: true, name: true, phone: true } },
-        address: { select: { full_address: true, city: true, state: true, pincode: true } },
+        address: {
+          select: {
+            full_address: true,
+            city: true,
+            state: true,
+            pincode: true,
+          },
+        },
       },
     });
     return rows.map((r) => ({
@@ -594,6 +706,17 @@ export const deliveryService = {
       order_number: r.order_number,
       delivery_fee: r.delivery_fee.toNumber(),
       total_amount: r.total.toNumber(),
+      delivery_option: r.delivery_note ?? "Delivery partner",
+      payment_method: r.payment_method,
+      payment_status: r.payment_status,
+      gateway_method: extractGatewayMethod(r.payment),
+      items: r.items.map((i) => ({
+        product_name: i.product_name,
+        quantity: i.quantity,
+        image_url: i.image_url,
+        selected_unit: i.selected_unit,
+      })),
+      product_image: r.items[0]?.image_url ?? null,
       created_at: r.created_at,
       vendor: r.vendor ?? null,
       user: r.customer ?? null,
@@ -617,11 +740,40 @@ export const deliveryService = {
         status: true,
         total: true,
         delivery_fee: true,
+        delivery_note: true,
+        payment_method: true,
+        payment_status: true,
         otp_code: true,
         created_at: true,
-        vendor: { select: { business_name: true, address: true, city: true, latitude: true, longitude: true } },
+        payment: { select: { gateway_response: true } },
+        items: {
+          select: {
+            product_name: true,
+            quantity: true,
+            image_url: true,
+            selected_unit: true,
+          },
+        },
+        vendor: {
+          select: {
+            business_name: true,
+            address: true,
+            city: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
         customer: { select: { id: true, name: true, phone: true } },
-        address: { select: { full_address: true, city: true, state: true, pincode: true, latitude: true, longitude: true } },
+        address: {
+          select: {
+            full_address: true,
+            city: true,
+            state: true,
+            pincode: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
       },
     });
     return rows.map((r) => ({
@@ -630,6 +782,17 @@ export const deliveryService = {
       status: r.status.toLowerCase(),
       total_amount: r.total.toNumber(),
       delivery_fee: r.delivery_fee.toNumber(),
+      delivery_option: r.delivery_note ?? "Delivery partner",
+      payment_method: r.payment_method,
+      payment_status: r.payment_status,
+      gateway_method: extractGatewayMethod(r.payment),
+      items: r.items.map((i) => ({
+        product_name: i.product_name,
+        quantity: i.quantity,
+        image_url: i.image_url,
+        selected_unit: i.selected_unit,
+      })),
+      product_image: r.items[0]?.image_url ?? null,
       created_at: r.created_at,
       vendor: r.vendor ?? null,
       user: r.customer ?? null,
@@ -639,30 +802,52 @@ export const deliveryService = {
     }));
   },
 
-  async acceptDelivery(userId: string, orderId: string, etaMinutes: number, req: Request) {
+  async acceptDelivery(
+    userId: string,
+    orderId: string,
+    etaMinutes: number,
+    req: Request,
+  ) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
     if (partner.status !== "APPROVED") {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Delivery partner must be approved.", { code: "DELIVERY_NOT_APPROVED" });
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Delivery partner must be approved.",
+        { code: "DELIVERY_NOT_APPROVED" },
+      );
     }
     const order = await orderRepo.findById(orderId);
     if (!order) {
       throw new NotFoundError("Order not found.");
     }
     if (order.delivery_partner_id) {
-      throw new ConflictError("This order already has a delivery partner assigned.");
+      throw new ConflictError(
+        "This order already has a delivery partner assigned.",
+      );
     }
-    if (!(ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES as readonly string[]).includes(order.status)) {
+    if (
+      !(ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES as readonly string[]).includes(
+        order.status,
+      )
+    ) {
       throw new ApiError(
         HttpStatus.CONFLICT,
         `Order cannot be accepted in its current state (${order.status}).`,
-        { code: "ORDER_NOT_ACCEPTABLE" }
+        { code: "ORDER_NOT_ACCEPTABLE" },
       );
     }
-    if (requiresUpfrontPayment(order.payment_method) && order.payment_status !== "PAID") {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Order payment is not complete.", { code: "ORDER_PAYMENT_REQUIRED" });
+    if (
+      requiresUpfrontPayment(order.payment_method) &&
+      order.payment_status !== "PAID"
+    ) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Order payment is not complete.",
+        { code: "ORDER_PAYMENT_REQUIRED" },
+      );
     }
 
     // The conditional updateMany is the authoritative guard: a claim only lands
@@ -685,7 +870,9 @@ export const deliveryService = {
         data: { delivery_partner_id: partner.id, eta_minutes: etaMinutes },
       });
       if (claimed.count === 0) {
-        throw new ConflictError("This order already has a delivery partner assigned.");
+        throw new ConflictError(
+          "This order already has a delivery partner assigned.",
+        );
       }
       await tx.orderEvent.create({
         data: {
@@ -698,7 +885,13 @@ export const deliveryService = {
       });
       return tx.order.findUnique({
         where: { id: orderId },
-        select: { id: true, order_number: true, status: true, total: true, user_id: true },
+        select: {
+          id: true,
+          order_number: true,
+          status: true,
+          total: true,
+          user_id: true,
+        },
       });
     });
     if (!updated) {
@@ -714,17 +907,27 @@ export const deliveryService = {
       order.order_number,
       "Delivery partner assigned",
       "A delivery partner has accepted your order.",
-      { order_id: orderId }
+      { order_id: orderId },
     );
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.DELIVERY_ACCEPTED, entityType: "order", entityId: orderId, newValues: { partner_id: partner.id } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.DELIVERY_ACCEPTED,
+        entityType: "order",
+        entityId: orderId,
+        newValues: { partner_id: partner.id },
+      },
+      req,
     );
     realtime.publishOrderStatus(orderId, updated.status);
     return updated;
   },
 
-  async updateDeliveryStatus(userId: string, orderId: string, input: DeliveryOrderStatusBody) {
+  async updateDeliveryStatus(
+    userId: string,
+    orderId: string,
+    input: DeliveryOrderStatusBody,
+  ) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
@@ -738,7 +941,9 @@ export const deliveryService = {
     }
     const mapped = ORDER_STATUS_MAP[input.status];
     if (!mapped) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid delivery status.", { code: "INVALID_STATUS" });
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid delivery status.", {
+        code: "INVALID_STATUS",
+      });
     }
     assertDeliveryTransition(order.status, mapped);
     assertOrderTransition(order.status, mapped);
@@ -765,7 +970,7 @@ export const deliveryService = {
       order.order_number,
       "Delivery update",
       `Your order is now ${input.status.replace(/_/g, " ")}.`,
-      { order_id: orderId }
+      { order_id: orderId },
     );
 
     realtime.publishOrderStatus(orderId, mapped);
@@ -792,14 +997,22 @@ export const deliveryService = {
       await prisma.deliveryTracking.upsert({
         where: { order_id: order.id },
         update: { driver_lat: input.lat, driver_lng: input.lng },
-        create: { order_id: order.id, driver_lat: input.lat, driver_lng: input.lng },
+        create: {
+          order_id: order.id,
+          driver_lat: input.lat,
+          driver_lng: input.lng,
+        },
       });
       realtime.publishOrderLocation(order.id, input.lat, input.lng);
     }
     return updated;
   },
 
-  async markDelivered(userId: string, orderId: string, input: DeliveredOtpBody) {
+  async markDelivered(
+    userId: string,
+    orderId: string,
+    input: DeliveredOtpBody,
+  ) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
@@ -828,13 +1041,17 @@ export const deliveryService = {
       order.order_number,
       "Order delivered",
       "Your order has been delivered. Enjoy your groceries!",
-      { order_id: orderId }
+      { order_id: orderId },
     );
     realtime.publishOrderStatus(orderId, "DELIVERED");
     return updated;
   },
 
-  async submitDeliveryKyc(userId: string, input: DeliveryKycBody, req: Request) {
+  async submitDeliveryKyc(
+    userId: string,
+    input: DeliveryKycBody,
+    req: Request,
+  ) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
@@ -854,8 +1071,14 @@ export const deliveryService = {
       },
     });
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.KYC_SUBMITTED, entityType: "kyc", entityId: kyc.id, newValues: { type: "delivery", status: kyc.status } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.KYC_SUBMITTED,
+        entityType: "kyc",
+        entityId: kyc.id,
+        newValues: { type: "delivery", status: kyc.status },
+      },
+      req,
     );
     return kyc;
   },
@@ -873,7 +1096,9 @@ export const deliveryService = {
     ]);
     let driverInfo = null;
     if (viewer.canSeeDriverInfo && order.delivery_partner_id) {
-      const partner = await prisma.deliveryProfile.findUnique({ where: { id: order.delivery_partner_id } });
+      const partner = await prisma.deliveryProfile.findUnique({
+        where: { id: order.delivery_partner_id },
+      });
       if (partner) {
         const driverUser = await userRepo.findById(partner.user_id, {});
         driverInfo = {
@@ -889,9 +1114,10 @@ export const deliveryService = {
     return {
       order_id: orderId,
       status: tracking?.status ?? order.status,
-      driver_location: tracking?.driver_lat != null && tracking?.driver_lng != null
-        ? { lat: tracking.driver_lat, lng: tracking.driver_lng }
-        : null,
+      driver_location:
+        tracking?.driver_lat != null && tracking?.driver_lng != null
+          ? { lat: tracking.driver_lat, lng: tracking.driver_lng }
+          : null,
       pickup_location:
         tracking?.pickup_lat != null && tracking?.pickup_lng != null
           ? { lat: tracking.pickup_lat, lng: tracking.pickup_lng }
@@ -904,11 +1130,14 @@ export const deliveryService = {
           : address?.latitude != null && address?.longitude != null
             ? { lat: address.latitude, lng: address.longitude }
             : null,
-      eta: tracking?.eta_minutes != null ? `${tracking.eta_minutes} min` : order.eta_minutes != null ? `${order.eta_minutes} min` : null,
+      eta:
+        tracking?.eta_minutes != null
+          ? `${tracking.eta_minutes} min`
+          : order.eta_minutes != null
+            ? `${order.eta_minutes} min`
+            : null,
       driver_info: driverInfo,
       order_status: order.status,
     };
   },
-
-
 };

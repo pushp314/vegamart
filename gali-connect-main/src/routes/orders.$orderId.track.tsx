@@ -10,7 +10,13 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -24,7 +30,7 @@ export const Route = createFileRoute("/orders/$orderId/track")({
 function OrderIdTrackingPage() {
   const { orderId } = Route.useParams();
   const navigate = useNavigate();
-  
+
   const queryClient = useQueryClient();
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -86,6 +92,7 @@ function OrderIdTrackingPage() {
   const itemsSubtotal = Number(order?.items_subtotal ?? 0);
   const deliveryFee = Number(order?.delivery_fee ?? 0);
   const tax = Number(order?.tax ?? order?.platform_fee ?? 0);
+  const discount = Number(order?.discount ?? 0);
   const totalAmount = Number(order?.total_amount ?? order?.total ?? 0);
 
   if (!authLoading && (!isAuthenticated || isGuest || role !== "customer")) {
@@ -224,13 +231,21 @@ function OrderIdTrackingPage() {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                     </span>
-                    <span className="text-sm font-bold text-emerald-900">Live GPS Tracking Active</span>
+                    <span className="text-sm font-bold text-emerald-900">
+                      Live GPS Tracking Active
+                    </span>
                   </div>
                   <span className="text-xs font-bold text-emerald-700">~ 5 mins away</span>
                 </div>
                 <div className="relative h-64 bg-muted w-full flex items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-                  
+                  <div
+                    className="absolute inset-0 opacity-20"
+                    style={{
+                      backgroundImage: "radial-gradient(#94a3b8 1px, transparent 1px)",
+                      backgroundSize: "20px 20px",
+                    }}
+                  ></div>
+
                   <div className="relative z-10 flex flex-col items-center gap-4">
                     <div className="flex items-center justify-between w-48 relative">
                       <div className="flex flex-col items-center z-10">
@@ -238,7 +253,7 @@ function OrderIdTrackingPage() {
                           🛒
                         </div>
                       </div>
-                      
+
                       <div className="absolute top-5 left-8 right-8 h-1 bg-emerald-500/30 overflow-hidden rounded-full">
                         <div className="h-full bg-emerald-500 w-1/2 rounded-full animate-pulse" />
                       </div>
@@ -326,19 +341,31 @@ function OrderIdTrackingPage() {
                 <div className="divide-y border rounded-2xl overflow-hidden bg-background">
                   {items.length > 0 ? (
                     items.map((item: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-3 text-xs">
+                      <div
+                        key={idx}
+                        className={`flex items-center justify-between p-3 text-xs ${item.status === "rejected" ? "opacity-60" : ""}`}
+                      >
                         <div className="flex items-center gap-2">
                           <span className="grid h-6 w-6 place-items-center rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
                             {item.quantity}x
                           </span>
-                          <span className="font-bold text-foreground">
+                          <span
+                            className={`font-bold text-foreground ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
+                          >
                             {item.product_name || item.name}
                           </span>
                           <span className="text-muted-foreground text-[11px]">
                             ({item.unit || "unit"})
                           </span>
+                          {item.status === "rejected" && (
+                            <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                              Rejected
+                            </span>
+                          )}
                         </div>
-                        <span className="font-bold text-foreground tabular-nums">
+                        <span
+                          className={`font-bold text-foreground tabular-nums ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
+                        >
                           ₹
                           {((item.unit_price || item.price || 0) * (item.quantity || 1)).toFixed(2)}
                         </span>
@@ -370,6 +397,12 @@ function OrderIdTrackingPage() {
                   <span>Taxes & Platform Fee</span>
                   <span className="tabular-nums font-semibold">₹{(tax || 0).toFixed(2)}</span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-emerald-600 font-medium">
+                    <span>Discount</span>
+                    <span className="tabular-nums">- ₹{discount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between pt-2 border-t text-sm font-extrabold text-foreground">
                   <span>Total Paid</span>
                   <span className="text-emerald-600 tabular-nums">
@@ -388,7 +421,8 @@ function OrderIdTrackingPage() {
               Need to cancel your order?
             </h3>
             <p className="text-xs text-muted-foreground mx-auto max-w-sm">
-              Orders can only be cancelled before they are prepared. If you've already paid online, a refund will be initiated automatically.
+              Orders can only be cancelled before they are prepared. If you've already paid online,
+              a refund will be initiated automatically.
             </p>
             <button
               onClick={() => setCancelModalOpen(true)}
@@ -421,7 +455,8 @@ function OrderIdTrackingPage() {
                 Are you sure you want to cancel this order? This action cannot be undone.
                 {String(order?.payment_status).toUpperCase() === "PAID" && (
                   <span className="block mt-3 font-bold text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-left">
-                    ✓ Your payment of ₹{order?.total} will be automatically refunded to your original payment method.
+                    ✓ Your payment of ₹{order?.total} will be automatically refunded to your
+                    original payment method.
                   </span>
                 )}
               </DialogDescription>

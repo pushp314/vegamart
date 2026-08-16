@@ -172,6 +172,10 @@ export const vendorService = {
     if (input.delivery_fee !== undefined) data.delivery_fee = input.delivery_fee;
     if (input.free_delivery_min_order !== undefined) data.free_delivery_min_order = input.free_delivery_min_order;
     if (input.provides_delivery !== undefined) data.provides_delivery = input.provides_delivery;
+    if (input.delivery_options !== undefined) data.delivery_options = input.delivery_options;
+    if (input.advance_payment_percentage !== undefined) data.advance_payment_percentage = input.advance_payment_percentage;
+    if (input.tax_rate !== undefined) data.tax_rate = input.tax_rate;
+    if (input.banner_urls !== undefined) data.banner_urls = input.banner_urls;
     if (input.owner_name !== undefined) data.owner_name = input.owner_name || null;
     if (input.phone !== undefined) data.phone = input.phone || null;
     if (input.available_from !== undefined) data.available_from = input.available_from || null;

@@ -27,6 +27,9 @@ const baseSelect = {
   free_delivery_min_order: true,
   provides_delivery: true,
   advance_payment_percentage: true,
+  delivery_options: true,
+  tax_rate: true,
+  banner_urls: true,
   rating: true,
   review_count: true,
   is_open: true,
@@ -86,6 +89,10 @@ export type VendorRow = {
   delivery_fee: import("@prisma/client").Prisma.Decimal;
   free_delivery_min_order: import("@prisma/client").Prisma.Decimal | null;
   provides_delivery: boolean;
+  advance_payment_percentage: import("@prisma/client").Prisma.Decimal;
+  delivery_options: string[];
+  tax_rate: import("@prisma/client").Prisma.Decimal | null;
+  banner_urls: string[];
   rating: number;
   review_count: number;
   is_open: boolean;

@@ -19,6 +19,7 @@ import {
   LifeBuoy,
   HelpCircle,
   Crown,
+  BookOpen,
 } from "lucide-react";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { MaintenanceAlertModal } from "@/components/admin/MaintenanceAlertModal";
@@ -75,6 +76,7 @@ function AdminLayout() {
     { id: "refunds", title: "Refunds", icon: Banknote, url: "/admin/refunds" },
     { id: "settings", title: "Settings", icon: Settings, url: "/admin/settings" },
     { id: "faqs", title: "FAQs", icon: HelpCircle, url: "/admin/faqs" },
+    { id: "how-to-use", title: "How to Use", icon: BookOpen, url: "/admin/how-to-use" },
   ];
 
   const section = location.pathname.split("/")[2] || "";

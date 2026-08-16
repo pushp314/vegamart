@@ -48,6 +48,7 @@ import { Route as AdminCouponsRouteImport } from './routes/admin/coupons'
 import { Route as AdminCreatePartnerRouteImport } from './routes/admin/create-partner'
 import { Route as AdminDeliveryRouteImport } from './routes/admin/delivery'
 import { Route as AdminFaqsRouteImport } from './routes/admin/faqs'
+import { Route as AdminHowToUseRouteImport } from './routes/admin/how-to-use'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminMembershipPlansRouteImport } from './routes/admin/membership-plans'
 import { Route as AdminNotificationsRouteImport } from './routes/admin/notifications'
@@ -62,6 +63,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminVendorsRouteImport } from './routes/admin/vendors'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as CategoriesCategorySlugRouteImport } from './routes/categories.$categorySlug'
+import { Route as DeliveryHowToUseRouteImport } from './routes/delivery.how-to-use'
 import { Route as DeliveryLoginRouteImport } from './routes/delivery.login'
 import { Route as OrdersHistoryRouteImport } from './routes/orders.history'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
@@ -69,6 +71,7 @@ import { Route as VendorIndexRouteImport } from './routes/vendor.index'
 import { Route as VendorAnalyticsRouteImport } from './routes/vendor.analytics'
 import { Route as VendorCouponsRouteImport } from './routes/vendor.coupons'
 import { Route as VendorEarningsRouteImport } from './routes/vendor.earnings'
+import { Route as VendorHowToUseRouteImport } from './routes/vendor.how-to-use'
 import { Route as VendorLocationRouteImport } from './routes/vendor.location'
 import { Route as VendorLoginRouteImport } from './routes/vendor.login'
 import { Route as VendorMembershipRouteImport } from './routes/vendor.membership'
@@ -277,6 +280,11 @@ const AdminFaqsRoute = AdminFaqsRouteImport.update({
   path: '/faqs',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminHowToUseRoute = AdminHowToUseRouteImport.update({
+  id: '/how-to-use',
+  path: '/how-to-use',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -347,6 +355,11 @@ const CategoriesCategorySlugRoute = CategoriesCategorySlugRouteImport.update({
   path: '/categories/$categorySlug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeliveryHowToUseRoute = DeliveryHowToUseRouteImport.update({
+  id: '/how-to-use',
+  path: '/how-to-use',
+  getParentRoute: () => DeliveryRoute,
+} as any)
 const DeliveryLoginRoute = DeliveryLoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -380,6 +393,11 @@ const VendorCouponsRoute = VendorCouponsRouteImport.update({
 const VendorEarningsRoute = VendorEarningsRouteImport.update({
   id: '/earnings',
   path: '/earnings',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorHowToUseRoute = VendorHowToUseRouteImport.update({
+  id: '/how-to-use',
+  path: '/how-to-use',
   getParentRoute: () => VendorRoute,
 } as any)
 const VendorLocationRoute = VendorLocationRouteImport.update({
@@ -482,6 +500,7 @@ export interface FileRoutesByFullPath {
   '/admin/create-partner': typeof AdminCreatePartnerRoute
   '/admin/delivery': typeof AdminDeliveryRoute
   '/admin/faqs': typeof AdminFaqsRoute
+  '/admin/how-to-use': typeof AdminHowToUseRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/membership-plans': typeof AdminMembershipPlansRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -496,12 +515,14 @@ export interface FileRoutesByFullPath {
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/categories/$categorySlug': typeof CategoriesCategorySlugRoute
+  '/delivery/how-to-use': typeof DeliveryHowToUseRoute
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/vendor/analytics': typeof VendorAnalyticsRoute
   '/vendor/coupons': typeof VendorCouponsRoute
   '/vendor/earnings': typeof VendorEarningsRoute
+  '/vendor/how-to-use': typeof VendorHowToUseRoute
   '/vendor/location': typeof VendorLocationRoute
   '/vendor/login': typeof VendorLoginRoute
   '/vendor/membership': typeof VendorMembershipRouteWithChildren
@@ -554,6 +575,7 @@ export interface FileRoutesByTo {
   '/admin/create-partner': typeof AdminCreatePartnerRoute
   '/admin/delivery': typeof AdminDeliveryRoute
   '/admin/faqs': typeof AdminFaqsRoute
+  '/admin/how-to-use': typeof AdminHowToUseRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/membership-plans': typeof AdminMembershipPlansRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -568,12 +590,14 @@ export interface FileRoutesByTo {
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/categories/$categorySlug': typeof CategoriesCategorySlugRoute
+  '/delivery/how-to-use': typeof DeliveryHowToUseRoute
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/vendor/analytics': typeof VendorAnalyticsRoute
   '/vendor/coupons': typeof VendorCouponsRoute
   '/vendor/earnings': typeof VendorEarningsRoute
+  '/vendor/how-to-use': typeof VendorHowToUseRoute
   '/vendor/location': typeof VendorLocationRoute
   '/vendor/login': typeof VendorLoginRoute
   '/vendor/orders': typeof VendorOrdersRoute
@@ -628,6 +652,7 @@ export interface FileRoutesById {
   '/admin/create-partner': typeof AdminCreatePartnerRoute
   '/admin/delivery': typeof AdminDeliveryRoute
   '/admin/faqs': typeof AdminFaqsRoute
+  '/admin/how-to-use': typeof AdminHowToUseRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/membership-plans': typeof AdminMembershipPlansRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -642,12 +667,14 @@ export interface FileRoutesById {
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/categories/$categorySlug': typeof CategoriesCategorySlugRoute
+  '/delivery/how-to-use': typeof DeliveryHowToUseRoute
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/vendor/analytics': typeof VendorAnalyticsRoute
   '/vendor/coupons': typeof VendorCouponsRoute
   '/vendor/earnings': typeof VendorEarningsRoute
+  '/vendor/how-to-use': typeof VendorHowToUseRoute
   '/vendor/location': typeof VendorLocationRoute
   '/vendor/login': typeof VendorLoginRoute
   '/vendor/membership': typeof VendorMembershipRouteWithChildren
@@ -704,6 +731,7 @@ export interface FileRouteTypes {
     | '/admin/create-partner'
     | '/admin/delivery'
     | '/admin/faqs'
+    | '/admin/how-to-use'
     | '/admin/login'
     | '/admin/membership-plans'
     | '/admin/notifications'
@@ -718,12 +746,14 @@ export interface FileRouteTypes {
     | '/admin/vendors'
     | '/auth/callback'
     | '/categories/$categorySlug'
+    | '/delivery/how-to-use'
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
     | '/vendor/analytics'
     | '/vendor/coupons'
     | '/vendor/earnings'
+    | '/vendor/how-to-use'
     | '/vendor/location'
     | '/vendor/login'
     | '/vendor/membership'
@@ -776,6 +806,7 @@ export interface FileRouteTypes {
     | '/admin/create-partner'
     | '/admin/delivery'
     | '/admin/faqs'
+    | '/admin/how-to-use'
     | '/admin/login'
     | '/admin/membership-plans'
     | '/admin/notifications'
@@ -790,12 +821,14 @@ export interface FileRouteTypes {
     | '/admin/vendors'
     | '/auth/callback'
     | '/categories/$categorySlug'
+    | '/delivery/how-to-use'
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
     | '/vendor/analytics'
     | '/vendor/coupons'
     | '/vendor/earnings'
+    | '/vendor/how-to-use'
     | '/vendor/location'
     | '/vendor/login'
     | '/vendor/orders'
@@ -849,6 +882,7 @@ export interface FileRouteTypes {
     | '/admin/create-partner'
     | '/admin/delivery'
     | '/admin/faqs'
+    | '/admin/how-to-use'
     | '/admin/login'
     | '/admin/membership-plans'
     | '/admin/notifications'
@@ -863,12 +897,14 @@ export interface FileRouteTypes {
     | '/admin/vendors'
     | '/auth/callback'
     | '/categories/$categorySlug'
+    | '/delivery/how-to-use'
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
     | '/vendor/analytics'
     | '/vendor/coupons'
     | '/vendor/earnings'
+    | '/vendor/how-to-use'
     | '/vendor/location'
     | '/vendor/login'
     | '/vendor/membership'
@@ -1198,6 +1234,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminFaqsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/how-to-use': {
+      id: '/admin/how-to-use'
+      path: '/how-to-use'
+      fullPath: '/admin/how-to-use'
+      preLoaderRoute: typeof AdminHowToUseRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/login': {
       id: '/admin/login'
       path: '/login'
@@ -1296,6 +1339,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CategoriesCategorySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/delivery/how-to-use': {
+      id: '/delivery/how-to-use'
+      path: '/how-to-use'
+      fullPath: '/delivery/how-to-use'
+      preLoaderRoute: typeof DeliveryHowToUseRouteImport
+      parentRoute: typeof DeliveryRoute
+    }
     '/delivery/login': {
       id: '/delivery/login'
       path: '/login'
@@ -1343,6 +1393,13 @@ declare module '@tanstack/react-router' {
       path: '/earnings'
       fullPath: '/vendor/earnings'
       preLoaderRoute: typeof VendorEarningsRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/how-to-use': {
+      id: '/vendor/how-to-use'
+      path: '/how-to-use'
+      fullPath: '/vendor/how-to-use'
+      preLoaderRoute: typeof VendorHowToUseRouteImport
       parentRoute: typeof VendorRoute
     }
     '/vendor/location': {
@@ -1440,6 +1497,7 @@ interface AdminRouteRouteChildren {
   AdminCreatePartnerRoute: typeof AdminCreatePartnerRoute
   AdminDeliveryRoute: typeof AdminDeliveryRoute
   AdminFaqsRoute: typeof AdminFaqsRoute
+  AdminHowToUseRoute: typeof AdminHowToUseRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminMembershipPlansRoute: typeof AdminMembershipPlansRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
@@ -1463,6 +1521,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminCreatePartnerRoute: AdminCreatePartnerRoute,
   AdminDeliveryRoute: AdminDeliveryRoute,
   AdminFaqsRoute: AdminFaqsRoute,
+  AdminHowToUseRoute: AdminHowToUseRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminMembershipPlansRoute: AdminMembershipPlansRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
@@ -1483,10 +1542,12 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 )
 
 interface DeliveryRouteChildren {
+  DeliveryHowToUseRoute: typeof DeliveryHowToUseRoute
   DeliveryLoginRoute: typeof DeliveryLoginRoute
 }
 
 const DeliveryRouteChildren: DeliveryRouteChildren = {
+  DeliveryHowToUseRoute: DeliveryHowToUseRoute,
   DeliveryLoginRoute: DeliveryLoginRoute,
 }
 
@@ -1536,6 +1597,7 @@ interface VendorRouteChildren {
   VendorAnalyticsRoute: typeof VendorAnalyticsRoute
   VendorCouponsRoute: typeof VendorCouponsRoute
   VendorEarningsRoute: typeof VendorEarningsRoute
+  VendorHowToUseRoute: typeof VendorHowToUseRoute
   VendorLocationRoute: typeof VendorLocationRoute
   VendorLoginRoute: typeof VendorLoginRoute
   VendorMembershipRoute: typeof VendorMembershipRouteWithChildren
@@ -1550,6 +1612,7 @@ const VendorRouteChildren: VendorRouteChildren = {
   VendorAnalyticsRoute: VendorAnalyticsRoute,
   VendorCouponsRoute: VendorCouponsRoute,
   VendorEarningsRoute: VendorEarningsRoute,
+  VendorHowToUseRoute: VendorHowToUseRoute,
   VendorLocationRoute: VendorLocationRoute,
   VendorLoginRoute: VendorLoginRoute,
   VendorMembershipRoute: VendorMembershipRouteWithChildren,

@@ -199,6 +199,7 @@ export const adminOrderService = {
             total_price: true,
             product_name: true,
             unit: true,
+            status: true,
             image_url: true,
             product: { select: { id: true, name: true } },
           },
@@ -239,6 +240,7 @@ export const adminOrderService = {
         product_name: i.product_name,
         unit: i.unit,
         image_url: i.image_url,
+        status: i.status,
       })),
     };
   },

@@ -19,6 +19,7 @@ import {
   Ticket,
   Crown,
   Send,
+  BookOpen,
 } from "lucide-react";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { VendorKYCForm } from "@/components/vendor/shared";
@@ -111,6 +112,7 @@ function VendorDashboard() {
     { id: "analytics", title: "Analytics", icon: BarChart3, url: "/vendor/analytics" },
     { id: "coupons", title: "Coupons", icon: Ticket, url: "/vendor/coupons" },
     { id: "settings", title: "Settings", icon: Settings, url: "/vendor/settings" },
+    { id: "how-to-use", title: "How to Use", icon: BookOpen, url: "/vendor/how-to-use" },
   ];
 
   const currentPath = location.pathname;
@@ -137,7 +139,7 @@ function VendorDashboard() {
   // Centralized status checks
   const vendorStatus = (vendor?.status || "").toLowerCase();
   const kycStatus = (kyc?.status || "").toLowerCase();
-  
+
   const isApproved = vendorStatus === "approved" || kycStatus === "approved";
   const isSuspended = vendorStatus === "suspended";
   const isRejected = vendorStatus === "rejected";
@@ -180,13 +182,12 @@ function VendorDashboard() {
           <div className="grid h-20 w-20 mx-auto place-items-center rounded-full bg-rose-500/10 text-rose-500">
             <Ban className="h-10 w-10" />
           </div>
-          <h2 className="font-display text-2xl font-bold text-rose-600">
-            Account Suspended
-          </h2>
+          <h2 className="font-display text-2xl font-bold text-rose-600">Account Suspended</h2>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            Your vendor account has been temporarily suspended. Please contact our support team to resolve this issue and restore your account access.
+            Your vendor account has been temporarily suspended. Please contact our support team to
+            resolve this issue and restore your account access.
           </p>
-          
+
           {!showAppealForm ? (
             <div className="space-y-3">
               <button
@@ -245,7 +246,7 @@ function VendorDashboard() {
               </div>
             </div>
           )}
-          
+
           <button
             onClick={handleLogout}
             className="mt-4 w-full rounded-2xl border border-border/50 bg-muted/50 px-4 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"

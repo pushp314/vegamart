@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, User, Bike } from "lucide-react";
+import { Loader2, Save, User, Bike, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
 
 interface DeliveryProfileProps {
@@ -17,6 +17,16 @@ export function DeliveryProfile({ partner }: DeliveryProfileProps) {
   const [vehicleType, setVehicleType] = useState(partner?.vehicle_type ?? "");
   const [vehicleNumber, setVehicleNumber] = useState(partner?.vehicle_number ?? "");
   const [licenseNumber, setLicenseNumber] = useState(partner?.license_number ?? "");
+  const [baseDeliveryFee, setBaseDeliveryFee] = useState(
+    partner?.base_delivery_fee !== undefined && partner?.base_delivery_fee !== null
+      ? String(partner.base_delivery_fee)
+      : "",
+  );
+  const [feePerKm, setFeePerKm] = useState(
+    partner?.fee_per_km !== undefined && partner?.fee_per_km !== null
+      ? String(partner.fee_per_km)
+      : "",
+  );
 
   const updateProfileMutation = useMutation({
     mutationFn: (data: any) => api.put("/delivery/me/profile", data),
@@ -96,6 +106,8 @@ export function DeliveryProfile({ partner }: DeliveryProfileProps) {
                 vehicle_type: vehicleType,
                 vehicle_number: vehicleNumber,
                 license_number: licenseNumber,
+                base_delivery_fee: baseDeliveryFee !== "" ? Number(baseDeliveryFee) : 0,
+                fee_per_km: feePerKm !== "" ? Number(feePerKm) : 0,
               })
             }
             disabled={updateProfileMutation.isPending}
@@ -106,6 +118,61 @@ export function DeliveryProfile({ partner }: DeliveryProfileProps) {
               <Save className="h-4 w-4 mr-2" />
             )}
             Save Changes
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IndianRupee className="h-5 w-5" />
+            Delivery Charges
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            Set the delivery fee you charge for each order. This applies when you are assigned as
+            the delivery partner and is separate from the vendor's own delivery charges.
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Base Delivery Fee (₹)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={baseDeliveryFee}
+                onChange={(e) => setBaseDeliveryFee(e.target.value)}
+                placeholder="e.g., 40"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Fee per km (₹)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={feePerKm}
+                onChange={(e) => setFeePerKm(e.target.value)}
+                placeholder="e.g., 8"
+              />
+            </div>
+          </div>
+          <Button
+            onClick={() =>
+              updateProfileMutation.mutate({
+                base_delivery_fee: baseDeliveryFee !== "" ? Number(baseDeliveryFee) : 0,
+                fee_per_km: feePerKm !== "" ? Number(feePerKm) : 0,
+              })
+            }
+            disabled={updateProfileMutation.isPending}
+          >
+            {updateProfileMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            Save Delivery Charges
           </Button>
         </CardContent>
       </Card>

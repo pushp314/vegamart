@@ -5,7 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -29,13 +35,24 @@ interface Order {
   order_number: string;
   status: string;
   total: number;
+  items_subtotal?: number;
+  delivery_fee?: number;
+  tax?: number;
+  discount?: number;
   payment_method: string;
   payment_status: string;
   created_at: string;
   customer: { id: string; name: string; email: string } | null;
   vendor: { id: string; business_name: string } | null;
   item_count: number;
-  items?: { product_name: string; quantity: number; unit_price?: number; total_price?: number; image_url?: string }[];
+  items?: {
+    product_name: string;
+    quantity: number;
+    unit_price?: number;
+    total_price?: number;
+    image_url?: string;
+    status?: string;
+  }[];
   address?: any;
 }
 
@@ -80,6 +97,14 @@ export function AdminOrders() {
       : [];
 
   const pagination = ordersRes?.pagination;
+
+  const { data: detailRes, isLoading: detailLoading } = useQuery({
+    queryKey: ["adminOrderDetail", selectedOrder?.id],
+    queryFn: () => api.get<any>(`/admin/orders/${selectedOrder!.id}`),
+    enabled: !!selectedOrder?.id,
+  });
+
+  const detail: Order | null = detailRes?.data || selectedOrder;
 
   return (
     <div className="space-y-6">
@@ -147,7 +172,11 @@ export function AdminOrders() {
                   </TableRow>
                 ) : (
                   orders.map((order) => (
-                    <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setSelectedOrder(order)}>
+                    <TableRow
+                      key={order.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setSelectedOrder(order)}
+                    >
                       <TableCell className="font-mono text-sm">{order.order_number}</TableCell>
                       <TableCell>{order.customer?.name ?? "N/A"}</TableCell>
                       <TableCell>{order.vendor?.business_name ?? "N/A"}</TableCell>
@@ -156,7 +185,9 @@ export function AdminOrders() {
                           <span className="font-semibold">{order.item_count} Items</span>
                           {order.items && order.items.length > 0 && (
                             <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                              {order.items.map((i) => `${i.quantity}x ${i.product_name}`).join(", ")}
+                              {order.items
+                                .map((i) => `${i.quantity}x ${i.product_name}`)
+                                .join(", ")}
                             </span>
                           )}
                         </div>
@@ -216,80 +247,132 @@ export function AdminOrders() {
           <DialogHeader>
             <DialogTitle className="flex justify-between items-center pr-6">
               <span>Order Details</span>
-              <Badge className={statusColors[selectedOrder?.status || ""] || "bg-gray-100"}>
-                {selectedOrder?.status}
+              <Badge className={statusColors[detail?.status || ""] || "bg-gray-100"}>
+                {detail?.status}
               </Badge>
             </DialogTitle>
             <DialogDescription className="font-mono text-xs">
-              ID: {selectedOrder?.id} | No: {selectedOrder?.order_number}
+              ID: {detail?.id} | No: {detail?.order_number}
             </DialogDescription>
           </DialogHeader>
 
-          {selectedOrder && (
-            <div className="space-y-6 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
-                    <User className="h-4 w-4" /> Customer
-                  </div>
-                  <div className="rounded-xl border border-border bg-muted/20 p-4">
-                    <p className="font-semibold">{selectedOrder.customer?.name || "N/A"}</p>
-                    <p className="text-sm text-muted-foreground">{selectedOrder.customer?.email}</p>
-                    {selectedOrder.address && (
-                      <div className="mt-2 text-sm flex gap-2 text-muted-foreground items-start">
-                        <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
-                        <span>
-                          {selectedOrder.address.full_address}
-                          {selectedOrder.address.landmark ? `, ${selectedOrder.address.landmark}` : ""}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
-                    <Store className="h-4 w-4" /> Vendor
-                  </div>
-                  <div className="rounded-xl border border-border bg-muted/20 p-4">
-                    <p className="font-semibold">{selectedOrder.vendor?.business_name || "N/A"}</p>
-                    <p className="text-sm text-muted-foreground">{selectedOrder.vendor?.id}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
-                  <ShoppingBag className="h-4 w-4" /> Items ({selectedOrder.item_count})
-                </div>
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <div className="divide-y divide-border/50 bg-card">
-                    {(selectedOrder.items || []).map((item: any, idx: number) => (
-                      <div key={idx} className="flex justify-between items-center p-4 hover:bg-muted/30 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="h-10 w-10 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
-                            {item.image_url ? (
-                              <img src={item.image_url} alt="Item" className="h-full w-full object-cover" />
-                            ) : (
-                              <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-semibold">{item.quantity}x {item.product_name}</p>
-                            <p className="text-xs text-muted-foreground">₹{item.unit_price} each</p>
-                          </div>
-                        </div>
-                        <p className="font-bold">₹{item.total_price}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="bg-muted/30 p-4 border-t border-border flex justify-between items-center font-bold text-lg">
-                    <span>Total</span>
-                    <span className="text-emerald-600">₹{selectedOrder.total}</span>
-                  </div>
-                </div>
-              </div>
+          {detailLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin" />
             </div>
+          ) : (
+            detail && (
+              <div className="space-y-6 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                      <User className="h-4 w-4" /> Customer
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <p className="font-semibold">{detail.customer?.name || "N/A"}</p>
+                      <p className="text-sm text-muted-foreground">{detail.customer?.email}</p>
+                      {detail.address && (
+                        <div className="mt-2 text-sm flex gap-2 text-muted-foreground items-start">
+                          <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+                          <span>
+                            {detail.address.full_address}
+                            {detail.address.landmark ? `, ${detail.address.landmark}` : ""}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                      <Store className="h-4 w-4" /> Vendor
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <p className="font-semibold">{detail.vendor?.business_name || "N/A"}</p>
+                      <p className="text-sm text-muted-foreground">{detail.vendor?.id}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                    <ShoppingBag className="h-4 w-4" /> Items ({detail.item_count})
+                  </div>
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    <div className="divide-y divide-border/50 bg-card">
+                      {(detail.items || []).map((item: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className={`flex justify-between items-center p-4 hover:bg-muted/30 transition-colors ${item.status === "rejected" ? "opacity-50" : ""}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-muted border border-border overflow-hidden flex-shrink-0 grid place-items-center">
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt="Item"
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
+                              )}
+                            </div>
+                            <div>
+                              <p
+                                className={`font-semibold ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
+                              >
+                                {item.quantity}x {item.product_name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                ₹{item.unit_price} each
+                              </p>
+                              {item.status === "rejected" && (
+                                <span className="mt-1 inline-block rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                                  Rejected
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <p
+                            className={`font-bold ${item.status === "rejected" ? "line-through text-muted-foreground" : ""}`}
+                          >
+                            ₹{item.total_price}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-muted/30 p-4 border-t border-border space-y-1.5 text-sm">
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Items Subtotal</span>
+                        <span className="tabular-nums">₹{Number(detail.items_subtotal || 0)}</span>
+                      </div>
+                      {Number(detail.delivery_fee) > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Delivery Fee</span>
+                          <span className="tabular-nums">+ ₹{Number(detail.delivery_fee)}</span>
+                        </div>
+                      )}
+                      {Number(detail.tax) > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Taxes</span>
+                          <span className="tabular-nums">+ ₹{Number(detail.tax)}</span>
+                        </div>
+                      )}
+                      {Number(detail.discount) > 0 && (
+                        <div className="flex justify-between text-emerald-600 font-medium">
+                          <span>Discount</span>
+                          <span className="tabular-nums">- ₹{Number(detail.discount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-border/50">
+                        <span>Total</span>
+                        <span className="text-emerald-600">₹{detail.total}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
           )}
         </DialogContent>
       </Dialog>

@@ -8,6 +8,8 @@ const baseSelect = {
   vehicle_type: true,
   vehicle_number: true,
   license_number: true,
+  base_delivery_fee: true,
+  fee_per_km: true,
   status: true,
   is_verified: true,
   is_available: true,
@@ -27,6 +29,8 @@ export type DeliveryPartnerRow = {
   vehicle_type: string;
   vehicle_number: string;
   license_number: string;
+  base_delivery_fee: import("@prisma/client").Prisma.Decimal;
+  fee_per_km: import("@prisma/client").Prisma.Decimal;
   status: import("@prisma/client").DeliveryStatus;
   is_verified: boolean;
   is_available: boolean;

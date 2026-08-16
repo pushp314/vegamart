@@ -286,22 +286,119 @@ export const orderService = {
     // becomes available again.
     await inventoryRepo.releaseReserved(item.product_id, item.quantity);
 
-    // If order was paid, issue partial refund for the item's total_price
-    if (order.payment_status === "PAID" || order.payment_status === "PARTIALLY_REFUNDED") {
+    // Recompute the bill from the remaining accepted items. Discount and tax are
+    // applied proportionally to the item subtotal at checkout, so the same ratio
+    // carries over when an item is removed. The delivery fee is held constant.
+    const oldSubtotal = Number(order.items_subtotal);
+    const oldDiscount = Number(order.discount);
+    const oldTax = Number(order.tax);
+    const oldTotal = Number(order.total);
+    const deliveryFee = Number(order.delivery_fee);
+
+    const rejectedPrice = Number(item.total_price);
+    const newSubtotal = Math.max(0, Math.round((oldSubtotal - rejectedPrice) * 100) / 100);
+    const subtotalRatio = oldSubtotal > 0 ? newSubtotal / oldSubtotal : 0;
+    const newDiscount = Math.round(oldDiscount * subtotalRatio * 100) / 100;
+    const newTax = Math.round(oldTax * subtotalRatio * 100) / 100;
+    const newTotal = Math.max(0, Math.round((newSubtotal + deliveryFee - newDiscount + newTax) * 100) / 100);
+
+    // If every item was rejected the order has nothing left to fulfil — cancel it.
+    if (newSubtotal <= 0) {
+      let finalPaymentStatus: string | undefined;
+      if (order.payment_status === "PAID" || order.payment_status === "PARTIALLY_REFUNDED") {
+        const refundResult = (await paymentService.refund(
+          userId,
+          order.id,
+          { reason: `All items rejected by vendor: ${item.product_name}` },
+          req
+        )) as { payment?: { status?: string } };
+        finalPaymentStatus = refundResult?.payment?.status;
+      }
+
+      await orderRepo.updateOrder(order.id, {
+        status: "CANCELLED",
+        items_subtotal: 0,
+        discount: 0,
+        tax: 0,
+        total: 0,
+        cancelled_at: new Date(),
+        cancel_reason: "All items were rejected by the vendor",
+        ...(finalPaymentStatus ? { payment_status: finalPaymentStatus as never } : {}),
+      });
+
+      await prisma.orderEvent.create({
+        data: {
+          order: { connect: { id: order.id } },
+          status: "CANCELLED" as never,
+          note: "Order cancelled - all items were rejected by the vendor.",
+          actor_type: "vendor",
+          actor_id: userId,
+        },
+      });
+
+      await notificationService.orderStatus(
+        order.user_id,
+        order.order_number,
+        "Order Cancelled - Items Unavailable",
+        `The vendor could not fulfil any items from your order.${finalPaymentStatus === "REFUNDED" ? " Your full payment has been refunded." : ""}`,
+        { order_id: order.id, updated_total: 0, status: "CANCELLED" }
+      );
+
+      return { success: true, item_id: itemId, order_status: "CANCELLED", updated_total: 0 };
+    }
+
+    // Refund the difference between the old and the new bill, scaled to the share
+    // the customer actually prepaid. Because both `remaining` and `oldTotal` fall
+    // by the same delta on earlier rejections, the ratio stays correct across
+    // multiple rejections and never exceeds the gateway's remaining balance.
+    let refundAmount = 0;
+    let refundedStatus: string | undefined;
+    const paidAmount = order.payment ? Number(order.payment.amount) : 0;
+    const refundedSoFar = order.payment ? Number(order.payment.refund_amount ?? 0) : 0;
+    const remaining = Math.max(0, paidAmount - refundedSoFar);
+    const delta = Math.max(0, oldTotal - newTotal);
+    if ((order.payment_status === "PAID" || order.payment_status === "PARTIALLY_REFUNDED") && delta > 0 && oldTotal > 0 && remaining > 0) {
+      refundAmount = Math.min(Math.round((delta * (remaining / oldTotal)) * 100) / 100, remaining);
       const refundResult = (await paymentService.refund(
         userId,
         order.id,
-        { reason: `Item out of stock: ${item.product_name}`, amount: Number(item.total_price) },
+        { reason: `Item rejected by vendor: ${item.product_name}`, amount: refundAmount },
         req
       )) as { payment?: { status?: string } };
-      if (refundResult?.payment?.status) {
-        await orderRepo.updateOrder(order.id, {
-          payment_status: refundResult.payment.status as never,
-        });
-      }
+      refundedStatus = refundResult?.payment?.status;
     }
 
-    await notificationService.orderStatus(order.user_id, order.order_number, "Item Rejected", `The vendor rejected an item (${item.product_name}) from your order. A partial refund will be processed if paid online.`, { order_id: order.id });
-    return { success: true, item_id: itemId };
+    await orderRepo.updateOrder(order.id, {
+      items_subtotal: newSubtotal,
+      discount: newDiscount,
+      tax: newTax,
+      total: newTotal,
+      ...(refundedStatus ? { payment_status: refundedStatus as never } : {}),
+    });
+
+    await prisma.orderEvent.create({
+      data: {
+        order: { connect: { id: order.id } },
+        status: order.status as never,
+        note: `Item rejected by vendor: ${item.product_name}. Order total updated to Rs ${newTotal}.`,
+        actor_type: "vendor",
+        actor_id: userId,
+      },
+    });
+
+    await notificationService.orderStatus(
+      order.user_id,
+      order.order_number,
+      "Order Updated - Item Rejected",
+      `The vendor could not fulfil ${item.product_name} (Qty ${item.quantity}). Your updated order total is Rs ${newTotal}.${refundAmount > 0 ? ` A refund of Rs ${refundAmount} has been initiated.` : ""}`,
+      { order_id: order.id, rejected_item: item.product_name, updated_total: newTotal, refund_amount: refundAmount }
+    );
+
+    return {
+      success: true,
+      item_id: itemId,
+      updated_total: newTotal,
+      refund_amount: refundAmount,
+    };
   },
 };

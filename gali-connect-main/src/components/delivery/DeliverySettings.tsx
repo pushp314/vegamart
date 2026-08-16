@@ -3,10 +3,10 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Bell, Shield, LogOut } from "lucide-react";
+import { Loader2, Bell, Shield, LogOut, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, Link } from "@tanstack/react-router";
 
 export function DeliverySettings() {
   const queryClient = useQueryClient();
@@ -68,6 +68,25 @@ export function DeliverySettings() {
               disabled={setAvailabilityMutation.isPending}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            How to Use
+          </CardTitle>
+          <CardDescription>Learn how the rider panel works, step by step</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            to="/delivery/how-to-use"
+            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold text-sm px-5 py-3 transition-colors"
+          >
+            <BookOpen className="h-4 w-4" />
+            Open Rider Guide
+          </Link>
         </CardContent>
       </Card>
 
