@@ -18,6 +18,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -404,6 +405,9 @@ model VendorProfile {
   advance_payment_percentage Decimal @default(10) @db.Decimal(5, 2)
   free_delivery_min_order Decimal?     @db.Decimal(10, 2)
   provides_delivery       Boolean      @default(false)
+  delivery_options        String[]     @default([])
+  tax_rate                Decimal?     @db.Decimal(5, 2)
+  banner_urls             String[]     @default([])
   rating                  Float        @default(0) @db.DoublePrecision
   review_count            Int          @default(0)
   is_open                 Boolean      @default(false)
@@ -583,6 +587,8 @@ model DeliveryProfile {
   status              DeliveryStatus     @default(PENDING)
   is_verified         Boolean            @default(false)
   is_available        Boolean            @default(false)
+  base_delivery_fee   Decimal            @default(0) @db.Decimal(10, 2)
+  fee_per_km          Decimal            @default(0) @db.Decimal(10, 2)
   availability_status AvailabilityStatus @default(OFFLINE)
   current_lat         Float?             @db.DoublePrecision
   current_lng         Float?             @db.DoublePrecision

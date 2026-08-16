@@ -43,6 +43,8 @@ const deliveryProfileUpdateSchema = z.object({
   vehicle_type: z.string().trim().max(50).optional(),
   vehicle_number: z.string().trim().max(20).optional(),
   license_number: z.string().trim().max(30).optional(),
+  base_delivery_fee: z.coerce.number().min(0).optional(),
+  fee_per_km: z.coerce.number().min(0).optional(),
 });
 
 const deliveryEarningsQuerySchema = z.object({

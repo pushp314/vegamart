@@ -17,6 +17,7 @@ export const createVendorSchema = z.object({
   tags: z.string().trim().max(300).optional().nullable(),
   logo_url: z.string().url().max(500).optional().nullable(),
   banner_url: z.string().url().max(500).optional().nullable(),
+  banner_urls: z.array(z.string().url().max(500)).optional(),
   address: z.string().trim().min(2).max(300),
   landmark: z.string().trim().max(200).optional().nullable(),
   city: z.string().trim().max(100).optional().default("City"),
@@ -32,6 +33,8 @@ export const createVendorSchema = z.object({
   advance_payment_percentage: z.coerce.number().min(0).max(100).optional(),
   free_delivery_min_order: z.coerce.number().min(0).optional().nullable(),
   provides_delivery: z.boolean().optional(),
+  delivery_options: z.array(z.string().max(50)).optional(),
+  tax_rate: z.coerce.number().min(0).max(100).optional().nullable(),
   owner_name: z.string().trim().max(120).optional().nullable(),
   phone: z
     .string()

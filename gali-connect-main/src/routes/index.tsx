@@ -940,6 +940,8 @@ function Categories() {
             <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted text-muted-foreground overflow-hidden shadow-sm">
               {c.image_url ? (
                 <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
+              ) : c.icon ? (
+                <span className="text-3xl md:text-4xl">{c.icon}</span>
               ) : (
                 <ShoppingBasket className="h-7 w-7 md:h-8 md:w-8" strokeWidth={1.75} />
               )}

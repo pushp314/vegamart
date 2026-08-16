@@ -29,6 +29,7 @@ import { calculateDistance, formatDistance } from "@/lib/utils/distance";
 import { toast } from "sonner";
 import { lazy, Suspense } from "react";
 import { ClientOnly } from "@/components/system/client-only";
+import useEmblaCarousel from "embla-carousel-react";
 
 const VendorMap = typeof window !== "undefined" ? lazy(() => import("@/components/vendor/vendor-map")) : () => null;
 
@@ -150,13 +151,34 @@ function VendorDetail() {
     }
   };
 
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const banners = profile.banner_urls?.length
+    ? profile.banner_urls
+    : [coverUrl];
+
+  // Embla Select Event
+  useMemo(() => {
+    if (!emblaApi) return;
+    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
+  }, [emblaApi]);
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-28 md:pb-16">
-      {/* Hero Cover Banner */}
-      <div className="relative h-60 sm:h-72 lg:h-80 overflow-hidden">
-        <img src={coverUrl} alt={vendor.business_name} className="h-full w-full object-cover" />
+      {/* Hero Cover Banner Carousel */}
+      <div className="relative h-60 sm:h-72 lg:h-80 overflow-hidden" ref={emblaRef}>
+        <div className="flex h-full w-full touch-pan-y">
+          {banners.map((url: string, index: number) => (
+            <div key={index} className="flex-[0_0_100%] min-w-0 h-full relative">
+              <img src={url} alt={`${vendor.business_name} banner ${index + 1}`} className="h-full w-full object-cover" />
+            </div>
+          ))}
+        </div>
         {/* Dark Overlay for High Contrast Text */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
 
         {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
@@ -185,6 +207,22 @@ function VendorDetail() {
             {isRoaming ? "🟢 LIVE ROAMING CART" : "🟢 STORE OPEN NOW"}
           </span>
         </div>
+
+        {/* Dot Indicators */}
+        {banners.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full">
+            {banners.map((_: any, i: number) => (
+              <button
+                key={i}
+                onClick={() => emblaApi?.scrollTo(i)}
+                className={`h-2 w-2 rounded-full transition-all ${
+                  i === selectedIndex ? "bg-white w-4" : "bg-white/50 hover:bg-white/80"
+                }`}
+                aria-label={`Go to slide ${i + 1}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main Vendor Header Card */}

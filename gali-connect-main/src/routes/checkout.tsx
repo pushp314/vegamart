@@ -76,15 +76,15 @@ function Checkout() {
   );
 
   const DELIVERY_OPTIONS = [
-    { id: "self_pickup", label: "Self Pickup", desc: "Pick up directly from store" },
-    ...(shopDeliveryEnabled
-      ? [{ id: "shop_delivery", label: "Shop Delivery", desc: "Delivered by store owner" }]
-      : []),
     ...(vendorComesToMeEnabled
-      ? [{ id: "vendor_comes_to_me", label: "Vendor Comes to Me", desc: "Vendor visits your location" }]
+      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Bring the cart here", icon: "🛒" }]
       : []),
     ...(hasActiveDeliveryPartners
-      ? [{ id: "delivery_partner", label: "VegaMart Delivery Partner", desc: "Delivered by our active rider fleet" }]
+      ? [{ id: "delivery_partner", label: "Delivery partner", desc: "Fastest delivery", icon: "🏍️" }]
+      : []),
+    { id: "self_pickup", label: "Self pickup", desc: "No delivery fee", icon: "🚶" },
+    ...(shopDeliveryEnabled
+      ? [{ id: "shop_delivery", label: "Shop delivery", desc: "Shop's own delivery", icon: "🏪" }]
       : []),
   ];
 
@@ -406,31 +406,28 @@ function Checkout() {
 
             {/* Checkout Delivery Options */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
-              <h2 className="font-display text-base font-bold">Checkout Delivery Options</h2>
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <h2 className="font-display text-base font-bold">Delivery Options</h2>
+              <div className="mt-3 grid grid-cols-2 gap-3">
                 {DELIVERY_OPTIONS.map((opt, i) => {
                   const active = i === deliveryOption;
                   return (
                     <button
-                      key={opt.label}
+                      key={opt.id}
                       type="button"
                       onClick={() => setDeliveryOption(i)}
-                      className={`rounded-2xl border p-3 text-left transition-all flex flex-col justify-center ${
+                      className={`rounded-2xl border-2 p-4 text-left transition-all flex flex-col gap-1 ${
                         active
-                          ? "bg-primary text-primary-foreground border-primary ring-2 ring-primary/20 shadow-xs"
-                          : "border-border hover:border-primary/40 bg-card"
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm"
+                          : "border-border hover:border-primary/30 bg-card"
                       }`}
                     >
-                      <div className="text-xs font-bold leading-tight">{opt.label}</div>
+                      <span className="text-2xl leading-none">{opt.icon}</span>
+                      <div className="text-xs font-bold leading-tight mt-1">{opt.label}</div>
+                      <div className="text-[10.5px] text-muted-foreground leading-tight">{opt.desc}</div>
                     </button>
                   );
                 })}
               </div>
-              <p className="mt-3 text-[11px] text-muted-foreground">
-                {shopDeliveryEnabled
-                  ? "Estimated delivery timeline will be provided after order acceptance."
-                  : "Pick up your order in-store or choose from available live delivery options above."}
-              </p>
             </section>
 
             {/* Payment Method */}

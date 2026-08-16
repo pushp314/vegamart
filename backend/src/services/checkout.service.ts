@@ -235,6 +235,7 @@ export const checkoutService = {
       const settings = await settingsService.getAllSettings();
       const globalDeliveryFee = (settings[SETTING_KEYS.DELIVERY_FEE] as number) || 0;
       const globalFreeDeliveryThreshold = (settings[SETTING_KEYS.FREE_DELIVERY_THRESHOLD] as number) || 0;
+      const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
 
       const vendorDeliveryFee = input.delivery_slot === "Self Pickup" ? 0 : computeDeliveryFee(
         group.subtotal, 
@@ -254,7 +255,7 @@ export const checkoutService = {
           quantity: item.quantity,
           unit_price: item.price_snapshot.toNumber(),
           line_total: item.price_snapshot.toNumber() * item.quantity,
-          tax_rate: (item.product as any).tax_rate ? Number((item.product as any).tax_rate) : 0,
+          tax_rate: (item.product as any).tax_rate ? Number((item.product as any).tax_rate) : (vendor as any).tax_rate ? Number((vendor as any).tax_rate) : taxRatePercent,
         })),
         items_subtotal: Math.round(group.subtotal * 100) / 100,
         delivery_fee: Math.round(vendorDeliveryFee * 100) / 100,
