@@ -429,10 +429,13 @@ function OrderIdTrackingPage() {
                         </a>
                       )}
                     </div>
-                    {order.customer?.phone && (
-                      <p className="text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
-                        <Phone className="h-3 w-3" /> {order.customer.phone}
-                      </p>
+                    {(order.customer?.phone || order.address?.phone) && (
+                      <a
+                        href={`tel:${order.customer?.phone || order.address?.phone}`}
+                        className="inline-flex items-center gap-1 text-emerald-700 font-semibold mt-1 hover:underline text-xs"
+                      >
+                        <Phone className="h-3 w-3" /> {order.customer?.phone || order.address?.phone}
+                      </a>
                     )}
                   </div>
 
@@ -452,9 +455,12 @@ function OrderIdTrackingPage() {
                         .filter(Boolean)
                         .join(", ")}
                     </p>
-                    {order.address?.phone && order.address.phone !== order.customer?.phone && (
-                      <p className="text-[11px]">
-                        <strong className="text-foreground">Contact:</strong> {order.address.phone}
+                    {order.address?.phone && (
+                      <p className="text-[11px] text-emerald-700 font-semibold pt-0.5">
+                        <strong className="text-foreground font-medium">Address Contact:</strong>{" "}
+                        <a href={`tel:${order.address.phone}`} className="hover:underline">
+                          {order.address.phone}
+                        </a>
                       </p>
                     )}
                   </div>

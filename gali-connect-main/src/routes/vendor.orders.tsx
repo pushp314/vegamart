@@ -368,7 +368,7 @@ function VendorOrdersPage() {
                 </div>
 
                 {/* Customer Details */}
-                {(o.user || o.address) && (
+                {(o.user || o.customer || o.address) && (
                   <div className="rounded-2xl bg-muted/30 p-3.5 text-xs space-y-2 border border-border/50">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Customer & Delivery Details
@@ -376,21 +376,21 @@ function VendorOrdersPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <p className="font-semibold text-foreground">{o.user?.name || o.customer?.name || o.customer_name || "Customer"}</p>
-                        {(o.user?.phone || o.customer?.phone) && (
+                        {(o.user?.phone || o.customer?.phone || o.address?.phone) && (
                           <a
-                            href={`tel:${o.user?.phone || o.customer?.phone}`}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg hover:bg-emerald-100 transition-colors mt-0.5"
+                            href={`tel:${o.customer?.phone || o.user?.phone || o.address?.phone}`}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl hover:bg-emerald-100 transition-colors mt-1"
                           >
-                            <Phone className="h-3 w-3" />
-                            {o.user?.phone || o.customer?.phone}
+                            <Phone className="h-3.5 w-3.5" />
+                            {o.customer?.phone || o.user?.phone || o.address?.phone}
                           </a>
                         )}
                         {(o.user?.email || o.customer?.email) && (
-                          <p className="text-muted-foreground text-[11px] mt-0.5">{o.user?.email || o.customer?.email}</p>
+                          <p className="text-muted-foreground text-[11px] mt-1">{o.user?.email || o.customer?.email}</p>
                         )}
                       </div>
                       {o.address && (
-                        <div className="space-y-0.5">
+                        <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <p className="font-bold text-foreground flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-emerald-600" />
@@ -407,7 +407,7 @@ function VendorOrdersPage() {
                               </a>
                             )}
                           </div>
-                          <p className="text-foreground font-medium">
+                          <p className="text-foreground font-medium leading-snug">
                             {o.address.full_address}
                           </p>
                           {o.address.landmark && (
@@ -420,6 +420,15 @@ function VendorOrdersPage() {
                               .filter(Boolean)
                               .join(", ")}
                           </p>
+                          {o.address.phone && (
+                            <a
+                              href={`tel:${o.address.phone}`}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline pt-0.5"
+                            >
+                              <Phone className="h-3 w-3 text-emerald-600" />
+                              <span>Address Phone: {o.address.phone}</span>
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
