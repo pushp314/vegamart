@@ -28,6 +28,7 @@ import {
   Save,
   GripVertical,
   SlidersHorizontal,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,7 @@ export function AdminCMS() {
   const [videoAdsPage, setVideoAdsPage] = useState(1);
   const [announcementsPage, setAnnouncementsPage] = useState(1);
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
+  const [editingSlide, setEditingSlide] = useState<any | null>(null);
   const [isVideoAdModalOpen, setIsVideoAdModalOpen] = useState(false);
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
 
@@ -205,8 +207,10 @@ export function AdminCMS() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminHeroSlides"] });
       queryClient.invalidateQueries({ queryKey: ["hero-slides"] });
+      queryClient.invalidateQueries({ queryKey: ["publicHeroSlides"] });
       toast.success("Banner created successfully");
       setIsBannerModalOpen(false);
+      setEditingSlide(null);
       setCmsImageUrl("");
       setBannerUploadError("");
     },
@@ -217,11 +221,46 @@ export function AdminCMS() {
     },
   });
 
+  const updateSlideMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      api.patch(`/admin/hero-slides/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminHeroSlides"] });
+      queryClient.invalidateQueries({ queryKey: ["hero-slides"] });
+      queryClient.invalidateQueries({ queryKey: ["publicHeroSlides"] });
+      toast.success("Banner updated successfully");
+      setIsBannerModalOpen(false);
+      setEditingSlide(null);
+      setCmsImageUrl("");
+      setBannerUploadError("");
+    },
+    onError: (err: any) => {
+      const msg = formatErrorMessage(err?.error || err, "Failed to update banner");
+      setBannerUploadError(msg);
+      toast.error(msg);
+    },
+  });
+
+  const handleOpenCreateBanner = () => {
+    setEditingSlide(null);
+    setCmsImageUrl("");
+    setBannerUploadError("");
+    setIsBannerModalOpen(true);
+  };
+
+  const handleEditBanner = (slide: any) => {
+    setEditingSlide(slide);
+    setCmsImageUrl(slide.image_url || "");
+    setBannerUploadError("");
+    setIsBannerModalOpen(true);
+  };
+
   const deleteSlideMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/hero-slides/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminHeroSlides"] });
       queryClient.invalidateQueries({ queryKey: ["hero-slides"] });
+      queryClient.invalidateQueries({ queryKey: ["publicHeroSlides"] });
       toast.success("Banner deleted");
     },
     onError: (err: any) =>
@@ -410,7 +449,7 @@ export function AdminCMS() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            onClick={() => setIsBannerModalOpen(true)}
+            onClick={handleOpenCreateBanner}
             variant={activeSubTab === "banners" ? "default" : "outline"}
             size="sm"
           >
@@ -489,51 +528,87 @@ export function AdminCMS() {
       {/* HERO BANNERS TAB */}
       {activeSubTab === "banners" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {slides.map((slide: any) => (
-            <div
-              key={slide.id}
-              className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm flex flex-col"
-            >
-              <div className="h-32 bg-muted/50 relative">
-                {slide.image_url ? (
-                  <img
-                    src={slide.image_url}
-                    alt={slide.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                    No Image
-                  </div>
-                )}
-                {slide.is_active && (
-                  <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Active
-                  </div>
-                )}
-              </div>
-              <div className="p-5 flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="font-bold text-lg">{slide.title}</h3>
-                  {slide.subtitle && (
-                    <p className="text-sm text-muted-foreground">{slide.subtitle}</p>
+          {slides.map((slide: any) => {
+            const hasText = Boolean(
+              (slide.title && slide.title.trim().length > 0) ||
+              (slide.subtitle && slide.subtitle.trim().length > 0)
+            );
+            return (
+              <div
+                key={slide.id}
+                className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm flex flex-col hover:border-emerald-500/30 transition-colors"
+              >
+                <div className="h-36 bg-muted/50 relative overflow-hidden">
+                  {slide.image_url ? (
+                    <img
+                      src={slide.image_url}
+                      alt={slide.title || "Banner image"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                      No Image Provided
+                    </div>
+                  )}
+                  {slide.is_active && (
+                    <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                      <CheckCircle2 className="h-3 w-3" /> Active
+                    </div>
+                  )}
+                  {!hasText && (
+                    <div className="absolute bottom-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm flex items-center gap-1">
+                      <Image className="h-3 w-3 text-emerald-400" /> Image Only (No Text)
+                    </div>
                   )}
                 </div>
-                <div className="mt-4 pt-4 border-t border-border flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-rose-600"
-                    onClick={() => {
-                      if (confirm("Delete this banner?")) deleteSlideMutation.mutate(slide.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div className="space-y-1.5">
+                    {hasText ? (
+                      <>
+                        <h3 className="font-bold text-base text-foreground leading-snug">
+                          {slide.title || <span className="text-muted-foreground italic">No Title</span>}
+                        </h3>
+                        {slide.subtitle && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">{slide.subtitle}</p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-xs text-muted-foreground font-medium py-1">
+                        <span className="font-semibold text-foreground">Clean Banner:</span> Displaying full image only without overlay text on homepage.
+                      </div>
+                    )}
+                    {slide.link_url && (
+                      <p className="text-xs text-emerald-600 truncate flex items-center gap-1 pt-1">
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{slide.link_url}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-border flex items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs font-semibold hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                      onClick={() => handleEditBanner(slide)}
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                      Edit Banner
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-rose-600 hover:bg-rose-50 hover:border-rose-300"
+                      onClick={() => {
+                        if (confirm("Delete this banner slide?")) deleteSlideMutation.mutate(slide.id);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {slides.length === 0 && !slidesLoading && (
             <div className="col-span-full py-12 text-center text-muted-foreground border-2 border-dashed rounded-3xl">
               No hero banners active.
@@ -970,12 +1045,13 @@ export function AdminCMS() {
         </div>
       )}
 
-      {/* Banner Create Modal */}
+      {/* Banner Create & Edit Modal */}
       <Dialog
         open={isBannerModalOpen}
         onOpenChange={(open) => {
           setIsBannerModalOpen(open);
           if (!open) {
+            setEditingSlide(null);
             setCmsImageUrl("");
             setBannerUploadError("");
           }
@@ -984,29 +1060,32 @@ export function AdminCMS() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Image className="h-5 w-5 text-emerald-500" /> Create Hero Banner Slide
+              {editingSlide ? (
+                <>
+                  <Pencil className="h-5 w-5 text-emerald-500" /> Edit Hero Banner Slide
+                </>
+              ) : (
+                <>
+                  <Image className="h-5 w-5 text-emerald-500" /> Create Hero Banner Slide
+                </>
+              )}
             </DialogTitle>
           </DialogHeader>
 
           {/* Validation & Requirements Guidance Box */}
           <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11.5px] text-muted-foreground space-y-1">
             <div className="font-bold text-foreground flex items-center gap-1.5 text-xs">
-              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Hero Banner Requirements & Size
-              Limits
+              <Info className="h-4 w-4 text-emerald-500 shrink-0" /> Hero Banner Information & Clean Image Option
             </div>
             <ul className="list-disc list-inside space-y-0.5 pl-1">
               <li>
-                <strong>Max File Size:</strong> 10 MB per image
+                <strong>Image-Only Banner:</strong> Leave <em>Title</em> and <em>Subtitle</em> blank to display the pure full image without any text overlays or dark gradients.
               </li>
               <li>
-                <strong>Accepted Image Formats:</strong> JPEG, PNG, WebP, GIF, AVIF
+                <strong>Max File Size:</strong> 10 MB per image (JPEG, PNG, WebP, GIF, AVIF)
               </li>
               <li>
-                <strong>Filename Requirement:</strong> Standard ASCII characters (e.g.{" "}
-                <code>hero_slide1.jpg</code>)
-              </li>
-              <li>
-                <strong>Title & Subtitle:</strong> Optional — leave blank for a clean banner
+                <strong>Link Navigation:</strong> If a Link URL is provided on a clean banner, clicking anywhere on the banner will open the destination.
               </li>
             </ul>
           </div>
@@ -1025,37 +1104,61 @@ export function AdminCMS() {
           )}
 
           <form
+            key={editingSlide ? editingSlide.id : "new-banner-form"}
             onSubmit={(e) => {
               e.preventDefault();
               setBannerUploadError("");
               const fd = new FormData(e.target as HTMLFormElement);
-              createSlideMutation.mutate({
-                title: fd.get("title"),
-                subtitle: fd.get("subtitle") || undefined,
-                image_url: fd.get("image_url") || undefined,
-                link_url: fd.get("link_url") || undefined,
-                sort_order: Number(fd.get("sort_order")) || 0,
+              const titleVal = (fd.get("title") as string)?.trim() || null;
+              const subtitleVal = (fd.get("subtitle") as string)?.trim() || null;
+              const linkVal = (fd.get("link_url") as string)?.trim() || null;
+              const sortOrderVal = Number(fd.get("sort_order")) || 0;
+              const imageVal = cmsImageUrl?.trim() || (fd.get("image_url") as string)?.trim() || null;
+
+              const payload = {
+                title: titleVal,
+                subtitle: subtitleVal,
+                image_url: imageVal,
+                link_url: linkVal,
+                sort_order: sortOrderVal,
                 is_active: true,
-              });
+              };
+
+              if (editingSlide) {
+                updateSlideMutation.mutate({ id: editingSlide.id, data: payload });
+              } else {
+                createSlideMutation.mutate(payload);
+              }
             }}
             className="space-y-4"
           >
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase text-muted-foreground">
                 Title (Optional)
               </label>
-              <Input name="title" placeholder="e.g. Fresh Fruits, Every Morning" />
+              <Input
+                name="title"
+                defaultValue={editingSlide?.title || ""}
+                placeholder="Leave blank for clean image-only banner"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                If left empty, no title or badge will be written over the image.
+              </p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase text-muted-foreground">
                 Subtitle (Optional)
               </label>
-              <Input name="subtitle" />
+              <Input
+                name="subtitle"
+                defaultValue={editingSlide?.subtitle || ""}
+                placeholder="Leave blank for clean image-only banner"
+              />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-bold uppercase text-muted-foreground">
-                  Image URL (Optional)
+                  Banner Image
                 </label>
                 <span className="text-[10px] text-muted-foreground font-medium">
                   Max size: 10 MB
@@ -1065,6 +1168,7 @@ export function AdminCMS() {
                 <Input
                   name="image_url"
                   type="url"
+                  placeholder="https://..."
                   value={cmsImageUrl}
                   onChange={(e) => setCmsImageUrl(e.target.value)}
                 />
@@ -1090,34 +1194,56 @@ export function AdminCMS() {
                 </Button>
               </div>
               {cmsImageUrl && (
-                <div className="mt-3 relative h-24 w-full rounded-xl overflow-hidden border border-border bg-muted/30">
+                <div className="mt-3 relative h-28 w-full rounded-xl overflow-hidden border border-border bg-muted/30">
                   <img src={cmsImageUrl} alt="Preview" className="h-full w-full object-cover" />
                   <div className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase backdrop-blur-sm tracking-wider">
-                    Preview
+                    Banner Preview
                   </div>
                 </div>
               )}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase text-muted-foreground">
-                  Link URL
+                  Link URL (Optional)
                 </label>
-                <Input name="link_url" />
+                <Input
+                  name="link_url"
+                  defaultValue={editingSlide?.link_url || ""}
+                  placeholder="e.g. /categories/fruits"
+                />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase text-muted-foreground">
                   Sort Order
                 </label>
-                <Input name="sort_order" type="number" defaultValue="0" />
+                <Input
+                  name="sort_order"
+                  type="number"
+                  defaultValue={editingSlide?.sort_order ?? 0}
+                />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsBannerModalOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsBannerModalOpen(false);
+                  setEditingSlide(null);
+                }}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createSlideMutation.isPending}>
-                Create Banner
+              <Button
+                type="submit"
+                disabled={createSlideMutation.isPending || updateSlideMutation.isPending}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
+                {(createSlideMutation.isPending || updateSlideMutation.isPending) && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                {editingSlide ? "Save Banner Changes" : "Create Banner"}
               </Button>
             </div>
           </form>

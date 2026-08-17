@@ -578,117 +578,147 @@ function Hero() {
     <section className="pt-4 md:pt-8">
       <Carousel className="relative group" setApi={setApiCarousel}>
         <CarouselContent>
-          {slides.map((slide) => (
-            <CarouselItem key={slide.id}>
-              <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white h-[260px] md:h-[320px] p-6 md:p-10 shadow-lg flex flex-col justify-center">
-                {isBehindHeroVideo && activeVideoAd ? (
-                  <>
-                    <video
-                      ref={backgroundVideoRef}
-                      src={activeVideoAd.video_url}
-                      poster={activeVideoAd.thumbnail_url || undefined}
-                      autoPlay
-                      loop
-                      muted={isBackgroundMuted}
-                      playsInline
-                      className="absolute inset-0 w-full h-full object-cover opacity-50 z-0 pointer-events-none"
-                    />
-                    {/* Dual Linear-Radial Gradient Mask */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-black/60 to-transparent z-0 pointer-events-none" />
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-black/70 mix-blend-overlay z-0 pointer-events-none" />
-                  </>
-                ) : (
-                  <>
-                    <div
-                      className="absolute inset-0 opacity-40 mix-blend-overlay z-0"
-                      style={{
-                        backgroundImage:
-                          "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
-                      }}
-                    />
-                    {slide.image_url && (
-                      <>
-                        <img
-                          src={slide.image_url}
-                          alt={slide.title || "Vegamart banner"}
-                          className="absolute inset-0 w-full h-full object-cover opacity-65 md:opacity-75 z-0"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/85 via-black/40 to-transparent z-0 pointer-events-none" />
-                      </>
-                    )}
-                  </>
-                )}
-                <div className="relative md:max-w-2xl z-10">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
-                      <Radio className="h-3 w-3" /> {slide.title || "Vegamart"}
-                    </span>
-                    {activeVideoAd && activeVideoAd.display_mode === "watch_cta" && (
-                      <button
-                        onClick={() => setIsVideoModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 text-emerald-950 px-3 py-1 text-[10.5px] md:text-xs font-black uppercase tracking-wide shadow-md hover:bg-amber-300 transition-all animate-pulse"
-                      >
-                        <Play className="h-3 w-3 fill-emerald-950" />{" "}
-                        {activeVideoAd.cta_text || "Watch 30s Ad"}
-                      </button>
-                    )}
-                  </div>
-                  <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight drop-shadow-md">
-                    {slide.subtitle || slide.title || "Vegamart"}
-                  </h1>
-                  {slide.body && (
-                    <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/90 max-w-[22ch] md:max-w-[42ch] drop-shadow-sm">
-                      {slide.body}
-                    </p>
-                  )}
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    {slide.link_url && (
-                      <Link
-                        to={slide.link_url}
-                        className="inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm px-5 py-2.5 shadow-sm hover:bg-emerald-50 transition-colors"
-                      >
-                        {slide.link_text || "Explore"} <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    )}
-                    {activeVideoAd && (
-                      <button
-                        onClick={() => setIsVideoModalOpen(true)}
-                        className="inline-flex items-center gap-2 rounded-full bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-5 py-2.5 backdrop-blur-md border border-white/30 transition-all shadow-md"
-                      >
-                        <Play className="h-4 w-4 fill-white" /> Watch 30s Ad
-                      </button>
-                    )}
-                  </div>
-                </div>
+          {slides.map((slide) => {
+            const hasText = Boolean(
+              (slide.title && slide.title.trim().length > 0) ||
+              (slide.subtitle && slide.subtitle.trim().length > 0) ||
+              (slide.body && slide.body.trim().length > 0)
+            );
 
-                {/* Floating Sound Control Glass Pill */}
-                {isBehindHeroVideo && activeVideoAd && (
-                  <button
-                    onClick={toggleBackgroundSound}
-                    className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-lg transition-all active:scale-95"
-                    title={isBackgroundMuted ? "Unmute Background Audio" : "Mute Background Audio"}
-                  >
-                    {isBackgroundMuted ? (
-                      <>
-                        <VolumeX className="h-3.5 w-3.5 text-amber-400" />
-                        <span>Tap for Sound</span>
-                      </>
-                    ) : (
-                      <>
-                        <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
-                        <span className="flex items-end gap-0.5 h-3">
-                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_100ms] h-full" />
-                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_200ms] h-2/3" />
-                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_300ms] h-full" />
-                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_400ms] h-1/2" />
-                        </span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </CarouselItem>
-          ))}
+            return (
+              <CarouselItem key={slide.id}>
+                <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white h-[260px] md:h-[320px] p-6 md:p-10 shadow-lg flex flex-col justify-center">
+                  {isBehindHeroVideo && activeVideoAd ? (
+                    <>
+                      <video
+                        ref={backgroundVideoRef}
+                        src={activeVideoAd.video_url}
+                        poster={activeVideoAd.thumbnail_url || undefined}
+                        autoPlay
+                        loop
+                        muted={isBackgroundMuted}
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover opacity-50 z-0 pointer-events-none"
+                      />
+                      {/* Dual Linear-Radial Gradient Mask */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-black/60 to-transparent z-0 pointer-events-none" />
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-black/70 mix-blend-overlay z-0 pointer-events-none" />
+                    </>
+                  ) : (
+                    <>
+                      {slide.image_url ? (
+                        <>
+                          <img
+                            src={slide.image_url}
+                            alt={slide.title || "Vegamart banner"}
+                            className={`absolute inset-0 w-full h-full object-cover z-0 ${
+                              hasText ? "opacity-65 md:opacity-75" : "opacity-100"
+                            }`}
+                          />
+                          {hasText && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/85 via-black/40 to-transparent z-0 pointer-events-none" />
+                          )}
+                        </>
+                      ) : (
+                        <div
+                          className="absolute inset-0 opacity-40 mix-blend-overlay z-0"
+                          style={{
+                            backgroundImage:
+                              "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+
+                  {/* Clean image banner full-click navigation */}
+                  {!hasText && slide.link_url && (
+                    <Link
+                      to={slide.link_url}
+                      className="absolute inset-0 z-10 cursor-pointer"
+                      aria-label="Promotional banner link"
+                    />
+                  )}
+
+                  {/* Text & Action Overlay (Only rendered if title/subtitle/body exists or video ad CTA is active) */}
+                  {(hasText || (activeVideoAd && activeVideoAd.display_mode === "watch_cta")) && (
+                    <div className="relative md:max-w-2xl z-10">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {slide.title && slide.title.trim().length > 0 && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-[10.5px] md:text-xs font-semibold uppercase tracking-wide">
+                            <Radio className="h-3 w-3" /> {slide.title}
+                          </span>
+                        )}
+                        {activeVideoAd && activeVideoAd.display_mode === "watch_cta" && (
+                          <button
+                            onClick={() => setIsVideoModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 text-emerald-950 px-3 py-1 text-[10.5px] md:text-xs font-black uppercase tracking-wide shadow-md hover:bg-amber-300 transition-all animate-pulse"
+                          >
+                            <Play className="h-3 w-3 fill-emerald-950" />{" "}
+                            {activeVideoAd.cta_text || "Watch 30s Ad"}
+                          </button>
+                        )}
+                      </div>
+                      {(slide.subtitle?.trim() || slide.title?.trim()) && (
+                        <h1 className="mt-3 md:mt-4 font-display text-3xl md:text-4xl lg:text-5xl leading-[1.1] font-bold tracking-tight drop-shadow-md">
+                          {slide.subtitle || slide.title}
+                        </h1>
+                      )}
+                      {slide.body && slide.body.trim().length > 0 && (
+                        <p className="mt-2 md:mt-3 text-[13.5px] md:text-base leading-snug text-white/90 max-w-[22ch] md:max-w-[42ch] drop-shadow-sm">
+                          {slide.body}
+                        </p>
+                      )}
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        {slide.link_url && (
+                          <Link
+                            to={slide.link_url}
+                            className="inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm px-5 py-2.5 shadow-sm hover:bg-emerald-50 transition-colors"
+                          >
+                            {slide.link_text || "Explore"} <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        )}
+                        {activeVideoAd && (
+                          <button
+                            onClick={() => setIsVideoModalOpen(true)}
+                            className="inline-flex items-center gap-2 rounded-full bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-5 py-2.5 backdrop-blur-md border border-white/30 transition-all shadow-md"
+                          >
+                            <Play className="h-4 w-4 fill-white" /> Watch 30s Ad
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Floating Sound Control Glass Pill */}
+                  {isBehindHeroVideo && activeVideoAd && (
+                    <button
+                      onClick={toggleBackgroundSound}
+                      className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-lg transition-all active:scale-95"
+                      title={isBackgroundMuted ? "Unmute Background Audio" : "Mute Background Audio"}
+                    >
+                      {isBackgroundMuted ? (
+                        <>
+                          <VolumeX className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Tap for Sound</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="flex items-end gap-0.5 h-3">
+                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_100ms] h-full" />
+                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_200ms] h-2/3" />
+                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_300ms] h-full" />
+                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_400ms] h-1/2" />
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </CarouselItem>
+            );
+          })}
         </CarouselContent>
         {slides.length > 1 && (
           <div className="absolute bottom-4 md:bottom-6 left-0 right-0 flex justify-center gap-2 z-20">
