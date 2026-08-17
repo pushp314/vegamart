@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X, Phone } from "lucide-react";
+import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X, Phone, Store, User, CreditCard, Banknote, MapPin, ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
 
 export const Route = createFileRoute("/vendor/orders")({
   component: VendorOrdersPage,
@@ -282,6 +283,15 @@ function VendorOrdersPage() {
             };
 
             const nextStatuses = getNextStatuses(o.status);
+            const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
+            const pInfo = getPaymentMethodInfo(
+              o.payment_method,
+              o.payment_status,
+              Number(o.total || 0),
+              dInfo.id === "self_pickup"
+            );
+            const DIcon = dInfo.icon;
+            const PIcon = pInfo.icon;
 
             return (
               <div
@@ -319,6 +329,44 @@ function VendorOrdersPage() {
                   </div>
                 </div>
 
+                {/* Delivery Option & Payment Instruction Card */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Delivery Option */}
+                  <div className="rounded-2xl bg-muted/30 border border-border/50 p-3.5 space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Delivery Option Chosen
+                      </span>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}>
+                        <DIcon className="h-3 w-3" />
+                        {dInfo.shortLabel}
+                      </span>
+                    </div>
+                    <div className="font-bold text-foreground text-sm">{dInfo.label}</div>
+                    <p className="text-muted-foreground text-[11px]">{dInfo.desc}</p>
+                  </div>
+
+                  {/* Payment Mode */}
+                  <div className="rounded-2xl bg-muted/30 border border-border/50 p-3.5 space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Payment Mode
+                      </span>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}>
+                        <PIcon className="h-3 w-3" />
+                        {pInfo.shortLabel}
+                      </span>
+                    </div>
+                    <div className="font-bold text-foreground text-sm flex items-center justify-between">
+                      <span>{pInfo.label}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pInfo.statusColorClass}`}>
+                        {pInfo.statusText}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground text-[11px]">{pInfo.instruction}</p>
+                  </div>
+                </div>
+
                 {/* Customer Details */}
                 {(o.user || o.address) && (
                   <div className="rounded-2xl bg-muted/30 p-3.5 text-xs space-y-2 border border-border/50">
@@ -342,11 +390,35 @@ function VendorOrdersPage() {
                         )}
                       </div>
                       {o.address && (
-                        <div>
-                          <p className="font-medium text-foreground">{o.address.label || "Delivery Address"}</p>
-                          <p className="text-muted-foreground">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <p className="font-bold text-foreground flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-emerald-600" />
+                              {o.address.label || "Delivery Destination"}
+                            </p>
+                            {o.address.latitude && o.address.longitude && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${o.address.latitude},${o.address.longitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-emerald-700 hover:underline flex items-center gap-0.5 font-bold"
+                              >
+                                <ExternalLink className="h-2.5 w-2.5" /> Map
+                              </a>
+                            )}
+                          </div>
+                          <p className="text-foreground font-medium">
                             {o.address.full_address}
-                            {o.address.landmark ? `, ${o.address.landmark}` : ""}
+                          </p>
+                          {o.address.landmark && (
+                            <p className="text-[11px] text-muted-foreground">
+                              <strong className="text-foreground">Landmark:</strong> {o.address.landmark}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-muted-foreground">
+                            {[o.address.city, o.address.state, o.address.pincode ? `- ${o.address.pincode}` : "", o.address.country || "India"]
+                              .filter(Boolean)
+                              .join(", ")}
                           </p>
                         </div>
                       )}

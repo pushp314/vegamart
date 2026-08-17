@@ -78,6 +78,7 @@ export const adminOrderService = {
           discount: true,
           payment_method: true,
           payment_status: true,
+          delivery_note: true,
           created_at: true,
           updated_at: true,
           customer: { select: { id: true, name: true, email: true, phone: true } },
@@ -122,6 +123,7 @@ export const adminOrderService = {
         discount: Number(o.discount),
         payment_method: o.payment_method,
         payment_status: o.payment_status,
+        delivery_note: o.delivery_note,
         created_at: o.created_at,
         updated_at: o.updated_at,
         customer: o.customer
@@ -179,7 +181,11 @@ export const adminOrderService = {
             slug: true,
             address: true,
             city: true,
+            state: true,
+            pincode: true,
             phone: true,
+            latitude: true,
+            longitude: true,
           },
         },
         delivery_partner: {
@@ -192,10 +198,15 @@ export const adminOrderService = {
         },
         address: {
           select: {
+            id: true,
+            label: true,
             full_address: true,
+            landmark: true,
             city: true,
             state: true,
             pincode: true,
+            country: true,
+            phone: true,
             latitude: true,
             longitude: true,
           },

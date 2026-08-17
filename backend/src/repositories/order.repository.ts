@@ -118,6 +118,22 @@ export interface OrderDetail extends OrderRow {
     id: string;
     business_name: string;
     phone?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    pincode?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    roaming?: boolean | null;
+  } | null;
+  delivery_partner?: {
+    id: string;
+    vehicle_type?: string | null;
+    vehicle_number?: string | null;
+    user?: {
+      name: string | null;
+      phone: string | null;
+    } | null;
   } | null;
   customer?: {
     id: string;
@@ -130,7 +146,13 @@ export interface OrderDetail extends OrderRow {
     label: string;
     full_address: string;
     landmark: string | null;
+    city: string;
+    state: string;
+    pincode: string;
     country: string | null;
+    phone?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   } | null;
 }
 
@@ -179,7 +201,28 @@ const detailSelect = {
     },
   },
   coupon: { select: { id: true, code: true, type: true } },
-  vendor: { select: { id: true, business_name: true, phone: true } },
+  vendor: {
+    select: {
+      id: true,
+      business_name: true,
+      phone: true,
+      address: true,
+      city: true,
+      state: true,
+      pincode: true,
+      latitude: true,
+      longitude: true,
+      roaming: true,
+    },
+  },
+  delivery_partner: {
+    select: {
+      id: true,
+      vehicle_type: true,
+      vehicle_number: true,
+      user: { select: { name: true, phone: true } },
+    },
+  },
   customer: {
     select: {
       id: true,
@@ -194,7 +237,13 @@ const detailSelect = {
       label: true,
       full_address: true,
       landmark: true,
+      city: true,
+      state: true,
+      pincode: true,
       country: true,
+      phone: true,
+      latitude: true,
+      longitude: true,
     },
   },
 } as const;

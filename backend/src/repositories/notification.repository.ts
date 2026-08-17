@@ -10,11 +10,14 @@ export async function createNotification(data: {
   body?: string | null;
   data?: Prisma.InputJsonValue | null;
 }): Promise<void> {
+  const channel = (data.channel ? data.channel.toUpperCase() : "IN_APP") as Prisma.NotificationCreateInput["channel"];
+  const type = (data.type ? data.type.toUpperCase() : "ORDER") as Prisma.NotificationCreateInput["type"];
+
   await prisma.notification.create({
     data: {
       user_id: data.user_id,
-      type: data.type as Prisma.NotificationCreateInput["type"],
-      channel: (data.channel ?? "in_app") as Prisma.NotificationCreateInput["channel"],
+      type,
+      channel,
       title: data.title,
       body: data.body ?? null,
       data: (data.data as Prisma.InputJsonValue) ?? undefined,

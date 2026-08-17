@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { RotateCw, ShoppingBag, User, ArrowRight } from "lucide-react";
+import { RotateCw, ShoppingBag, User, ArrowRight, Eye } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
 import { useQuery } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
+import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
 
 export const Route = createFileRoute("/orders/history")({
   head: () => ({ meta: [{ title: "Order history — Vegamart" }] }),
@@ -129,31 +130,55 @@ function OrderHistoryPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {orders.map((o: any) => (
-                <div key={o.id} className="rounded-3xl bg-card border p-5 shadow-soft space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-base">
-                          Order #{o.order_number || o.id.slice(0, 8)}
-                        </h3>
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${statusBadgeClass(o.status)}`}
-                        >
-                          {statusLabel(o.status)}
-                        </span>
+              {orders.map((o: any) => {
+                const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
+                const pInfo = getPaymentMethodInfo(o.payment_method, o.payment_status, Number(o.total_amount || o.total || 0));
+                const DIcon = dInfo.icon;
+                const PIcon = pInfo.icon;
+
+                return (
+                  <div key={o.id} className="rounded-3xl bg-card border p-5 shadow-soft space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-base">
+                            Order #{o.order_number || o.id.slice(0, 8)}
+                          </h3>
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${statusBadgeClass(o.status)}`}
+                          >
+                            {statusLabel(o.status)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {o.delivered_at
+                            ? `Delivered on ${new Date(o.delivered_at).toLocaleDateString()}`
+                            : `Placed on ${new Date(o.created_at).toLocaleDateString()}`}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}>
+                            <DIcon className="h-3 w-3" />
+                            {dInfo.shortLabel}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}>
+                            <PIcon className="h-3 w-3" />
+                            {pInfo.shortLabel}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1 font-semibold">
+                            Total: <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {o.delivered_at
-                          ? `Delivered on ${new Date(o.delivered_at).toLocaleDateString()}`
-                          : `Placed on ${new Date(o.created_at).toLocaleDateString()}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Total Amount:{" "}
-                        <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
-                      </p>
+
+                      <Link
+                        to="/orders/$orderId/track"
+                        params={{ orderId: o.id }}
+                        className="flex items-center gap-1 text-xs font-bold text-primary hover:underline bg-muted/60 px-3 py-1.5 rounded-2xl border shrink-0"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Details
+                      </Link>
                     </div>
-                  </div>
 
                   {Array.isArray(o.items) && o.items.length > 0 && (
                     <div className="flex items-center gap-2 overflow-x-auto py-1">
@@ -200,7 +225,8 @@ function OrderHistoryPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )}
         </main>

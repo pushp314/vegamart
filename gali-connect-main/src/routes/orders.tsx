@@ -10,6 +10,8 @@ import {
   XCircle,
   Undo2,
   ArrowRight,
+  CreditCard,
+  Banknote,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
@@ -19,6 +21,7 @@ import { toast } from "sonner";
 
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
+import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
 import {
   Dialog,
   DialogContent,
@@ -245,11 +248,16 @@ function OrdersList() {
                   toast.success("Items added to your cart!");
                   navigate({ to: "/cart" });
                 };
+                const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
+                const pInfo = getPaymentMethodInfo(o.payment_method, o.payment_status, Number(o.total_amount || o.total || 0));
+                const DIcon = dInfo.icon;
+                const PIcon = pInfo.icon;
+
                 return (
                   <div key={o.id} className="rounded-3xl bg-card border p-5 shadow-soft space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-bold text-base">
                             Order #{o.order_number || o.id.slice(0, 8)}
                           </h3>
@@ -257,16 +265,25 @@ function OrdersList() {
                             {statusLabel(statusLower) || o.status || "Pending"}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Total Amount:{" "}
-                          <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
-                        </p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}>
+                            <DIcon className="h-3 w-3" />
+                            {dInfo.shortLabel}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}>
+                            <PIcon className="h-3 w-3" />
+                            {pInfo.shortLabel}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1 font-semibold">
+                            Total: <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
+                          </span>
+                        </div>
                       </div>
 
                       <Link
                         to="/orders/$orderId/track"
                         params={{ orderId: o.id }}
-                        className="flex items-center gap-1 text-xs font-bold text-primary hover:underline bg-emerald-50 px-3 py-1.5 rounded-2xl border border-emerald-200"
+                        className="flex items-center gap-1 text-xs font-bold text-primary hover:underline bg-emerald-50 px-3 py-1.5 rounded-2xl border border-emerald-200 shrink-0"
                       >
                         <Bike className="h-4 w-4" />
                         Trace Delivery

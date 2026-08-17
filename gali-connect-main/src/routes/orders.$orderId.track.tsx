@@ -12,6 +12,14 @@ import {
   AlertCircle,
   Phone,
   Store,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  Wallet,
+  ExternalLink,
+  Navigation,
+  Calendar,
+  Hash,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import {
@@ -26,6 +34,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
+import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
 
 export const Route = createFileRoute("/orders/$orderId/track")({
   component: OrderIdTrackingPage,
@@ -61,7 +70,7 @@ function OrderIdTrackingPage() {
     queryKey: ["orderDetail", orderId],
     queryFn: () => api.get<{ data: any }>(`/orders/${orderId}`),
     retry: 1,
-    enabled: !!user && !isGuest && role === "customer",
+    enabled: !!user && !isGuest,
   });
 
   const order = orderRes?.data?.data || orderRes?.data || null;
@@ -307,7 +316,7 @@ function OrderIdTrackingPage() {
 
             {/* Itemized Order Details & Receipt */}
             <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">
-              <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
                 <div>
                   <h3 className="font-display font-black text-base text-foreground">
                     Order Details
@@ -316,83 +325,229 @@ function OrderIdTrackingPage() {
                     Order #{order.order_number || orderId}
                   </p>
                 </div>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
-                  {String(order.payment_method || "cod").toLowerCase() === "cod"
-                    ? "Cash on Delivery"
-                    : "Paid online"}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Delivery Mode Badge */}
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${getDeliveryOptionInfo(order.delivery_note).colorClass}`}>
+                    {(() => {
+                      const DIcon = getDeliveryOptionInfo(order.delivery_note).icon;
+                      return <DIcon className="h-3.5 w-3.5" />;
+                    })()}
+                    {getDeliveryOptionInfo(order.delivery_note).shortLabel}
+                  </span>
+
+                  {/* Payment Method Badge */}
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${getPaymentMethodInfo(order.payment_method, order.payment_status).colorClass}`}>
+                    {(() => {
+                      const PIcon = getPaymentMethodInfo(order.payment_method, order.payment_status).icon;
+                      return <PIcon className="h-3.5 w-3.5" />;
+                    })()}
+                    {getPaymentMethodInfo(order.payment_method, order.payment_status).shortLabel}
+                  </span>
+                </div>
               </div>
 
-              {/* Customer & Contact Details */}
-              {order.customer && (
-                <div className="flex items-center justify-between bg-muted/50 p-3.5 rounded-2xl text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-blue-100 text-blue-800 grid place-items-center shrink-0">
-                      <User className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-foreground">
-                        {order.customer.name || "Customer"}
+              {/* Delivery Option & Payment Detail Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Chosen Delivery Option Card */}
+                {(() => {
+                  const dInfo = getDeliveryOptionInfo(order.delivery_note);
+                  const DIcon = dInfo.icon;
+                  return (
+                    <div className="rounded-2xl border border-border bg-muted/30 p-3.5 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Delivery Option Chosen
+                        </span>
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}>
+                          <DIcon className="h-3 w-3" />
+                          {dInfo.shortLabel}
+                        </span>
                       </div>
-                      {order.customer.phone ? (
-                        <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
-                          <Phone className="h-3 w-3" />
-                          {order.customer.phone}
-                        </p>
-                      ) : order.customer.email ? (
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{order.customer.email}</p>
-                      ) : null}
+                      <div className="font-bold text-foreground text-sm">{dInfo.label}</div>
+                      <p className="text-muted-foreground text-[11px]">{dInfo.desc}</p>
                     </div>
-                  </div>
-                </div>
-              )}
+                  );
+                })()}
 
-              {/* Vendor & Store Details */}
-              {order.vendor && (
-                <div className="flex items-center justify-between bg-muted/50 p-3.5 rounded-2xl text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 grid place-items-center shrink-0">
-                      <Store className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-foreground">
-                        {order.vendor.business_name || "Merchant Store"}
+                {/* Chosen Payment Mode Card */}
+                {(() => {
+                  const pInfo = getPaymentMethodInfo(
+                    order.payment_method,
+                    order.payment_status,
+                    totalAmount,
+                    getDeliveryOptionInfo(order.delivery_note).id === "self_pickup"
+                  );
+                  const PIcon = pInfo.icon;
+                  return (
+                    <div className="rounded-2xl border border-border bg-muted/30 p-3.5 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Payment Mode
+                        </span>
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}>
+                          <PIcon className="h-3 w-3" />
+                          {pInfo.shortLabel}
+                        </span>
                       </div>
-                      {order.vendor.phone && (
+                      <div className="font-bold text-foreground text-sm flex items-center justify-between">
+                        <span>{pInfo.label}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pInfo.statusColorClass}`}>
+                          {pInfo.statusText}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground text-[11px]">{pInfo.instruction}</p>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Customer, Delivery Address & Store Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Full Delivery Address Card */}
+                <div className="rounded-2xl bg-muted/40 border border-border/60 p-4 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      Delivery Destination
+                    </span>
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200 uppercase">
+                      {order.address?.label || "Home"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="font-bold text-foreground text-sm flex items-center justify-between">
+                      <span>{order.customer?.name || "Customer"}</span>
+                      {order.address?.latitude && order.address?.longitude && (
                         <a
-                          href={`tel:${order.vendor.phone}`}
-                          className="text-[11px] font-semibold text-emerald-700 hover:underline flex items-center gap-1 mt-0.5"
+                          href={`https://www.google.com/maps/search/?api=1&query=${order.address.latitude},${order.address.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 font-semibold"
                         >
-                          <Phone className="h-3 w-3" />
-                          {order.vendor.phone}
+                          <Navigation className="h-3 w-3" /> Map Directions
                         </a>
                       )}
                     </div>
+                    {order.customer?.phone && (
+                      <p className="text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
+                        <Phone className="h-3 w-3" /> {order.customer.phone}
+                      </p>
+                    )}
                   </div>
-                  {order.vendor.phone && (
+
+                  <div className="pt-1.5 border-t border-border/50 space-y-1 text-muted-foreground">
+                    <p className="font-medium text-foreground leading-relaxed">
+                      {order.address?.full_address ||
+                        [order.address?.address_line1, order.address?.street_address].filter(Boolean).join(", ") ||
+                        "Address on file"}
+                    </p>
+                    {order.address?.landmark && (
+                      <p className="text-[11px]">
+                        <strong className="text-foreground">Landmark:</strong> {order.address.landmark}
+                      </p>
+                    )}
+                    <p className="text-[11px]">
+                      {[order.address?.city, order.address?.state, order.address?.pincode ? `- ${order.address.pincode}` : "", order.address?.country || "India"]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                    {order.address?.phone && order.address.phone !== order.customer?.phone && (
+                      <p className="text-[11px]">
+                        <strong className="text-foreground">Contact:</strong> {order.address.phone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vendor / Store Details Card */}
+                <div className="rounded-2xl bg-muted/40 border border-border/60 p-4 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Store className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      Merchant / Store
+                    </span>
+                    {order.vendor?.phone && (
+                      <a
+                        href={`tel:${order.vendor.phone}`}
+                        className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-bold text-[11px] shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                      >
+                        <Phone className="h-3 w-3" /> Call Store
+                      </a>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="font-bold text-foreground text-sm">
+                      {order.vendor?.business_name || "Vegamart Merchant Store"}
+                    </div>
+                    {order.vendor?.phone && (
+                      <p className="text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
+                        <Phone className="h-3 w-3" /> {order.vendor.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-1.5 border-t border-border/50 space-y-1 text-muted-foreground">
+                    {order.vendor?.address ? (
+                      <>
+                        <p className="font-medium text-foreground leading-relaxed">
+                          {order.vendor.address}
+                        </p>
+                        <p className="text-[11px]">
+                          {[order.vendor.city, (order.vendor as any).state, (order.vendor as any).pincode ? `- ${(order.vendor as any).pincode}` : ""]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="italic text-[11px]">Local verified merchant</p>
+                    )}
+                    {order.vendor?.latitude && order.vendor?.longitude && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${order.vendor.latitude},${order.vendor.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 font-semibold pt-0.5"
+                      >
+                        <ExternalLink className="h-3 w-3" /> View Store on Map
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Assigned Delivery Partner Card (if any) */}
+              {order.delivery_partner && (
+                <div className="rounded-2xl bg-emerald-50/60 border border-emerald-200/70 p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-2xl bg-emerald-600 text-white grid place-items-center shrink-0 shadow-sm">
+                      <Bike className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                        Assigned Delivery Partner
+                      </div>
+                      <div className="font-bold text-foreground text-sm">
+                        {order.delivery_partner.user?.name || order.delivery_partner.name || "Delivery Partner"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {order.delivery_partner.vehicle_type ? `${order.delivery_partner.vehicle_type}` : "Delivery Vehicle"}{" "}
+                        {order.delivery_partner.vehicle_number ? `(${order.delivery_partner.vehicle_number})` : ""}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(order.delivery_partner.user?.phone || order.delivery_partner.phone) && (
                     <a
-                      href={`tel:${order.vendor.phone}`}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-1.5"
+                      href={`tel:${order.delivery_partner.user?.phone || order.delivery_partner.phone}`}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-600 text-white font-bold text-xs shadow-sm hover:bg-emerald-700 transition-colors shrink-0"
                     >
-                      <Phone className="h-3.5 w-3.5" /> Call Store
+                      <Phone className="h-3.5 w-3.5" /> Call Partner
                     </a>
                   )}
                 </div>
               )}
-
-              {/* Delivery Address */}
-              <div className="flex items-start gap-3 bg-muted/50 p-3.5 rounded-2xl text-xs">
-                <MapPin className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="font-bold text-foreground">Delivery Address</div>
-                  <div className="text-muted-foreground mt-0.5">
-                    {order.address?.full_address ||
-                      [order.address?.address_line1, order.address?.landmark]
-                        .filter(Boolean)
-                        .join(", ")}
-                  </div>
-                </div>
-              </div>
 
               {/* Products List */}
               <div className="space-y-2 pt-2">
