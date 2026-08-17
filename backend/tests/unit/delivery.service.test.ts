@@ -226,7 +226,7 @@ describe("delivery service - delivery completion", () => {
         where: expect.objectContaining({
           id: "order-1",
           delivery_partner_id: null,
-          status: { in: ["PENDING", "CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP"] },
+          status: { in: ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP"] },
         }),
         data: { delivery_partner_id: "p1", eta_minutes: 30 },
       });
@@ -240,6 +240,32 @@ describe("delivery service - delivery completion", () => {
         expect.objectContaining({ order_id: "order-1" })
       );
       expect(result).toEqual(expect.objectContaining({ id: "order-1", status: "CONFIRMED" }));
+    });
+
+    it("rejects acceptance of an order that is still PENDING (not accepted by vendor)", async () => {
+      deliveryRepoMock.findByUserId.mockResolvedValue(makePartner() as any);
+      orderRepoMock.findById.mockResolvedValue(
+        makeOrder({ delivery_partner_id: null, status: "PENDING", payment_method: "COD", payment_status: "PAID" })
+      );
+
+      await expect(deliveryService.acceptDelivery("u1", "order-1", 30, {} as any)).rejects.toMatchObject({
+        statusCode: 400,
+        code: "ORDER_NOT_ACCEPTED_BY_VENDOR",
+      });
+      expect(mockTx.order.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("rejects acceptance of a Self Pickup or Shop Delivery order", async () => {
+      deliveryRepoMock.findByUserId.mockResolvedValue(makePartner() as any);
+      orderRepoMock.findById.mockResolvedValue(
+        makeOrder({ delivery_partner_id: null, status: "CONFIRMED", delivery_note: "Self Pickup", payment_method: "COD", payment_status: "PAID" })
+      );
+
+      await expect(deliveryService.acceptDelivery("u1", "order-1", 30, {} as any)).rejects.toMatchObject({
+        statusCode: 400,
+        code: "INVALID_DELIVERY_OPTION",
+      });
+      expect(mockTx.order.updateMany).not.toHaveBeenCalled();
     });
 
     it("accepts only a COD payment in an upfront-unpaid state", async () => {
@@ -481,6 +507,50 @@ describe("delivery service - delivery completion", () => {
       expect(rows[0]!.address).toEqual(
         expect.objectContaining({ street_address: "12 MG Road", city: "Bengaluru" }),
       );
+    });
+
+    it("excludes Self Pickup, Booking, and Shop Delivery orders from delivery requests", async () => {
+      db.order.findMany.mockResolvedValue([
+        {
+          id: "o-partner",
+          order_number: "VM-PARTNER",
+          delivery_fee: new Prisma.Decimal(25),
+          total: new Prisma.Decimal(250),
+          delivery_note: "VegaMart Delivery Partner",
+          created_at: new Date(),
+          vendor: { business_name: "Fresh Veggies", address: "Market", city: "Delhi" },
+          customer: { id: "u1", name: "Rahul", phone: "9876543210" },
+          address: { full_address: "10 Connaught Place", city: "Delhi", state: "DL", pincode: "110001" },
+        },
+        {
+          id: "o-pickup",
+          order_number: "VM-PICKUP",
+          delivery_fee: new Prisma.Decimal(0),
+          total: new Prisma.Decimal(150),
+          delivery_note: "Self Pickup",
+          created_at: new Date(),
+          vendor: { business_name: "Fresh Veggies", address: "Market", city: "Delhi" },
+          customer: { id: "u2", name: "Amit", phone: "9876543211" },
+          address: null,
+        },
+        {
+          id: "o-shop",
+          order_number: "VM-SHOP",
+          delivery_fee: new Prisma.Decimal(20),
+          total: new Prisma.Decimal(300),
+          delivery_note: "Shop direct delivery",
+          created_at: new Date(),
+          vendor: { business_name: "Fresh Veggies", address: "Market", city: "Delhi" },
+          customer: { id: "u3", name: "Suresh", phone: "9876543212" },
+          address: null,
+        },
+      ]);
+
+      const rows = await deliveryService.listDeliveryRequests();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.id).toBe("o-partner");
+      expect(rows[0]!.order_number).toBe("VM-PARTNER");
     });
   });
 });

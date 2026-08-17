@@ -5,6 +5,7 @@ import { VendorStatus } from "@prisma/client";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { membershipPlanService } from "./membership-plan.service";
+import { listVendorEarningsRecent } from "./earning.service";
 import * as vendorRepo from "../repositories/vendor.repository";
 import * as userRepo from "../repositories/user.repository";
 import * as sessionRepo from "../repositories/session.repository";
@@ -177,9 +178,18 @@ export const adminVendorService = {
   },
 
   async earnings(vendorId: string, monthFilter?: string) {
-    const rows = await vendorRepo.getVendorStats(vendorId, monthFilter);
+    const [vendor, rows, transactions] = await Promise.all([
+      prisma.vendorProfile.findUnique({
+        where: { id: vendorId },
+        select: { commission_rate: true, business_name: true },
+      }),
+      vendorRepo.getVendorStats(vendorId, monthFilter),
+      listVendorEarningsRecent(vendorId, 25),
+    ]);
+
     return {
       ...rows,
+      commission_rate: vendor?.commission_rate?.toNumber() ?? 0,
       today_earnings: Math.round(rows.today_earnings.toNumber() * 100) / 100,
       weekly_earnings: Math.round(rows.weekly_earnings.toNumber() * 100) / 100,
       monthly_earnings: Math.round(rows.monthly_earnings.toNumber() * 100) / 100,
@@ -187,7 +197,44 @@ export const adminVendorService = {
       total_payout: Math.round(rows.total_earnings.toNumber() * 100) / 100,
       total_refunds: Math.round(rows.refunded_earnings.toNumber() * 100) / 100,
       pending_payout: Math.round(rows.pending_earnings.toNumber() * 100) / 100,
+      transactions,
     };
+  },
+  async updateCommission(
+    vendorId: string,
+    commissionRate: number,
+    adminId: string,
+    req: Request
+  ) {
+    const vendor = await prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+    });
+    if (!vendor) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Vendor not found.", { code: "NOT_FOUND" });
+    }
+
+    const updated = await prisma.vendorProfile.update({
+      where: { id: vendorId },
+      data: { commission_rate: commissionRate },
+    });
+
+    await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
+
+    await auditService.record(
+      {
+        userId: adminId,
+        action: "VENDOR_COMMISSION_UPDATED",
+        entityType: "vendor",
+        entityId: vendorId,
+        newValues: {
+          commission_rate: updated.commission_rate,
+        },
+      },
+      req
+    );
+
+    return updated;
   },
   async updateMembership(
     vendorId: string,

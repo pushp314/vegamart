@@ -142,12 +142,29 @@ function ProductDetail() {
   const related = (relatedRes?.data || []).filter((p) => p.id !== product.id).slice(0, 4);
   const reviewCount = product.review_count || 0;
 
+  const vendorOffline = vendor?.is_open === false;
+  const isOutOfStock =
+    product.is_available === false ||
+    product.is_active === false ||
+    (typeof product.stock === "number" && product.stock <= 0) ||
+    vendorOffline;
+  const lowStock =
+    !isOutOfStock && typeof product.stock === "number" && product.stock > 0 && product.stock <= 5;
+
   const handleAdd = () => {
+    if (isOutOfStock) {
+      toast.error(vendorOffline ? "Store is currently closed" : "Product is out of stock");
+      return;
+    }
     addToCart({ ...product, price: unitPrice, mrp: unitMrp }, qty, selectedVariant.unit);
     toast.success(`Added ${qty} × ${product.name} (${selectedVariant.unit}) to cart`);
   };
 
   const handleBuyNow = () => {
+    if (isOutOfStock) {
+      toast.error(vendorOffline ? "Store is currently closed" : "Product is out of stock");
+      return;
+    }
     addToCart({ ...product, price: unitPrice, mrp: unitMrp }, qty, selectedVariant.unit);
     navigate({ to: "/checkout" });
   };
@@ -352,21 +369,37 @@ function ProductDetail() {
               </div>
             )}
 
+            {/* Out of stock Alert */}
+            {isOutOfStock && (
+              <div className="mt-4 rounded-2xl bg-rose-50 border border-rose-200 p-3.5 flex items-center gap-2.5 text-rose-700 text-sm font-bold">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                <span>{vendorOffline ? "Store is currently closed · Not accepting orders" : "Sold Out · Currently Out of Stock"}</span>
+              </div>
+            )}
+
+            {lowStock && (
+              <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-2.5 flex items-center gap-2 text-amber-800 text-xs font-bold">
+                <span>⚠️ Limited Stock: Only {product.stock} units left!</span>
+              </div>
+            )}
+
             {/* Qty */}
             <div className="mt-5 flex items-center justify-between">
               <span className="text-[13px] font-semibold">Quantity</span>
               <div className="inline-flex items-center rounded-full bg-emerald-50 text-primary">
                 <button
+                  disabled={isOutOfStock}
                   onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  className="grid h-10 w-10 place-items-center"
+                  className="grid h-10 w-10 place-items-center disabled:opacity-40"
                   aria-label="Decrease"
                 >
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="w-8 text-center font-semibold tabular-nums">{qty}</span>
                 <button
-                  onClick={() => setQty((q) => Math.min(20, q + 1))}
-                  className="grid h-10 w-10 place-items-center"
+                  disabled={isOutOfStock}
+                  onClick={() => setQty((q) => Math.min(typeof product.stock === "number" && product.stock > 0 ? product.stock : 20, q + 1))}
+                  className="grid h-10 w-10 place-items-center disabled:opacity-40"
                   aria-label="Increase"
                 >
                   <Plus className="h-4 w-4" />
@@ -401,16 +434,18 @@ function ProductDetail() {
                 {wishlisted ? "Saved" : "Save"}
               </button>
               <button
+                disabled={isOutOfStock}
                 onClick={handleAdd}
-                className="inline-flex items-center gap-2 rounded-full border bg-card hover:bg-muted text-foreground text-sm font-bold h-12 px-6 transition-all"
+                className="inline-flex items-center gap-2 rounded-full border bg-card hover:bg-muted text-foreground text-sm font-bold h-12 px-6 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Plus className="h-4 w-4" /> Add to cart
+                <Plus className="h-4 w-4" /> {isOutOfStock ? "Out of Stock" : "Add to cart"}
               </button>
               <button
+                disabled={isOutOfStock}
                 onClick={handleBuyNow}
-                className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-sm font-bold h-12 px-7 shadow-md hover:bg-primary/90 transition-all"
+                className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-sm font-bold h-12 px-7 shadow-md hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Buy now <ArrowRight className="h-4 w-4" />
+                {isOutOfStock ? "Sold Out" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
               </button>
             </div>
           </section>
@@ -528,16 +563,18 @@ function ProductDetail() {
               </div>
             </div>
             <button
+              disabled={isOutOfStock}
               onClick={handleAdd}
-              className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary font-semibold text-[13px] h-11 px-4"
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary font-semibold text-[13px] h-11 px-4 disabled:opacity-50"
             >
-              Add
+              {isOutOfStock ? "Out of Stock" : "Add"}
             </button>
             <button
+              disabled={isOutOfStock}
               onClick={handleBuyNow}
-              className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground font-semibold text-[13px] h-11 px-4"
+              className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground font-semibold text-[13px] h-11 px-4 disabled:opacity-50"
             >
-              Buy now <ArrowRight className="h-4 w-4" />
+              {isOutOfStock ? "Sold Out" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
         </div>

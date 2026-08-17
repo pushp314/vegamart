@@ -22,6 +22,10 @@ import {
   Smartphone,
   CreditCard,
   IndianRupee,
+  Phone,
+  Info,
+  Receipt,
+  ChevronRight,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -87,18 +91,33 @@ function paymentStatusBadge(status: string): { label: string; cls: string } {
   }
 }
 
+function isVegaMartDelivery(deliveryOption?: string | null): boolean {
+  if (!deliveryOption) return true;
+  const raw = deliveryOption.trim().toLowerCase();
+  return (
+    !raw.includes("self") &&
+    !raw.includes("pickup") &&
+    !raw.includes("takeaway") &&
+    !raw.includes("booking") &&
+    !raw.includes("shop") &&
+    !raw.includes("vendor comes") &&
+    !raw.includes("comes to me") &&
+    !raw.includes("street cart")
+  );
+}
+
 function deliveryOptionBadge(o: any): { label: string; icon: any; cls: string } {
-  const opt = String(o.delivery_option || "Delivery partner").toLowerCase();
-  if (opt.includes("self")) {
+  const opt = String(o.delivery_option || o.delivery_note || "Delivery partner").toLowerCase();
+  if (opt.includes("self") || opt.includes("pickup") || opt.includes("takeaway") || opt.includes("booking")) {
     return {
       label: "Self Pickup",
       icon: User,
-      cls: "bg-slate-100 text-slate-700 border-slate-200",
+      cls: "bg-purple-50 text-purple-700 border-purple-200",
     };
   }
-  if (opt.includes("vendor")) {
+  if (opt.includes("vendor") || opt.includes("comes")) {
     return {
-      label: "Vendor Delivery",
+      label: "Vendor Comes to Me",
       icon: Store,
       cls: "bg-orange-50 text-orange-700 border-orange-200",
     };
@@ -107,7 +126,7 @@ function deliveryOptionBadge(o: any): { label: string; icon: any; cls: string } 
     return { label: "Shop Delivery", icon: Store, cls: "bg-teal-50 text-teal-700 border-teal-200" };
   }
   return {
-    label: "Delivery Partner",
+    label: "VegaMart Delivery",
     icon: Bike,
     cls: "bg-emerald-50 text-emerald-700 border-emerald-200",
   };
@@ -176,6 +195,10 @@ function DeliveryDashboard() {
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapData, setMapData] = useState<any>(null);
 
+  // Full Order Details Modal
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [detailsOrder, setDetailsOrder] = useState<any | null>(null);
+
   // Fetch Delivery Profile
   const { data: profileRes, isLoading: partnerLoading } = useQuery({
     queryKey: ["deliveryProfile"],
@@ -210,7 +233,10 @@ function DeliveryDashboard() {
 
   const deliveryStats = statsRes?.data?.data ?? statsRes?.data ?? {};
 
-  const requests = requestsRes?.data || [];
+  const rawRequests = requestsRes?.data || [];
+  const requests = rawRequests.filter(
+    (r: any) => isVegaMartDelivery(r.delivery_option || r.delivery_note)
+  );
   const myDeliveries = myDeliveriesRes?.data || [];
 
   const completedOrders = myDeliveries.filter((o: any) => o.status === "delivered");
@@ -477,9 +503,9 @@ function DeliveryDashboard() {
                 <div className="h-20 w-20 rounded-full bg-emerald-50 flex items-center justify-center mb-6 relative z-10 border border-emerald-200">
                   <Radio className="h-8 w-8 text-emerald-600" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 relative z-10">Scanning for Orders</h3>
+                <h3 className="text-xl font-bold mb-2 relative z-10">Scanning for Delivery Orders</h3>
                 <p className="text-muted-foreground text-sm max-w-xs relative z-10">
-                  Stay in your zone. New orders will appear here instantly.
+                  Waiting for vendors to accept orders. Once a vendor confirms an order for VegaMart Delivery, it will appear here for pickup.
                 </p>
               </div>
             ) : (
@@ -570,21 +596,34 @@ function DeliveryDashboard() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          setAcceptingOrderId(r.id);
-                          setEtaValue("15");
-                          setEtaModalOpen(true);
-                        }}
-                        disabled={acceptMutation.isPending}
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
-                      >
-                        {acceptMutation.isPending && acceptingOrderId === r.id ? (
-                          <Loader2 className="h-6 w-6 animate-spin" />
-                        ) : (
-                          "Accept Delivery"
-                        )}
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDetailsOrder(r);
+                            setDetailsModalOpen(true);
+                          }}
+                          className="w-full py-3 rounded-2xl bg-muted/80 hover:bg-muted text-foreground font-bold text-sm flex items-center justify-center gap-2 border border-border transition-colors"
+                        >
+                          <Info className="h-4 w-4 text-emerald-600" /> View Order Details ({r.items?.length || 1} items)
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setAcceptingOrderId(r.id);
+                            setEtaValue("15");
+                            setEtaModalOpen(true);
+                          }}
+                          disabled={acceptMutation.isPending}
+                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
+                        >
+                          {acceptMutation.isPending && acceptingOrderId === r.id ? (
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          ) : (
+                            "Accept Delivery"
+                          )}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -700,6 +739,16 @@ function DeliveryDashboard() {
 
                       <div className="p-3 bg-muted/50 border-t border-border flex flex-col gap-2">
                         <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDetailsOrder(o);
+                              setDetailsModalOpen(true);
+                            }}
+                            className="flex-1 py-3 rounded-xl bg-card border border-border text-foreground hover:bg-muted font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Info className="h-4 w-4 text-emerald-600" /> Order Details
+                          </button>
                           <button
                             onClick={() => {
                               // Vendor Location
@@ -1028,6 +1077,183 @@ function DeliveryDashboard() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* FULL ORDER DETAILS MODAL FOR DELIVERY PARTNERS */}
+      <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl p-0 border border-border bg-card">
+          {detailsOrder && (
+            <div className="space-y-5 p-6">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-border pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-display font-black text-xl">
+                      Order #{detailsOrder.order_number || detailsOrder.id.substring(0, 8)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {detailsOrder.created_at
+                      ? new Date(detailsOrder.created_at).toLocaleString("en-IN", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : "Recent order"}
+                  </div>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black uppercase tracking-wider">
+                  {String(detailsOrder.status || "CONFIRMED").replace(/_/g, " ")}
+                </div>
+              </div>
+
+              {/* Vendor Pickup Details */}
+              <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
+                    <Store className="h-4 w-4" /> 1. Pickup From Store
+                  </div>
+                  {detailsOrder.vendor?.phone && (
+                    <a
+                      href={`tel:${detailsOrder.vendor.phone}`}
+                      className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full shadow-sm hover:bg-emerald-500 transition-colors"
+                    >
+                      <Phone className="h-3 w-3" /> Call Store
+                    </a>
+                  )}
+                </div>
+                <div>
+                  <div className="font-bold text-base text-foreground">
+                    {detailsOrder.vendor?.business_name || "Merchant Store"}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {detailsOrder.vendor?.address || "Store Address"}
+                    {detailsOrder.vendor?.city ? `, ${detailsOrder.vendor.city}` : ""}
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Dropoff Details */}
+              <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-rose-600">
+                    <MapPin className="h-4 w-4" /> 2. Dropoff To Customer
+                  </div>
+                  {(detailsOrder.user?.phone || detailsOrder.address?.phone) && (
+                    <a
+                      href={`tel:${detailsOrder.user?.phone || detailsOrder.address?.phone}`}
+                      className="inline-flex items-center gap-1 text-xs font-bold bg-rose-600 text-white px-3 py-1 rounded-full shadow-sm hover:bg-rose-500 transition-colors"
+                    >
+                      <Phone className="h-3 w-3" /> Call Customer
+                    </a>
+                  )}
+                </div>
+                <div>
+                  <div className="font-bold text-base text-foreground">
+                    {detailsOrder.user?.name || "Customer"}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {detailsOrder.address?.street_address || detailsOrder.address?.full_address || "Customer Address"}
+                  </div>
+                  {(detailsOrder.user?.phone || detailsOrder.address?.phone) && (
+                    <div className="text-xs font-medium text-foreground mt-1">
+                      📱 Phone: {detailsOrder.user?.phone || detailsOrder.address?.phone}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Package className="h-4 w-4 text-primary" /> Items to Deliver ({detailsOrder.items?.length || 0})
+                  </h4>
+                </div>
+                <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden">
+                  {(detailsOrder.items || []).map((item: any, idx: number) => (
+                    <div key={item.id || idx} className="p-3.5 flex items-center gap-3">
+                      {item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt={item.product_name}
+                          className="h-12 w-12 rounded-xl object-cover border border-border bg-muted shrink-0"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                          <Package className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate text-foreground">
+                          {item.product_name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Qty: <span className="font-semibold text-foreground">{item.quantity}</span>
+                          {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
+                          {item.unit_price ? ` · ₹${item.unit_price} each` : ""}
+                        </div>
+                      </div>
+                      <div className="text-right font-bold text-sm text-foreground shrink-0">
+                        ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Billing Breakdown */}
+              <div className="rounded-2xl border border-border bg-card p-4 space-y-2 text-xs">
+                <div className="flex justify-between text-muted-foreground font-medium">
+                  <span>Items Subtotal</span>
+                  <span>₹{detailsOrder.subtotal || Math.max(0, detailsOrder.total_amount - (detailsOrder.delivery_fee || 0))}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>Your Delivery Earning</span>
+                  <span>+₹{detailsOrder.delivery_fee}</span>
+                </div>
+                {detailsOrder.discount > 0 && (
+                  <div className="flex justify-between text-primary font-medium">
+                    <span>Discount</span>
+                    <span>-₹{detailsOrder.discount}</span>
+                  </div>
+                )}
+                {detailsOrder.tax > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Taxes</span>
+                    <span>₹{detailsOrder.tax}</span>
+                  </div>
+                )}
+                <div className="border-t border-border pt-2 flex justify-between font-black text-sm text-foreground">
+                  <span>Total Order Amount</span>
+                  <span>₹{detailsOrder.total_amount}</span>
+                </div>
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="font-bold text-[11px] text-muted-foreground">Payment Mode:</span>
+                  <span
+                    className={`inline-flex items-center gap-1 font-extrabold px-2.5 py-0.5 rounded-full text-xs ${
+                      String(detailsOrder.payment_method || "").toUpperCase() === "COD"
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    }`}
+                  >
+                    {String(detailsOrder.payment_method || "").toUpperCase() === "COD"
+                      ? `💵 Collect Cash: ₹${detailsOrder.total_amount}`
+                      : "✅ Paid Online (Do Not Collect Cash)"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <Button
+                variant="outline"
+                className="w-full h-12 rounded-2xl font-bold"
+                onClick={() => setDetailsModalOpen(false)}
+              >
+                Close Order Details
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

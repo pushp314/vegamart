@@ -28,6 +28,8 @@ import { analyticsService } from "./analytics.service";
 import { cartFromItems } from "../utils/cart";
 import type { CheckoutPreviewBody, CreateOrderFromCartBody, PlaceOrderBody } from "../validators/checkout.validators";
 
+import { normalizeDeliveryConfigs, type VendorDeliveryConfigs } from "./vendor.service";
+
 interface VendorGroup {
   vendor_id: string;
   items: cartRepo.CartRow["items"];
@@ -53,11 +55,27 @@ function groupByVendor(cart: cartRepo.CartRow): VendorGroup[] {
   return [...groups.values()];
 }
 
-/** Case-insensitive check for self-pickup delivery slot. */
+/** Case-insensitive check for self-pickup or booking delivery slot. */
 function isSelfPickupSlot(deliverySlot?: string | null): boolean {
   if (!deliverySlot) return false;
-  const normalized = deliverySlot.toLowerCase().replace(/[\s_-]+/g, "");
-  return normalized === "selfpickup";
+  const normalized = deliverySlot.toLowerCase();
+  return (
+    normalized.includes("self") ||
+    normalized.includes("pickup") ||
+    normalized.includes("takeaway") ||
+    normalized.includes("book")
+  );
+}
+
+function isAdvanceRequiredSlot(deliverySlot?: string | null): boolean {
+  if (!deliverySlot) return false;
+  const normalized = deliverySlot.toLowerCase();
+  return (
+    normalized.includes("self") ||
+    normalized.includes("pickup") ||
+    normalized.includes("takeaway") ||
+    normalized.includes("book")
+  );
 }
 
 function computeDeliveryFee(
@@ -74,6 +92,29 @@ function computeDeliveryFee(
     return 0;
   }
   return fee;
+}
+
+function computeOptionDeliveryFee(
+  slot: string | undefined,
+  subtotal: number,
+  deliveryConfigs: VendorDeliveryConfigs,
+  globalFreeDeliveryThreshold: number,
+  globalDeliveryFee: number,
+  vendorFreeDeliveryMinOrder: number | null
+): number {
+  if (!slot) {
+    const shopFee = deliveryConfigs.shop_delivery.delivery_fee > 0 ? deliveryConfigs.shop_delivery.delivery_fee : globalDeliveryFee;
+    return computeDeliveryFee(subtotal, globalFreeDeliveryThreshold, globalDeliveryFee, vendorFreeDeliveryMinOrder, shopFee);
+  }
+  const raw = slot.toLowerCase();
+  if (raw.includes("self") || raw.includes("pickup") || raw.includes("takeaway") || raw.includes("book")) {
+    return 0;
+  }
+  if (raw.includes("shop")) {
+    return deliveryConfigs.shop_delivery.delivery_fee;
+  }
+  // VegaMart Delivery Partner
+  return computeDeliveryFee(subtotal, globalFreeDeliveryThreshold, globalDeliveryFee, vendorFreeDeliveryMinOrder, 0);
 }
 
 interface SerializedOrder {
@@ -173,6 +214,10 @@ export interface CheckoutGroup {
   provides_delivery: boolean;
   is_open: boolean;
   advance_payment_percentage?: number;
+  delivery_configs?: VendorDeliveryConfigs;
+  admin_delivery_fee?: number;
+  admin_min_order?: number;
+  admin_free_delivery_threshold?: number;
 }
 
 export interface CheckoutSummary {
@@ -246,16 +291,34 @@ export const checkoutService = {
       const globalMinOrderValue = (settings[SETTING_KEYS.MIN_ORDER_VALUE] as number) || 0;
       const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
 
-      const vendorDeliveryFee = isSelfPickupSlot(input.delivery_slot) ? 0 : computeDeliveryFee(
-        group.subtotal, 
-        globalFreeDeliveryThreshold, 
+      const deliveryConfigs = normalizeDeliveryConfigs((vendor as any).delivery_configs, vendor);
+      const vendorDeliveryFee = computeOptionDeliveryFee(
+        input.delivery_slot,
+        group.subtotal,
+        deliveryConfigs,
+        globalFreeDeliveryThreshold,
         globalDeliveryFee,
-        vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null,
-        vendor.delivery_fee ? vendor.delivery_fee.toNumber() : 0
+        vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null
       );
-      const effectiveMinOrder = vendor.min_order && vendor.min_order.toNumber() > 0
-        ? vendor.min_order.toNumber()
-        : globalMinOrderValue;
+
+      let effectiveMinOrder = 0;
+      const slotRaw = (input.delivery_slot || "").toLowerCase();
+      if (slotRaw.includes("book")) {
+        effectiveMinOrder = deliveryConfigs.booking.min_order;
+      } else if (slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway")) {
+        effectiveMinOrder = deliveryConfigs.self_pickup.min_order;
+      } else if (slotRaw.includes("shop")) {
+        effectiveMinOrder = deliveryConfigs.shop_delivery.min_order;
+      } else {
+        effectiveMinOrder = (deliveryConfigs.delivery_partner.min_order !== undefined && deliveryConfigs.delivery_partner.min_order > 0)
+          ? deliveryConfigs.delivery_partner.min_order
+          : (vendor.min_order && vendor.min_order.toNumber() > 0 ? vendor.min_order.toNumber() : globalMinOrderValue);
+      }
+
+      const advancePct = slotRaw.includes("book")
+        ? deliveryConfigs.booking.advance_percentage
+        : deliveryConfigs.self_pickup.advance_percentage;
+
       summaryGroups.push({
         vendor_id: group.vendor_id,
         vendor_name: vendor.business_name,
@@ -275,7 +338,11 @@ export const checkoutService = {
         min_order: effectiveMinOrder,
         provides_delivery: vendor.provides_delivery,
         is_open: vendor.is_open,
-        advance_payment_percentage: (vendor as any).advance_payment_percentage?.toNumber() ?? 10,
+        advance_payment_percentage: advancePct,
+        delivery_configs: deliveryConfigs,
+        admin_delivery_fee: globalDeliveryFee,
+        admin_min_order: globalMinOrderValue,
+        admin_free_delivery_threshold: globalFreeDeliveryThreshold,
       });
       itemsSubtotal += group.subtotal;
       deliveryFee += vendorDeliveryFee;
@@ -481,7 +548,7 @@ export const checkoutService = {
               tax: 0,
               total: 0,
               payment_method: paymentMethod,
-              delivery_note: isSelfPickupSlot(input.delivery_slot) ? "Self Pickup" : (input.delivery_slot || undefined),
+              delivery_note: input.delivery_slot || (isAdvanceRequiredSlot(input.delivery_slot) ? "Self Pickup" : "Delivery partner"),
               items: group.items.map((item) => ({
                 product_id: item.product_id,
                 product_name: item.name,

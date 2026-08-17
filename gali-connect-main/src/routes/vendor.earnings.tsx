@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Wallet, Loader2 } from "lucide-react";
+import { Wallet, Loader2, Percent } from "lucide-react";
 
 export const Route = createFileRoute("/vendor/earnings")({
   component: VendorEarningsPage,
@@ -86,9 +86,15 @@ function VendorEarningsPage() {
             </div>
           </div>
 
-          <h3 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground mt-8">
-            Lifetime Summary
-          </h3>
+          <div className="flex items-center justify-between mt-8 mb-4">
+            <h3 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+              Lifetime Summary
+            </h3>
+            <span className="inline-flex items-center gap-1 font-bold text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-3 py-1 rounded-xl">
+              <Percent className="h-3.5 w-3.5 text-amber-600" />
+              Store Commission: {earnings.commission_rate ?? 5}%
+            </span>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-3xl border border-border bg-muted/50 p-5 space-y-2 shadow-2xl">
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -141,6 +147,7 @@ function VendorEarningsPage() {
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold">Order ID</th>
                     <th className="px-6 py-4 font-semibold text-right">Amount</th>
+                    <th className="px-6 py-4 font-semibold text-center">Rate (%)</th>
                     <th className="px-6 py-4 font-semibold text-right">Commission</th>
                     <th className="px-6 py-4 font-semibold text-right">Net Earning</th>
                   </tr>
@@ -157,7 +164,12 @@ function VendorEarningsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         ₹{trx.total_amount}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-rose-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="inline-flex items-center gap-0.5 font-bold px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs">
+                          {trx.commission_rate ?? earnings.commission_rate ?? 5}%
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-rose-500 font-semibold">
                         -₹{trx.commission_amount}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-emerald-600">
@@ -168,7 +180,7 @@ function VendorEarningsPage() {
                   {(!earnings.transactions || earnings.transactions.length === 0) && (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={6}
                         className="px-6 py-12 text-center text-muted-foreground text-xs italic"
                       >
                         No transactions found for the selected period

@@ -33,7 +33,8 @@ export function ProductCard({
 
   const vendorOffline = product.vendor?.is_open === false;
   const outOfStock =
-    !product.is_available ||
+    product.is_available === false ||
+    product.is_active === false ||
     (typeof product.stock === "number" && product.stock <= 0) ||
     vendorOffline;
   const lowStock =
@@ -51,10 +52,6 @@ export function ProductCard({
         search={linkSearch}
         className="absolute inset-0 z-[1] rounded-2xl"
         aria-label={product.name}
-        onClick={(e) => {
-          console.log("Product clicked:", product.id, product.name);
-          console.log("Navigating to:", `/products/${product.id}`);
-        }}
       />
 
       <div className="relative aspect-square overflow-hidden rounded-xl bg-muted">
@@ -63,7 +60,7 @@ export function ProductCard({
           alt={product.name}
           loading="lazy"
           className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 ${
-            outOfStock ? "grayscale-[35%]" : ""
+            outOfStock ? "grayscale-[40%]" : ""
           }`}
         />
         {product.vendor?.is_sponsored && (
@@ -81,8 +78,8 @@ export function ProductCard({
           </div>
         )}
         {outOfStock && (
-          <div className="absolute inset-x-0 bottom-0 z-[3] bg-black/60 px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
-            {vendorOffline ? "Store Closed" : "Out of Stock"}
+          <div className="absolute inset-x-0 bottom-0 z-[3] bg-rose-950/80 px-2 py-1 text-center text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-xs">
+            {vendorOffline ? "Store Closed" : "Sold Out"}
           </div>
         )}
         {lowStock && (
@@ -140,19 +137,23 @@ export function ProductCard({
             )}
           </div>
           {!hideAddToCart && (
-            <Button
-              size="sm"
-              disabled={outOfStock}
-              className="relative z-[5] h-8 min-w-[70px] rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-2.5 font-bold shadow-sm shrink-0 disabled:opacity-50 disabled:hover:bg-brand flex items-center justify-center gap-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                addToCart(product, 1);
-                toast.success(`Added ${product.name} to cart`);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" /> <span className="text-[11px] uppercase tracking-wider">Add</span>
-            </Button>
+            outOfStock ? (
+              <span className="relative z-[5] text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg shrink-0">
+                {vendorOffline ? "Closed" : "Out of stock"}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                className="relative z-[5] h-8 min-w-[70px] rounded-lg bg-brand hover:bg-brand/90 text-primary-foreground px-2.5 font-bold shadow-sm shrink-0 flex items-center justify-center gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  addToCart(product, 1);
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" /> <span className="text-[11px] uppercase tracking-wider">Add</span>
+              </Button>
+            )
           )}
         </div>
       </div>

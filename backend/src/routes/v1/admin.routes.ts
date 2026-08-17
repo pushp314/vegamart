@@ -32,6 +32,7 @@ import {
   suspendVendorAdmin,
   updateAdminCredentials,
   updateOrderStatus,
+  updateVendorCommission,
   updateVendorMembership,
   updateVendorPromotion,
   listSupportTickets,
@@ -129,6 +130,7 @@ import {
   userIdParamsSchema,
   vendorDecisionSchema,
   vendorIdParamsSchema,
+  updateVendorCommissionSchema,
   updateVendorMembershipSchema,
   updateVendorPromotionSchema,
   ticketIdParamsSchema,
@@ -173,6 +175,7 @@ router.get("/vendors/:vendor_id", validate({ params: vendorIdParamsSchema }), ge
 router.post("/vendors/:vendor_id/review", validate({ params: vendorIdParamsSchema, body: vendorDecisionSchema }), reviewVendorAdmin);
 router.post("/vendors/:vendor_id/suspend", validate({ params: vendorIdParamsSchema, body: suspendVendorSchema }), suspendVendorAdmin);
 router.post("/vendors/:vendor_id/restore", validate({ params: vendorIdParamsSchema }), restoreVendorAdmin);
+router.patch("/vendors/:vendor_id/commission", validate({ params: vendorIdParamsSchema, body: updateVendorCommissionSchema }), updateVendorCommission);
 router.patch("/vendors/:vendor_id/membership", validate({ params: vendorIdParamsSchema, body: updateVendorMembershipSchema }), updateVendorMembership);
 router.patch("/vendors/:vendor_id/promote", validate({ params: vendorIdParamsSchema, body: updateVendorPromotionSchema }), updateVendorPromotion);
 router.delete("/vendors/:vendor_id", validate({ params: vendorIdParamsSchema }), deleteVendorAdmin);

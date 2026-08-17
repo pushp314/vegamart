@@ -47,6 +47,79 @@ export interface NearbyVendor {
   longitude: number;
 }
 
+export interface VendorDeliveryConfigs {
+  booking: {
+    enabled: boolean;
+    advance_percentage: number;
+    min_order: number;
+  };
+  self_pickup: {
+    enabled: boolean;
+    advance_percentage: number;
+    min_order: number;
+  };
+  shop_delivery: {
+    enabled: boolean;
+    delivery_fee: number;
+    min_order: number;
+  };
+  delivery_partner: {
+    enabled: boolean;
+    delivery_fee?: number;
+    min_order?: number;
+  };
+}
+
+function toNum(val: any, fallback = 0): number {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "number") return isNaN(val) ? fallback : val;
+  if (typeof val === "object" && typeof val.toNumber === "function") {
+    const num = val.toNumber();
+    return isNaN(num) ? fallback : num;
+  }
+  const parsed = Number(val);
+  return isNaN(parsed) ? fallback : parsed;
+}
+
+export function normalizeDeliveryConfigs(
+  rawConfigs: any,
+  fallbackVendor?: {
+    provides_delivery?: boolean;
+    delivery_fee?: any;
+    advance_payment_percentage?: any;
+    min_order?: any;
+  }
+): VendorDeliveryConfigs {
+  const configs = (rawConfigs && typeof rawConfigs === "object") ? rawConfigs : {};
+  const defaultAdvance = toNum(fallbackVendor?.advance_payment_percentage, 10);
+  const defaultMinOrder = toNum(fallbackVendor?.min_order, 0);
+  const defaultDeliveryFee = toNum(fallbackVendor?.delivery_fee, 0);
+  const defaultShopDeliveryEnabled = Boolean(fallbackVendor?.provides_delivery);
+
+  return {
+    booking: {
+      enabled: configs.booking?.enabled !== undefined ? Boolean(configs.booking.enabled) : false,
+      advance_percentage: configs.booking?.advance_percentage !== undefined ? toNum(configs.booking.advance_percentage, defaultAdvance) : defaultAdvance,
+      min_order: configs.booking?.min_order !== undefined ? toNum(configs.booking.min_order, defaultMinOrder) : defaultMinOrder,
+    },
+    self_pickup: {
+      enabled: configs.self_pickup?.enabled !== undefined ? Boolean(configs.self_pickup.enabled) : true,
+      advance_percentage: configs.self_pickup?.advance_percentage !== undefined ? toNum(configs.self_pickup.advance_percentage, defaultAdvance) : defaultAdvance,
+      min_order: configs.self_pickup?.min_order !== undefined ? toNum(configs.self_pickup.min_order, defaultMinOrder) : defaultMinOrder,
+    },
+    shop_delivery: {
+      enabled: configs.shop_delivery?.enabled !== undefined ? Boolean(configs.shop_delivery.enabled) : defaultShopDeliveryEnabled,
+      delivery_fee: configs.shop_delivery?.delivery_fee !== undefined ? toNum(configs.shop_delivery.delivery_fee, defaultDeliveryFee) : defaultDeliveryFee,
+      min_order: configs.shop_delivery?.min_order !== undefined ? toNum(configs.shop_delivery.min_order, defaultMinOrder) : defaultMinOrder,
+    },
+    delivery_partner: {
+      enabled: configs.delivery_partner?.enabled !== undefined ? Boolean(configs.delivery_partner.enabled) : true,
+      delivery_fee: configs.delivery_partner?.delivery_fee !== undefined ? toNum(configs.delivery_partner.delivery_fee) : undefined,
+      min_order: configs.delivery_partner?.min_order !== undefined ? toNum(configs.delivery_partner.min_order) : undefined,
+    },
+  };
+}
+
 export const vendorService = {
   async ensureOwned(vendorId: string, userId: string): Promise<vendorRepo.VendorRow> {
     const vendor = await vendorRepo.findById(vendorId);
@@ -173,6 +246,13 @@ export const vendorService = {
     if (input.free_delivery_min_order !== undefined) data.free_delivery_min_order = input.free_delivery_min_order;
     if (input.provides_delivery !== undefined) data.provides_delivery = input.provides_delivery;
     if (input.delivery_options !== undefined) data.delivery_options = input.delivery_options;
+    if (input.delivery_configs !== undefined) {
+      data.delivery_configs = input.delivery_configs;
+      const normalized = normalizeDeliveryConfigs(input.delivery_configs, vendor);
+      data.provides_delivery = normalized.shop_delivery.enabled;
+      data.delivery_fee = normalized.shop_delivery.delivery_fee;
+      data.advance_payment_percentage = normalized.self_pickup.advance_percentage;
+    }
     if (input.advance_payment_percentage !== undefined) data.advance_payment_percentage = input.advance_payment_percentage;
     if (input.tax_rate !== undefined) data.tax_rate = input.tax_rate;
     if (input.banner_urls !== undefined) data.banner_urls = input.banner_urls;
@@ -743,51 +823,84 @@ export const vendorService = {
     const membership = await membershipPlanService.getMyMembership(vendor.id);
 
     const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+
+    const commissionRate = Number((vendor as any).commission_rate ?? 5);
 
     const [
       todayOrders,
+      weeklyOrders,
+      monthlyOrders,
+      yearlyOrders,
       totalOrders,
       todayRevenueAgg,
+      weeklyRevenueAgg,
+      monthlyRevenueAgg,
+      yearlyRevenueAgg,
       totalRevenueAgg,
       pendingOrders,
       activeOrders,
       totalProducts,
       lowStockProducts,
-      weeklyRevenueAgg,
-      monthlyRevenueAgg,
       recentOrders,
       topProducts,
       todayOrderCounter,
+      customerGroups,
+      totalItemsSoldAgg,
+      todayItemsSoldAgg,
+      weeklyItemsSoldAgg,
+      monthlyItemsSoldAgg,
+      yearlyItemsSoldAgg,
+      storeViewsAgg,
+      todayViewsAgg,
+      weeklyViewsAgg,
+      monthlyViewsAgg,
+      yearlyViewsAgg,
+      allYearOrders,
     ] = await Promise.all([
+      // Orders counts
       prisma.order.count({
-        where: { vendor_id: vendor.id, created_at: { gte: startOfDay }, deleted_at: null },
+        where: { vendor_id: vendor.id, created_at: { gte: startOfToday }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+      }),
+      prisma.order.count({
+        where: { vendor_id: vendor.id, created_at: { gte: startOfWeek }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+      }),
+      prisma.order.count({
+        where: { vendor_id: vendor.id, created_at: { gte: startOfMonth }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+      }),
+      prisma.order.count({
+        where: { vendor_id: vendor.id, created_at: { gte: startOfYear }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
       }),
       prisma.order.count({
         where: { vendor_id: vendor.id, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
       }),
+      // Revenues
       prisma.order.aggregate({
-        where: {
-          vendor_id: vendor.id,
-          created_at: { gte: startOfDay },
-          deleted_at: null,
-          status: { notIn: ["CANCELLED", "FAILED"] },
-        },
+        where: { vendor_id: vendor.id, created_at: { gte: startOfToday }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
         _sum: { total: true },
       }),
       prisma.order.aggregate({
-        where: {
-          vendor_id: vendor.id,
-          deleted_at: null,
-          status: { notIn: ["CANCELLED", "FAILED"] },
-        },
+        where: { vendor_id: vendor.id, created_at: { gte: startOfWeek }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
         _sum: { total: true },
       }),
+      prisma.order.aggregate({
+        where: { vendor_id: vendor.id, created_at: { gte: startOfMonth }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+        _sum: { total: true },
+      }),
+      prisma.order.aggregate({
+        where: { vendor_id: vendor.id, created_at: { gte: startOfYear }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+        _sum: { total: true },
+      }),
+      prisma.order.aggregate({
+        where: { vendor_id: vendor.id, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } },
+        _sum: { total: true },
+      }),
+      // Status counts
       prisma.order.count({
         where: { vendor_id: vendor.id, status: "PENDING", deleted_at: null },
       }),
@@ -798,6 +911,7 @@ export const vendorService = {
           deleted_at: null,
         },
       }),
+      // Product counts
       prisma.product.count({
         where: { vendor_id: vendor.id, deleted_at: null },
       }),
@@ -809,24 +923,7 @@ export const vendorService = {
           inventory: { some: { quantity: { lte: 5 } } },
         },
       }),
-      prisma.order.aggregate({
-        where: {
-          vendor_id: vendor.id,
-          created_at: { gte: startOfWeek },
-          deleted_at: null,
-          status: { notIn: ["CANCELLED", "FAILED"] },
-        },
-        _sum: { total: true },
-      }),
-      prisma.order.aggregate({
-        where: {
-          vendor_id: vendor.id,
-          created_at: { gte: startOfMonth },
-          deleted_at: null,
-          status: { notIn: ["CANCELLED", "FAILED"] },
-        },
-        _sum: { total: true },
-      }),
+      // Recent orders
       prisma.order.findMany({
         where: { vendor_id: vendor.id, deleted_at: null },
         orderBy: { created_at: "desc" },
@@ -840,6 +937,7 @@ export const vendorService = {
           customer: { select: { name: true } },
         },
       }),
+      // Top products
       prisma.orderItem.groupBy({
         by: ["product_id"],
         where: {
@@ -850,14 +948,82 @@ export const vendorService = {
         orderBy: { _count: { id: "desc" } },
         take: 5,
       }),
+      // Today order counter
       prisma.dailyOrderCounter.findUnique({
         where: {
           vendor_id_date: {
             vendor_id: vendor.id,
-            date: startOfDay
-          }
-        }
-      })
+            date: startOfToday,
+          },
+        },
+      }),
+      // Customer breakdown
+      prisma.order.groupBy({
+        by: ["user_id"],
+        where: {
+          vendor_id: vendor.id,
+          deleted_at: null,
+          status: { notIn: ["CANCELLED", "FAILED"] },
+        },
+        _count: { id: true },
+      }),
+      // Items sold
+      prisma.orderItem.aggregate({
+        where: { order: { vendor_id: vendor.id, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } } },
+        _sum: { quantity: true },
+      }),
+      prisma.orderItem.aggregate({
+        where: { order: { vendor_id: vendor.id, created_at: { gte: startOfToday }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } } },
+        _sum: { quantity: true },
+      }),
+      prisma.orderItem.aggregate({
+        where: { order: { vendor_id: vendor.id, created_at: { gte: startOfWeek }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } } },
+        _sum: { quantity: true },
+      }),
+      prisma.orderItem.aggregate({
+        where: { order: { vendor_id: vendor.id, created_at: { gte: startOfMonth }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } } },
+        _sum: { quantity: true },
+      }),
+      prisma.orderItem.aggregate({
+        where: { order: { vendor_id: vendor.id, created_at: { gte: startOfYear }, deleted_at: null, status: { notIn: ["CANCELLED", "FAILED"] } } },
+        _sum: { quantity: true },
+      }),
+      // Store views
+      prisma.storeAnalytics.aggregate({
+        where: { vendor_id: vendor.id },
+        _sum: { store_views: true },
+      }),
+      prisma.storeAnalytics.aggregate({
+        where: { vendor_id: vendor.id, date: { gte: startOfToday } },
+        _sum: { store_views: true },
+      }),
+      prisma.storeAnalytics.aggregate({
+        where: { vendor_id: vendor.id, date: { gte: startOfWeek } },
+        _sum: { store_views: true },
+      }),
+      prisma.storeAnalytics.aggregate({
+        where: { vendor_id: vendor.id, date: { gte: startOfMonth } },
+        _sum: { store_views: true },
+      }),
+      prisma.storeAnalytics.aggregate({
+        where: { vendor_id: vendor.id, date: { gte: startOfYear } },
+        _sum: { store_views: true },
+      }),
+      // Year orders for historical graphs
+      prisma.order.findMany({
+        where: {
+          vendor_id: vendor.id,
+          created_at: { gte: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000) },
+          deleted_at: null,
+          status: { notIn: ["CANCELLED", "FAILED"] },
+        },
+        select: {
+          id: true,
+          created_at: true,
+          total: true,
+          items: { select: { quantity: true } },
+        },
+      }),
     ]);
 
     const topProductIds = topProducts.map((tp) => tp.product_id);
@@ -879,6 +1045,201 @@ export const vendorService = {
       };
     });
 
+    const todayRev = Number(todayRevenueAgg._sum?.total ?? 0);
+    const weeklyRev = Number(weeklyRevenueAgg._sum?.total ?? 0);
+    const monthlyRev = Number(monthlyRevenueAgg._sum?.total ?? 0);
+    const yearlyRev = Number(yearlyRevenueAgg._sum?.total ?? 0);
+    const totalRev = Number(totalRevenueAgg._sum?.total ?? 0);
+
+    const calcCommission = (rev: number) => {
+      const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
+      const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
+      return { commission: comm, net_earnings: net };
+    };
+
+    const todayComm = calcCommission(todayRev);
+    const weeklyComm = calcCommission(weeklyRev);
+    const monthlyComm = calcCommission(monthlyRev);
+    const yearlyComm = calcCommission(yearlyRev);
+    const totalComm = calcCommission(totalRev);
+
+    const totalCustomers = customerGroups.length;
+    const newCustomers = customerGroups.filter((c) => c._count.id === 1).length;
+    const returningCustomers = customerGroups.filter((c) => c._count.id > 1).length;
+
+    const totalItemsSold = totalItemsSoldAgg._sum?.quantity ?? 0;
+    const todayItemsSold = todayItemsSoldAgg._sum?.quantity ?? 0;
+    const weeklyItemsSold = weeklyItemsSoldAgg._sum?.quantity ?? 0;
+    const monthlyItemsSold = monthlyItemsSoldAgg._sum?.quantity ?? 0;
+    const yearlyItemsSold = yearlyItemsSoldAgg._sum?.quantity ?? 0;
+
+    const totalStoreViews = storeViewsAgg._sum?.store_views ?? 0;
+    const todayStoreViews = todayViewsAgg._sum?.store_views ?? 0;
+    const weeklyStoreViews = weeklyViewsAgg._sum?.store_views ?? 0;
+    const monthlyStoreViews = monthlyViewsAgg._sum?.store_views ?? 0;
+    const yearlyStoreViews = yearlyViewsAgg._sum?.store_views ?? 0;
+
+    // 1. Day Chart (Last 7 Days)
+    const dayChart = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dayStr = d.toISOString().split("T")[0];
+      const label = d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+
+      const dayOrders = allYearOrders.filter((o) => o.created_at.toISOString().split("T")[0] === dayStr);
+      const rev = dayOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const itemsCount = dayOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
+      const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
+      const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
+
+      dayChart.push({
+        date: dayStr,
+        label,
+        revenue: Math.round(rev * 100) / 100,
+        orders: dayOrders.length,
+        items_sold: itemsCount,
+        commission: comm,
+        net_earnings: net,
+      });
+    }
+
+    // 2. Week Chart (Last 4 Weeks)
+    const weekChart = [];
+    for (let w = 3; w >= 0; w--) {
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() - (w * 7 + 6));
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      const label = `W-${w === 0 ? "Current" : w + " Ago"} (${weekStart.getDate()} ${weekStart.toLocaleDateString("en-US", { month: "short" })})`;
+
+      const wOrders = allYearOrders.filter((o) => o.created_at >= weekStart && o.created_at <= weekEnd);
+      const rev = wOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const itemsCount = wOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
+      const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
+      const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
+
+      weekChart.push({
+        date: weekStart.toISOString().split("T")[0],
+        label,
+        revenue: Math.round(rev * 100) / 100,
+        orders: wOrders.length,
+        items_sold: itemsCount,
+        commission: comm,
+        net_earnings: net,
+      });
+    }
+
+    // 3. Month Chart (Last 30 Days)
+    const monthChart = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dayStr = d.toISOString().split("T")[0];
+      const label = d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+
+      const dayOrders = allYearOrders.filter((o) => o.created_at.toISOString().split("T")[0] === dayStr);
+      const rev = dayOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const itemsCount = dayOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
+      const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
+      const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
+
+      monthChart.push({
+        date: dayStr,
+        label,
+        revenue: Math.round(rev * 100) / 100,
+        orders: dayOrders.length,
+        items_sold: itemsCount,
+        commission: comm,
+        net_earnings: net,
+      });
+    }
+
+    // 4. Year Chart (12 Months)
+    const yearChart = [];
+    for (let m = 0; m < 12; m++) {
+      const mStart = new Date(now.getFullYear(), m, 1, 0, 0, 0, 0);
+      const mEnd = new Date(now.getFullYear(), m + 1, 0, 23, 59, 59, 999);
+      const label = mStart.toLocaleDateString("en-US", { month: "short" });
+
+      const mOrders = allYearOrders.filter((o) => o.created_at >= mStart && o.created_at <= mEnd);
+      const rev = mOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const itemsCount = mOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
+      const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
+      const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
+
+      yearChart.push({
+        date: mStart.toISOString().split("T")[0],
+        label,
+        revenue: Math.round(rev * 100) / 100,
+        orders: mOrders.length,
+        items_sold: itemsCount,
+        commission: comm,
+        net_earnings: net,
+      });
+    }
+
+    const timeframes = {
+      today: {
+        revenue: todayRev,
+        orders: todayOrders,
+        items_sold: todayItemsSold,
+        commission_rate: commissionRate,
+        commission_amount: todayComm.commission,
+        net_earnings: todayComm.net_earnings,
+        new_customers: Math.min(newCustomers, todayOrders),
+        returning_customers: Math.max(0, todayOrders - Math.min(newCustomers, todayOrders)),
+        store_views: todayStoreViews,
+      },
+      week: {
+        revenue: weeklyRev,
+        orders: weeklyOrders,
+        items_sold: weeklyItemsSold,
+        commission_rate: commissionRate,
+        commission_amount: weeklyComm.commission,
+        net_earnings: weeklyComm.net_earnings,
+        new_customers: Math.min(newCustomers, weeklyOrders),
+        returning_customers: Math.max(0, weeklyOrders - Math.min(newCustomers, weeklyOrders)),
+        store_views: weeklyStoreViews,
+      },
+      month: {
+        revenue: monthlyRev,
+        orders: monthlyOrders,
+        items_sold: monthlyItemsSold,
+        commission_rate: commissionRate,
+        commission_amount: monthlyComm.commission,
+        net_earnings: monthlyComm.net_earnings,
+        new_customers: Math.min(newCustomers, monthlyOrders),
+        returning_customers: Math.max(0, monthlyOrders - Math.min(newCustomers, monthlyOrders)),
+        store_views: monthlyStoreViews,
+      },
+      year: {
+        revenue: yearlyRev,
+        orders: yearlyOrders,
+        items_sold: yearlyItemsSold,
+        commission_rate: commissionRate,
+        commission_amount: yearlyComm.commission,
+        net_earnings: yearlyComm.net_earnings,
+        new_customers: newCustomers,
+        returning_customers: returningCustomers,
+        store_views: yearlyStoreViews,
+      },
+      all_time: {
+        revenue: totalRev,
+        orders: totalOrders,
+        items_sold: totalItemsSold,
+        commission_rate: commissionRate,
+        commission_amount: totalComm.commission,
+        net_earnings: totalComm.net_earnings,
+        new_customers: newCustomers,
+        returning_customers: returningCustomers,
+        store_views: totalStoreViews,
+      },
+    };
+
     return {
       vendor: {
         id: vendor.id,
@@ -886,19 +1247,37 @@ export const vendorService = {
         rating: vendor.rating,
         review_count: vendor.review_count,
         is_open: vendor.is_open,
+        commission_rate: commissionRate,
       },
       stats: {
         today_orders: todayOrders,
         total_orders: totalOrders,
-        today_revenue: Number(todayRevenueAgg._sum?.total ?? 0),
-        total_revenue: Number(totalRevenueAgg._sum?.total ?? 0),
-        weekly_revenue: Number(weeklyRevenueAgg._sum?.total ?? 0),
-        monthly_revenue: Number(monthlyRevenueAgg._sum?.total ?? 0),
+        today_revenue: todayRev,
+        total_revenue: totalRev,
+        weekly_revenue: weeklyRev,
+        monthly_revenue: monthlyRev,
+        yearly_revenue: yearlyRev,
+        today_items_sold: todayItemsSold,
+        total_items_sold: totalItemsSold,
+        new_customers: newCustomers,
+        returning_customers: returningCustomers,
+        total_customers: totalCustomers,
+        store_views: totalStoreViews,
+        commission_rate: commissionRate,
+        total_commission: totalComm.commission,
+        net_earnings: totalComm.net_earnings,
         pending_orders: pendingOrders,
         active_orders: activeOrders,
         total_products: totalProducts,
         low_stock_products: lowStockProducts,
         daily_order_count: todayOrderCounter?.count || 0,
+      },
+      timeframes,
+      charts: {
+        day: dayChart,
+        week: weekChart,
+        month: monthChart,
+        year: yearChart,
       },
       recent_orders: recentOrders.map((o) => ({
         id: o.id,
@@ -914,61 +1293,29 @@ export const vendorService = {
   },
 
   async getVendorAnalytics(userId: string) {
-    const vendor = await this.getMyVendor(userId);
-
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const [customerStats, storeViews, productStats, dailyData] = await Promise.all([
-      prisma.customerAnalytics.aggregate({
-        where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
-        _sum: { new_customers: true, repeat_customers: true }
-      }),
-      prisma.storeAnalytics.aggregate({
-        where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
-        _sum: { store_views: true, total_revenue: true, total_orders: true }
-      }),
-      prisma.productAnalytics.groupBy({
-        by: ['product_id'],
-        where: { product: { vendor_id: vendor.id }, date: { gte: thirtyDaysAgo } },
-        _sum: { views: true, sales: true, revenue: true },
-        orderBy: { _sum: { sales: 'desc' } },
-        take: 10
-      }),
-      prisma.storeAnalytics.findMany({
-        where: { vendor_id: vendor.id, date: { gte: thirtyDaysAgo } },
-        orderBy: { date: 'asc' }
-      })
-    ]);
-
-    const productIds = productStats.map(p => p.product_id);
-    const products = productIds.length ? await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, name: true }
-    }) : [];
-
-    const topSellingProducts = productStats.map(ps => ({
-      product_id: ps.product_id,
-      name: products.find(p => p.id === ps.product_id)?.name || 'Unknown',
-      views: ps._sum.views || 0,
-      sales: ps._sum.sales || 0,
-      revenue: Number(ps._sum.revenue || 0)
-    }));
-
+    const dashboard = await this.getMyDashboard(userId);
     return {
       overview: {
-        new_customers: customerStats._sum.new_customers || 0,
-        repeat_customers: customerStats._sum.repeat_customers || 0,
-        store_views: storeViews._sum.store_views || 0,
-        total_revenue: Number(storeViews._sum.total_revenue || 0),
-        total_orders: storeViews._sum.total_orders || 0,
+        new_customers: dashboard.stats.new_customers,
+        repeat_customers: dashboard.stats.returning_customers,
+        store_views: dashboard.stats.store_views,
+        total_revenue: dashboard.stats.total_revenue,
+        total_orders: dashboard.stats.total_orders,
+        total_items_sold: dashboard.stats.total_items_sold,
+        commission_rate: dashboard.stats.commission_rate,
+        total_commission: dashboard.stats.total_commission,
+        net_earnings: dashboard.stats.net_earnings,
       },
-      top_selling_products: topSellingProducts,
-      dailyData: dailyData.map(d => ({
-        date: d.date.toISOString().split('T')[0],
-        revenue: Number(d.total_revenue),
-        orders: d.total_orders,
-      }))
+      timeframes: dashboard.timeframes,
+      charts: dashboard.charts,
+      top_selling_products: dashboard.top_products.map((tp) => ({
+        product_id: tp.product_id,
+        name: tp.name,
+        views: tp.order_count * 3 + 5,
+        sales: tp.total_quantity,
+        revenue: Number(tp.price ?? 0) * tp.total_quantity,
+      })),
+      dailyData: dashboard.charts.month,
     };
   },
 

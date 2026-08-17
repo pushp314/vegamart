@@ -330,7 +330,7 @@ function SearchBar() {
   return (
     <div>
       <Link
-        to="/products"
+        to="/search"
         className="flex items-center gap-3 rounded-full bg-card border h-12 px-4 shadow-sm hover:border-primary/40 transition-colors"
       >
         <Search className="h-4 w-4 text-muted-foreground" />
@@ -587,7 +587,7 @@ function Hero() {
 
             return (
               <CarouselItem key={slide.id}>
-                <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-800 text-white h-[260px] md:h-[320px] p-6 md:p-10 shadow-lg flex flex-col justify-center">
+                <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-950 text-white min-h-[170px] sm:min-h-[220px] md:min-h-[280px] aspect-[16/7] sm:aspect-[21/8] md:aspect-[24/8] shadow-lg flex flex-col justify-center">
                   {isBehindHeroVideo && activeVideoAd ? (
                     <>
                       <video
@@ -607,18 +607,26 @@ function Hero() {
                   ) : (
                     <>
                       {slide.image_url ? (
-                        <>
+                        <div className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center">
+                          {/* Ambient background blur to blend banner edges */}
+                          <img
+                            src={slide.image_url}
+                            alt=""
+                            aria-hidden="true"
+                            className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35 pointer-events-none"
+                          />
+                          {/* Main banner image - fully visible with zero cut-off */}
                           <img
                             src={slide.image_url}
                             alt={slide.title || "Vegamart banner"}
-                            className={`absolute inset-0 w-full h-full object-cover z-0 ${
+                            className={`relative w-full h-full object-contain md:object-cover z-0 ${
                               hasText ? "opacity-65 md:opacity-75" : "opacity-100"
                             }`}
                           />
                           {hasText && (
                             <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/85 via-black/40 to-transparent z-0 pointer-events-none" />
                           )}
-                        </>
+                        </div>
                       ) : (
                         <div
                           className="absolute inset-0 opacity-40 mix-blend-overlay z-0"
@@ -1336,12 +1344,14 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
       {isLoading ? (
         <div className="mt-5">Loading shops...</div>
       ) : (
-        <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar pb-1 md:pb-0 snap-x snap-mandatory">
+        <div className="mt-4 md:mt-6 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-visible no-scrollbar pb-2 md:pb-0 snap-x snap-mandatory">
           {list.map((v) => {
-            const imageUrl =
-              v.logo_url ||
+            const coverUrl =
               v.banner_url ||
+              (Array.isArray(v.banner_urls) && v.banner_urls[0]) ||
+              v.logo_url ||
               "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
+            const logoUrl = v.logo_url || null;
             let tags = ["Local vendor"];
             const rawTags = v.tags;
             if (Array.isArray(rawTags) && rawTags.length > 0) {
@@ -1359,49 +1369,96 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
                   .filter(Boolean);
               }
             }
+            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || "20-30 mins";
 
             return (
               <Link
                 key={v.id}
                 to="/vendors/$vendorId"
                 params={{ vendorId: v.id }}
-                className="snap-start shrink-0 md:shrink w-[78%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
+                className="group snap-start shrink-0 md:shrink w-[84%] sm:w-[320px] md:w-auto rounded-3xl bg-card border overflow-hidden shadow-soft hover:shadow-glow hover:border-primary/50 transition-all duration-300 flex flex-col"
               >
-                <div className="flex gap-3 p-3">
-                  <div className="relative h-20 w-20 md:h-24 md:w-24 shrink-0 overflow-hidden rounded-xl bg-muted">
-                    <img
-                      src={imageUrl}
-                      alt={v.business_name}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1">
-                      <h3 className="font-semibold text-[15px] truncate">{v.business_name}</h3>
-                      {v.is_verified && (
-                        <span className="grid h-4 w-4 place-items-center rounded-full bg-primary text-primary-foreground text-[9px]">
-                          ✓
-                        </span>
+                {/* Large Store Banner Cover */}
+                <div className="relative h-36 sm:h-44 w-full bg-muted overflow-hidden">
+                  <img
+                    src={coverUrl}
+                    alt={v.business_name}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+                  {/* Badges Overlay */}
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                    {v.is_sponsored ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-slate-950 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-md">
+                        <Sparkles className="h-3 w-3 fill-slate-950" /> Featured
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-black/50 backdrop-blur-md text-white px-2.5 py-0.5 text-[10px] font-bold">
+                        <Store className="h-3 w-3 text-emerald-400" /> {v.category || tags[0]}
+                      </span>
+                    )}
+
+                    <span className="inline-flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10.5px] font-bold text-amber-400">
+                      <Star className="h-3 w-3 fill-amber-400" />
+                      {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "4.8"}
+                      {typeof v.review_count === "number" && v.review_count > 0 && (
+                        <span className="text-white/80 font-normal ml-0.5">({v.review_count})</span>
                       )}
-                    </div>
-                    <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
-                    <div className="mt-1.5 flex items-center gap-2 text-[11.5px]">
-                      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
-                        <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-                        {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "New"}
-                        {typeof v.review_count === "number" && v.review_count > 0 && (
-                          <span className="font-semibold text-amber-600 ml-0.5">
-                            ({v.review_count})
+                    </span>
+                  </div>
+
+                  {/* Logo overlay on bottom left */}
+                  <div className="absolute bottom-2.5 left-3 flex items-center gap-2.5">
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={v.business_name}
+                        className="h-11 w-11 rounded-2xl object-cover ring-2 ring-background shadow-md bg-card"
+                      />
+                    ) : (
+                      <div className="h-11 w-11 rounded-2xl bg-emerald-100 text-emerald-700 ring-2 ring-background shadow-md flex items-center justify-center font-black text-sm">
+                        {v.business_name?.substring(0, 1) || "S"}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1">
+                        <h3 className="font-bold text-base text-white truncate drop-shadow-sm">
+                          {v.business_name}
+                        </h3>
+                        {v.is_verified && (
+                          <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-white text-[9px] font-black shrink-0">
+                            ✓
                           </span>
                         )}
-                      </span>
-                      {typeof v.distance_km === "number" && (
-                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                          <MapPin className="h-3 w-3" /> {v.distance_km.toFixed(1)} km
-                        </span>
-                      )}
+                      </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Card Content */}
+                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                      <Clock className="h-3.5 w-3.5" /> {deliveryTime}
+                    </span>
+                    {typeof v.distance_km === "number" ? (
+                      <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                        <MapPin className="h-3.5 w-3.5 text-primary" /> {v.distance_km.toFixed(1)} km away
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">{v.city || "Neighborhood"}</span>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground truncate font-medium">
+                      {v.address || `${v.city || "Local Store"}`}
+                    </span>
+                    <span className="text-primary font-bold inline-flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
+                      Visit Store →
+                    </span>
                   </div>
                 </div>
               </Link>

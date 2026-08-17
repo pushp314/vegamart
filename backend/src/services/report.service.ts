@@ -132,6 +132,8 @@ export const reportService = {
       status: r.status,
       orders: r.orders,
       revenue: Number(r.revenue),
+      commission_rate: Number(r.commission_rate),
+      commission_amount: Number(r.commission_amount),
       avg_order_value: Number(r.avg_order_value),
       products: r.products,
     }));
@@ -149,6 +151,8 @@ export const reportService = {
         { key: "status", header: "Status" },
         { key: "orders", header: "Orders" },
         { key: "revenue", header: "Revenue" },
+        { key: "commission_rate", header: "Commission Rate (%)" },
+        { key: "commission_amount", header: "Commission Amount (₹)" },
         { key: "avg_order_value", header: "Avg Order Value" },
         { key: "products", header: "Products" },
       ];

@@ -489,6 +489,17 @@ export const getVendorEarnings = asyncHandler(async (req: Request, res: Response
   return sendSuccess(res, data);
 });
 
+export const updateVendorCommission = asyncHandler(async (req: Request, res: Response) => {
+  const { commission_rate } = req.body as { commission_rate: number };
+  const data = await adminVendorService.updateCommission(
+    req.params.vendor_id as string,
+    commission_rate,
+    req.user!.id,
+    req
+  );
+  return sendSuccess(res, data);
+});
+
 export const updateVendorMembership = asyncHandler(async (req: Request, res: Response) => {
   const data = await adminVendorService.updateMembership(
     req.params.vendor_id as string,

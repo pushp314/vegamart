@@ -92,7 +92,7 @@ function VendorMembershipIndex() {
 
   const planPrice = Number(plan?.price ?? 0);
   const billingPeriod = plan?.billing_period || "month";
-  const commissionRate = plan?.commission_rate ?? membership?.commission_rate ?? 5;
+  const commissionRate = vendor?.commission_rate ?? membership?.commission_rate ?? 5;
 
   const productLimit = plan?.product_limit ?? 20;
   const isUnlimited = !productLimit || productLimit <= 0;
@@ -276,20 +276,19 @@ function VendorMembershipIndex() {
                 </div>
               </div>
             </div>
-
             {/* Stats band */}
             <CardContent className="p-6 md:p-8 pt-0">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-6 pt-6">
                 <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    <Percent className="h-4 w-4 text-emerald-500" />
+                    <Percent className="h-4 w-4 text-amber-500" />
                     <span className="text-[10px] font-bold uppercase tracking-wider">
-                      Platform Commission
+                      Store Commission
                     </span>
                   </div>
                   <p className="mt-2 font-display text-2xl font-black">{commissionRate}%</p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Keep {100 - Number(commissionRate)}% of every sale
+                    Admin-set rate for this store
                   </p>
                 </div>
 
@@ -308,50 +307,62 @@ function VendorMembershipIndex() {
                       </span>
                     </p>
                   </div>
-                  {!isUnlimited && (
-                    <Progress value={usagePercentage} className="mt-3 h-1.5 bg-blue-500/15" />
-                  )}
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    {isUnlimited
-                      ? "List as many products as you want"
-                      : usagePercentage >= 90
-                        ? "You're close to your listing limit"
-                        : `${productLimit - productCount} listing slots available`}
-                  </p>
+                  <div className="mt-3">
+                    <Progress value={usagePercentage} className="h-1.5" />
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {isUnlimited
+                        ? "Unlimited catalog size"
+                        : `${productLimit - productCount} slots remaining`}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    <Calendar className="h-4 w-4 text-purple-500" />
+                    <Sparkles className="h-4 w-4 text-amber-500" />
                     <span className="text-[10px] font-bold uppercase tracking-wider">
-                      Plan Validity
+                      Search Placement
                     </span>
                   </div>
-                  <p className="mt-2 font-display text-2xl font-black">{expiryLabel}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {membership?.is_expired
-                      ? "Renew to restore benefits"
-                      : isFree
-                        ? "Free tier never expires"
-                        : "Auto-renews on this date"}
-                  </p>
+                  <div className="mt-2">
+                    {plan?.includes_sponsorship || membership?.is_sponsored ? (
+                      <div>
+                        <Badge className="gap-1 rounded-full bg-amber-500/15 text-amber-600 border-amber-500/30">
+                          <Sparkles className="h-3 w-3" /> Sponsored
+                        </Badge>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground">
+                          Top rank in search & discovery
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="font-display text-lg font-bold text-muted-foreground">
+                          Standard
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Upgrade to boost ranking
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Benefits + sponsorship */}
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="rounded-3xl border-border/60 shadow-lg md:col-span-2">
-              <CardContent className="p-6 md:p-7 space-y-5">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-amber-500" />
-                  <h4 className="font-display text-base font-bold">What your plan includes</h4>
-                </div>
-
-                {benefits.length > 0 ? (
+          {/* Details grid */}
+          <div className="grid lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 rounded-3xl border-border/60 shadow-lg">
+              <CardHeader>
+                <CardTitle className="font-display text-lg">Plan Features & Entitlements</CardTitle>
+                <CardDescription className="text-xs">
+                  Everything included in your current subscription tier.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {features.length > 0 ? (
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {benefits.map((feature, i) => (
+                    {features.map((feature, i) => (
                       <div
                         key={i}
                         className="flex items-start gap-3 rounded-xl border border-border/50 bg-muted/20 p-3.5"
@@ -366,9 +377,9 @@ function VendorMembershipIndex() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-3">
                     {[
-                      "Reduced platform commission",
                       "Higher product listing limits",
                       "Priority placement in search results",
+                      "Verified merchant badge",
                       "Dedicated seller support",
                     ].map((feature) => (
                       <div
@@ -441,7 +452,7 @@ function VendorMembershipIndex() {
                   </div>
                   <p className="text-xs leading-relaxed text-muted-foreground">
                     {isFree
-                      ? "Upgrade to cut your commission, unlock more listings and get featured placement in search results."
+                      ? "Upgrade to unlock more listings, search boosts and premium vendor tools."
                       : "Compare other tiers to find the perfect fit as your orders grow."}
                   </p>
                   <Link to="/vendor/membership/upgrade" className="block">

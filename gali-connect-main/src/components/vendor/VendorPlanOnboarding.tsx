@@ -138,12 +138,6 @@ export function VendorPlanOnboarding() {
                           : "Unlimited product catalog"}
                       </span>
                     </li>
-                    <li className="flex items-start gap-2.5">
-                      <Percent className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                      <span className="font-semibold text-foreground">
-                        {plan.commission_rate}% Vegamart commission
-                      </span>
-                    </li>
                     {plan.includes_sponsorship && (
                       <li className="flex items-start gap-2.5">
                         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />

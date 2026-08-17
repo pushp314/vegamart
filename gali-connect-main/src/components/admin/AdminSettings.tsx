@@ -290,17 +290,17 @@ export function AdminSettings() {
           </CardContent>
         </Card>
 
-        <Card className="border-border">
+        <Card className="border-border shadow-md">
           <CardHeader>
-            <CardTitle>Pricing & Delivery Fees</CardTitle>
+            <CardTitle>VegaMart Delivery Partner & Platform Pricing</CardTitle>
             <CardDescription>
-              Dynamically configure customer delivery charges, free delivery eligibility, and minimum order purchase requirements.
+              Centrally manage VegaMart Delivery Partner rider charges, platform free delivery thresholds, and default minimum order requirements.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
-                <span>Delivery Fee (₹)</span>
+                <span>VegaMart Delivery Partner Fee (₹)</span>
                 <span className="text-[11px] text-muted-foreground font-normal">Flat fee per order</span>
               </Label>
               <Input
@@ -315,13 +315,13 @@ export function AdminSettings() {
                 }
               />
               <p className="text-[11px] text-muted-foreground">
-                Base delivery partner fee charged to the customer at checkout unless waived by vendor or free delivery threshold.
+                Standard platform delivery partner charge billed to customer at checkout for VegaMart Delivery Partner orders (unless free delivery threshold applies).
               </p>
             </div>
 
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
-                <span>Free Delivery Threshold (₹)</span>
+                <span>VegaMart Free Delivery Threshold (₹)</span>
                 <span className="text-[11px] text-muted-foreground font-normal">0 to disable</span>
               </Label>
               <Input
@@ -336,13 +336,13 @@ export function AdminSettings() {
                 }
               />
               <p className="text-[11px] text-muted-foreground">
-                Orders with an item subtotal equal to or exceeding this amount automatically receive free delivery.
+                VegaMart Delivery Partner orders with an item subtotal equal to or exceeding this amount receive free delivery.
               </p>
             </div>
 
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
-                <span>Minimum Order Purchase (₹)</span>
+                <span>VegaMart Delivery Partner Minimum Order (₹)</span>
                 <span className="text-[11px] text-muted-foreground font-normal">0 for no minimum</span>
               </Label>
               <Input
@@ -357,7 +357,7 @@ export function AdminSettings() {
                 }
               />
               <p className="text-[11px] text-muted-foreground">
-                Minimum cart subtotal required for customer checkout across VegaMart.
+                Minimum cart subtotal required when customers choose VegaMart Delivery Partner.
               </p>
             </div>
 

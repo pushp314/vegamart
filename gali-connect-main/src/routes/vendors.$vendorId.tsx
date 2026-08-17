@@ -271,11 +271,11 @@ function VendorDetail() {
                   </button>
 
                   <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
-                    <MapPin className="h-3.5 w-3.5" /> 1.2 km away
+                    <MapPin className="h-3.5 w-3.5" /> {distanceKm != null ? `${distanceKm.toFixed(1)} km away` : (profile.city || "Local Store")}
                   </span>
 
                   <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                    <Clock className="h-3.5 w-3.5" /> ~15 min delivery
+                    <Clock className="h-3.5 w-3.5" /> {profile.estimated_delivery_time || profile.delivery_configs?.estimated_delivery_time || "20-30 mins"}
                   </span>
                 </div>
               </div>

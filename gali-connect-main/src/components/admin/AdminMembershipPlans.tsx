@@ -66,7 +66,7 @@ export function AdminMembershipPlans() {
             Vendor Membership Plans
           </h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Define pricing and features. Assigning a plan to a vendor auto-applies its benefits.
+            Define pricing, product limits, and store features. Store commissions are set per-vendor in Vendor Management.
           </p>
         </div>
         <Button
@@ -136,14 +136,11 @@ export function AdminMembershipPlans() {
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wider">
-                    <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
                       {plan.product_limit === 0 ? "Unlimited" : plan.product_limit} products
                     </span>
-                    <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">
-                      {Number(plan.commission_rate)}% commission
-                    </span>
                     {plan.includes_sponsorship && (
-                      <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1">
+                      <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-1">
                         Sponsored placement
                       </span>
                     )}
@@ -231,7 +228,6 @@ function PlanFormModal({
                 .map((f: string) => f.trim())
                 .filter(Boolean),
               product_limit: parseInt(fd.get("product_limit") as string, 10),
-              commission_rate: parseFloat(fd.get("commission_rate") as string),
               includes_sponsorship: fd.get("includes_sponsorship") === "on",
               is_active: fd.get("is_active") === "on",
               sort_order: parseInt(fd.get("sort_order") as string, 10) || 0,
@@ -294,12 +290,12 @@ function PlanFormModal({
               value={featuresText}
               onChange={(e) => setFeaturesText(e.target.value)}
               rows={4}
-              placeholder={"Up to 100 products\nLower commission\nPriority support"}
+              placeholder={"Up to 100 products\nFeatured store placement\nPriority support"}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase text-muted-foreground">
                 Product Limit
@@ -311,19 +307,6 @@ function PlanFormModal({
                 defaultValue={plan?.product_limit ?? "20"}
               />
               <p className="text-[10px] text-muted-foreground">0 = unlimited</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">
-                Commission %
-              </label>
-              <Input
-                name="commission_rate"
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                defaultValue={plan?.commission_rate ?? "5"}
-              />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase text-muted-foreground">

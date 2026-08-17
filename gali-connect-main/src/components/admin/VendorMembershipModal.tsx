@@ -80,7 +80,6 @@ export function VendorMembershipModal({
                 setPlanId(e.target.value);
                 const plan = plans.find((p) => p.id === e.target.value);
                 if (plan) {
-                  setCommissionRate(plan.commission_rate?.toString() ?? "5");
                   setMembershipTier(plan.slug);
                 }
               }}
@@ -106,7 +105,6 @@ export function VendorMembershipModal({
                   </div>
                 ))}
                 <div className="pt-1 text-[11px] text-muted-foreground">
-                  Commission {Number(selectedPlan.commission_rate)}% ·{" "}
                   {selectedPlan.product_limit === 0 ? "Unlimited" : selectedPlan.product_limit}{" "}
                   products · {selectedPlan.includes_sponsorship ? "Sponsored ✓" : "No sponsorship"}
                 </div>
@@ -115,9 +113,14 @@ export function VendorMembershipModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
-              Commission Rate (%)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                Store Commission Rate (%)
+              </label>
+              <span className="text-[10px] font-semibold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                Admin Controlled
+              </span>
+            </div>
             <Input
               type="number"
               min="0"
@@ -125,7 +128,11 @@ export function VendorMembershipModal({
               step="0.1"
               value={commissionRate}
               onChange={(e) => setCommissionRate(e.target.value)}
+              placeholder="e.g. 5, 10, 7, 12"
             />
+            <p className="text-[10px] text-muted-foreground">
+              Applied automatically to all sales from this store. Independent of membership plans.
+            </p>
           </div>
 
           <div className="space-y-2">

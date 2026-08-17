@@ -34,7 +34,30 @@ export const createVendorSchema = z.object({
   free_delivery_min_order: z.coerce.number().min(0).optional().nullable(),
   provides_delivery: z.boolean().optional(),
   delivery_options: z.array(z.string().max(50)).optional(),
+  delivery_configs: z.object({
+    booking: z.object({
+      enabled: z.boolean(),
+      advance_percentage: z.coerce.number().min(0).max(100).optional(),
+      min_order: z.coerce.number().min(0).optional(),
+    }).optional(),
+    self_pickup: z.object({
+      enabled: z.boolean(),
+      advance_percentage: z.coerce.number().min(0).max(100).optional(),
+      min_order: z.coerce.number().min(0).optional(),
+    }).optional(),
+    shop_delivery: z.object({
+      enabled: z.boolean(),
+      delivery_fee: z.coerce.number().min(0).optional(),
+      min_order: z.coerce.number().min(0).optional(),
+    }).optional(),
+    delivery_partner: z.object({
+      enabled: z.boolean(),
+      delivery_fee: z.coerce.number().min(0).optional(),
+      min_order: z.coerce.number().min(0).optional(),
+    }).optional(),
+  }).optional().nullable(),
   tax_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  estimated_delivery_time: z.string().trim().max(50).optional().nullable(),
   owner_name: z.string().trim().max(120).optional().nullable(),
   phone: z
     .string()

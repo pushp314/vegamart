@@ -1,4 +1,4 @@
-import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown, Trash2, Phone } from "lucide-react";
+import { Store, CheckCircle2, Ban, Radio, Sparkles, Search, Crown, Trash2, Phone, Percent, Edit2 } from "lucide-react";
 import { useState } from "react";
 import { KYCReviewModal } from "./KYCReviewModal";
 import { VendorMembershipModal } from "./VendorMembershipModal";
@@ -46,21 +46,37 @@ export function AdminVendors({
 }: AdminVendorsProps) {
   const [reviewVendor, setReviewVendor] = useState<any>(null);
   const [editingSettingsVendor, setEditingSettingsVendor] = useState<any>(null);
+  const [quickCommissionVendor, setQuickCommissionVendor] = useState<any>(null);
   const [earningsVendor, setEarningsVendor] = useState<any>(null);
   const [promoteTargetVendor, setPromoteTargetVendor] = useState<any>(null);
 
   const queryClient = useQueryClient();
+
+  const updateCommissionMutation = useMutation({
+    mutationFn: ({ id, commission_rate }: { id: string; commission_rate: number }) =>
+      api.patch(`/admin/vendors/${id}/commission`, { commission_rate }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
+      queryClient.invalidateQueries({ queryKey: ["adminVendorEarnings"] });
+      toast.success(`Commission rate updated to ${variables.commission_rate}%`);
+      setQuickCommissionVendor(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update commission rate");
+    },
+  });
 
   const updateMembershipMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) =>
       api.patch(`/admin/vendors/${id}/membership`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminVendors"] });
-      toast.success("Vendor membership updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["adminVendorEarnings"] });
+      toast.success("Vendor settings updated successfully");
       setEditingSettingsVendor(null);
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Failed to update vendor membership");
+      toast.error(err?.message || "Failed to update vendor settings");
     },
   });
 
@@ -155,20 +171,22 @@ export function AdminVendors({
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold tracking-wider border-b border-border">
               <tr>
-                <th className="px-8 py-4">Vendor / Business</th>
-                <th className="px-8 py-4">Type</th>
-                <th className="px-8 py-4">Status</th>
-                <th className="px-8 py-4">KYC</th>
-                <th className="px-8 py-4 text-right">Actions</th>
+                <th className="px-6 py-4">Vendor / Business</th>
+                <th className="px-6 py-4">Type</th>
+                <th className="px-6 py-4">Commission</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">KYC</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
               {vendors.map((v: any) => {
                 const vType = v.profile?.vendor_type || v.vendor_type || "shop";
                 const status = (v.status || "").toLowerCase();
+                const commissionRate = Number(v.commission_rate ?? 5);
                 return (
                   <tr key={v.id} className="hover:bg-muted/50 transition-colors group">
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-2xl bg-muted border border-border text-muted-foreground flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 group-hover:border-emerald-200 transition-all">
                           {vType === "roaming" ? (
@@ -211,7 +229,7 @@ export function AdminVendors({
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${vType === "roaming" ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30" : "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"}`}
                       >
@@ -223,7 +241,20 @@ export function AdminVendors({
                         {vType === "roaming" ? "Roaming Cart" : "Fixed Store"}
                       </span>
                     </td>
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setQuickCommissionVendor(v)}
+                          className="inline-flex items-center gap-1 font-bold text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 px-2.5 py-1 rounded-xl transition-all group/btn"
+                          title="Click to edit commission"
+                        >
+                          <Percent className="h-3 w-3 text-amber-600" />
+                          <span>{commissionRate}%</span>
+                          <Edit2 className="h-2.5 w-2.5 opacity-60 group-hover/btn:opacity-100 ml-0.5" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider
                       ${
@@ -241,13 +272,13 @@ export function AdminVendors({
                         {v.status || status}
                       </span>
                     </td>
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
                       <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         {v.kyc?.status || "NOT SUBMITTED"}
                       </span>
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex justify-end gap-3">
+                    <td className="px-6 py-5 text-right">
+                      <div className="flex justify-end gap-2 flex-wrap">
                         {status === "pending" && (
                           <button
                             onClick={() => setReviewVendor(v)}
@@ -259,28 +290,35 @@ export function AdminVendors({
                         {status === "approved" && (
                           <>
                             <button
+                              onClick={() => setQuickCommissionVendor(v)}
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 transition-all active:scale-95 flex items-center gap-1"
+                              title="Set Store Commission %"
+                            >
+                              <Percent className="h-3 w-3" /> Commission
+                            </button>
+                            <button
                               onClick={() => setEditingSettingsVendor(v)}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 border border-border transition-all active:scale-95"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 border border-border transition-all active:scale-95"
                             >
                               Settings
                             </button>
                             <button
                               onClick={() => setEarningsVendor(v)}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 border border-border transition-all active:scale-95"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 border border-border transition-all active:scale-95"
                             >
                               Earnings
                             </button>
                             <Link
                               to="/admin/products"
                               search={{ vendor_id: v.id }}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 border border-border transition-all active:scale-95 text-center flex items-center justify-center"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 border border-border transition-all active:scale-95 text-center flex items-center justify-center"
                             >
                               Products
                             </Link>
                             <Link
                               to="/admin/orders"
                               search={{ vendor_id: v.id }}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-border transition-all active:scale-95 text-center flex items-center justify-center"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-muted text-foreground hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-border transition-all active:scale-95 text-center flex items-center justify-center"
                             >
                               Orders
                             </Link>
@@ -294,14 +332,14 @@ export function AdminVendors({
                                   )
                                     onUnpromote(v.id);
                                 }}
-                                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-all active:scale-95"
+                                className="px-3 py-2 text-xs font-bold rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-all active:scale-95"
                               >
                                 Demote
                               </button>
                             ) : (
                               <button
                                 onClick={() => setPromoteTargetVendor(v)}
-                                className="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-rose-500 to-saffron text-white hover:opacity-90 shadow-sm transition-all active:scale-95 flex items-center gap-1"
+                                className="px-3 py-2 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-rose-500 to-saffron text-white hover:opacity-90 shadow-sm transition-all active:scale-95 flex items-center gap-1"
                               >
                                 <Sparkles className="h-3 w-3" /> Promote
                               </button>
@@ -310,7 +348,7 @@ export function AdminVendors({
                               onClick={() => {
                                 if (confirm("Suspend this vendor?")) onSuspend(v.id);
                               }}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-rose-600 hover:bg-rose-50 hover:border-rose-200 border border-border transition-all active:scale-95"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-muted text-rose-600 hover:bg-rose-50 hover:border-rose-200 border border-border transition-all active:scale-95"
                             >
                               Suspend
                             </button>
@@ -324,7 +362,7 @@ export function AdminVendors({
                                   onDelete(v.id);
                                 }
                               }}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 border border-rose-700 transition-all active:scale-95 inline-flex items-center gap-1"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 border border-rose-700 transition-all active:scale-95 inline-flex items-center gap-1"
                             >
                               <Trash2 className="h-3 w-3" /> Delete
                             </button>
@@ -336,7 +374,7 @@ export function AdminVendors({
                               onClick={() => {
                                 if (confirm("Unsuspend this vendor?")) onRestore(v.id);
                               }}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-200 transition-all active:scale-95"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-200 transition-all active:scale-95"
                             >
                               Unsuspend
                             </button>
@@ -350,7 +388,7 @@ export function AdminVendors({
                                   onDelete(v.id);
                                 }
                               }}
-                              className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 border border-rose-700 transition-all active:scale-95 inline-flex items-center gap-1"
+                              className="px-3 py-2 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 border border-rose-700 transition-all active:scale-95 inline-flex items-center gap-1"
                             >
                               <Trash2 className="h-3 w-3" /> Delete
                             </button>
@@ -363,7 +401,7 @@ export function AdminVendors({
               })}
               {vendors.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-8 py-16 text-center">
+                  <td colSpan={6} className="px-8 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       {search ? (
                         <Search className="h-12 w-12 text-muted-foreground/40 mb-4" />
@@ -398,6 +436,17 @@ export function AdminVendors({
           }}
           isApproving={isApproving}
           isRejecting={isRejecting}
+        />
+      )}
+
+      {quickCommissionVendor && (
+        <QuickCommissionModal
+          vendor={quickCommissionVendor}
+          onClose={() => setQuickCommissionVendor(null)}
+          onSave={(commission_rate) =>
+            updateCommissionMutation.mutate({ id: quickCommissionVendor.id, commission_rate })
+          }
+          isSaving={updateCommissionMutation.isPending}
         />
       )}
 
@@ -573,6 +622,123 @@ function PromotionScheduleModal({
               className="px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md hover:opacity-90 transition-all active:scale-95 flex items-center gap-1.5"
             >
               <Sparkles className="h-3.5 w-3.5" /> Confirm Promotion
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function QuickCommissionModal({
+  vendor,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  vendor: any;
+  onClose: () => void;
+  onSave: (commission_rate: number) => void;
+  isSaving: boolean;
+}) {
+  const currentRate = Number(vendor.commission_rate ?? 5);
+  const [rate, setRate] = useState<number>(currentRate);
+
+  const presets = [5, 7, 10, 12, 15, 20];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      toast.error("Please enter a valid commission percentage between 0 and 100.");
+      return;
+    }
+    onSave(rate);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-center p-4 overflow-y-auto">
+      <div className="bg-card text-card-foreground border border-border w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+        <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
+              <Percent className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base">Store Commission Rate</h3>
+              <p className="text-xs text-muted-foreground">{vendor.business_name || "Unnamed Vendor"}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-foreground block mb-2">
+              Quick Select Commission %
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {presets.map((preset) => (
+                <button
+                  type="button"
+                  key={preset}
+                  onClick={() => setRate(preset)}
+                  className={`py-2 px-3 rounded-xl font-bold text-xs border transition-all ${
+                    rate === preset
+                      ? "bg-amber-500 text-white border-amber-600 shadow-sm"
+                      : "bg-muted/50 border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {preset}%
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-foreground block mb-1">
+              Custom Commission Percentage (%)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={rate}
+                onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 pr-8 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder="e.g. 5, 10, 7, 12"
+                required
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                %
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+              This commission % will be deducted automatically from this vendor's item sales upon order delivery. Membership plans will not affect or overwrite this setting.
+            </p>
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              className="px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-muted hover:bg-muted/80 text-foreground transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl bg-amber-600 hover:bg-amber-500 text-white shadow-md transition-all active:scale-95 flex items-center gap-1.5"
+            >
+              {isSaving ? "Saving..." : "Save Commission"}
             </button>
           </div>
         </form>

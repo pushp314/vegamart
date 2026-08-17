@@ -114,6 +114,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = (product: Product, quantity = 1, variantLabel?: string) => {
+    const isOutOfStock =
+      product.is_available === false ||
+      product.is_active === false ||
+      (typeof product.stock === "number" && product.stock <= 0) ||
+      product.vendor?.is_open === false;
+
+    if (isOutOfStock) {
+      toast.error(
+        product.vendor?.is_open === false
+          ? "Store is currently closed"
+          : `${product.name} is currently out of stock`
+      );
+      return;
+    }
+
     const pVendorId = product.vendor_id || (product as any).vendorId;
     const prevVendorId = items[0]?.product?.vendor_id || (items[0]?.product as any)?.vendorId;
 
@@ -155,7 +170,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       removeItem(id);
       return;
     }
-    const capped = Math.min(MAX_ITEM_QTY, qty);
+    const target = items.find((i) => i.id === id);
+    const maxAvailable = typeof target?.product?.stock === "number" && target.product.stock > 0
+      ? Math.min(MAX_ITEM_QTY, target.product.stock)
+      : MAX_ITEM_QTY;
+
+    if (qty > maxAvailable) {
+      toast.warning(`Only ${maxAvailable} units available in stock`);
+    }
+    const capped = Math.min(maxAvailable, qty);
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, quantity: capped } : item)));
   };
 

@@ -95,31 +95,55 @@ const ORDER_STATUS_MAP: Record<string, string> = {
   // requires OTP verification through the dedicated delivered endpoint.
 };
 
-// States from which a delivery partner may claim an order. All terminal and
-// post-assignment states (PICKED_UP onward) are intentionally excluded.
-const ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES = [
-  "PENDING",
+// States from which a delivery partner may claim an order.
+// Vendor MUST have accepted the order first (CONFIRMED, PREPARING, PACKED, READY_FOR_PICKUP).
+// PENDING is strictly excluded because the vendor has not accepted the order yet.
+export const ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES = [
   "CONFIRMED",
   "PREPARING",
   "PACKED",
   "READY_FOR_PICKUP",
 ] as const;
 
-const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["status"] =
+export const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["status"] =
   {
     in: [...ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES],
   };
 
 // States surfaced in the unassigned requests queue and therefore "explicitly
-// available" to any approved partner.
-const AVAILABLE_DELIVERY_REQUEST_STATUSES = [
+// available" to any approved partner. Surfaced once vendor accepts the order (CONFIRMED).
+export const AVAILABLE_DELIVERY_REQUEST_STATUSES = [
   "CONFIRMED",
+  "PREPARING",
+  "PACKED",
   "READY_FOR_PICKUP",
 ] as const;
 
-const AVAILABLE_DELIVERY_REQUEST_FILTER: Prisma.OrderWhereInput["status"] = {
+export const AVAILABLE_DELIVERY_REQUEST_FILTER: Prisma.OrderWhereInput["status"] = {
   in: [...AVAILABLE_DELIVERY_REQUEST_STATUSES],
 };
+
+/**
+ * Returns true if the order is designated for a VegaMart Delivery Partner.
+ * Returns false for Self Pickup / Takeaway / Booking, Shop Direct Delivery, or Vendor Comes to Me.
+ */
+export function isVegaMartDeliveryPartnerOrder(deliveryNote?: string | null): boolean {
+  if (!deliveryNote) return true;
+  const raw = deliveryNote.trim().toLowerCase();
+  if (
+    raw.includes("self") ||
+    raw.includes("pickup") ||
+    raw.includes("takeaway") ||
+    raw.includes("booking") ||
+    raw.includes("shop") ||
+    raw.includes("vendor comes") ||
+    raw.includes("comes to me") ||
+    raw.includes("street cart")
+  ) {
+    return false;
+  }
+  return true;
+}
 
 // Cash-on-delivery orders are collected at the door; every other payment method
 // must be settled before a delivery partner can be assigned.
@@ -668,6 +692,56 @@ export const deliveryService = {
         delivery_partner_id: null,
         status: AVAILABLE_DELIVERY_REQUEST_FILTER,
         vendor: { is: { status: "APPROVED" } },
+        AND: [
+          {
+            NOT: {
+              delivery_note: {
+                contains: "self",
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            NOT: {
+              delivery_note: {
+                contains: "pickup",
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            NOT: {
+              delivery_note: {
+                contains: "takeaway",
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            NOT: {
+              delivery_note: {
+                contains: "booking",
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            NOT: {
+              delivery_note: {
+                contains: "shop",
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            NOT: {
+              delivery_note: {
+                contains: "comes",
+                mode: "insensitive",
+              },
+            },
+          },
+        ],
       },
       orderBy: { created_at: "asc" },
       take: 50,
@@ -675,6 +749,9 @@ export const deliveryService = {
         id: true,
         order_number: true,
         delivery_fee: true,
+        items_subtotal: true,
+        tax: true,
+        discount: true,
         total: true,
         delivery_note: true,
         payment_method: true,
@@ -683,45 +760,92 @@ export const deliveryService = {
         payment: { select: { gateway_response: true } },
         items: {
           select: {
+            id: true,
             product_name: true,
             quantity: true,
-            image_url: true,
+            unit: true,
             selected_unit: true,
+            unit_price: true,
+            total_price: true,
+            image_url: true,
+            status: true,
           },
         },
-        vendor: { select: { business_name: true, address: true, city: true } },
-        customer: { select: { id: true, name: true, phone: true } },
-        address: {
+        vendor: {
           select: {
-            full_address: true,
+            id: true,
+            business_name: true,
+            address: true,
+            landmark: true,
             city: true,
             state: true,
             pincode: true,
+            phone: true,
+            owner_name: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        address: {
+          select: {
+            id: true,
+            label: true,
+            full_address: true,
+            landmark: true,
+            city: true,
+            state: true,
+            pincode: true,
+            phone: true,
+            latitude: true,
+            longitude: true,
           },
         },
       },
     });
-    return rows.map((r) => ({
+
+    const filtered = rows.filter((r) => isVegaMartDeliveryPartnerOrder(r.delivery_note));
+
+    return filtered.map((r) => ({
       id: r.id,
       order_number: r.order_number,
       delivery_fee: r.delivery_fee.toNumber(),
+      subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
+      tax: r.tax ? r.tax.toNumber() : 0,
+      discount: r.discount ? r.discount.toNumber() : 0,
       total_amount: r.total.toNumber(),
       delivery_option: r.delivery_note ?? "Delivery partner",
       payment_method: r.payment_method,
       payment_status: r.payment_status,
       gateway_method: extractGatewayMethod(r.payment),
       items: (r.items || []).map((i) => ({
+        id: i.id,
         product_name: i.product_name,
         quantity: i.quantity,
+        unit: i.unit,
+        selected_unit: i.selected_unit || i.unit,
+        unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
+        total_price: i.total_price ? i.total_price.toNumber() : 0,
         image_url: i.image_url,
-        selected_unit: i.selected_unit,
+        status: i.status,
       })),
       product_image: (r.items || [])[0]?.image_url ?? null,
       created_at: r.created_at,
-      vendor: r.vendor ?? null,
+      vendor: r.vendor
+        ? {
+            ...r.vendor,
+            lat: r.vendor.latitude,
+            lng: r.vendor.longitude,
+          }
+        : null,
       user: r.customer ?? null,
       address: r.address
-        ? { ...r.address, street_address: r.address.full_address }
+        ? {
+            ...r.address,
+            street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
+            lat: r.address.latitude,
+            lng: r.address.longitude,
+          }
         : null,
     }));
   },
@@ -738,6 +862,9 @@ export const deliveryService = {
         id: true,
         order_number: true,
         status: true,
+        items_subtotal: true,
+        tax: true,
+        discount: true,
         total: true,
         delivery_fee: true,
         delivery_note: true,
@@ -748,28 +875,43 @@ export const deliveryService = {
         payment: { select: { gateway_response: true } },
         items: {
           select: {
+            id: true,
             product_name: true,
             quantity: true,
-            image_url: true,
+            unit: true,
             selected_unit: true,
+            unit_price: true,
+            total_price: true,
+            image_url: true,
+            status: true,
           },
         },
         vendor: {
           select: {
+            id: true,
             business_name: true,
             address: true,
+            landmark: true,
             city: true,
+            state: true,
+            pincode: true,
+            phone: true,
+            owner_name: true,
             latitude: true,
             longitude: true,
           },
         },
-        customer: { select: { id: true, name: true, phone: true } },
+        customer: { select: { id: true, name: true, phone: true, email: true } },
         address: {
           select: {
+            id: true,
+            label: true,
             full_address: true,
+            landmark: true,
             city: true,
             state: true,
             pincode: true,
+            phone: true,
             latitude: true,
             longitude: true,
           },
@@ -780,6 +922,9 @@ export const deliveryService = {
       id: r.id,
       order_number: r.order_number,
       status: r.status.toLowerCase(),
+      subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
+      tax: r.tax ? r.tax.toNumber() : 0,
+      discount: r.discount ? r.discount.toNumber() : 0,
       total_amount: r.total.toNumber(),
       delivery_fee: r.delivery_fee.toNumber(),
       delivery_option: r.delivery_note ?? "Delivery partner",
@@ -787,17 +932,33 @@ export const deliveryService = {
       payment_status: r.payment_status,
       gateway_method: extractGatewayMethod(r.payment),
       items: r.items.map((i) => ({
+        id: i.id,
         product_name: i.product_name,
         quantity: i.quantity,
+        unit: i.unit,
+        selected_unit: i.selected_unit || i.unit,
+        unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
+        total_price: i.total_price ? i.total_price.toNumber() : 0,
         image_url: i.image_url,
-        selected_unit: i.selected_unit,
+        status: i.status,
       })),
       product_image: r.items[0]?.image_url ?? null,
       created_at: r.created_at,
-      vendor: r.vendor ?? null,
+      vendor: r.vendor
+        ? {
+            ...r.vendor,
+            lat: r.vendor.latitude,
+            lng: r.vendor.longitude,
+          }
+        : null,
       user: r.customer ?? null,
       address: r.address
-        ? { ...r.address, street_address: r.address.full_address }
+        ? {
+            ...r.address,
+            street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
+            lat: r.address.latitude,
+            lng: r.address.longitude,
+          }
         : null,
     }));
   },
@@ -826,6 +987,20 @@ export const deliveryService = {
     if (order.delivery_partner_id) {
       throw new ConflictError(
         "This order already has a delivery partner assigned.",
+      );
+    }
+    if (order.status === "PENDING") {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Order has not been accepted by the vendor yet. Delivery partner can only accept orders after vendor confirmation.",
+        { code: "ORDER_NOT_ACCEPTED_BY_VENDOR" },
+      );
+    }
+    if (!isVegaMartDeliveryPartnerOrder(order.delivery_note)) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "This order is not designated for VegaMart Delivery Partner (e.g. Self Pickup or Shop Delivery).",
+        { code: "INVALID_DELIVERY_OPTION" },
       );
     }
     if (
@@ -859,6 +1034,56 @@ export const deliveryService = {
       id: orderId,
       delivery_partner_id: null,
       status: ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER,
+      AND: [
+        {
+          NOT: {
+            delivery_note: {
+              contains: "self",
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          NOT: {
+            delivery_note: {
+              contains: "pickup",
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          NOT: {
+            delivery_note: {
+              contains: "takeaway",
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          NOT: {
+            delivery_note: {
+              contains: "booking",
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          NOT: {
+            delivery_note: {
+              contains: "shop",
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          NOT: {
+            delivery_note: {
+              contains: "comes",
+              mode: "insensitive",
+            },
+          },
+        },
+      ],
     };
     if (requiresUpfrontPayment(order.payment_method)) {
       claimWhere.payment_status = "PAID";

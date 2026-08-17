@@ -56,8 +56,6 @@ function Checkout() {
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
 
-  const selectedDeliverySlot = deliveryOption;
-
   const { data: publicSettingsRes } = useQuery({
     queryKey: ["publicSettings"],
     queryFn: () => api.get<any>("/settings/public"),
@@ -65,32 +63,100 @@ function Checkout() {
   const publicSettings = publicSettingsRes?.data || {};
   const hasActiveDeliveryPartners = !!publicSettings.has_active_delivery_partners;
 
-  // Delivery options logic according to store capabilities & live delivery partners
-  const shopDeliveryEnabled = items.some(
-    (i) => !!(i.product.vendor?.provides_delivery || (i.product as any).vendor_provides_delivery)
-  );
-  const vendorComesToMeEnabled = items.some(
+  // Extract vendor delivery configurations from checkout summary or first item's vendor
+  const vendorGroup = summary?.groups?.[0];
+  const rawConfigs = vendorGroup?.delivery_configs || (items[0]?.product?.vendor as any)?.delivery_configs;
+
+  const bookingConfig = rawConfigs?.booking ?? { enabled: false, advance_percentage: 20, min_order: 0 };
+  const selfPickupConfig = rawConfigs?.self_pickup ?? {
+    enabled: true,
+    advance_percentage: vendorGroup?.advance_payment_percentage ?? 10,
+    min_order: 0,
+  };
+  const shopDeliveryConfig = rawConfigs?.shop_delivery ?? {
+    enabled: !!(items.some((i) => !!(i.product?.vendor?.provides_delivery || (i.product as any)?.vendor_provides_delivery))),
+    delivery_fee: vendorGroup?.delivery_fee ?? 30,
+    min_order: 0,
+  };
+  const deliveryPartnerConfig = rawConfigs?.delivery_partner ?? {
+    enabled: true,
+  };
+
+  const adminDeliveryFee = vendorGroup?.admin_delivery_fee ?? publicSettings.delivery_fee ?? 30;
+  const adminMinOrder = vendorGroup?.admin_min_order ?? publicSettings.min_order_value ?? 0;
+  const adminFreeDeliveryThreshold = vendorGroup?.admin_free_delivery_threshold ?? publicSettings.free_delivery_threshold ?? 0;
+
+  const isRoamingVendor = items.some(
     (i) =>
-      (i.product.vendor as any)?.vendor_type === "roaming" ||
-      !!(i.product.vendor as any)?.provides_vendor_comes_to_me
+      (i.product?.vendor as any)?.vendor_type === "roaming" ||
+      !!(i.product?.vendor as any)?.provides_vendor_comes_to_me
   );
 
   const DELIVERY_OPTIONS = [
-    ...(vendorComesToMeEnabled
-      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Bring the cart here", icon: "🛒" }]
+    ...(isRoamingVendor
+      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Bring the cart here", icon: "🛒", advancePct: 0, minOrder: 0, fee: 0 }]
       : []),
-    ...(hasActiveDeliveryPartners
-      ? [{ id: "delivery_partner", label: "Delivery partner", desc: "Fastest delivery", icon: "🏍️" }]
+    ...(bookingConfig.enabled
+      ? [
+          {
+            id: "booking",
+            label: "Booking",
+            desc: `Advance booking (${bookingConfig.advance_percentage}% upfront)`,
+            icon: "📅",
+            advancePct: Number(bookingConfig.advance_percentage) || 20,
+            minOrder: Number(bookingConfig.min_order) || 0,
+            fee: 0,
+          },
+        ]
       : []),
-    { id: "self_pickup", label: "Self pickup", desc: "No delivery fee", icon: "🚶" },
-    ...(shopDeliveryEnabled
-      ? [{ id: "shop_delivery", label: "Shop delivery", desc: "Shop's own delivery", icon: "🏪" }]
+    ...(selfPickupConfig.enabled
+      ? [
+          {
+            id: "self_pickup",
+            label: "Self Pickup",
+            desc: `Store pickup (${selfPickupConfig.advance_percentage}% upfront)`,
+            icon: "🚶",
+            advancePct: Number(selfPickupConfig.advance_percentage) || 10,
+            minOrder: Number(selfPickupConfig.min_order) || 0,
+            fee: 0,
+          },
+        ]
+      : []),
+    ...(shopDeliveryConfig.enabled
+      ? [
+          {
+            id: "shop_delivery",
+            label: "Shop Delivery",
+            desc: `Shop direct delivery (₹${shopDeliveryConfig.delivery_fee})`,
+            icon: "🏪",
+            advancePct: 0,
+            minOrder: Number(shopDeliveryConfig.min_order) || 0,
+            fee: Number(shopDeliveryConfig.delivery_fee) || 0,
+          },
+        ]
+      : []),
+    ...(deliveryPartnerConfig.enabled && hasActiveDeliveryPartners
+      ? [
+          {
+            id: "delivery_partner",
+            label: "VegaMart Delivery Partner",
+            desc: `Fast rider delivery (₹${adminDeliveryFee})`,
+            icon: "🏍️",
+            advancePct: 0,
+            minOrder: Number(adminMinOrder) || 0,
+            fee: (adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold) ? 0 : Number(adminDeliveryFee) || 30,
+          },
+        ]
       : []),
   ];
 
+  const effectiveOptions = DELIVERY_OPTIONS.length > 0 ? DELIVERY_OPTIONS : [
+    { id: "self_pickup", label: "Self Pickup", desc: "Store pickup", icon: "🚶", advancePct: 10, minOrder: 0, fee: 0 }
+  ];
+
   useEffect(() => {
-    setDeliveryOption((i) => Math.min(i, Math.max(0, DELIVERY_OPTIONS.length - 1)));
-  }, [shopDeliveryEnabled, vendorComesToMeEnabled, hasActiveDeliveryPartners]);
+    setDeliveryOption((i) => Math.min(i, Math.max(0, effectiveOptions.length - 1)));
+  }, [effectiveOptions.length]);
 
   const { data: offersRes } = useQuery({
     queryKey: ["availableOffers"],
@@ -262,12 +328,16 @@ function Checkout() {
       toast.error("Please add and select a valid delivery address.");
       return;
     }
+    if (!isMinOrderMet) {
+      toast.error(`Minimum order of ₹${optionMinOrder} is required for ${selectedOptionObj.label}. Please add ₹${deficitAmount.toFixed(2)} more to proceed.`);
+      return;
+    }
 
     createOrderMutation.mutate({
       address_id: selectedAddress.id,
       payment_method: payment,
       coupon_code: appliedCoupon || undefined,
-      delivery_slot: DELIVERY_OPTIONS[deliveryOption].label,
+      delivery_slot: selectedOptionObj.label,
       items: items.map((item) => ({
         product_id: item.product.id,
         quantity: item.quantity,
@@ -301,15 +371,20 @@ function Checkout() {
     );
   }
 
-  const selectedDeliveryId = DELIVERY_OPTIONS[deliveryOption]?.id;
-  const isSelfPickup = selectedDeliveryId === "self_pickup";
-  
-  const displayDeliveryFee = isSelfPickup ? 0 : deliveryFee;
+  const selectedOptionObj = effectiveOptions[deliveryOption] || effectiveOptions[0];
+  const selectedDeliveryId = selectedOptionObj.id;
+  const isAdvanceOption = selectedDeliveryId === "self_pickup" || selectedDeliveryId === "booking";
+
+  const displayDeliveryFee = selectedOptionObj.fee;
   const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + tax - discount);
-  const advancePct = summary?.groups?.[0]?.advance_payment_percentage ?? 10;
-  const upfrontPaymentAmount = isSelfPickup && payment !== "cod" 
-    ? (advancePct === 0 ? finalOrderTotal : Math.max(1, Math.round(finalOrderTotal * (advancePct / 100) * 100) / 100)) 
+  const advancePct = selectedOptionObj.advancePct;
+  const upfrontPaymentAmount = isAdvanceOption && payment !== "cod"
+    ? (advancePct === 0 ? finalOrderTotal : Math.max(1, Math.round(finalOrderTotal * (advancePct / 100) * 100) / 100))
     : finalOrderTotal;
+
+  const optionMinOrder = selectedOptionObj.minOrder || 0;
+  const isMinOrderMet = optionMinOrder <= 0 || subtotal >= optionMinOrder;
+  const deficitAmount = Math.max(0, optionMinOrder - subtotal);
 
   return (
     <div className="min-h-screen bg-background pb-32 md:pb-16">
@@ -406,28 +481,69 @@ function Checkout() {
 
             {/* Checkout Delivery Options */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
-              <h2 className="font-display text-base font-bold">Delivery Options</h2>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                {DELIVERY_OPTIONS.map((opt, i) => {
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-display text-base font-bold">Delivery Options</h2>
+                <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {effectiveOptions.length} available
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {effectiveOptions.map((opt, i) => {
                   const active = i === deliveryOption;
+                  const meetsMin = (opt.minOrder || 0) <= 0 || subtotal >= (opt.minOrder || 0);
+
                   return (
                     <button
                       key={opt.id}
                       type="button"
                       onClick={() => setDeliveryOption(i)}
-                      className={`rounded-2xl border-2 p-4 text-left transition-all flex flex-col gap-1 ${
+                      className={`rounded-2xl border-2 p-4 text-left transition-all flex flex-col justify-between gap-2.5 relative ${
                         active
                           ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm"
                           : "border-border hover:border-primary/30 bg-card"
                       }`}
                     >
-                      <span className="text-2xl leading-none">{opt.icon}</span>
-                      <div className="text-xs font-bold leading-tight mt-1">{opt.label}</div>
-                      <div className="text-[10.5px] text-muted-foreground leading-tight">{opt.desc}</div>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-2xl leading-none">{opt.icon}</span>
+                        <div className="flex flex-wrap gap-1 items-center justify-end">
+                          {opt.minOrder > 0 && (
+                            <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md ${
+                              meetsMin ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                            }`}>
+                              Min ₹{opt.minOrder}
+                            </span>
+                          )}
+                          {opt.advancePct > 0 && (
+                            <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              {opt.advancePct}% Advance
+                            </span>
+                          )}
+                          {opt.fee === 0 && (
+                            <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                              Free
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-bold leading-tight text-foreground">{opt.label}</div>
+                        <div className="text-[10.5px] text-muted-foreground leading-tight mt-0.5">{opt.desc}</div>
+                      </div>
                     </button>
                   );
                 })}
               </div>
+
+              {!isMinOrderMet && (
+                <div className="mt-3.5 flex items-start gap-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 p-3.5 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
+                  <span className="text-base shrink-0">⚠️</span>
+                  <div className="leading-snug">
+                    <strong>Minimum order requirement not met for {selectedOptionObj.label}:</strong> Minimum cart total of <strong>₹{optionMinOrder}</strong> required. Add <strong>₹{deficitAmount.toFixed(2)}</strong> more to your cart to use this delivery option.
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Payment Method */}
@@ -594,17 +710,17 @@ function Checkout() {
                     ₹{finalOrderTotal.toFixed(2)}
                   </span>
                 </div>
-                {isSelfPickup && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
+                {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
                   <div className="flex items-center justify-between text-emerald-700">
-                    <span className="text-xs font-semibold">{advancePct}% Advance Payment</span>
+                    <span className="text-xs font-semibold">{advancePct}% Upfront ({selectedOptionObj.label})</span>
                     <span className="text-xs font-bold tabular-nums">
                       ₹{upfrontPaymentAmount.toFixed(2)}
                     </span>
                   </div>
                 )}
-                {isSelfPickup && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
+                {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="text-xs font-medium">Balance at Store</span>
+                    <span className="text-xs font-medium">Balance at Collection</span>
                     <span className="text-xs font-medium tabular-nums">
                       ₹{(finalOrderTotal - upfrontPaymentAmount).toFixed(2)}
                     </span>
@@ -612,7 +728,7 @@ function Checkout() {
                 )}
                 <div className="flex items-center justify-between pt-1">
                   <span className="font-display text-sm font-bold">
-                    {isSelfPickup && payment !== "cod" ? "To Pay Now" : "Total Payable"}
+                    {isAdvanceOption && payment !== "cod" ? "To Pay Now" : "Total Payable"}
                   </span>
                   <span className="font-display text-xl font-bold tabular-nums text-primary">
                     ₹{upfrontPaymentAmount.toFixed(2)}
@@ -625,19 +741,25 @@ function Checkout() {
                 Verified &amp; Protected by Razorpay 256-bit SSL
               </div>
 
-              <button
-                onClick={handlePlaceOrder}
-                disabled={createOrderMutation.isPending || items.length === 0}
-                className="hidden md:flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {createOrderMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    Place Order <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </button>
+              {!isMinOrderMet ? (
+                <div className="hidden md:block text-center p-3 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-xs font-bold border border-amber-300 dark:border-amber-800">
+                  Add ₹{deficitAmount.toFixed(2)} more for {selectedOptionObj.label}
+                </div>
+              ) : (
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={createOrderMutation.isPending || items.length === 0}
+                  className="hidden md:flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {createOrderMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 ? `Pay ₹${upfrontPaymentAmount.toFixed(2)} Advance & Place Order` : "Place Order"} <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
+              )}
             </section>
           </aside>
         </div>
@@ -652,25 +774,31 @@ function Checkout() {
           <div className="pointer-events-auto flex items-center gap-3 rounded-3xl bg-primary text-primary-foreground p-2 pl-5 shadow-glow">
             <div className="flex-1 min-w-0">
               <div className="text-[10px] font-bold uppercase tracking-wider opacity-80">
-                {isSelfPickup && payment !== "cod" ? "To Pay Now (10%)" : "Total Payable"}
+                {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 ? `To Pay Now (${advancePct}%)` : "Total Payable"}
               </div>
               <div className="font-display text-lg font-bold leading-none tabular-nums">
                 ₹{upfrontPaymentAmount.toFixed(2)}
               </div>
             </div>
-            <button
-              onClick={handlePlaceOrder}
-              disabled={createOrderMutation.isPending || items.length === 0}
-              className="inline-flex items-center gap-2 rounded-2xl bg-white text-emerald-900 font-bold text-xs h-11 px-4 shadow-xs hover:bg-emerald-50 disabled:opacity-50"
-            >
-              {createOrderMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  Place Order <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
+            {!isMinOrderMet ? (
+              <div className="text-center bg-amber-400 text-amber-950 font-bold text-[11px] px-3 py-2 rounded-2xl shadow-xs">
+                Min ₹{optionMinOrder} Req.
+              </div>
+            ) : (
+              <button
+                onClick={handlePlaceOrder}
+                disabled={createOrderMutation.isPending || items.length === 0}
+                className="inline-flex items-center gap-2 rounded-2xl bg-white text-emerald-900 font-bold text-xs h-11 px-4 shadow-xs hover:bg-emerald-50 disabled:opacity-50"
+              >
+                {createOrderMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    Place Order <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

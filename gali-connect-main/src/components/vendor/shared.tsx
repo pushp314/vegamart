@@ -170,7 +170,7 @@ export function VendorMembershipCard({ vendor }: { vendor: any }) {
                   <Star className="h-2.5 w-2.5" /> Sponsored
                 </span>
               )}
-              {expiryLabel} · {Number(vendor?.commission_rate ?? 5)}% commission
+              {expiryLabel} · {Number(vendor?.commission_rate ?? 5)}% store commission
             </p>
           </div>
         </div>

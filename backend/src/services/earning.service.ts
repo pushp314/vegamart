@@ -238,6 +238,8 @@ export interface VendorEarningRow {
   total_amount: number;
   /** Platform commission implied for this order (order_revenue - net). */
   commission_amount: number;
+  /** Vendor commission rate % applied. */
+  commission_rate: number;
   vendor_earning: number;
 }
 
@@ -253,7 +255,14 @@ export async function listVendorEarningsRecent(
     take: limit,
     include: {
       order: {
-        select: { order_number: true, items_subtotal: true, discount: true, delivery_fee: true, tax: true },
+        select: {
+          order_number: true,
+          items_subtotal: true,
+          discount: true,
+          delivery_fee: true,
+          tax: true,
+          vendor: { select: { commission_rate: true } },
+        },
       },
     },
   });
@@ -264,6 +273,16 @@ export async function listVendorEarningsRecent(
       orderRevenue + row.order.delivery_fee.toNumber() + row.order.tax.toNumber()
     );
     const isRefund = row.type === "REFUND";
+    const commissionAmount = isRefund ? 0 : round2(Math.max(0, orderRevenue - row.amount.toNumber()));
+    const vendorRate = row.order.vendor?.commission_rate?.toNumber();
+    const commissionRate = isRefund
+      ? 0
+      : vendorRate !== undefined
+        ? vendorRate
+        : orderRevenue > 0
+          ? round2((commissionAmount / orderRevenue) * 100)
+          : 0;
+
     return {
       id: row.id,
       created_at: row.created_at,
@@ -273,7 +292,8 @@ export async function listVendorEarningsRecent(
       order_number: row.order.order_number,
       order_revenue: orderRevenue,
       total_amount: totalAmount,
-      commission_amount: isRefund ? 0 : round2(Math.max(0, orderRevenue - row.amount.toNumber())),
+      commission_amount: commissionAmount,
+      commission_rate: commissionRate,
       vendor_earning: row.amount.toNumber(),
     };
   });

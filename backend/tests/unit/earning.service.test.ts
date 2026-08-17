@@ -261,6 +261,7 @@ describe("listVendorEarningsRecent", () => {
       order_revenue: 1000,
       total_amount: 1080,
       commission_amount: 50,
+      commission_rate: 5,
       vendor_earning: 950,
     });
   });

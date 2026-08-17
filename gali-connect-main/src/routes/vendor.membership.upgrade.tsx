@@ -234,8 +234,7 @@ function VendorMembershipUpgrade() {
           Choose the plan that grows with your store
         </h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Unlock lower commissions, more product listings, and priority placement in customer search
-          results.
+          Unlock higher listing limits, search sponsorship, and priority features for your store.
         </p>
         <Badge
           variant="secondary"
@@ -314,11 +313,6 @@ function VendorMembershipUpgrade() {
                   <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
                     / {plan.billing_period}
                   </span>
-                  {price > 0 && (
-                    <span className="ml-auto rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-600">
-                      Save {100 - plan.commission_rate}% commission
-                    </span>
-                  )}
                 </div>
 
                 {/* Features */}
@@ -331,14 +325,6 @@ function VendorMembershipUpgrade() {
                       {plan.product_limit > 0
                         ? `Up to ${plan.product_limit} product listings`
                         : "Unlimited product catalog"}
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-emerald-600">
-                      <Percent className="h-3 w-3" />
-                    </span>
-                    <span className="font-semibold text-foreground">
-                      {plan.commission_rate}% Vegamart commission
                     </span>
                   </li>
                   {plan.includes_sponsorship && (
@@ -436,14 +422,6 @@ function VendorMembershipUpgrade() {
                             /{p.billing_period}
                           </span>
                         )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium text-muted-foreground">Commission</TableCell>
-                    {plans.map((p) => (
-                      <TableCell key={p.id} className="text-center font-bold">
-                        {p.commission_rate}%
                       </TableCell>
                     ))}
                   </TableRow>
@@ -552,14 +530,14 @@ function VendorMembershipUpgrade() {
                 <Separator />
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="rounded-xl bg-background/60 border border-border/40 p-2.5">
-                    <p className="text-muted-foreground">Commission</p>
-                    <p className="font-bold">{confirmPlan.commission_rate}%</p>
-                  </div>
-                  <div className="rounded-xl bg-background/60 border border-border/40 p-2.5">
-                    <p className="text-muted-foreground">Products</p>
+                    <p className="text-muted-foreground">Product Limit</p>
                     <p className="font-bold">
                       {confirmPlan.product_limit > 0 ? confirmPlan.product_limit : "Unlimited"}
                     </p>
+                  </div>
+                  <div className="rounded-xl bg-background/60 border border-border/40 p-2.5">
+                    <p className="text-muted-foreground">Search Boost</p>
+                    <p className="font-bold">{confirmPlan.includes_sponsorship ? "Sponsored ✓" : "Standard"}</p>
                   </div>
                 </div>
                 {confirmPlan.includes_sponsorship && (

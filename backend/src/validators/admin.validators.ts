@@ -272,6 +272,11 @@ export const updateHeroSlideSchema = z.object({
   sort_order: z.coerce.number().int().optional(),
 }).strict();
 
+export const updateVendorCommissionSchema = z.object({
+  commission_rate: z.coerce.number().min(0).max(100),
+}).strict();
+export type UpdateVendorCommissionBody = z.infer<typeof updateVendorCommissionSchema>;
+
 export const updateVendorMembershipSchema = z.object({
   membership_plan_id: z.string().uuid("Invalid plan ID format").optional().nullable(),
   commission_rate: z.number().min(0).max(100).optional().nullable(),
@@ -298,7 +303,7 @@ export const createMembershipPlanSchema = z.object({
   features: z.array(z.string().trim().min(1).max(200)).default([]),
   product_limit: z.coerce.number().int().min(0).max(100000).default(20),
   daily_order_limit: z.coerce.number().int().min(0).max(100000).default(5),
-  commission_rate: z.coerce.number().min(0).max(100).default(5),
+  commission_rate: z.coerce.number().min(0).max(100).default(0).optional(),
   includes_sponsorship: z.boolean().default(false),
   is_active: z.boolean().default(true),
   sort_order: z.coerce.number().int().default(0),

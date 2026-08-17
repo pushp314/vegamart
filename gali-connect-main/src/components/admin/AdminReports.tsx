@@ -27,6 +27,8 @@ const COLUMNS: Record<string, Column[]> = {
     { key: "status", label: "Status" },
     { key: "orders", label: "Orders", type: "number" },
     { key: "revenue", label: "Revenue (₹)", type: "currency" },
+    { key: "commission_rate", label: "Commission %", type: "number" },
+    { key: "commission_amount", label: "Commission (₹)", type: "currency" },
     { key: "products", label: "Products", type: "number" },
   ],
   products: [

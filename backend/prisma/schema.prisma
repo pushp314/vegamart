@@ -406,6 +406,8 @@ model VendorProfile {
   free_delivery_min_order Decimal?     @db.Decimal(10, 2)
   provides_delivery       Boolean      @default(false)
   delivery_options        String[]     @default([])
+  delivery_configs        Json?        @default("{}")
+  estimated_delivery_time String?      @default("20-30 mins") @db.VarChar(50)
   tax_rate                Decimal?     @db.Decimal(5, 2)
   banner_urls             String[]     @default([])
   rating                  Float        @default(0) @db.DoublePrecision

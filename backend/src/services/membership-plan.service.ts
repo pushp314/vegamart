@@ -57,7 +57,7 @@ export const membershipPlanService = {
     features: string[];
     product_limit: number;
     daily_order_limit?: number;
-    commission_rate: number;
+    commission_rate?: number;
     includes_sponsorship: boolean;
     is_active: boolean;
     sort_order?: number;
@@ -77,7 +77,7 @@ export const membershipPlanService = {
       features: input.features as Prisma.InputJsonValue,
       product_limit: input.product_limit,
       daily_order_limit: input.daily_order_limit ?? 5,
-      commission_rate: input.commission_rate,
+      commission_rate: input.commission_rate ?? 0,
       includes_sponsorship: input.includes_sponsorship,
       is_active: input.is_active,
       sort_order: input.sort_order ?? 0,
@@ -95,7 +95,7 @@ export const membershipPlanService = {
       features: string[];
       product_limit: number;
       daily_order_limit?: number;
-      commission_rate: number;
+      commission_rate?: number;
       includes_sponsorship: boolean;
       is_active: boolean;
       sort_order: number;
@@ -179,15 +179,9 @@ export const membershipPlanService = {
           : "basic",
       membership_expires_at: expiry,
       commission_rate:
-        plan?.commission_rate !== undefined
-          ? plan.commission_rate
-          : planId === null
-            ? input.commission_rate !== undefined && input.commission_rate !== null
-              ? input.commission_rate
-              : 5
-            : input.commission_rate !== undefined && input.commission_rate !== null
-              ? input.commission_rate
-              : undefined,
+        input.commission_rate !== undefined && input.commission_rate !== null
+          ? input.commission_rate
+          : undefined,
       is_sponsored:
         plan?.includes_sponsorship !== undefined
           ? plan.includes_sponsorship

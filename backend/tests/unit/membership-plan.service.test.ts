@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 
 describe("membershipPlanService.applyPlanToVendor", () => {
-  it("assigns a plan and mirrors plan commission/benefits onto the vendor profile", async () => {
+  it("assigns a plan without overriding vendor's commission_rate", async () => {
     const membershipRepo = jest.requireMock("../../src/repositories/membership-plan.repository");
     membershipRepo.findById.mockResolvedValue(makePlan());
 
@@ -72,7 +72,7 @@ describe("membershipPlanService.applyPlanToVendor", () => {
       data: expect.objectContaining({
         membership_tier: "premium",
         membership_plan: { connect: { id: "p1" } },
-        commission_rate: makePlan().commission_rate,
+        commission_rate: undefined,
         is_sponsored: true,
       }),
       include: expect.anything(),
@@ -94,7 +94,7 @@ describe("membershipPlanService.applyPlanToVendor", () => {
     );
   });
 
-  it("resets commission_rate and sponsorship when a plan is removed (consistent cancel)", async () => {
+  it("leaves commission_rate untouched when a plan is removed without explicit commission input", async () => {
     const result = await membershipPlanService.applyPlanToVendor("v1", null, {});
 
     expect(db.vendorProfile.update).toHaveBeenCalledWith({
@@ -102,7 +102,7 @@ describe("membershipPlanService.applyPlanToVendor", () => {
       data: expect.objectContaining({
         membership_tier: "basic",
         membership_plan: { disconnect: true },
-        commission_rate: 5,
+        commission_rate: undefined,
         is_sponsored: false,
       }),
       include: expect.anything(),
@@ -110,8 +110,8 @@ describe("membershipPlanService.applyPlanToVendor", () => {
     expect(result).toEqual(expect.objectContaining({ id: "v1" }));
   });
 
-  it("keeps an explicitly supplied commission_rate when removing a plan", async () => {
-    await membershipPlanService.applyPlanToVendor("v1", null, { commission_rate: 12 });
+  it("updates commission_rate when explicitly supplied by admin", async () => {
+    await membershipPlanService.applyPlanToVendor("v1", "p1", { commission_rate: 12 });
 
     expect(db.vendorProfile.update).toHaveBeenCalledWith({
       where: { id: "v1" },

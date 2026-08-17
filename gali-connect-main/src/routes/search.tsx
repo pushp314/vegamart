@@ -94,7 +94,7 @@ function SearchPage() {
     queryKey: ["products", "search", debounced],
     queryFn: () => {
       if (!debounced) return Promise.resolve([]);
-      return api.get<Product[]>(`/products?q=${encodeURIComponent(debounced)}&per_page=12`).then(r => r.data || []);
+      return api.get<Product[]>(`/products?q=${encodeURIComponent(debounced)}&per_page=50`).then(r => r.data || []);
     },
   });
   const { data: vRes } = useQuery({
@@ -122,7 +122,7 @@ function SearchPage() {
 
   const productResults = useMemo(() => {
     if (!debounced) return [];
-    return products.slice(0, 12);
+    return products.slice(0, 48);
   }, [debounced, products]);
 
   const vendorResults = useMemo(() => {
@@ -207,10 +207,8 @@ function SearchPage() {
                       {productResults.map((product: any) => (
                         <div 
                           key={product.id}
-                          onClick={() => handleProductClick(product.id)}
-                          className="cursor-pointer"
                         >
-                          <ProductCard product={product as Product} hideAddToCart={true} />
+                          <ProductCard product={product as Product} />
                         </div>
                       ))}
                     </div>

@@ -60,6 +60,8 @@ export interface VendorReportRow {
   revenue: Prisma.Decimal;
   avg_order_value: Prisma.Decimal;
   products: number;
+  commission_rate: Prisma.Decimal;
+  commission_amount: Prisma.Decimal;
 }
 
 export async function vendorReport(range: DateRange): Promise<VendorReportRow[]> {
@@ -72,6 +74,8 @@ export async function vendorReport(range: DateRange): Promise<VendorReportRow[]>
     revenue: Prisma.Decimal;
     avg_order_value: Prisma.Decimal;
     products: bigint;
+    commission_rate: Prisma.Decimal;
+    commission_amount: Prisma.Decimal;
   }>>(
     Prisma.sql`
       SELECT
@@ -79,10 +83,12 @@ export async function vendorReport(range: DateRange): Promise<VendorReportRow[]>
         v."business_name",
         v."city",
         v."status",
+        v."commission_rate",
         COUNT(o."id") AS orders,
         COALESCE(SUM(o."total"), 0) AS revenue,
         COALESCE(AVG(o."total"), 0) AS avg_order_value,
-        COUNT(p."id") AS products
+        COUNT(p."id") AS products,
+        COALESCE(SUM(o."total" * v."commission_rate" / 100), 0) AS commission_amount
       FROM vendor_profiles v
       LEFT JOIN orders o
         ON o."vendor_id" = v."id"
@@ -91,7 +97,7 @@ export async function vendorReport(range: DateRange): Promise<VendorReportRow[]>
         AND o."deleted_at" IS NULL
       LEFT JOIN products p ON p."vendor_id" = v."id" AND p."deleted_at" IS NULL
       WHERE v."deleted_at" IS NULL
-      GROUP BY v."id", v."business_name", v."city", v."status"
+      GROUP BY v."id", v."business_name", v."city", v."status", v."commission_rate"
       ORDER BY revenue DESC
     `
   );
@@ -104,6 +110,8 @@ export async function vendorReport(range: DateRange): Promise<VendorReportRow[]>
     revenue: new Prisma.Decimal(r.revenue.toString()),
     avg_order_value: new Prisma.Decimal(r.avg_order_value.toString()),
     products: Number(r.products),
+    commission_rate: new Prisma.Decimal(r.commission_rate.toString()),
+    commission_amount: new Prisma.Decimal(r.commission_amount.toString()),
   }));
 }
 

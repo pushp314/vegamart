@@ -117,11 +117,14 @@ export function DeliveryHowToUse() {
           step="3"
           icon={<Radio className="h-4 w-4 text-emerald-600" />}
           title="Radar — find & accept orders"
-          description="The Radar tab lists nearby delivery requests waiting for a rider."
+          description="The Radar tab lists nearby VegaMart Delivery Partner requests after vendor confirmation."
         >
           <HowToStep>
+            <strong>Order Flow:</strong> Customer places order → Vendor accepts & confirms order → Order appears on your Radar for delivery.
+          </HowToStep>
+          <HowToStep>
             Open the <strong>Radar</strong> tab (bottom navigation, first icon) to see available
-            delivery requests.
+            delivery requests. (Self Pickup and Shop's own delivery orders are filtered out).
           </HowToStep>
           <HowToStep>
             Each card shows the <strong>pickup vendor</strong>, <strong>dropoff customer</strong>,
@@ -136,8 +139,7 @@ export function DeliveryHowToUse() {
             seconds while you are online.
           </HowToStep>
           <TipNote>
-            Only accept orders you can reach in time. Your rating is affected by late or dropped
-            deliveries.
+            Only accept orders you can reach in time. Orders only appear after the vendor has confirmed preparation.
           </TipNote>
         </HowToSection>
 
