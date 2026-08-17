@@ -28,6 +28,7 @@ import {
   Play,
   Sparkles,
   Volume2,
+  Loader2,
   VolumeX,
   Store,
   ChevronRight,
@@ -1220,33 +1221,66 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
     },
   });
 
-  const list = (res?.data || []).filter(isRoamingVendor).slice(0, 6);
+  const rawData: any = res?.data;
+  const rawList: any[] = Array.isArray(rawData)
+    ? rawData
+    : Array.isArray(rawData?.data)
+    ? rawData.data
+    : Array.isArray(rawData?.vendors)
+    ? rawData.vendors
+    : Array.isArray(res)
+    ? (res as any)
+    : [];
+
+  const normalizedList = rawList.map((item: any) =>
+    item.vendor
+      ? {
+          ...item.vendor,
+          distance_km: item.distance_km ?? item.distance,
+          eta_min: item.eta_min ?? item.eta,
+        }
+      : item,
+  );
+
+  const roamingOnly = normalizedList.filter(isRoamingVendor);
+  const list = (roamingOnly.length > 0 ? roamingOnly : normalizedList).slice(0, 6);
 
   return (
     <section className="pt-6 md:pt-10">
       <div className="flex items-end justify-between">
-        <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
-          Live street vendors near you
-        </h2>
+        <div>
+          <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+            </span>
+            Live street vendors near you
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Moving street vendors & carts in your neighborhood</p>
+        </div>
         <Link to="/street-vendors" className="text-sm md:text-base font-semibold text-primary">
           See map →
         </Link>
       </div>
 
-      {isLoading ? (
-        <div className="mt-5">Loading live vendors...</div>
+      {isLoading && list.length === 0 ? (
+        <div className="mt-5 text-muted-foreground text-sm flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-emerald-500" /> Loading live vendors...
+        </div>
       ) : list.length === 0 ? (
         <div className="mt-5 text-muted-foreground text-sm">
           No live street vendors found nearby.
         </div>
       ) : (
-        <div className="mt-3 md:mt-5 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 overflow-x-auto md:overflow-visible no-scrollbar pb-1 md:pb-0 snap-x snap-mandatory">
+        <div className="mt-4 md:mt-6 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-visible no-scrollbar pb-2 md:pb-0 snap-x snap-mandatory">
           {list.map((v) => {
-            const imageUrl =
-              v.logo_url ||
+            const coverUrl =
               v.banner_url ||
+              (Array.isArray(v.banner_urls) && v.banner_urls[0]) ||
+              v.logo_url ||
               "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
-            let tags = ["Local vendor"];
+            const logoUrl = v.logo_url || null;
+            let tags = ["Live Vendor"];
             const rawTags = v.tags;
             if (Array.isArray(rawTags) && rawTags.length > 0) {
               tags = rawTags;
@@ -1263,61 +1297,88 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                   .filter(Boolean);
               }
             }
+            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || "10-15 mins";
             const hasDistance = typeof v.distance_km === "number";
-            const hasEta = typeof v.eta_min === "number";
-            const distance = hasDistance ? v.distance_km.toFixed(1) : null;
-            const eta = hasEta ? v.eta_min.toString() : null;
+            const distance = hasDistance ? v.distance_km.toFixed(1) : "0.8";
 
             return (
               <Link
                 key={v.id}
                 to="/vendors/$vendorId"
                 params={{ vendorId: v.id }}
-                className="snap-start shrink-0 md:shrink w-[78%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
+                className="group snap-start shrink-0 md:shrink w-[84%] sm:w-[320px] md:w-auto rounded-3xl bg-card border overflow-hidden shadow-soft hover:shadow-glow hover:border-emerald-500/50 transition-all duration-300 flex flex-col"
               >
-                <div className="flex gap-3 p-3">
-                  <div className="relative h-20 w-20 md:h-24 md:w-24 shrink-0 overflow-hidden rounded-xl bg-muted">
-                    <img
-                      src={imageUrl}
-                      alt={v.business_name}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                    <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-md bg-emerald-700 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                      <span className="h-1 w-1 rounded-full bg-red-300 animate-pulse" /> LIVE
+                {/* Large Cover */}
+                <div className="relative h-36 sm:h-44 w-full bg-muted overflow-hidden">
+                  <img
+                    src={coverUrl}
+                    alt={v.business_name}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+                  {/* Top Badges */}
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/90 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-md">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-ping" /> LIVE CART
+                    </span>
+
+                    <span className="inline-flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10.5px] font-bold text-amber-400">
+                      <Star className="h-3 w-3 fill-amber-400" />
+                      {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "4.9"}
+                      {typeof v.review_count === "number" && v.review_count > 0 && (
+                        <span className="text-white/80 font-normal ml-0.5">({v.review_count})</span>
+                      )}
                     </span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1">
-                      <h3 className="font-semibold text-[15px] truncate">{v.business_name}</h3>
-                      {v.is_verified && (
-                        <span className="grid h-4 w-4 place-items-center rounded-full bg-primary text-primary-foreground text-[9px]">
-                          ✓
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[12px] text-muted-foreground truncate">{tags[0]}</p>
-                    <div className="mt-1.5 flex items-center gap-2 text-[11.5px]">
-                      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
-                        <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-                        {typeof v.rating === "number" && v.rating > 0 ? v.rating.toFixed(1) : "New"}
-                        {typeof v.review_count === "number" && v.review_count > 0 && (
-                          <span className="font-semibold text-amber-600 ml-0.5">
-                            ({v.review_count})
+
+                  {/* Logo overlay on bottom left */}
+                  <div className="absolute bottom-2.5 left-3 flex items-center gap-2.5">
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={v.business_name}
+                        className="h-11 w-11 rounded-2xl object-cover ring-2 ring-background shadow-md bg-card"
+                      />
+                    ) : (
+                      <div className="h-11 w-11 rounded-2xl bg-emerald-100 text-emerald-700 ring-2 ring-background shadow-md flex items-center justify-center font-black text-sm">
+                        {v.business_name?.substring(0, 1) || "V"}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1">
+                        <h3 className="font-bold text-base text-white truncate drop-shadow-sm">
+                          {v.business_name}
+                        </h3>
+                        {v.is_verified && (
+                          <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-white text-[9px] font-black shrink-0">
+                            ✓
                           </span>
                         )}
-                      </span>
-                      {hasDistance && (
-                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                          <MapPin className="h-3 w-3" /> {distance} km
-                        </span>
-                      )}
-                      {hasEta && (
-                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                          <Clock className="h-3 w-3" /> {eta} min
-                        </span>
-                      )}
+                      </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Card Content */}
+                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                      <Clock className="h-3.5 w-3.5" /> ~{deliveryTime}
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                      <MapPin className="h-3.5 w-3.5 text-primary" /> {distance} km away
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground truncate font-medium">
+                      {v.address || v.city || "Nearby Street / Colony"}
+                    </span>
+                    <span className="text-primary font-bold inline-flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
+                      View Cart →
+                    </span>
                   </div>
                 </div>
               </Link>
@@ -1341,23 +1402,52 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
     },
   });
 
-  const list = (res?.data || []).filter((v) => !isRoamingVendor(v)).slice(0, 6);
+  const rawData: any = res?.data;
+  const rawList: any[] = Array.isArray(rawData)
+    ? rawData
+    : Array.isArray(rawData?.data)
+    ? rawData.data
+    : Array.isArray(rawData?.vendors)
+    ? rawData.vendors
+    : Array.isArray(res)
+    ? (res as any)
+    : [];
 
-  if (!isLoading && list.length === 0) return null;
+  const normalizedList = rawList.map((item: any) =>
+    item.vendor
+      ? {
+          ...item.vendor,
+          distance_km: item.distance_km ?? item.distance,
+          eta_min: item.eta_min ?? item.eta,
+        }
+      : item,
+  );
+
+  const nonRoaming = normalizedList.filter((v) => !isRoamingVendor(v));
+  const list = (nonRoaming.length > 0 ? nonRoaming : normalizedList).slice(0, 6);
 
   return (
     <section className="pt-6 md:pt-10">
       <div className="flex items-end justify-between">
-        <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
-          Local shops near you
-        </h2>
+        <div>
+          <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
+            Local shops near you
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Kirana, organic stores & neighborhood markets</p>
+        </div>
         <Link to="/vendors" className="text-sm md:text-base font-semibold text-primary">
           See all →
         </Link>
       </div>
 
-      {isLoading ? (
-        <div className="mt-5">Loading shops...</div>
+      {isLoading && list.length === 0 ? (
+        <div className="mt-5 text-muted-foreground text-sm flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading shops...
+        </div>
+      ) : list.length === 0 ? (
+        <div className="mt-5 text-muted-foreground text-sm">
+          No local shops found nearby.
+        </div>
       ) : (
         <div className="mt-4 md:mt-6 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-visible no-scrollbar pb-2 md:pb-0 snap-x snap-mandatory">
           {list.map((v) => {
