@@ -304,11 +304,43 @@ export const checkoutService = {
       let effectiveMinOrder = 0;
       const slotRaw = (input.delivery_slot || "").toLowerCase();
       if (slotRaw.includes("book")) {
+        if (!deliveryConfigs.booking.enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `${vendor.business_name} does not offer Booking delivery at this time.`,
+            { code: "DELIVERY_OPTION_DISABLED" }
+          );
+        }
         effectiveMinOrder = deliveryConfigs.booking.min_order;
       } else if (slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway")) {
+        if (!deliveryConfigs.self_pickup.enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `${vendor.business_name} does not offer Self Pickup at this time.`,
+            { code: "DELIVERY_OPTION_DISABLED" }
+          );
+        }
         effectiveMinOrder = deliveryConfigs.self_pickup.min_order;
       } else if (slotRaw.includes("shop")) {
+        if (!deliveryConfigs.shop_delivery.enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `${vendor.business_name} does not offer Shop Direct Delivery at this time.`,
+            { code: "DELIVERY_OPTION_DISABLED" }
+          );
+        }
         effectiveMinOrder = deliveryConfigs.shop_delivery.min_order;
+      } else if (slotRaw.includes("partner") || slotRaw.includes("vegamart")) {
+        if (deliveryConfigs.delivery_partner.enabled === false) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `${vendor.business_name} does not offer VegaMart Delivery Partner delivery at this time.`,
+            { code: "DELIVERY_OPTION_DISABLED" }
+          );
+        }
+        effectiveMinOrder = (deliveryConfigs.delivery_partner.min_order !== undefined && deliveryConfigs.delivery_partner.min_order > 0)
+          ? deliveryConfigs.delivery_partner.min_order
+          : (vendor.min_order && vendor.min_order.toNumber() > 0 ? vendor.min_order.toNumber() : globalMinOrderValue);
       } else {
         effectiveMinOrder = (deliveryConfigs.delivery_partner.min_order !== undefined && deliveryConfigs.delivery_partner.min_order > 0)
           ? deliveryConfigs.delivery_partner.min_order

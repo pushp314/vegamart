@@ -587,69 +587,48 @@ function Hero() {
 
             return (
               <CarouselItem key={slide.id}>
-                <div className="relative overflow-hidden rounded-3xl md:rounded-[32px] bg-emerald-950 text-white min-h-[170px] sm:min-h-[220px] md:min-h-[280px] aspect-[16/7] sm:aspect-[21/8] md:aspect-[24/8] shadow-lg flex flex-col justify-center">
-                  {isBehindHeroVideo && activeVideoAd ? (
-                    <>
-                      <video
-                        ref={backgroundVideoRef}
-                        src={activeVideoAd.video_url}
-                        poster={activeVideoAd.thumbnail_url || undefined}
-                        autoPlay
-                        loop
-                        muted={isBackgroundMuted}
-                        playsInline
-                        className="absolute inset-0 w-full h-full object-cover opacity-50 z-0 pointer-events-none"
-                      />
-                      {/* Dual Linear-Radial Gradient Mask */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-black/60 to-transparent z-0 pointer-events-none" />
-                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-black/70 mix-blend-overlay z-0 pointer-events-none" />
-                    </>
-                  ) : (
-                    <>
-                      {slide.image_url ? (
-                        <div className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center">
-                          {/* Ambient background blur to blend banner edges */}
-                          <img
-                            src={slide.image_url}
-                            alt=""
-                            aria-hidden="true"
-                            className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35 pointer-events-none"
-                          />
-                          {/* Main banner image - fully visible with zero cut-off */}
-                          <img
-                            src={slide.image_url}
-                            alt={slide.title || "Vegamart banner"}
-                            className={`relative w-full h-full object-contain md:object-cover z-0 ${
-                              hasText ? "opacity-65 md:opacity-75" : "opacity-100"
-                            }`}
-                          />
-                          {hasText && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/85 via-black/40 to-transparent z-0 pointer-events-none" />
-                          )}
-                        </div>
-                      ) : (
-                        <div
-                          className="absolute inset-0 opacity-40 mix-blend-overlay z-0"
-                          style={{
-                            backgroundImage:
-                              "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
-                          }}
+                {hasText || (activeVideoAd && activeVideoAd.display_mode === "watch_cta") ? (
+                  <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl md:rounded-[32px] bg-emerald-950 text-white min-h-[180px] sm:min-h-[220px] md:min-h-[280px] p-5 sm:p-7 md:p-10 shadow-md flex flex-col justify-center">
+                    {isBehindHeroVideo && activeVideoAd ? (
+                      <>
+                        <video
+                          ref={backgroundVideoRef}
+                          src={activeVideoAd.video_url}
+                          poster={activeVideoAd.thumbnail_url || undefined}
+                          autoPlay
+                          loop
+                          muted={isBackgroundMuted}
+                          playsInline
+                          className="absolute inset-0 w-full h-full object-cover opacity-50 z-0 pointer-events-none"
                         />
-                      )}
-                    </>
-                  )}
+                        {/* Dual Linear-Radial Gradient Mask */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-black/60 to-transparent z-0 pointer-events-none" />
+                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-black/70 mix-blend-overlay z-0 pointer-events-none" />
+                      </>
+                    ) : (
+                      <>
+                        {slide.image_url ? (
+                          <>
+                            <img
+                              src={slide.image_url}
+                              alt={slide.title || "Vegamart banner"}
+                              className="absolute inset-0 w-full h-full object-cover z-0 opacity-70"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-black/50 to-transparent z-0 pointer-events-none" />
+                          </>
+                        ) : (
+                          <div
+                            className="absolute inset-0 opacity-40 mix-blend-overlay z-0"
+                            style={{
+                              backgroundImage:
+                                "radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
 
-                  {/* Clean image banner full-click navigation */}
-                  {!hasText && slide.link_url && (
-                    <Link
-                      to={slide.link_url}
-                      className="absolute inset-0 z-10 cursor-pointer"
-                      aria-label="Promotional banner link"
-                    />
-                  )}
-
-                  {/* Text & Action Overlay (Only rendered if title/subtitle/body exists or video ad CTA is active) */}
-                  {(hasText || (activeVideoAd && activeVideoAd.display_mode === "watch_cta")) && (
+                    {/* Text & Action Overlay */}
                     <div className="relative md:max-w-2xl z-10">
                       <div className="flex items-center gap-2 flex-wrap">
                         {slide.title && slide.title.trim().length > 0 && (
@@ -696,50 +675,86 @@ function Hero() {
                         )}
                       </div>
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  /* Pure Graphic Promotional Banner — 100% full image centered in the box with zero cropping */
+                  <div className="relative w-full overflow-hidden rounded-2xl sm:rounded-3xl bg-[#082a1d] text-white shadow-md border border-emerald-900/30 flex items-center justify-center">
+                    {slide.image_url ? (
+                      <div className="relative w-full flex items-center justify-center overflow-hidden">
+                        {/* Ambient subtle glow backdrop */}
+                        <img
+                          src={slide.image_url}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-25 pointer-events-none"
+                        />
+                        {/* The Main Banner: 100% full image visible, centered in middle, fitting the box */}
+                        <img
+                          src={slide.image_url}
+                          alt={slide.title || "Vegamart promotional banner"}
+                          className="relative w-full h-auto max-h-[190px] sm:max-h-[250px] md:max-h-[320px] object-contain object-center z-0 block mx-auto transition-transform duration-300"
+                          loading="eager"
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-36 sm:h-44 w-full bg-emerald-950 flex items-center justify-center text-white/60 text-sm font-semibold">
+                        Vegamart
+                      </div>
+                    )}
 
-                  {/* Floating Sound Control Glass Pill */}
-                  {isBehindHeroVideo && activeVideoAd && (
-                    <button
-                      onClick={toggleBackgroundSound}
-                      className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-lg transition-all active:scale-95"
-                      title={isBackgroundMuted ? "Unmute Background Audio" : "Mute Background Audio"}
-                    >
-                      {isBackgroundMuted ? (
-                        <>
-                          <VolumeX className="h-3.5 w-3.5 text-amber-400" />
-                          <span>Tap for Sound</span>
-                        </>
-                      ) : (
-                        <>
-                          <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
-                          <span className="flex items-end gap-0.5 h-3">
-                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_100ms] h-full" />
-                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_200ms] h-2/3" />
-                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_300ms] h-full" />
-                            <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_400ms] h-1/2" />
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
+                    {slide.link_url && (
+                      <Link
+                        to={slide.link_url}
+                        className="absolute inset-0 z-10 cursor-pointer"
+                        aria-label="Promotional banner link"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Floating Sound Control Glass Pill */}
+                {isBehindHeroVideo && activeVideoAd && (
+                  <button
+                    onClick={toggleBackgroundSound}
+                    className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-lg transition-all active:scale-95"
+                    title={isBackgroundMuted ? "Unmute Background Audio" : "Mute Background Audio"}
+                  >
+                    {isBackgroundMuted ? (
+                      <>
+                        <VolumeX className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Tap for Sound</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="flex items-end gap-0.5 h-3">
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_100ms] h-full" />
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_200ms] h-2/3" />
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_300ms] h-full" />
+                          <span className="w-0.5 bg-emerald-400 animate-[bounce_0.8s_infinite_400ms] h-1/2" />
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
               </CarouselItem>
             );
           })}
         </CarouselContent>
         {slides.length > 1 && (
-          <div className="absolute bottom-4 md:bottom-6 left-0 right-0 flex justify-center gap-2 z-20">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                className={`h-2 transition-all duration-300 rounded-full ${
-                  current === index ? "w-6 bg-white" : "w-2 bg-white/50 hover:bg-white/75"
-                }`}
-                onClick={() => apiCarousel?.scrollTo(index)}
-                aria-label={`Go to slide ${index + 1}`}
-              />
-            ))}
+          <div className="absolute bottom-2.5 sm:bottom-3 md:bottom-4 left-0 right-0 flex justify-center pointer-events-none z-20">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 shadow-sm pointer-events-auto">
+              {slides.map((_, index) => (
+                <button
+                  key={index}
+                  className={`h-1.5 transition-all duration-300 rounded-full cursor-pointer ${
+                    current === index ? "w-5 bg-white" : "w-1.5 bg-white/45 hover:bg-white/70"
+                  }`}
+                  onClick={() => apiCarousel?.scrollTo(index)}
+                  aria-label={`Go to slide ${index + 1}`}
+                />
+              ))}
+            </div>
           </div>
         )}
       </Carousel>
