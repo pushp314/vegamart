@@ -17,6 +17,8 @@ export const SETTING_KEYS = {
   DELIVERIES_ACTIVE: "platform.deliveries_active",
   DEFAULT_DELIVERY_RADIUS_KM: "platform.default_delivery_radius_km",
   HOMEPAGE_SECTIONS: "platform.homepage_sections",
+  DEFAULT_DELIVERY_ETA: "platform.default_delivery_eta",
+  VEGAMART_DELIVERY_ENABLED: "platform.vegamart_delivery_enabled",
 } as const;
 
 export type SettingValue =
@@ -174,6 +176,20 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "string",
     default: JSON.stringify(DEFAULT_HOMEPAGE_SECTIONS),
     description: "Ordered JSON array of home page sections and their visibility.",
+    is_public: true,
+  },
+  [SETTING_KEYS.DEFAULT_DELIVERY_ETA]: {
+    key: SETTING_KEYS.DEFAULT_DELIVERY_ETA,
+    type: "string",
+    default: "20-30 mins",
+    description: "Default estimated delivery time for VegaMart Delivery Partner rider orders.",
+    is_public: true,
+  },
+  [SETTING_KEYS.VEGAMART_DELIVERY_ENABLED]: {
+    key: SETTING_KEYS.VEGAMART_DELIVERY_ENABLED,
+    type: "boolean",
+    default: true,
+    description: "Master switch to enable or disable VegaMart Delivery Partner fleet platform-wide.",
     is_public: true,
   },
 };

@@ -12,6 +12,7 @@ import {
   ArrowRight,
   CreditCard,
   Banknote,
+  Clock,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
@@ -261,6 +262,12 @@ function OrdersList() {
                             <PIcon className="h-3 w-3" />
                             {pInfo.shortLabel}
                           </span>
+                          {(o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time) && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border text-emerald-800 bg-emerald-50 border-emerald-200">
+                              <Clock className="h-3 w-3 text-emerald-600" />
+                              {o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time}
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground ml-1 font-semibold">
                             Total: <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
                           </span>

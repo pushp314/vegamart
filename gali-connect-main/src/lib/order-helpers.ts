@@ -9,6 +9,7 @@ import {
   Wallet,
   CheckCircle2,
   Clock,
+  Calendar,
   XCircle,
   RotateCcw,
 } from "lucide-react";
@@ -168,18 +169,31 @@ export function getOrderStatusInfo(status?: string | null): OrderStatusInfo {
 }
 
 export interface DeliveryOptionInfo {
-  id: "delivery_partner" | "self_pickup" | "vendor_comes_to_me" | "shop_delivery";
+  id: "delivery_partner" | "self_pickup" | "vendor_comes_to_me" | "shop_delivery" | "booking";
   label: string;
   shortLabel: string;
   badge: string;
   desc: string;
-  icon: typeof Bike;
+  icon: typeof Bike | typeof Calendar;
   colorClass: string;
   badgeBg: string;
 }
 
 export function getDeliveryOptionInfo(deliveryNote?: string | null, fallbackOption?: string | null): DeliveryOptionInfo {
   const raw = String(deliveryNote || fallbackOption || "Delivery partner").trim().toLowerCase();
+
+  if (raw.includes("booking") || raw.includes("advance")) {
+    return {
+      id: "booking",
+      label: "Advance Booking",
+      shortLabel: "Advance Booking",
+      badge: "📅 Advance Booking",
+      desc: "Advance scheduled booking for customer pickup or delivery",
+      icon: Calendar,
+      colorClass: "text-blue-700 bg-blue-50 border-blue-200",
+      badgeBg: "bg-blue-100 text-blue-800 border-blue-300",
+    };
+  }
 
   if (raw.includes("self") || raw.includes("pickup") || raw.includes("takeaway")) {
     return {

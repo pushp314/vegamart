@@ -21,6 +21,7 @@ import {
   Banknote,
   Smartphone,
   CreditCard,
+  Calendar,
   IndianRupee,
   Phone,
   Info,
@@ -108,7 +109,14 @@ function isVegaMartDelivery(deliveryOption?: string | null): boolean {
 
 function deliveryOptionBadge(o: any): { label: string; icon: any; cls: string } {
   const opt = String(o.delivery_option || o.delivery_note || "Delivery partner").toLowerCase();
-  if (opt.includes("self") || opt.includes("pickup") || opt.includes("takeaway") || opt.includes("booking")) {
+  if (opt.includes("booking") || opt.includes("advance")) {
+    return {
+      label: "Advance Booking",
+      icon: Calendar,
+      cls: "bg-blue-50 text-blue-700 border-blue-200",
+    };
+  }
+  if (opt.includes("self") || opt.includes("pickup") || opt.includes("takeaway")) {
     return {
       label: "Self Pickup",
       icon: User,

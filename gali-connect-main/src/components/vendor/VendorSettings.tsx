@@ -17,6 +17,8 @@ import {
   Info,
   Percent,
   IndianRupee,
+  Clock,
+  Lock,
 } from "lucide-react";
 
 import { Logo } from "@/components/system/logo";
@@ -55,18 +57,21 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
 
-  // 4 Delivery Options States
+  // 4 Delivery Options State
   const [bookingEnabled, setBookingEnabled] = useState(false);
   const [bookingAdvance, setBookingAdvance] = useState("20");
   const [bookingMinOrder, setBookingMinOrder] = useState("0");
+  const [bookingEstimatedTime, setBookingEstimatedTime] = useState("1-2 days");
 
   const [selfPickupEnabled, setSelfPickupEnabled] = useState(true);
   const [selfPickupAdvance, setSelfPickupAdvance] = useState("10");
   const [selfPickupMinOrder, setSelfPickupMinOrder] = useState("0");
+  const [selfPickupEstimatedTime, setSelfPickupEstimatedTime] = useState("15 mins");
 
   const [shopDeliveryEnabled, setShopDeliveryEnabled] = useState(false);
   const [shopDeliveryFee, setShopDeliveryFee] = useState("30");
   const [shopDeliveryMinOrder, setShopDeliveryMinOrder] = useState("0");
+  const [shopDeliveryEstimatedTime, setShopDeliveryEstimatedTime] = useState("30-45 mins");
 
   const [deliveryPartnerEnabled, setDeliveryPartnerEnabled] = useState(true);
 
@@ -121,10 +126,12 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
       setBookingEnabled(Boolean(configs.booking.enabled));
       setBookingAdvance(configs.booking.advance_percentage !== undefined ? String(configs.booking.advance_percentage) : "20");
       setBookingMinOrder(configs.booking.min_order !== undefined ? String(configs.booking.min_order) : "0");
+      setBookingEstimatedTime(configs.booking.estimated_time || "1-2 days");
     } else {
       setBookingEnabled(false);
       setBookingAdvance("20");
       setBookingMinOrder("0");
+      setBookingEstimatedTime("1-2 days");
     }
 
     if (configs.self_pickup) {
@@ -135,10 +142,12 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
           : (profile.advance_payment_percentage ? String(profile.advance_payment_percentage) : "10")
       );
       setSelfPickupMinOrder(configs.self_pickup.min_order !== undefined ? String(configs.self_pickup.min_order) : "0");
+      setSelfPickupEstimatedTime(configs.self_pickup.estimated_time || "15 mins");
     } else {
       setSelfPickupEnabled(true);
       setSelfPickupAdvance(profile.advance_payment_percentage ? String(profile.advance_payment_percentage) : "10");
       setSelfPickupMinOrder("0");
+      setSelfPickupEstimatedTime("15 mins");
     }
 
     if (configs.shop_delivery) {
@@ -149,17 +158,15 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
           : (profile.delivery_fee ? String(profile.delivery_fee) : "30")
       );
       setShopDeliveryMinOrder(configs.shop_delivery.min_order !== undefined ? String(configs.shop_delivery.min_order) : "0");
+      setShopDeliveryEstimatedTime(configs.shop_delivery.estimated_time || "30-45 mins");
     } else {
       setShopDeliveryEnabled(Boolean(profile.provides_delivery));
       setShopDeliveryFee(profile.delivery_fee ? String(profile.delivery_fee) : "30");
       setShopDeliveryMinOrder("0");
+      setShopDeliveryEstimatedTime("30-45 mins");
     }
 
-    if (configs.delivery_partner) {
-      setDeliveryPartnerEnabled(configs.delivery_partner.enabled !== false);
-    } else {
-      setDeliveryPartnerEnabled(true);
-    }
+    setDeliveryPartnerEnabled(true);
   }, [profile]);
 
   const updateMutation = useMutation({
@@ -181,19 +188,22 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
         enabled: bookingEnabled,
         advance_percentage: Number(bookingAdvance) || 0,
         min_order: Number(bookingMinOrder) || 0,
+        estimated_time: bookingEstimatedTime || "1-2 days",
       },
       self_pickup: {
         enabled: selfPickupEnabled,
         advance_percentage: Number(selfPickupAdvance) || 0,
         min_order: Number(selfPickupMinOrder) || 0,
+        estimated_time: selfPickupEstimatedTime || "15 mins",
       },
       shop_delivery: {
         enabled: shopDeliveryEnabled,
         delivery_fee: Number(shopDeliveryFee) || 0,
         min_order: Number(shopDeliveryMinOrder) || 0,
+        estimated_time: shopDeliveryEstimatedTime || "30-45 mins",
       },
       delivery_partner: {
-        enabled: deliveryPartnerEnabled,
+        enabled: true,
       },
     };
 
@@ -591,6 +601,35 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                     />
                     <p className="text-[11px] text-muted-foreground">Minimum cart value required for booking.</p>
                   </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="bookingEstimatedTime" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-blue-500" /> Booking Fulfillment Time (Days / Hours / Minutes)
+                    </Label>
+                    <Input
+                      id="bookingEstimatedTime"
+                      placeholder="e.g. 1-2 days, 24 hours, Same Day"
+                      value={bookingEstimatedTime}
+                      onChange={(e) => setBookingEstimatedTime(e.target.value)}
+                      className="h-10 rounded-2xl text-xs bg-background font-medium"
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {["Same Day", "1 Day", "2 Days", "3-5 Days", "1 Week"].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setBookingEstimatedTime(preset)}
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                            bookingEstimatedTime === preset
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Estimated time or days needed to prepare and fulfill this advance booking.</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -671,6 +710,35 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                     />
                     <p className="text-[11px] text-muted-foreground">Minimum cart value for store pickup.</p>
                   </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="selfPickupEstimatedTime" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-purple-500" /> Pickup Preparation Time (Minutes / Hours)
+                    </Label>
+                    <Input
+                      id="selfPickupEstimatedTime"
+                      placeholder="e.g. 15 mins, 30 mins, 1 hour"
+                      value={selfPickupEstimatedTime}
+                      onChange={(e) => setSelfPickupEstimatedTime(e.target.value)}
+                      className="h-10 rounded-2xl text-xs bg-background font-medium"
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {["10-15 mins", "15-20 mins", "30 mins", "45 mins", "1-2 hours"].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setSelfPickupEstimatedTime(preset)}
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                            selfPickupEstimatedTime === preset
+                              ? "bg-purple-600 text-white border-purple-600"
+                              : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Time required after order confirmation before the customer can collect it.</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -750,57 +818,64 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                     />
                     <p className="text-[11px] text-muted-foreground">Minimum cart value for store delivery.</p>
                   </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="shopDeliveryEstimatedTime" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-teal-500" /> Store Direct Delivery Time (Minutes / Hours / Days)
+                    </Label>
+                    <Input
+                      id="shopDeliveryEstimatedTime"
+                      placeholder="e.g. 30-45 mins, 1-2 hours, Same Day"
+                      value={shopDeliveryEstimatedTime}
+                      onChange={(e) => setShopDeliveryEstimatedTime(e.target.value)}
+                      className="h-10 rounded-2xl text-xs bg-background font-medium"
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {["20-30 mins", "30-45 mins", "45-60 mins", "1-2 hours", "Same Day", "1-2 Days"].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setShopDeliveryEstimatedTime(preset)}
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                            shopDeliveryEstimatedTime === preset
+                              ? "bg-teal-600 text-white border-teal-600"
+                              : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Time required for your store staff or delivery boy to deliver to customer door.</p>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Option 4: VegaMart Delivery Partner */}
-            <div className={`rounded-2xl border p-4 sm:p-5 transition-all ${
-              deliveryPartnerEnabled ? "border-emerald-500/40 bg-emerald-500/5 shadow-sm" : "border-border bg-card/40 opacity-75"
-            }`}>
+            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 shadow-sm p-4 sm:p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors ${
-                    deliveryPartnerEnabled ? "bg-emerald-500 text-slate-950 font-bold" : "bg-muted text-muted-foreground"
-                  }`}>
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500 text-slate-950 font-bold">
                     <Bike className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm font-bold text-foreground">4. VegaMart Delivery Partner</h4>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        deliveryPartnerEnabled ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"
-                      }`}>
-                        {deliveryPartnerEnabled ? "Active" : "Disabled"}
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                        <Lock className="h-3 w-3" /> Managed by Platform Admin
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      VegaMart platform fleet delivery riders pick up from your store and deliver to the customer.
+                      VegaMart platform fleet delivery riders automatically pick up from your store and deliver to the customer.
                     </p>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={deliveryPartnerEnabled}
-                  onClick={() => setDeliveryPartnerEnabled((v) => !v)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    deliveryPartnerEnabled ? "bg-emerald-500" : "bg-muted-foreground/30"
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      deliveryPartnerEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
               </div>
 
               <div className="mt-3.5 flex items-start gap-2 rounded-xl bg-muted/60 p-3 text-[11px] text-muted-foreground border border-border/50">
                 <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                 <span>
-                  Delivery charge and minimum order for VegaMart Delivery Partner are centrally configured by Admin. Turning this option ON allows customers to request VegaMart rider delivery for your products.
+                  Delivery charge, rider dispatch, and minimum order for VegaMart Delivery Partner are centrally controlled and configured by the Platform Admin in Admin Panel.
                 </span>
               </div>
             </div>

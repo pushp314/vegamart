@@ -64,7 +64,9 @@ function Checkout() {
     queryFn: () => api.get<any>("/settings/public"),
   });
   const publicSettings = publicSettingsRes?.data || {};
-  const hasActiveDeliveryPartners = !!publicSettings.has_active_delivery_partners;
+  const isVegaMartFleetEnabled = publicSettings?.["platform.vegamart_delivery_enabled"] !== false;
+  const hasActiveDeliveryPartners = !!publicSettings.has_active_delivery_partners && isVegaMartFleetEnabled;
+  const platformDeliveryEta = publicSettings?.["platform.default_delivery_eta"] || "20-30 mins";
 
   // Extract vendor delivery configurations from checkout summary or first item's vendor
   const vendorGroup = summary?.groups?.[0];
@@ -85,16 +87,18 @@ function Checkout() {
 
   const rawConfigs = vendorGroup?.delivery_configs || vendorData?.delivery_configs;
 
-  const bookingConfig = rawConfigs?.booking ?? { enabled: false, advance_percentage: 20, min_order: 0 };
+  const bookingConfig = rawConfigs?.booking ?? { enabled: false, advance_percentage: 20, min_order: 0, estimated_time: "1-2 days" };
   const selfPickupConfig = rawConfigs?.self_pickup ?? {
     enabled: true,
     advance_percentage: vendorGroup?.advance_payment_percentage ?? 10,
     min_order: 0,
+    estimated_time: "15 mins",
   };
   const shopDeliveryConfig = rawConfigs?.shop_delivery ?? {
     enabled: !!(items.some((i) => !!(i.product?.vendor?.provides_delivery || (i.product as any)?.vendor_provides_delivery))),
     delivery_fee: vendorGroup?.delivery_fee ?? 30,
     min_order: 0,
+    estimated_time: "30-45 mins",
   };
   const deliveryPartnerConfig = rawConfigs?.delivery_partner ?? {
     enabled: true,
@@ -132,7 +136,7 @@ function Checkout() {
             label: "Advance Booking",
             desc: `Advance scheduled booking (${bookingConfig.advance_percentage}% upfront)`,
             icon: "📅",
-            eta: "Scheduled Slot",
+            eta: `~${bookingConfig.estimated_time || "1-2 days"}`,
             advancePct: Number(bookingConfig.advance_percentage) || 20,
             minOrder: Number(bookingConfig.min_order) || 0,
             fee: 0,
@@ -146,7 +150,7 @@ function Checkout() {
             label: "Self Pickup",
             desc: `Collect at store counter (${selfPickupConfig.advance_percentage}% upfront)`,
             icon: "🚶",
-            eta: "Ready in ~15 mins",
+            eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
             advancePct: Number(selfPickupConfig.advance_percentage) || 10,
             minOrder: Number(selfPickupConfig.min_order) || 0,
             fee: 0,
@@ -160,7 +164,7 @@ function Checkout() {
             label: "Shop Direct Delivery",
             desc: `Delivered by store staff (₹${shopDeliveryConfig.delivery_fee})`,
             icon: "🏪",
-            eta: `~${vendorEta}`,
+            eta: `~${shopDeliveryConfig.estimated_time || vendorEta}`,
             advancePct: 0,
             minOrder: Number(shopDeliveryConfig.min_order) || 0,
             fee: Number(shopDeliveryConfig.delivery_fee) || 0,
@@ -174,7 +178,7 @@ function Checkout() {
             label: "VegaMart Home Delivery",
             desc: `Express rider delivery (₹${adminDeliveryFee})`,
             icon: "🏍️",
-            eta: `~${vendorEta}`,
+            eta: `~${platformDeliveryEta || vendorEta}`,
             advancePct: 0,
             minOrder: Number(adminMinOrder) || 0,
             fee: (adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold) ? 0 : Number(adminDeliveryFee) || 30,

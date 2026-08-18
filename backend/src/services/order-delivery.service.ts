@@ -15,9 +15,16 @@ import { HttpStatus } from "../utils/httpStatus";
 // is a downstream state of PICKED_UP in the existing model, so it is allowed too.
 export const DELIVERY_PARTNER_DELIVERY_STATES = ["PICKED_UP", "OUT_FOR_DELIVERY"] as const;
 
-// Vendors completing self-delivery / self-pickup hand-overs may mark DELIVERED
-// from READY_FOR_PICKUP (the point where the parcel leaves the store).
-export const VENDOR_DELIVERY_STATES = ["READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"] as const;
+// Vendors completing self-delivery / self-pickup hand-overs or direct customer handovers
+// when delivery partners are unavailable may mark DELIVERED from any active post-confirmed state.
+export const VENDOR_DELIVERY_STATES = [
+  "CONFIRMED",
+  "PREPARING",
+  "PACKED",
+  "READY_FOR_PICKUP",
+  "PICKED_UP",
+  "OUT_FOR_DELIVERY",
+] as const;
 
 export type DeliveryCompletableState = (typeof DELIVERY_PARTNER_DELIVERY_STATES)[number];
 

@@ -41,6 +41,8 @@ interface Settings {
   "platform.maintenance_mode"?: boolean;
   "platform.multi_store_checkout_enabled"?: boolean;
   "platform.logo_url"?: string;
+  "platform.default_delivery_eta"?: string;
+  "platform.vegamart_delivery_enabled"?: boolean;
   "support.email"?: string;
   "support.phone"?: string;
 }
@@ -298,6 +300,67 @@ export function AdminSettings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-2xl border bg-muted/40">
+              <div className="space-y-0.5">
+                <Label className="font-semibold text-foreground">
+                  Enable VegaMart Delivery Partner Fleet
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Master switch to enable or disable VegaMart Delivery Partner rider service across all stores.
+                </p>
+              </div>
+              <Switch
+                checked={settings["platform.vegamart_delivery_enabled"] !== false}
+                onCheckedChange={(checked) =>
+                  setSettings({
+                    ...settings,
+                    "platform.vegamart_delivery_enabled": checked,
+                  })
+                }
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Default Rider Estimated Delivery Time</span>
+                <span className="text-[11px] text-muted-foreground font-normal">Shown to customers</span>
+              </Label>
+              <Input
+                placeholder="e.g. 20-30 mins"
+                value={settings["platform.default_delivery_eta"] ?? "20-30 mins"}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    "platform.default_delivery_eta": e.target.value,
+                  })
+                }
+              />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {["15-20 mins", "20-30 mins", "30-45 mins", "45-60 mins", "Same Day"].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() =>
+                      setSettings({
+                        ...settings,
+                        "platform.default_delivery_eta": preset,
+                      })
+                    }
+                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                      (settings["platform.default_delivery_eta"] || "20-30 mins") === preset
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Default estimated delivery ETA displayed on VegaMart Delivery Partner option at checkout.
+              </p>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
                 <span>VegaMart Delivery Partner Fee (₹)</span>

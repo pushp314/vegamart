@@ -20,6 +20,7 @@ import {
   Navigation,
   Calendar,
   Hash,
+  Clock,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import {
@@ -219,6 +220,25 @@ function OrderIdTrackingPage() {
               </button>
             </div>
 
+            {/* Estimated Delivery / Fulfillment Time Banner */}
+            {(order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time) && !isDelivered && (
+              <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-soft flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-600 text-white font-bold shrink-0">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                      Estimated Delivery / Fulfillment Time
+                    </span>
+                    <div className="font-bold text-sm text-foreground">
+                      ⚡ {order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Delivery OTP Banner */}
             {!isDelivered && order.otp_code && (
               <div className="rounded-3xl border border-rose-500/30 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-rose-500/5 p-5 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -330,13 +350,16 @@ function OrderIdTrackingPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Delivery Mode Badge */}
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${getDeliveryOptionInfo(order.delivery_note).colorClass}`}>
-                    {(() => {
-                      const DIcon = getDeliveryOptionInfo(order.delivery_note).icon;
-                      return <DIcon className="h-3.5 w-3.5" />;
-                    })()}
-                    {getDeliveryOptionInfo(order.delivery_note).shortLabel}
-                  </span>
+                  {(() => {
+                    const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
+                    const DIcon = dInfo.icon;
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dInfo.colorClass}`}>
+                        <DIcon className="h-3.5 w-3.5" />
+                        {dInfo.shortLabel}
+                      </span>
+                    );
+                  })()}
 
                   {/* Payment Method Badge */}
                   <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${getPaymentMethodInfo(order.payment_method, order.payment_status).colorClass}`}>
@@ -353,7 +376,7 @@ function OrderIdTrackingPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Chosen Delivery Option Card */}
                 {(() => {
-                  const dInfo = getDeliveryOptionInfo(order.delivery_note);
+                  const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
                   const DIcon = dInfo.icon;
                   return (
                     <div className="rounded-2xl border border-border bg-muted/30 p-3.5 space-y-1.5 text-xs">
@@ -374,11 +397,12 @@ function OrderIdTrackingPage() {
 
                 {/* Chosen Payment Mode Card */}
                 {(() => {
+                  const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
                   const pInfo = getPaymentMethodInfo(
                     order.payment_method,
                     order.payment_status,
                     totalAmount,
-                    getDeliveryOptionInfo(order.delivery_note).id === "self_pickup"
+                    dInfo.id === "self_pickup"
                   );
                   const PIcon = pInfo.icon;
                   return (

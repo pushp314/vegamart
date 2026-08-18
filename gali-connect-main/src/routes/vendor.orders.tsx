@@ -250,6 +250,11 @@ function VendorOrdersPage() {
                     color: "bg-blue-600 text-white hover:bg-blue-500 font-bold",
                   },
                   {
+                    status: "delivered",
+                    label: "🔑 Verify OTP & Deliver",
+                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                  },
+                  {
                     status: "CANCELLED",
                     label: "Cancel Order",
                     color: "bg-rose-100 text-rose-600 hover:bg-rose-200 font-bold border border-rose-200",
@@ -261,12 +266,22 @@ function VendorOrdersPage() {
                     label: "Mark Packed",
                     color: "bg-indigo-600 text-white hover:bg-indigo-500 font-bold",
                   },
+                  {
+                    status: "delivered",
+                    label: "🔑 Verify OTP & Deliver",
+                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                  },
                 ],
                 PACKED: [
                   {
                     status: "ready_for_pickup",
                     label: "Ready for Pickup",
                     color: "bg-cyan-600 text-white hover:bg-cyan-500 font-bold",
+                  },
+                  {
+                    status: "delivered",
+                    label: "🔑 Verify OTP & Deliver",
+                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
                   },
                 ],
                 READY_FOR_PICKUP: [
@@ -275,12 +290,17 @@ function VendorOrdersPage() {
                     label: "Out for Delivery",
                     color: "bg-amber-600 text-white hover:bg-amber-500 font-bold",
                   },
+                  {
+                    status: "delivered",
+                    label: "🔑 Verify OTP & Deliver",
+                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                  },
                 ],
                 OUT_FOR_DELIVERY: [
                   {
                     status: "delivered",
-                    label: "Verify OTP & Complete",
-                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold",
+                    label: "🔑 Verify OTP & Complete",
+                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
                   },
                 ],
               };
@@ -615,9 +635,11 @@ function VendorOrdersPage() {
       <Dialog open={!!otpTarget} onOpenChange={(open) => !open && setOtpTarget(null)}>
         <DialogContent className="rounded-3xl border-border max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-display text-center">Verify Delivery OTP</DialogTitle>
+            <DialogTitle className="font-display text-center text-emerald-600">
+              Verify Customer Delivery OTP
+            </DialogTitle>
             <DialogDescription className="text-xs text-center">
-              Ask the customer for their 6-digit verification PIN to complete order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
+              Ask the customer for the 6-digit verification PIN displayed on their live order screen to complete order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-3">
@@ -629,6 +651,9 @@ function VendorOrdersPage() {
               placeholder="000000"
               className="w-full text-center text-4xl tracking-widest rounded-2xl border border-border bg-muted/50 px-4 py-5 font-display font-black focus:bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
+            <p className="text-[11px] text-muted-foreground text-center">
+              💡 If delivery partner is unavailable or customer is collecting directly, you can complete the order immediately with this OTP.
+            </p>
             <button
               onClick={() => {
                 if (otpInput.length !== 6) {
@@ -649,7 +674,7 @@ function VendorOrdersPage() {
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              Verify & Complete Delivery
+              Verify OTP & Complete Delivery
             </button>
           </div>
         </DialogContent>
