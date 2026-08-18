@@ -13,6 +13,9 @@ import {
   CheckCircle2,
   X,
   User,
+  Store,
+  Clock,
+  ShoppingBag,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
@@ -65,7 +68,22 @@ function Checkout() {
 
   // Extract vendor delivery configurations from checkout summary or first item's vendor
   const vendorGroup = summary?.groups?.[0];
-  const rawConfigs = vendorGroup?.delivery_configs || (items[0]?.product?.vendor as any)?.delivery_configs;
+  const firstVendor = (items[0]?.product?.vendor as any) || {};
+  const vendorId = items[0]?.product?.vendor_id || (items[0]?.product as any)?.vendorId || null;
+
+  const { data: vendorDetailRes } = useQuery({
+    queryKey: ["checkoutVendor", vendorId],
+    queryFn: () => api.get<any>(`/vendors/${vendorId}`),
+    enabled: !!vendorId,
+  });
+
+  const vendorData = vendorDetailRes?.data || firstVendor;
+  const vendorName = vendorGroup?.vendor_name || vendorData?.business_name || vendorData?.name || "Local Store";
+  const vendorEta = vendorData?.estimated_delivery_time || vendorGroup?.estimated_delivery_time || "20-30 mins";
+  const vendorAddress = vendorData?.address || vendorGroup?.vendor_address || "";
+  const isStoreOpen = vendorData?.is_open !== false;
+
+  const rawConfigs = vendorGroup?.delivery_configs || vendorData?.delivery_configs;
 
   const bookingConfig = rawConfigs?.booking ?? { enabled: false, advance_percentage: 20, min_order: 0 };
   const selfPickupConfig = rawConfigs?.self_pickup ?? {
@@ -92,17 +110,29 @@ function Checkout() {
       !!(i.product?.vendor as any)?.provides_vendor_comes_to_me
   );
 
-  const DELIVERY_OPTIONS = [
+  interface CheckoutDeliveryOption {
+    id: string;
+    label: string;
+    desc: string;
+    icon: string;
+    eta: string;
+    advancePct: number;
+    minOrder: number;
+    fee: number;
+  }
+
+  const DELIVERY_OPTIONS: CheckoutDeliveryOption[] = [
     ...(isRoamingVendor
-      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Bring the cart here", icon: "🛒", advancePct: 0, minOrder: 0, fee: 0 }]
+      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Moving street cart arrives at your door", icon: "🛒", eta: "~15-20 mins", advancePct: 0, minOrder: 0, fee: 0 }]
       : []),
     ...(bookingConfig.enabled
       ? [
           {
             id: "booking",
-            label: "Booking",
-            desc: `Advance booking (${bookingConfig.advance_percentage}% upfront)`,
+            label: "Advance Booking",
+            desc: `Advance scheduled booking (${bookingConfig.advance_percentage}% upfront)`,
             icon: "📅",
+            eta: "Scheduled Slot",
             advancePct: Number(bookingConfig.advance_percentage) || 20,
             minOrder: Number(bookingConfig.min_order) || 0,
             fee: 0,
@@ -114,8 +144,9 @@ function Checkout() {
           {
             id: "self_pickup",
             label: "Self Pickup",
-            desc: `Store pickup (${selfPickupConfig.advance_percentage}% upfront)`,
+            desc: `Collect at store counter (${selfPickupConfig.advance_percentage}% upfront)`,
             icon: "🚶",
+            eta: "Ready in ~15 mins",
             advancePct: Number(selfPickupConfig.advance_percentage) || 10,
             minOrder: Number(selfPickupConfig.min_order) || 0,
             fee: 0,
@@ -126,9 +157,10 @@ function Checkout() {
       ? [
           {
             id: "shop_delivery",
-            label: "Shop Delivery",
-            desc: `Shop direct delivery (₹${shopDeliveryConfig.delivery_fee})`,
+            label: "Shop Direct Delivery",
+            desc: `Delivered by store staff (₹${shopDeliveryConfig.delivery_fee})`,
             icon: "🏪",
+            eta: `~${vendorEta}`,
             advancePct: 0,
             minOrder: Number(shopDeliveryConfig.min_order) || 0,
             fee: Number(shopDeliveryConfig.delivery_fee) || 0,
@@ -139,9 +171,10 @@ function Checkout() {
       ? [
           {
             id: "delivery_partner",
-            label: "VegaMart Delivery Partner",
-            desc: `Fast rider delivery (₹${adminDeliveryFee})`,
+            label: "VegaMart Home Delivery",
+            desc: `Express rider delivery (₹${adminDeliveryFee})`,
             icon: "🏍️",
+            eta: `~${vendorEta}`,
             advancePct: 0,
             minOrder: Number(adminMinOrder) || 0,
             fee: (adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold) ? 0 : Number(adminDeliveryFee) || 30,
@@ -150,8 +183,8 @@ function Checkout() {
       : []),
   ];
 
-  const effectiveOptions = DELIVERY_OPTIONS.length > 0 ? DELIVERY_OPTIONS : [
-    { id: "self_pickup", label: "Self Pickup", desc: "Store pickup", icon: "🚶", advancePct: 10, minOrder: 0, fee: 0 }
+  const effectiveOptions: CheckoutDeliveryOption[] = DELIVERY_OPTIONS.length > 0 ? DELIVERY_OPTIONS : [
+    { id: "self_pickup", label: "Self Pickup", desc: "Store pickup", icon: "🚶", eta: "Ready in ~15 mins", advancePct: 10, minOrder: 0, fee: 0 }
   ];
 
   useEffect(() => {
@@ -393,6 +426,51 @@ function Checkout() {
       <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 space-y-6">
         <div className="md:grid md:grid-cols-[1fr_380px] md:gap-6 lg:gap-8">
           <div className="space-y-4">
+            {/* Store & Estimated Delivery Time Header */}
+            <section className="rounded-3xl bg-card border p-5 shadow-soft">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                    <Store className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-display text-base font-bold text-foreground truncate">
+                        {vendorName}
+                      </h2>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                        {isStoreOpen ? "🟢 Open" : "🔴 Closed"}
+                      </span>
+                    </div>
+                    {vendorAddress ? (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {vendorAddress}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {items.length} {items.length === 1 ? "item" : "items"} in cart
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vendor Estimated Delivery Time Badge */}
+                <div className="flex items-center gap-2.5 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/10 border border-emerald-500/30 px-4 py-2.5 rounded-2xl shrink-0 shadow-xs">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-600 text-white font-bold shrink-0 shadow-xs">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                      Est. Delivery Time
+                    </div>
+                    <div className="font-display text-sm font-black text-emerald-950 dark:text-emerald-200 flex items-center gap-1">
+                      ⚡ {vendorEta}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* Address Selection */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
               {loadingAddr ? (
@@ -507,6 +585,11 @@ function Checkout() {
                       <div className="flex items-start justify-between gap-2">
                         <span className="text-2xl leading-none">{opt.icon}</span>
                         <div className="flex flex-wrap gap-1 items-center justify-end">
+                          {opt.eta && (
+                            <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                              <Clock className="h-2.5 w-2.5" /> {opt.eta}
+                            </span>
+                          )}
                           {opt.minOrder > 0 && (
                             <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md ${
                               meetsMin ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
@@ -679,6 +762,15 @@ function Checkout() {
           <aside>
             <section className="rounded-3xl bg-card border p-5 shadow-soft md:sticky md:top-24 space-y-3">
               <h2 className="font-display text-base font-bold">Bill Summary</h2>
+
+              <div className="flex items-center justify-between text-xs bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-2xl">
+                <span className="flex items-center gap-1.5 font-bold text-emerald-900 dark:text-emerald-200">
+                  <Clock className="h-3.5 w-3.5 text-emerald-600" /> Estimated Time:
+                </span>
+                <span className="font-extrabold text-emerald-700 dark:text-emerald-300 text-xs">
+                  {selectedOptionObj.eta || vendorEta}
+                </span>
+              </div>
 
               <dl className="space-y-2 text-xs">
                 <div className="flex justify-between">

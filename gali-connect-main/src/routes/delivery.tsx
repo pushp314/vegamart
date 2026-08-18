@@ -235,7 +235,10 @@ function DeliveryDashboard() {
 
   const rawRequests = requestsRes?.data || [];
   const requests = rawRequests.filter(
-    (r: any) => isVegaMartDelivery(r.delivery_option || r.delivery_note)
+    (r: any) =>
+      isVegaMartDelivery(r.delivery_option || r.delivery_note) &&
+      r.status?.toUpperCase() !== "PENDING" &&
+      ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP"].includes(r.status?.toUpperCase())
   );
   const myDeliveries = myDeliveriesRes?.data || [];
 

@@ -748,6 +748,7 @@ export const deliveryService = {
       select: {
         id: true,
         order_number: true,
+        status: true,
         delivery_fee: true,
         items_subtotal: true,
         tax: true,
@@ -809,6 +810,7 @@ export const deliveryService = {
     return filtered.map((r) => ({
       id: r.id,
       order_number: r.order_number,
+      status: r.status,
       delivery_fee: r.delivery_fee.toNumber(),
       subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
       tax: r.tax ? r.tax.toNumber() : 0,
