@@ -32,6 +32,7 @@ import {
   VolumeX,
   Store,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { ProductCard } from "@/components/marketplace/product-card";
 import type { Product } from "@/types";
@@ -1818,16 +1819,167 @@ function Offers() {
   );
 }
 
+function LeafBranch({ className = "", flip = false }: { className?: string; flip?: boolean }) {
+  return (
+    <svg
+      className={`${className} ${flip ? "-scale-x-100" : ""}`}
+      viewBox="0 0 44 44"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Curved Stem */}
+      <path
+        d="M10 36 C14 26, 22 18, 36 8"
+        stroke="#15803d"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        className="stroke-emerald-600 dark:stroke-emerald-400"
+      />
+      {/* Leaf Pairs along stem */}
+      <path
+        d="M15 28 C12 27, 10 23, 13 20 C16 21, 17 25, 15 28 Z"
+        fill="#16a34a"
+        className="fill-emerald-600 dark:fill-emerald-400"
+      />
+      <path
+        d="M18 31 C20 33, 24 34, 25 31 C24 28, 20 28, 18 31 Z"
+        fill="#15803d"
+        className="fill-emerald-700 dark:fill-emerald-500"
+      />
+      <path
+        d="M21 21 C18 20, 16 16, 19 13 C22 14, 23 18, 21 21 Z"
+        fill="#16a34a"
+        className="fill-emerald-600 dark:fill-emerald-400"
+      />
+      <path
+        d="M25 24 C27 26, 31 27, 32 24 C31 21, 27 21, 25 24 Z"
+        fill="#15803d"
+        className="fill-emerald-700 dark:fill-emerald-500"
+      />
+      <path
+        d="M28 14 C25 13, 24 9, 27 6 C30 7, 31 11, 28 14 Z"
+        fill="#16a34a"
+        className="fill-emerald-600 dark:fill-emerald-400"
+      />
+      <path
+        d="M32 17 C34 19, 38 20, 39 17 C38 14, 34 14, 32 17 Z"
+        fill="#15803d"
+        className="fill-emerald-700 dark:fill-emerald-500"
+      />
+      {/* Terminal Leaf */}
+      <path
+        d="M36 8 C36 4, 40 3, 41 6 C41 9, 38 10, 36 8 Z"
+        fill="#16a34a"
+        className="fill-emerald-600 dark:fill-emerald-400"
+      />
+    </svg>
+  );
+}
+
 function BrandFooter() {
   return (
-    <section className="px-4 md:px-0 pt-8 md:pt-12">
-      <div className="rounded-2xl md:rounded-3xl border bg-card p-5 md:p-8 text-center">
-        <div className="font-display text-[22px] md:text-2xl font-bold text-primary">VegaMart</div>
-        <p className="mt-1 md:mt-2 text-[13px] md:text-sm text-muted-foreground">
-          India's first live local vendor network. Har gali banegi live market.
-        </p>
-        <p className="mt-3 md:mt-4 text-[11px] md:text-xs text-muted-foreground">
-          © 2026 VegaMart. Made with 💚 in Sakti, Chhattisgarh.
+    <section className="w-full pt-8 pb-10 md:pt-14 md:pb-20">
+      <div className="w-full rounded-[32px] sm:rounded-[36px] md:rounded-[44px] border border-border/80 bg-card p-6 sm:p-8 md:p-12 lg:p-16 text-center shadow-soft space-y-4 md:space-y-6 bg-gradient-to-b from-card via-card to-emerald-50/20 dark:to-emerald-950/10">
+        {/* Brand Logo with Sprouting Leaves */}
+        <div className="flex flex-col items-center justify-center">
+          {/* Leaves SVG */}
+          <div className="flex items-center justify-center mb-1 md:mb-2">
+            <svg
+              className="h-8 w-12 md:h-12 md:w-16 transition-transform hover:scale-105"
+              viewBox="0 0 48 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {/* Left Leaf */}
+              <path
+                d="M23 28 C22 18, 12 10, 4 12 C2 18, 7 28, 23 28 Z"
+                fill="#15803d"
+                className="fill-emerald-700 dark:fill-emerald-500"
+              />
+              <path
+                d="M8 20 C13 21, 18 24, 23 28"
+                stroke="#bbf7d0"
+                strokeWidth="1.25"
+                strokeLinecap="round"
+                opacity="0.7"
+              />
+              {/* Right Leaf */}
+              <path
+                d="M25 28 C26 16, 36 8, 44 10 C46 16, 41 27, 25 28 Z"
+                fill="#22c55e"
+                className="fill-emerald-500 dark:fill-emerald-400"
+              />
+              <path
+                d="M39 18 C34 20, 29 23, 25 28"
+                stroke="#bbf7d0"
+                strokeWidth="1.25"
+                strokeLinecap="round"
+                opacity="0.7"
+              />
+            </svg>
+          </div>
+
+          {/* VegaMart Wordmark */}
+          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-[#166534] dark:text-emerald-400 leading-none">
+            VegaMart
+          </h2>
+        </div>
+
+        {/* Taglines */}
+        <div className="space-y-1 md:space-y-1.5">
+          <p className="text-[13.5px] sm:text-base md:text-lg lg:text-xl text-foreground/90 font-medium leading-snug">
+            India's first live local vendor network.
+          </p>
+          <p className="text-[13.5px] sm:text-base md:text-lg lg:text-xl font-bold text-[#15803d] dark:text-emerald-400 leading-snug">
+            Har gali banegi live market.
+          </p>
+        </div>
+
+        {/* Divider with Heart */}
+        <div className="flex items-center justify-center gap-3 md:gap-4 w-4/5 sm:w-2/3 md:w-1/2 lg:w-2/5 mx-auto py-1 md:py-2">
+          <div className="h-[1px] flex-1 bg-emerald-200 dark:bg-emerald-800/60" />
+          <span className="text-emerald-600 dark:text-emerald-400 text-sm md:text-base leading-none">💚</span>
+          <div className="h-[1px] flex-1 bg-emerald-200 dark:bg-emerald-800/60" />
+        </div>
+
+        {/* Founded By Section */}
+        <div className="flex items-center justify-center gap-2 sm:gap-4 md:gap-6 py-1 md:py-2">
+          <LeafBranch className="h-9 w-9 sm:h-11 sm:w-11 md:h-14 md:w-14 lg:h-16 lg:w-16 shrink-0" flip={true} />
+
+          <div className="flex flex-col items-center">
+            <span className="font-serif italic text-base sm:text-lg md:text-xl lg:text-2xl text-emerald-900 dark:text-emerald-300 font-medium tracking-wide">
+              Founded by
+            </span>
+            <div className="mt-1 md:mt-2 px-5 sm:px-7 md:px-10 py-2 sm:py-2.5 md:py-3.5 rounded-full bg-[#0d4a25] dark:bg-emerald-950 border border-emerald-500/30 shadow-xs hover:scale-105 transition-transform">
+              <span className="text-white font-bold text-sm sm:text-base md:text-lg lg:text-xl tracking-wide font-sans whitespace-nowrap">
+                Ketan Prasad Dewangan
+              </span>
+            </div>
+          </div>
+
+          <LeafBranch className="h-9 w-9 sm:h-11 sm:w-11 md:h-14 md:w-14 lg:h-16 lg:w-16 shrink-0" />
+        </div>
+
+        {/* Mission Statement with Shield */}
+        <div className="flex items-center justify-center gap-2 text-center text-xs sm:text-[13px] md:text-base text-foreground/90 font-medium max-w-sm sm:max-w-md md:max-w-2xl mx-auto leading-relaxed pt-1 md:pt-2">
+          <ShieldCheck className="h-4 w-4 md:h-5 md:w-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+          <span>Proudly built with passion for local vendors and our community.</span>
+        </div>
+
+        {/* Subtle Dots Divider */}
+        <div className="flex items-center justify-center gap-1.5 md:gap-2.5 py-1 md:py-2">
+          <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-emerald-200 dark:bg-emerald-800" />
+          <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-emerald-300 dark:bg-emerald-700" />
+          <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-emerald-400 dark:bg-emerald-600" />
+          <span className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+          <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-emerald-400 dark:bg-emerald-600" />
+          <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-emerald-300 dark:bg-emerald-700" />
+          <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-emerald-200 dark:bg-emerald-800" />
+        </div>
+
+        {/* Copyright & Sakti, Chhattisgarh */}
+        <p className="text-[11.5px] sm:text-xs md:text-sm text-muted-foreground font-medium leading-relaxed">
+          © 2026 VegaMart • Made with 💚 in Sakti, Chhattisgarh.
         </p>
       </div>
     </section>
