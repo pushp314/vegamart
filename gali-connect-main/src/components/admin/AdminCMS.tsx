@@ -105,7 +105,7 @@ export function AdminCMS() {
 
   const { data: settingsRes, isLoading: settingsLoading } = useQuery({
     queryKey: ["adminSettings"],
-    queryFn: () => api.get<any>("/settings/admin"),
+    queryFn: () => api.get<any>("/admin/settings"),
   });
 
   const [sections, setSections] = useState<HomePageSectionItem[]>(DEFAULT_HOMEPAGE_SECTIONS);
@@ -113,7 +113,8 @@ export function AdminCMS() {
 
   useEffect(() => {
     if (settingsRes?.data) {
-      const raw = settingsRes.data["platform.homepage_sections"];
+      const settingsData = settingsRes.data?.data ?? settingsRes.data;
+      const raw = settingsData?.["platform.homepage_sections"];
       if (raw) {
         try {
           const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -133,14 +134,16 @@ export function AdminCMS() {
             ];
             setSections(merged);
           }
-        } catch {}
+        } catch (err) {
+          console.error("Failed to parse platform.homepage_sections", err);
+        }
       }
     }
   }, [settingsRes]);
 
   const saveSectionsMutation = useMutation({
     mutationFn: (newSections: HomePageSectionItem[]) =>
-      api.put("/settings/admin", {
+      api.patch("/admin/settings", {
         "platform.homepage_sections": JSON.stringify(newSections),
       }),
     onSuccess: () => {

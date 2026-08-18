@@ -1,5 +1,5 @@
 import type React from "react";
-import { CheckCircle2, Clock, ChefHat, Bike, Home } from "lucide-react";
+import { CheckCircle2, Clock, ChefHat, Bike, Home, ShoppingBag, Package } from "lucide-react";
 
 export type OrderStatus = string;
 
@@ -8,8 +8,8 @@ const STAGES: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
-  { status: "pending", label: "Order Placed", icon: Clock },
-  { status: "confirmed", label: "Confirmed by Vendor", icon: CheckCircle2 },
+  { status: "pending", label: "Order Booked", icon: Clock },
+  { status: "confirmed", label: "Confirmed", icon: CheckCircle2 },
   { status: "preparing", label: "Packing / Preparing", icon: ChefHat },
   { status: "out_for_delivery", label: "Out for Delivery", icon: Bike },
   { status: "delivered", label: "Delivered", icon: Home },
@@ -18,10 +18,14 @@ const STAGES: {
 function statusRank(status: string): number {
   switch (String(status).toLowerCase()) {
     case "pending":
+    case "booked":
+    case "booking":
       return 0;
     case "confirmed":
+    case "accepted":
       return 1;
     case "preparing":
+    case "processing":
     case "packed":
     case "ready_for_pickup":
       return 2;
@@ -36,35 +40,54 @@ function statusRank(status: string): number {
 }
 
 export function OrderTracker({
-  status = "out_for_delivery",
+  status = "pending",
   eta,
 }: {
   status?: OrderStatus;
   eta?: string;
 }) {
-  const currentIndex = Math.max(0, statusRank(status));
+  const normStatus = String(status || "pending").toLowerCase();
+  const currentIndex = Math.max(0, statusRank(normStatus));
+
+  const StatusIcon =
+    normStatus === "delivered"
+      ? Home
+      : normStatus === "out_for_delivery" || normStatus === "picked_up"
+        ? Bike
+        : normStatus === "preparing" || normStatus === "packed"
+          ? ChefHat
+          : normStatus === "confirmed"
+            ? CheckCircle2
+            : Clock;
+
+  const headerTitle =
+    normStatus === "delivered"
+      ? "Delivered 🎉"
+      : normStatus === "cancelled"
+        ? "Order Cancelled"
+        : normStatus === "out_for_delivery" || normStatus === "picked_up"
+          ? eta
+            ? `Arriving in ${eta}`
+            : "Rider on the way"
+          : normStatus === "preparing" || normStatus === "packed"
+            ? "Packing & Preparing"
+            : normStatus === "confirmed"
+              ? "Order Confirmed by Vendor"
+              : "Order Booked 🎉";
 
   return (
     <div className="rounded-3xl bg-card border p-5 shadow-soft space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Live Delivery Tracking
+            Live Order Status
           </span>
           <h3 className="font-display text-lg font-bold text-foreground">
-            {status === "delivered"
-              ? "Delivered 🎉"
-              : status === "cancelled"
-                ? "Order Cancelled"
-                : eta
-                  ? `Arriving in ${eta}`
-                  : status === "out_for_delivery"
-                    ? "Rider on the way"
-                    : "Order in progress"}
+            {headerTitle}
           </h3>
         </div>
         <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-primary animate-pulse">
-          <Bike className="h-5 w-5" />
+          <StatusIcon className="h-5 w-5" />
         </div>
       </div>
 

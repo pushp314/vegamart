@@ -29,7 +29,7 @@ function OrderSuccess() {
   const deliveryAddress = order?.address?.full_address
     ? `${order.address.full_address}${order.address.landmark ? `, ${order.address.landmark}` : ""}`
     : "Your delivery address";
-  const orderStatus = String(order?.status || "preparing").toLowerCase();
+  const orderStatus = String(order?.status || "pending").toLowerCase();
 
   return (
     <div className="min-h-screen bg-background grid place-items-center px-4 py-10">
@@ -43,10 +43,10 @@ function OrderSuccess() {
 
         <div>
           <h1 className="font-display text-2xl sm:text-3xl font-bold leading-tight">
-            Order Placed Successfully!
+            Order Booked Successfully!
           </h1>
           <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground">
-            Thank you! Your vendor has confirmed the order and is packing it fresh.
+            Thank you! Your order has been booked and sent to the merchant.
           </p>
         </div>
 

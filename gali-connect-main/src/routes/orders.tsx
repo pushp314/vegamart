@@ -21,7 +21,7 @@ import { toast } from "sonner";
 
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
-import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
+import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
 import {
   Dialog,
   DialogContent,
@@ -38,22 +38,7 @@ export const Route = createFileRoute("/orders")({
 });
 
 function statusLabel(status: string): string {
-  return (
-    {
-      pending: "Pending",
-      confirmed: "Confirmed",
-      preparing: "Preparing",
-      packed: "Packed",
-      ready_for_pickup: "Ready for Pickup",
-      picked_up: "Picked Up",
-      out_for_delivery: "Out for Delivery",
-      delivered: "Delivered",
-      cancelled: "Cancelled",
-      refunded: "Refunded",
-      returned: "Returned",
-      failed: "Failed",
-    }[status] || status
-  );
+  return getOrderStatusInfo(status).label;
 }
 
 function Orders() {
@@ -253,6 +238,8 @@ function OrdersList() {
                 const DIcon = dInfo.icon;
                 const PIcon = pInfo.icon;
 
+                const sInfo = getOrderStatusInfo(o.status);
+
                 return (
                   <div key={o.id} className="rounded-3xl bg-card border p-5 shadow-soft space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -261,8 +248,8 @@ function OrdersList() {
                           <h3 className="font-bold text-base">
                             Order #{o.order_number || o.id.slice(0, 8)}
                           </h3>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                            {statusLabel(statusLower) || o.status || "Pending"}
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${sInfo.badgeBg}`}>
+                            {sInfo.badge}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -283,10 +270,10 @@ function OrdersList() {
                       <Link
                         to="/orders/$orderId/track"
                         params={{ orderId: o.id }}
-                        className="flex items-center gap-1 text-xs font-bold text-primary hover:underline bg-emerald-50 px-3 py-1.5 rounded-2xl border border-emerald-200 shrink-0"
+                        className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-emerald-50 px-3 py-1.5 rounded-2xl border border-emerald-200 shrink-0"
                       >
-                        <Bike className="h-4 w-4" />
-                        Trace Delivery
+                        <sInfo.icon className="h-4 w-4" />
+                        Track Order
                       </Link>
                     </div>
 

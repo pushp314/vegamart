@@ -234,6 +234,7 @@ router.get("/audit-logs/:audit_log_id", validate({ params: auditLogIdParamsSchem
 // Settings
 router.get("/settings", getSettings);
 router.patch("/settings", validate({ body: settingsUpdateSchema }), updateSettings);
+router.put("/settings", validate({ body: settingsUpdateSchema }), updateSettings);
 
 // Maintenance scheduling & alerts
 router.get("/maintenance", getMaintenanceStatus);

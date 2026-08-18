@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
+import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
 
 export const Route = createFileRoute("/vendor/orders")({
   component: VendorOrdersPage,
@@ -85,6 +85,7 @@ function VendorOrdersPage() {
     );
 
     if (statusFilter === "ALL") return matchesSearch;
+    if (statusFilter === "BOOKED") return matchesSearch && o.status?.toUpperCase() === "PENDING";
     if (statusFilter === "LIVE") return matchesSearch && isLive;
     if (statusFilter === "DELIVERED") return matchesSearch && o.status?.toUpperCase() === "DELIVERED";
     if (statusFilter === "CANCELLED") return matchesSearch && (o.status?.toUpperCase() === "CANCELLED" || o.status?.toUpperCase() === "REFUNDED");
@@ -171,12 +172,16 @@ function VendorOrdersPage() {
 
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
-            { id: "ALL", label: `All Orders (${vendorOrders.length})` },
+            { id: "ALL", label: `All (${vendorOrders.length})` },
+            {
+              id: "BOOKED",
+              label: `New Bookings (${vendorOrders.filter((o: any) => (o.status || "").toUpperCase() === "PENDING").length})`,
+            },
             {
               id: "LIVE",
               label: `Active (${
                 vendorOrders.filter((o: any) =>
-                  ["PENDING", "CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY"].includes(
+                  ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY"].includes(
                     (o.status || "").toUpperCase()
                   )
                 ).length
@@ -190,7 +195,7 @@ function VendorOrdersPage() {
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-4 py-2 text-xs rounded-xl font-bold whitespace-nowrap transition-all ${
+              className={`px-3.5 py-2 text-xs rounded-xl font-bold whitespace-nowrap transition-all ${
                 statusFilter === tab.id
                   ? "bg-slate-900 text-white shadow-sm"
                   : "bg-card border border-border text-muted-foreground hover:text-foreground"
@@ -284,6 +289,7 @@ function VendorOrdersPage() {
 
             const nextStatuses = getNextStatuses(o.status);
             const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
+            const sInfo = getOrderStatusInfo(o.status);
             const pInfo = getPaymentMethodInfo(
               o.payment_method,
               o.payment_status,
@@ -291,6 +297,7 @@ function VendorOrdersPage() {
               dInfo.id === "self_pickup"
             );
             const DIcon = dInfo.icon;
+            const SIcon = sInfo.icon;
             const PIcon = pInfo.icon;
 
             return (
@@ -318,12 +325,8 @@ function VendorOrdersPage() {
                       <div className="font-display text-lg font-black text-emerald-600">
                         ₹{Number(o.total || 0).toLocaleString("en-IN")}
                       </div>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
-                        o.status?.toUpperCase() === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                        (o.status?.toUpperCase() === 'CANCELLED' || o.status?.toUpperCase() === 'REFUNDED') ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
-                        'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                      }`}>
-                        {o.status?.toUpperCase() === 'DELIVERED' ? <CheckCircle2 className="h-3 w-3" /> : (o.status?.toUpperCase() === 'CANCELLED' || o.status?.toUpperCase() === 'REFUNDED') ? <X className="h-3 w-3" /> : <Clock className="h-3 w-3" />} {o.status}
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${sInfo.badgeBg}`}>
+                        <SIcon className="h-3 w-3" /> {sInfo.label}
                       </span>
                     </div>
                   </div>

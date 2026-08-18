@@ -244,19 +244,22 @@ function Home() {
 
   const { data: publicSettings } = useQuery({
     queryKey: ["publicSettings"],
-    queryFn: () => api.get<Record<string, any>>("/settings"),
+    queryFn: () => api.get<Record<string, any>>("/settings/public"),
     staleTime: 60_000,
   });
 
   const orderedSections = useMemo(() => {
-    const raw = publicSettings?.data?.["platform.homepage_sections"];
+    const settingsData = publicSettings?.data?.data ?? publicSettings?.data;
+    const raw = settingsData?.["platform.homepage_sections"];
     if (raw) {
       try {
         const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.filter((s: any) => s && s.enabled !== false);
         }
-      } catch {}
+      } catch (err) {
+        console.error("Failed to parse platform.homepage_sections on home page", err);
+      }
     }
     return DEFAULT_HOMEPAGE_SECTIONS.filter((s) => s.enabled);
   }, [publicSettings]);

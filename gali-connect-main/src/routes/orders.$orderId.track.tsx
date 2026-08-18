@@ -34,7 +34,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
-import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
+import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
 
 export const Route = createFileRoute("/orders/$orderId/track")({
   component: OrderIdTrackingPage,
@@ -75,28 +75,21 @@ function OrderIdTrackingPage() {
 
   const order = orderRes?.data?.data || orderRes?.data || null;
 
-  const status = String(order?.status || "pending").toLowerCase();
+  const statusInfo = getOrderStatusInfo(order?.status);
+  const status = statusInfo.status;
   const isDelivered = status === "delivered";
   const isOutForDelivery = status === "out_for_delivery";
-  const statusLabel =
-    {
-      pending: "Placed",
-      confirmed: "Confirmed",
-      processing: "Processing",
-      prepared: "Prepared",
-      packed: "Packed",
-      out_for_delivery: "Out for Delivery",
-      delivered: "Delivered",
-      cancelled: "Cancelled",
-    }[status] || status;
+  const isPreparing = status === "preparing" || status === "packed" || status === "ready_for_pickup";
+  const isConfirmed = status === "confirmed" || isPreparing || isOutForDelivery || isDelivered;
 
   const steps = [
-    { label: "Order Placed", desc: "Sent to vendor", done: !!order },
-    { label: "Confirmed", desc: "Packed & ready", done: isDelivered || isOutForDelivery },
+    { label: "Order Booked", desc: "Booking received & sent to merchant", done: !!order },
+    { label: "Confirmed", desc: "Accepted by merchant", done: isConfirmed },
+    { label: "Preparing", desc: "Packing fresh items", done: isPreparing || isOutForDelivery || isDelivered },
     {
       label: "Out for Delivery",
       desc: "Partner on the way",
-      done: isDelivered || isOutForDelivery,
+      done: isOutForDelivery || isDelivered,
     },
     { label: "Delivered", desc: "Enjoy your fresh produce!", done: isDelivered },
   ];
@@ -180,12 +173,14 @@ function OrderIdTrackingPage() {
             {/* Status Banner */}
             <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/5 p-5 shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500 text-white font-bold shadow-md">
-                  <Bike className="h-6 w-6" />
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                  </span>
+                <div className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${statusInfo.badgeBg} font-bold shadow-md`}>
+                  <statusInfo.icon className="h-6 w-6" />
+                  {isOutForDelivery && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                  )}
                 </div>
                 <div>
                   <h2 className="font-display font-black text-lg md:text-xl text-foreground">
@@ -193,14 +188,22 @@ function OrderIdTrackingPage() {
                       ? "Order Delivered! 🎉"
                       : isOutForDelivery
                         ? "Delivery Partner is on the way!"
-                        : `Order ${statusLabel}`}
+                        : status === "preparing" || status === "packed"
+                          ? "Packing & Preparing Fresh Items"
+                          : status === "confirmed"
+                            ? "Order Confirmed by Merchant"
+                            : "Order Booked 🎉"}
                   </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {isDelivered
                       ? "Order handed over safely."
                       : isOutForDelivery
-                        ? "Live tracking will appear once the rider connects."
-                        : "We'll notify you as soon as your order is on its way."}
+                        ? "Live tracking will update as the rider moves."
+                        : status === "preparing" || status === "packed"
+                          ? "Merchant is packing your ordered products."
+                          : status === "confirmed"
+                            ? "Merchant confirmed and accepted the booking."
+                            : "Your booking is confirmed and sent to the merchant."}
                   </p>
                 </div>
               </div>
@@ -290,7 +293,7 @@ function OrderIdTrackingPage() {
               <h3 className="font-display font-black text-base text-foreground">
                 Order Status Timeline
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {steps.map((step, idx) => (
                   <div
                     key={step.label}
@@ -729,7 +732,7 @@ function OrderIdTrackingPage() {
         )}
 
         {/* Cancel Order Section */}
-        {order && !isDelivered && (statusLabel === "PENDING" || statusLabel === "CONFIRMED") && (
+        {order && !isDelivered && (status === "pending" || status === "confirmed") && (
           <div className="rounded-3xl border bg-card p-6 shadow-soft text-center space-y-3 max-w-6xl mx-auto mt-6">
             <h3 className="font-display font-black text-sm text-foreground">
               Need to cancel your order?

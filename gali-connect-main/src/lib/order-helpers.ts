@@ -13,6 +13,160 @@ import {
   RotateCcw,
 } from "lucide-react";
 
+export interface OrderStatusInfo {
+  status: string;
+  label: string;
+  shortLabel: string;
+  badge: string;
+  desc: string;
+  colorClass: string;
+  badgeBg: string;
+  icon: typeof Clock;
+  stepIndex: number;
+}
+
+export function getOrderStatusInfo(status?: string | null): OrderStatusInfo {
+  const s = String(status || "pending").trim().toLowerCase();
+
+  if (s === "pending" || s === "booked" || s === "booking") {
+    return {
+      status: "pending",
+      label: "Order Booked",
+      shortLabel: "Booked",
+      badge: "📋 Order Booked",
+      desc: "Booking received & sent to merchant",
+      colorClass: "text-amber-800 bg-amber-50 border-amber-300",
+      badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      icon: Clock,
+      stepIndex: 0,
+    };
+  }
+
+  if (s === "confirmed" || s === "accepted") {
+    return {
+      status: "confirmed",
+      label: "Order Confirmed",
+      shortLabel: "Confirmed",
+      badge: "✅ Confirmed",
+      desc: "Merchant confirmed and accepted the booking",
+      colorClass: "text-blue-800 bg-blue-50 border-blue-300",
+      badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+      icon: CheckCircle2,
+      stepIndex: 1,
+    };
+  }
+
+  if (s === "preparing" || s === "processing") {
+    return {
+      status: "preparing",
+      label: "Preparing / Packing",
+      shortLabel: "Preparing",
+      badge: "🍳 Preparing",
+      desc: "Merchant is packing your fresh items",
+      colorClass: "text-indigo-800 bg-indigo-50 border-indigo-300",
+      badgeBg: "bg-indigo-100 text-indigo-900 border-indigo-300",
+      icon: Clock,
+      stepIndex: 2,
+    };
+  }
+
+  if (s === "packed") {
+    return {
+      status: "packed",
+      label: "Packed & Ready",
+      shortLabel: "Packed",
+      badge: "📦 Packed",
+      desc: "Order is packed and ready for dispatch",
+      colorClass: "text-purple-800 bg-purple-50 border-purple-300",
+      badgeBg: "bg-purple-100 text-purple-900 border-purple-300",
+      icon: CheckCircle2,
+      stepIndex: 2,
+    };
+  }
+
+  if (s === "ready_for_pickup") {
+    return {
+      status: "ready_for_pickup",
+      label: "Ready for Pickup",
+      shortLabel: "Ready for Pickup",
+      badge: "🏪 Ready for Pickup",
+      desc: "Order ready for takeaway or courier pickup",
+      colorClass: "text-cyan-800 bg-cyan-50 border-cyan-300",
+      badgeBg: "bg-cyan-100 text-cyan-900 border-cyan-300",
+      icon: Store,
+      stepIndex: 2,
+    };
+  }
+
+  if (s === "picked_up" || s === "out_for_delivery") {
+    return {
+      status: "out_for_delivery",
+      label: "Out for Delivery",
+      shortLabel: "Out for Delivery",
+      badge: "🏍️ Out for Delivery",
+      desc: "Delivery partner on the way with your order",
+      colorClass: "text-orange-800 bg-orange-50 border-orange-300",
+      badgeBg: "bg-orange-100 text-orange-900 border-orange-300",
+      icon: Bike,
+      stepIndex: 3,
+    };
+  }
+
+  if (s === "delivered") {
+    return {
+      status: "delivered",
+      label: "Delivered 🎉",
+      shortLabel: "Delivered",
+      badge: "🎉 Delivered",
+      desc: "Order delivered safely",
+      colorClass: "text-emerald-800 bg-emerald-50 border-emerald-300",
+      badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      icon: CheckCircle2,
+      stepIndex: 4,
+    };
+  }
+
+  if (s === "cancelled") {
+    return {
+      status: "cancelled",
+      label: "Cancelled",
+      shortLabel: "Cancelled",
+      badge: "❌ Cancelled",
+      desc: "Order was cancelled",
+      colorClass: "text-rose-800 bg-rose-50 border-rose-300",
+      badgeBg: "bg-rose-100 text-rose-900 border-rose-300",
+      icon: XCircle,
+      stepIndex: -1,
+    };
+  }
+
+  if (s === "refunded") {
+    return {
+      status: "refunded",
+      label: "Refunded",
+      shortLabel: "Refunded",
+      badge: "↩️ Refunded",
+      desc: "Payment refunded to customer",
+      colorClass: "text-slate-800 bg-slate-50 border-slate-300",
+      badgeBg: "bg-slate-100 text-slate-900 border-slate-300",
+      icon: RotateCcw,
+      stepIndex: -1,
+    };
+  }
+
+  return {
+    status: s,
+    label: s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " "),
+    shortLabel: s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " "),
+    badge: `📋 ${s.replace(/_/g, " ")}`,
+    desc: `Status: ${s.replace(/_/g, " ")}`,
+    colorClass: "text-slate-800 bg-slate-50 border-slate-300",
+    badgeBg: "bg-slate-100 text-slate-900 border-slate-300",
+    icon: Clock,
+    stepIndex: 0,
+  };
+}
+
 export interface DeliveryOptionInfo {
   id: "delivery_partner" | "self_pickup" | "vendor_comes_to_me" | "shop_delivery";
   label: string;
@@ -68,10 +222,10 @@ export function getDeliveryOptionInfo(deliveryNote?: string | null, fallbackOpti
 
   return {
     id: "delivery_partner",
-    label: "VegaMart Delivery Partner",
-    shortLabel: "Delivery Partner",
-    badge: "🏍️ Delivery Partner",
-    desc: "Assigned VegaMart delivery partner will deliver to door",
+    label: "VegaMart Home Delivery",
+    shortLabel: "Home Delivery",
+    badge: "🏍️ Home Delivery",
+    desc: "Assigned delivery partner will deliver to door",
     icon: Bike,
     colorClass: "text-emerald-700 bg-emerald-50 border-emerald-200",
     badgeBg: "bg-emerald-100 text-emerald-800 border-emerald-300",

@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -71,6 +71,12 @@ function VendorMembershipIndex() {
     queryFn: () => api.get<Membership>("/vendors/me/membership"),
   });
   const membership = membershipRes?.data as Membership | undefined;
+
+  const { data: vendorProfileRes } = useQuery({
+    queryKey: ["vendorProfile"],
+    queryFn: () => api.get<any>("/vendors/me"),
+  });
+  const vendor = vendorProfileRes?.data;
 
   const { data: productsRes } = useQuery({
     queryKey: ["vendorProducts"],
@@ -137,7 +143,7 @@ function VendorMembershipIndex() {
     },
   });
 
-  const benefits = Array.isArray(plan?.features) && plan.features.length > 0 ? plan!.features : [];
+  const features: string[] = Array.isArray(plan?.features) && plan.features.length > 0 ? plan.features : [];
 
   return (
     <div className="space-y-6">
@@ -362,7 +368,7 @@ function VendorMembershipIndex() {
               <CardContent>
                 {features.length > 0 ? (
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {features.map((feature, i) => (
+                    {features.map((feature: string, i: number) => (
                       <div
                         key={i}
                         className="flex items-start gap-3 rounded-xl border border-border/50 bg-muted/20 p-3.5"

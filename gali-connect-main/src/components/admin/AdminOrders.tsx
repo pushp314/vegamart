@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Search, Eye, Loader2, ShoppingBag, MapPin, User, Store, Phone, Bike, CreditCard, Banknote, ShieldCheck, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
+import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
 
 interface Order {
   id: string;
@@ -154,9 +154,12 @@ export function AdminOrders() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="PENDING">Pending</SelectItem>
+              <SelectItem value="PENDING">Order Booked (Pending)</SelectItem>
               <SelectItem value="CONFIRMED">Confirmed</SelectItem>
               <SelectItem value="PREPARING">Preparing</SelectItem>
+              <SelectItem value="PACKED">Packed</SelectItem>
+              <SelectItem value="READY_FOR_PICKUP">Ready for Pickup</SelectItem>
+              <SelectItem value="OUT_FOR_DELIVERY">Out for Delivery</SelectItem>
               <SelectItem value="DELIVERED">Delivered</SelectItem>
               <SelectItem value="CANCELLED">Cancelled</SelectItem>
             </SelectContent>
@@ -272,8 +275,8 @@ export function AdminOrders() {
                         </TableCell>
                         <TableCell className="font-semibold text-foreground">₹{order.total.toFixed(2)}</TableCell>
                         <TableCell>
-                          <Badge className={statusColors[order.status] ?? "bg-gray-100"}>
-                            {order.status}
+                          <Badge className={`${getOrderStatusInfo(order.status).badgeBg} font-bold text-xs whitespace-nowrap`}>
+                            {getOrderStatusInfo(order.status).label}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -330,14 +333,18 @@ export function AdminOrders() {
       <Dialog open={!!selectedOrder} onOpenChange={(o) => !o && setSelectedOrder(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex justify-between items-center pr-6">
-              <span>Order Details</span>
-              <Badge className={statusColors[detail?.status || ""] || "bg-gray-100"}>
-                {detail?.status}
-              </Badge>
-            </DialogTitle>
-            <DialogDescription className="font-mono text-xs">
-              ID: {detail?.id} | No: {detail?.order_number}
+            <div className="flex items-center justify-between gap-2 pr-6">
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                Order #{detail?.order_number || detail?.id.slice(0, 8)}
+                {detail && (
+                  <Badge className={`${getOrderStatusInfo(detail.status).badgeBg} font-bold text-xs`}>
+                    {getOrderStatusInfo(detail.status).label}
+                  </Badge>
+                )}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {detail?.created_at ? `Placed on ${format(new Date(detail.created_at), "PPP p")} | ` : ""}ID: {detail?.id}
             </DialogDescription>
           </DialogHeader>
 
@@ -349,11 +356,54 @@ export function AdminOrders() {
             detail && (() => {
               const modalDInfo = getDeliveryOptionInfo(detail.delivery_note);
               const modalPInfo = getPaymentMethodInfo(detail.payment_method, detail.payment_status, detail.total);
+              const modalSInfo = getOrderStatusInfo(detail.status);
               const ModalDIcon = modalDInfo.icon;
               const ModalPIcon = modalPInfo.icon;
+              const ModalSIcon = modalSInfo.icon;
+
+              const modalSteps = [
+                { key: "pending", label: "Order Booked", done: true },
+                { key: "confirmed", label: "Confirmed", done: ["confirmed", "preparing", "packed", "ready_for_pickup", "out_for_delivery", "delivered"].includes(modalSInfo.status) },
+                { key: "preparing", label: "Preparing", done: ["preparing", "packed", "ready_for_pickup", "out_for_delivery", "delivered"].includes(modalSInfo.status) },
+                { key: "out_for_delivery", label: "Out for Delivery", done: ["out_for_delivery", "delivered"].includes(modalSInfo.status) },
+                { key: "delivered", label: "Delivered", done: modalSInfo.status === "delivered" },
+              ];
 
               return (
                 <div className="space-y-6 pt-2">
+                  {/* Status Lifecycle Track */}
+                  <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ModalSIcon className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-foreground">
+                          Current Stage: <strong className="text-emerald-700 dark:text-emerald-400">{modalSInfo.label}</strong>
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        {modalSInfo.desc}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-5 gap-2 pt-1">
+                      {modalSteps.map((st, sIdx) => (
+                        <div
+                          key={st.key}
+                          className={`rounded-xl border p-2 text-center text-[10px] font-bold transition-all ${
+                            st.done
+                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                              : "bg-muted/40 border-border text-muted-foreground"
+                          }`}
+                        >
+                          <div className="flex items-center justify-center gap-1">
+                            <span className={`h-1.5 w-1.5 rounded-full ${st.done ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                            <span className="truncate">{st.label}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Delivery & Payment Badges Box */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     {/* Delivery Option Chosen Card */}
