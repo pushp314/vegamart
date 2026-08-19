@@ -758,7 +758,7 @@ export const deliveryService = {
         payment_method: true,
         payment_status: true,
         created_at: true,
-        payment: { select: { gateway_response: true } },
+        payment: { select: { amount: true, method: true, status: true, gateway_response: true } },
         items: {
           select: {
             id: true,
@@ -807,49 +807,68 @@ export const deliveryService = {
 
     const filtered = rows.filter((r) => isVegaMartDeliveryPartnerOrder(r.delivery_note));
 
-    return filtered.map((r) => ({
-      id: r.id,
-      order_number: r.order_number,
-      status: r.status,
-      delivery_fee: r.delivery_fee.toNumber(),
-      subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
-      tax: r.tax ? r.tax.toNumber() : 0,
-      discount: r.discount ? r.discount.toNumber() : 0,
-      total_amount: r.total.toNumber(),
-      delivery_option: r.delivery_note ?? "Delivery partner",
-      payment_method: r.payment_method,
-      payment_status: r.payment_status,
-      gateway_method: extractGatewayMethod(r.payment),
-      items: (r.items || []).map((i) => ({
-        id: i.id,
-        product_name: i.product_name,
-        quantity: i.quantity,
-        unit: i.unit,
-        selected_unit: i.selected_unit || i.unit,
-        unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
-        total_price: i.total_price ? i.total_price.toNumber() : 0,
-        image_url: i.image_url,
-        status: i.status,
-      })),
-      product_image: (r.items || [])[0]?.image_url ?? null,
-      created_at: r.created_at,
-      vendor: r.vendor
-        ? {
-            ...r.vendor,
-            lat: r.vendor.latitude,
-            lng: r.vendor.longitude,
-          }
-        : null,
-      user: r.customer ?? null,
-      address: r.address
-        ? {
-            ...r.address,
-            street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
-            lat: r.address.latitude,
-            lng: r.address.longitude,
-          }
-        : null,
-    }));
+    return filtered.map((r) => {
+      const isPaid = r.payment_status === "PAID";
+      const advAmount = r.payment?.amount ? r.payment.amount.toNumber() : (isPaid && r.payment_method !== "COD" ? r.total.toNumber() : 0);
+      const balanceAmount = r.payment_method === "COD"
+        ? r.total.toNumber()
+        : (isPaid && r.payment?.amount
+            ? Math.max(0, Math.round((r.total.toNumber() - r.payment.amount.toNumber()) * 100) / 100)
+            : (isPaid ? 0 : r.total.toNumber()));
+
+      return {
+        id: r.id,
+        order_number: r.order_number,
+        status: r.status,
+        delivery_fee: r.delivery_fee.toNumber(),
+        subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
+        tax: r.tax ? r.tax.toNumber() : 0,
+        discount: r.discount ? r.discount.toNumber() : 0,
+        total_amount: r.total.toNumber(),
+        advance_paid: advAmount,
+        balance_amount: balanceAmount,
+        payment: r.payment
+          ? {
+              amount: r.payment.amount ? r.payment.amount.toNumber() : null,
+              method: r.payment.method,
+              status: r.payment.status,
+            }
+          : null,
+        delivery_option: r.delivery_note ?? "Delivery partner",
+        payment_method: r.payment_method,
+        payment_status: r.payment_status,
+        gateway_method: extractGatewayMethod(r.payment),
+        items: (r.items || []).map((i) => ({
+          id: i.id,
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit: i.unit,
+          selected_unit: i.selected_unit || i.unit,
+          unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
+          total_price: i.total_price ? i.total_price.toNumber() : 0,
+          image_url: i.image_url,
+          status: i.status,
+        })),
+        product_image: (r.items || [])[0]?.image_url ?? null,
+        created_at: r.created_at,
+        vendor: r.vendor
+          ? {
+              ...r.vendor,
+              lat: r.vendor.latitude,
+              lng: r.vendor.longitude,
+            }
+          : null,
+        user: r.customer ?? null,
+        address: r.address
+          ? {
+              ...r.address,
+              street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
+              lat: r.address.latitude,
+              lng: r.address.longitude,
+            }
+          : null,
+      };
+    });
   },
 
   async listMyDeliveries(userId: string) {
@@ -874,7 +893,7 @@ export const deliveryService = {
         payment_status: true,
         otp_code: true,
         created_at: true,
-        payment: { select: { gateway_response: true } },
+        payment: { select: { amount: true, method: true, status: true, gateway_response: true } },
         items: {
           select: {
             id: true,
@@ -920,49 +939,68 @@ export const deliveryService = {
         },
       },
     });
-    return rows.map((r) => ({
-      id: r.id,
-      order_number: r.order_number,
-      status: r.status.toLowerCase(),
-      subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
-      tax: r.tax ? r.tax.toNumber() : 0,
-      discount: r.discount ? r.discount.toNumber() : 0,
-      total_amount: r.total.toNumber(),
-      delivery_fee: r.delivery_fee.toNumber(),
-      delivery_option: r.delivery_note ?? "Delivery partner",
-      payment_method: r.payment_method,
-      payment_status: r.payment_status,
-      gateway_method: extractGatewayMethod(r.payment),
-      items: r.items.map((i) => ({
-        id: i.id,
-        product_name: i.product_name,
-        quantity: i.quantity,
-        unit: i.unit,
-        selected_unit: i.selected_unit || i.unit,
-        unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
-        total_price: i.total_price ? i.total_price.toNumber() : 0,
-        image_url: i.image_url,
-        status: i.status,
-      })),
-      product_image: r.items[0]?.image_url ?? null,
-      created_at: r.created_at,
-      vendor: r.vendor
-        ? {
-            ...r.vendor,
-            lat: r.vendor.latitude,
-            lng: r.vendor.longitude,
-          }
-        : null,
-      user: r.customer ?? null,
-      address: r.address
-        ? {
-            ...r.address,
-            street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
-            lat: r.address.latitude,
-            lng: r.address.longitude,
-          }
-        : null,
-    }));
+    return rows.map((r) => {
+      const isPaid = r.payment_status === "PAID";
+      const advAmount = r.payment?.amount ? r.payment.amount.toNumber() : (isPaid && r.payment_method !== "COD" ? r.total.toNumber() : 0);
+      const balanceAmount = r.payment_method === "COD"
+        ? r.total.toNumber()
+        : (isPaid && r.payment?.amount
+            ? Math.max(0, Math.round((r.total.toNumber() - r.payment.amount.toNumber()) * 100) / 100)
+            : (isPaid ? 0 : r.total.toNumber()));
+
+      return {
+        id: r.id,
+        order_number: r.order_number,
+        status: r.status.toLowerCase(),
+        subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
+        tax: r.tax ? r.tax.toNumber() : 0,
+        discount: r.discount ? r.discount.toNumber() : 0,
+        total_amount: r.total.toNumber(),
+        advance_paid: advAmount,
+        balance_amount: balanceAmount,
+        payment: r.payment
+          ? {
+              amount: r.payment.amount ? r.payment.amount.toNumber() : null,
+              method: r.payment.method,
+              status: r.payment.status,
+            }
+          : null,
+        delivery_fee: r.delivery_fee.toNumber(),
+        delivery_option: r.delivery_note ?? "Delivery partner",
+        payment_method: r.payment_method,
+        payment_status: r.payment_status,
+        gateway_method: extractGatewayMethod(r.payment),
+        items: r.items.map((i) => ({
+          id: i.id,
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit: i.unit,
+          selected_unit: i.selected_unit || i.unit,
+          unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
+          total_price: i.total_price ? i.total_price.toNumber() : 0,
+          image_url: i.image_url,
+          status: i.status,
+        })),
+        product_image: r.items[0]?.image_url ?? null,
+        created_at: r.created_at,
+        vendor: r.vendor
+          ? {
+              ...r.vendor,
+              lat: r.vendor.latitude,
+              lng: r.vendor.longitude,
+            }
+          : null,
+        user: r.customer ?? null,
+        address: r.address
+          ? {
+              ...r.address,
+              street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
+              lat: r.address.latitude,
+              lng: r.address.longitude,
+            }
+          : null,
+      };
+    });
   },
 
   async acceptDelivery(

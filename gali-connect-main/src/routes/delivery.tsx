@@ -737,13 +737,38 @@ function DeliveryDashboard() {
                             <div className="text-xs text-muted-foreground">
                               {o.address?.street_address}
                             </div>
-                            <div
-                              className={`mt-2 font-black text-sm ${isCod ? "text-emerald-600" : "text-sky-600"}`}
-                            >
-                              {isCod
-                                ? `Collect: ₹${o.total_amount}`
-                                : `Paid online: ₹${o.total_amount}`}
-                            </div>
+                            {(() => {
+                              const isPaid = String(o.payment_status || "").toUpperCase() === "PAID";
+                              const advAmount = Number(o.advance_paid ?? o.payment?.amount ?? 0);
+                              const totAmount = Number(o.total_amount || 0);
+                              const isPartialAdvance = !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
+                              const balAmount = isPartialAdvance ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100) : (isCod ? totAmount : 0);
+
+                              if (isCod) {
+                                return (
+                                  <div className="mt-2 font-black text-sm text-amber-600">
+                                    Collect Cash/UPI: ₹{totAmount.toFixed(2)}
+                                  </div>
+                                );
+                              }
+                              if (isPartialAdvance) {
+                                return (
+                                  <div className="mt-2 space-y-0.5">
+                                    <div className="font-black text-sm text-amber-600">
+                                      Collect Balance: ₹{balAmount.toFixed(2)}
+                                    </div>
+                                    <div className="text-[11px] text-teal-700 font-bold">
+                                      (Advance ₹{advAmount.toFixed(2)} paid online)
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="mt-2 font-black text-sm text-emerald-600">
+                                  Paid online in full: ₹{totAmount.toFixed(2)}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1241,17 +1266,37 @@ function DeliveryDashboard() {
                 </div>
                 <div className="pt-2 flex items-center justify-between">
                   <span className="font-bold text-[11px] text-muted-foreground">Payment Mode:</span>
-                  <span
-                    className={`inline-flex items-center gap-1 font-extrabold px-2.5 py-0.5 rounded-full text-xs ${
-                      String(detailsOrder.payment_method || "").toUpperCase() === "COD"
-                        ? "bg-amber-100 text-amber-800 border border-amber-300"
-                        : "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    }`}
-                  >
-                    {String(detailsOrder.payment_method || "").toUpperCase() === "COD"
-                      ? `💵 Collect Cash: ₹${detailsOrder.total_amount}`
-                      : "✅ Paid Online (Do Not Collect Cash)"}
-                  </span>
+                  {(() => {
+                    const isModalCod = String(detailsOrder.payment_method || "").toUpperCase() === "COD";
+                    const isModalPaid = String(detailsOrder.payment_status || "").toUpperCase() === "PAID";
+                    const modalAdv = Number(detailsOrder.advance_paid ?? detailsOrder.payment?.amount ?? 0);
+                    const modalTot = Number(detailsOrder.total_amount || 0);
+                    const modalIsPartial = !isModalCod && isModalPaid && modalAdv > 0 && modalAdv < modalTot;
+                    const modalBal = modalIsPartial ? Math.max(0, Math.round((modalTot - modalAdv) * 100) / 100) : (isModalCod ? modalTot : 0);
+
+                    if (isModalCod) {
+                      return (
+                        <span className="inline-flex items-center gap-1 font-extrabold px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-300">
+                          💵 Collect Cash/UPI: ₹{modalTot.toFixed(2)}
+                        </span>
+                      );
+                    }
+                    if (modalIsPartial) {
+                      return (
+                        <div className="text-right">
+                          <span className="inline-flex items-center gap-1 font-black px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-300">
+                            💵 Collect Balance: ₹{modalBal.toFixed(2)}
+                          </span>
+                          <p className="text-[10px] font-bold text-teal-700 mt-0.5">Advance Paid: ₹{modalAdv.toFixed(2)}</p>
+                        </div>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex items-center gap-1 font-extrabold px-2.5 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        ✅ Fully Paid Online (Do Not Collect Cash)
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
 
