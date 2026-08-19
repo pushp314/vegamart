@@ -235,7 +235,13 @@ function OrdersList() {
                   navigate({ to: "/cart" });
                 };
                 const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
-                const pInfo = getPaymentMethodInfo(o.payment_method, o.payment_status, Number(o.total_amount || o.total || 0));
+                const pInfo = getPaymentMethodInfo(
+                  o.payment_method,
+                  o.payment_status,
+                  Number(o.total_amount || o.total || 0),
+                  dInfo.id === "self_pickup",
+                  o.payment?.amount != null ? Number(o.payment.amount) : null
+                );
                 const DIcon = dInfo.icon;
                 const PIcon = pInfo.icon;
 
@@ -262,6 +268,11 @@ function OrdersList() {
                             <PIcon className="h-3 w-3" />
                             {pInfo.shortLabel}
                           </span>
+                          {pInfo.isPartialAdvance && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border bg-teal-50 text-teal-800 border-teal-200">
+                              Advance Paid: ₹{pInfo.advancePaid.toFixed(2)} · Bal: ₹{pInfo.balanceAmount.toFixed(2)}
+                            </span>
+                          )}
                           {(o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time) && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border text-emerald-800 bg-emerald-50 border-emerald-200">
                               <Clock className="h-3 w-3 text-emerald-600" />

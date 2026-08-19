@@ -89,6 +89,16 @@ export const adminOrderService = {
               user: { select: { name: true, phone: true } },
             },
           },
+          payment: {
+            select: {
+              id: true,
+              method: true,
+              amount: true,
+              status: true,
+              refund_amount: true,
+              refund_status: true,
+            },
+          },
           _count: { select: { items: true } },
           items: {
             select: {
@@ -134,6 +144,16 @@ export const adminOrderService = {
           : null,
         delivery_partner: o.delivery_partner
           ? { id: o.delivery_partner.id, name: o.delivery_partner.user?.name ?? "Partner", phone: o.delivery_partner.user?.phone ?? null }
+          : null,
+        payment: o.payment
+          ? {
+              id: o.payment.id,
+              method: o.payment.method,
+              amount: Number(o.payment.amount),
+              status: o.payment.status,
+              refund_amount: o.payment.refund_amount ? Number(o.payment.refund_amount) : null,
+              refund_status: o.payment.refund_status,
+            }
           : null,
         item_count: o._count.items,
         items: o.items.map((i) => ({

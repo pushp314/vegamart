@@ -257,78 +257,97 @@ export interface PaymentOptionInfo {
   statusText: string;
   statusColorClass: string;
   statusIcon: typeof CheckCircle2;
+  isPartialAdvance: boolean;
+  advancePaid: number;
+  balanceAmount: number;
+  totalAmount: number;
+  summaryText: string;
 }
 
 export function getPaymentMethodInfo(
   paymentMethod?: string | null,
   paymentStatus?: string | null,
   totalAmount?: number,
-  isSelfPickup: boolean = false
+  isSelfPickup: boolean = false,
+  advancePaidAmount?: number | null
 ): PaymentOptionInfo {
   const pm = String(paymentMethod || "cod").trim().toUpperCase();
   const ps = String(paymentStatus || "PENDING").trim().toUpperCase();
-  const formattedTotal = totalAmount != null ? `₹${Number(totalAmount).toFixed(2)}` : "";
+  const tot = Math.max(0, Number(totalAmount || 0));
 
-  let method: PaymentOptionInfo["method"] = "ONLINE";
-  let label = "Paid Online (Razorpay)";
-  let shortLabel = "Online";
   let isPrepaid = true;
-  let instruction = "Payment completed and verified online. Do not collect cash.";
+  let method: PaymentOptionInfo["method"] = "ONLINE";
   let icon = CreditCard;
   let colorClass = "text-sky-700 bg-sky-50 border-sky-200";
 
   if (pm === "COD" || pm.includes("CASH")) {
     method = "COD";
-    label = "Cash on Delivery (COD)";
-    shortLabel = "Cash on Delivery";
     isPrepaid = false;
-    instruction = isSelfPickup
-      ? `Pay ${formattedTotal} cash or UPI directly at store counter upon pickup.`
-      : `Collect ${formattedTotal} in cash or UPI QR from customer upon delivery.`;
     icon = Banknote;
     colorClass = "text-amber-700 bg-amber-50 border-amber-200";
   } else if (pm === "WALLET") {
     method = "WALLET";
-    label = "VegaMart Wallet";
-    shortLabel = "Wallet";
-    isPrepaid = true;
-    instruction = "Paid instantly via VegaMart Wallet balance.";
     icon = Wallet;
     colorClass = "text-purple-700 bg-purple-50 border-purple-200";
   } else if (pm === "UPI") {
     method = "UPI";
-    label = "Online UPI (GPay, PhonePe, Paytm)";
-    shortLabel = "UPI";
-    isPrepaid = true;
-    instruction = "Prepaid online via UPI. Payment captured successfully.";
     icon = Smartphone;
     colorClass = "text-emerald-700 bg-emerald-50 border-emerald-200";
   } else if (pm === "CARD") {
     method = "CARD";
-    label = "Debit / Credit Card";
-    shortLabel = "Card";
-    isPrepaid = true;
-    instruction = "Prepaid online via Card. Payment captured successfully.";
     icon = CreditCard;
     colorClass = "text-indigo-700 bg-indigo-50 border-indigo-200";
+  }
+
+  const isPaid = ps === "PAID" || ps === "CAPTURED" || ps === "SUCCESS";
+  const rawAdv = advancePaidAmount != null ? Number(advancePaidAmount) : null;
+  const adv = isPaid
+    ? (rawAdv != null ? rawAdv : tot)
+    : 0;
+
+  const isPartialAdvance = isPrepaid && isPaid && adv > 0 && adv < tot;
+  const balanceAmount = isPrepaid
+    ? (isPaid ? Math.max(0, Math.round((tot - adv) * 100) / 100) : tot)
+    : tot;
+
+  let label = "Paid Online (Razorpay)";
+  let shortLabel = "Online";
+  let instruction = "Payment completed and verified online. Do not collect cash.";
+
+  if (method === "COD") {
+    label = isSelfPickup ? "Pay at Store Counter (Takeaway)" : "Cash on Delivery (COD)";
+    shortLabel = isSelfPickup ? "Pay at Store" : "COD";
+    instruction = isSelfPickup
+      ? `Pay ₹${tot.toFixed(2)} cash or UPI directly at store counter upon pickup.`
+      : `Collect ₹${tot.toFixed(2)} in cash or UPI QR from customer upon delivery.`;
+  } else if (isPartialAdvance) {
+    label = `Advance Paid Online (${method === "UPI" ? "UPI" : method === "CARD" ? "Card" : "Online"})`;
+    shortLabel = `Advance ₹${adv.toFixed(2)}`;
+    instruction = `Advance of ₹${adv.toFixed(2)} received online. Please collect balance ₹${balanceAmount.toFixed(2)} at store counter / upon collection.`;
+  } else if (isPaid) {
+    label = method === "UPI" ? "Online UPI (Paid in Full)" : method === "CARD" ? "Card Payment (Paid in Full)" : "Paid Online (Full Payment)";
+    shortLabel = "Fully Paid";
+    instruction = `Full payment of ₹${tot.toFixed(2)} verified online. Do not collect cash.`;
   } else {
-    method = "ONLINE";
-    label = "Online Payment (Razorpay)";
-    shortLabel = "Online";
-    isPrepaid = true;
-    instruction = "Prepaid online. Payment verified and captured.";
-    icon = CreditCard;
-    colorClass = "text-sky-700 bg-sky-50 border-sky-200";
+    label = method === "UPI" ? "Online UPI (Pending)" : method === "CARD" ? "Card (Pending)" : "Online Payment (Pending)";
+    shortLabel = "Payment Pending";
+    instruction = "Online payment was not completed or verified.";
   }
 
   let statusText = "Payment Pending";
   let statusColorClass = "bg-amber-100 text-amber-800 border-amber-200";
   let statusIcon = Clock;
 
-  if (ps === "PAID" || ps === "CAPTURED" || ps === "SUCCESS") {
-    statusText = "Paid (Success)";
-    statusColorClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
-    statusIcon = CheckCircle2;
+  if (isPaid) {
+    if (isPartialAdvance) {
+      statusText = `Advance Paid: ₹${adv.toFixed(2)}`;
+      statusColorClass = "bg-teal-100 text-teal-800 border-teal-200";
+      statusIcon = CheckCircle2;
+    } else {
+      statusText = "Full Online Payment Successful";
+      statusColorClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
+      statusIcon = CheckCircle2;
+    }
   } else if (ps === "REFUNDED") {
     statusText = "Fully Refunded";
     statusColorClass = "bg-slate-100 text-slate-700 border-slate-200";
@@ -343,6 +362,12 @@ export function getPaymentMethodInfo(
     statusIcon = XCircle;
   }
 
+  const summaryText = isPartialAdvance
+    ? `Advance Paid ₹${adv.toFixed(2)} + Balance ₹${balanceAmount.toFixed(2)} = Total ₹${tot.toFixed(2)}`
+    : isPaid
+      ? `Fully Paid Online ₹${tot.toFixed(2)}`
+      : `Total Payable: ₹${tot.toFixed(2)}`;
+
   return {
     method,
     label,
@@ -354,5 +379,10 @@ export function getPaymentMethodInfo(
     statusText,
     statusColorClass,
     statusIcon,
+    isPartialAdvance,
+    advancePaid: adv,
+    balanceAmount,
+    totalAmount: tot,
+    summaryText,
   };
 }

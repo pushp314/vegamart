@@ -138,24 +138,33 @@ export const paymentService = {
       });
     }
 
+    const amountPaid = payment.amount.toNumber();
     await transactionRepo.create({
       order_id: order.id,
       payment_id: payment.id,
       user_id: userId,
       type: "DEBIT",
-      amount: order.total.toNumber(),
+      amount: amountPaid,
       status: "success",
       reference: input.razorpay_payment_id,
       metadata: { razorpay_order_id: input.razorpay_order_id },
     });
 
-    await notificationService.payment(userId, "Payment successful", `Your payment for ${order.order_number} was successful.`, {
+    await notificationService.orderStatus(
+      userId,
+      order.order_number,
+      "Order confirmed",
+      `Your payment of ₹${amountPaid.toFixed(2)} for order ${order.order_number} has been verified and confirmed.`,
+      { order_id: order.id }
+    );
+
+    await notificationService.payment(userId, "Payment successful", `Your payment of ₹${amountPaid.toFixed(2)} for ${order.order_number} was successful.`, {
       order_id: order.id,
       payment_id: payment.id,
     });
 
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "payment", entityId: payment.id, newValues: { razorpay_payment_id: input.razorpay_payment_id, order_id: order.id, amount: order.total.toNumber() } },
+      { userId, action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "payment", entityId: payment.id, newValues: { razorpay_payment_id: input.razorpay_payment_id, order_id: order.id, amount: amountPaid } },
       req
     );
 
@@ -266,18 +275,27 @@ export const paymentService = {
       });
     }
 
+    const amountPaid = payment.amount.toNumber();
     await transactionRepo.create({
       order_id: order.id,
       payment_id: payment.id,
       user_id: order.user_id,
       type: "DEBIT",
-      amount: order.total.toNumber(),
+      amount: amountPaid,
       status: "success",
       reference: entity.id ?? null,
       metadata: { razorpay_order_id: razorpayOrderId, source: "webhook" },
     });
 
-    await notificationService.payment(order.user_id, "Payment successful", `Your payment for ${order.order_number} was successful.`, {
+    await notificationService.orderStatus(
+      order.user_id,
+      order.order_number,
+      "Order confirmed",
+      `Your payment of ₹${amountPaid.toFixed(2)} for order ${order.order_number} has been verified and confirmed.`,
+      { order_id: order.id }
+    );
+
+    await notificationService.payment(order.user_id, "Payment successful", `Your payment of ₹${amountPaid.toFixed(2)} for ${order.order_number} was successful.`, {
       order_id: order.id,
     });
   },

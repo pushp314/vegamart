@@ -314,7 +314,8 @@ function VendorOrdersPage() {
               o.payment_method,
               o.payment_status,
               Number(o.total || 0),
-              dInfo.id === "self_pickup"
+              dInfo.id === "self_pickup",
+              o.payment?.amount != null ? Number(o.payment.amount) : null
             );
             const DIcon = dInfo.icon;
             const SIcon = sInfo.icon;
@@ -386,7 +387,12 @@ function VendorOrdersPage() {
                         {pInfo.statusText}
                       </span>
                     </div>
-                    <p className="text-muted-foreground text-[11px]">{pInfo.instruction}</p>
+                    <p className="text-muted-foreground text-[11px] font-medium leading-snug">{pInfo.instruction}</p>
+                    {pInfo.isPartialAdvance && (
+                      <div className="mt-1 pt-1 border-t border-border/50 text-[10.5px] font-bold text-teal-800 dark:text-teal-300">
+                        {pInfo.summaryText}
+                      </div>
+                    )}
                   </div>
                 </div>
 

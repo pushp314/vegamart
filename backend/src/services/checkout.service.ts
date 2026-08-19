@@ -55,7 +55,7 @@ function groupByVendor(cart: cartRepo.CartRow): VendorGroup[] {
   return [...groups.values()];
 }
 
-/** Case-insensitive check for self-pickup or booking delivery slot. */
+/** Case-insensitive check for self-pickup or booking delivery slot requiring advance payment. */
 function isSelfPickupSlot(deliverySlot?: string | null): boolean {
   if (!deliverySlot) return false;
   const normalized = deliverySlot.toLowerCase();
@@ -63,7 +63,8 @@ function isSelfPickupSlot(deliverySlot?: string | null): boolean {
     normalized.includes("self") ||
     normalized.includes("pickup") ||
     normalized.includes("takeaway") ||
-    normalized.includes("book")
+    normalized.includes("book") ||
+    normalized.includes("advance")
   );
 }
 
@@ -74,7 +75,8 @@ function isAdvanceRequiredSlot(deliverySlot?: string | null): boolean {
     normalized.includes("self") ||
     normalized.includes("pickup") ||
     normalized.includes("takeaway") ||
-    normalized.includes("book")
+    normalized.includes("book") ||
+    normalized.includes("advance")
   );
 }
 
@@ -347,9 +349,12 @@ export const checkoutService = {
           : (vendor.min_order && vendor.min_order.toNumber() > 0 ? vendor.min_order.toNumber() : globalMinOrderValue);
       }
 
-      const advancePct = slotRaw.includes("book")
-        ? deliveryConfigs.booking.advance_percentage
-        : deliveryConfigs.self_pickup.advance_percentage;
+      let advancePct = 0;
+      if (slotRaw.includes("book") || slotRaw.includes("advance")) {
+        advancePct = deliveryConfigs.booking.advance_percentage;
+      } else if (slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway")) {
+        advancePct = deliveryConfigs.self_pickup.advance_percentage;
+      }
 
       summaryGroups.push({
         vendor_id: group.vendor_id,
@@ -764,14 +769,19 @@ export const checkoutService = {
       await analyticsService.recordCustomer(group.vendor_id, userId, entry.order.id);
     }
 
-    for (const entry of serializedOrders) {
-      await notificationService.orderStatus(
-        userId,
-        entry.order.order_number,
-        "Order placed",
-        `Your order ${entry.order.order_number} has been placed successfully.`,
-        { order_id: entry.order.id }
-      );
+    // For COD, the order is confirmed immediately, so notify the customer now.
+    // For RAZORPAY, the order is awaiting payment capture; notifications and alerts
+    // fire upon payment verification in payment.service.ts.
+    if (paymentMethod !== "RAZORPAY") {
+      for (const entry of serializedOrders) {
+        await notificationService.orderStatus(
+          userId,
+          entry.order.order_number,
+          "Order placed",
+          `Your order ${entry.order.order_number} has been placed successfully via Cash on Delivery.`,
+          { order_id: entry.order.id }
+        );
+      }
     }
 
     await auditService.record(

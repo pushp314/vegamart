@@ -62,6 +62,14 @@ interface Order {
     name: string;
     phone?: string | null;
   } | null;
+  payment?: {
+    id?: string;
+    amount?: number;
+    method?: string;
+    status?: string;
+    refund_amount?: number | null;
+    refund_status?: string | null;
+  } | null;
   item_count: number;
   items?: {
     product_name: string;
@@ -198,7 +206,13 @@ export function AdminOrders() {
                 ) : (
                   orders.map((order) => {
                     const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || (order as any).delivery_slot);
-                    const pInfo = getPaymentMethodInfo(order.payment_method, order.payment_status, order.total);
+                    const pInfo = getPaymentMethodInfo(
+                      order.payment_method,
+                      order.payment_status,
+                      order.total,
+                      dInfo.id === "self_pickup",
+                      order.payment?.amount != null ? Number(order.payment.amount) : null
+                    );
                     const DIcon = dInfo.icon;
                     const PIcon = pInfo.icon;
 
@@ -285,9 +299,14 @@ export function AdminOrders() {
                               <PIcon className="h-3.5 w-3.5" />
                               {pInfo.shortLabel}
                             </span>
-                            <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold w-fit ${pInfo.statusColorClass}`}>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold w-fit ${pInfo.statusColorClass}`}>
                               {pInfo.statusText}
                             </span>
+                            {pInfo.isPartialAdvance && (
+                              <span className="text-[10px] text-muted-foreground font-bold">
+                                Bal: ₹{pInfo.balanceAmount.toFixed(2)}
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
@@ -355,7 +374,13 @@ export function AdminOrders() {
           ) : (
             detail && (() => {
               const modalDInfo = getDeliveryOptionInfo(detail.delivery_note || detail.delivery_option || (detail as any).delivery_slot);
-              const modalPInfo = getPaymentMethodInfo(detail.payment_method, detail.payment_status, detail.total);
+              const modalPInfo = getPaymentMethodInfo(
+                detail.payment_method,
+                detail.payment_status,
+                detail.total,
+                modalDInfo.id === "self_pickup",
+                detail.payment?.amount != null ? Number(detail.payment.amount) : null
+              );
               const modalSInfo = getOrderStatusInfo(detail.status);
               const ModalDIcon = modalDInfo.icon;
               const ModalPIcon = modalPInfo.icon;
@@ -655,10 +680,25 @@ export function AdminOrders() {
                             <span className="tabular-nums">- ₹{Number(detail.discount).toFixed(2)}</span>
                           </div>
                         )}
-                        <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-border/50">
-                          <span>Updated Total</span>
-                          <span className="text-emerald-600">₹{Number(detail.total || 0).toFixed(2)}</span>
+                        <div className="flex justify-between items-center font-bold text-base pt-2 border-t border-border/50">
+                          <span>Total Order Amount</span>
+                          <span className="text-foreground font-black text-lg">₹{Number(detail.total || 0).toFixed(2)}</span>
                         </div>
+                        {modalPInfo.isPartialAdvance && (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex justify-between text-xs font-bold text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                              <span>Advance Paid Online ({detail.payment?.method || "UPI/Card"})</span>
+                              <span className="tabular-nums font-black">- ₹{modalPInfo.advancePaid.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                              <span>Balance to Collect at Store</span>
+                              <span className="tabular-nums font-black text-sm text-amber-700">₹{modalPInfo.balanceAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="text-[11px] text-center font-bold text-emerald-800 bg-emerald-100/60 py-1 rounded-md border border-emerald-200">
+                              {modalPInfo.summaryText}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

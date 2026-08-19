@@ -402,7 +402,8 @@ function OrderIdTrackingPage() {
                     order.payment_method,
                     order.payment_status,
                     totalAmount,
-                    dInfo.id === "self_pickup"
+                    dInfo.id === "self_pickup",
+                    order.payment?.amount != null ? Number(order.payment.amount) : null
                   );
                   const PIcon = pInfo.icon;
                   return (
@@ -740,16 +741,77 @@ function OrderIdTrackingPage() {
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between pt-2 border-t text-sm font-extrabold text-foreground">
-                  <span>
-                    {String(order.payment_method || "cod").toLowerCase() === "cod"
-                      ? "Amount to Pay on Delivery"
-                      : "Total Paid"}
-                  </span>
-                  <span className="text-emerald-600 tabular-nums">
+                {/* Total Order Amount */}
+                <div className="flex justify-between pt-2 border-t text-sm font-bold text-foreground">
+                  <span>Total Order Amount</span>
+                  <span className="tabular-nums font-extrabold">
                     ₹{(totalAmount || 0).toFixed(2)}
                   </span>
                 </div>
+
+                {(() => {
+                  const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
+                  const pInfo = getPaymentMethodInfo(
+                    order.payment_method,
+                    order.payment_status,
+                    totalAmount,
+                    dInfo.id === "self_pickup",
+                    order.payment?.amount != null ? Number(order.payment.amount) : null
+                  );
+
+                  if (pInfo.isPartialAdvance) {
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-300 font-bold text-xs bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-900/50">
+                          <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                            Advance Paid Online ({order.payment?.method || "UPI/Card"}):
+                          </span>
+                          <span className="tabular-nums font-extrabold text-sm">- ₹{pInfo.advancePaid.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm font-black text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-2xl border border-amber-200 dark:border-amber-900/50">
+                          <span className="flex items-center gap-1.5">
+                            <Banknote className="h-4 w-4 text-amber-700 shrink-0" />
+                            Remaining Balance to Pay at Store:
+                          </span>
+                          <span className="tabular-nums text-amber-700 dark:text-amber-300 font-black text-base">
+                            ₹{pInfo.balanceAmount.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-center font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-950/60 py-1.5 px-3 rounded-xl border border-emerald-200/80 dark:border-emerald-800">
+                          {pInfo.summaryText}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (!pInfo.isPartialAdvance && pInfo.isPrepaid && (order.payment_status === "PAID" || order.payment_status === "SUCCESS")) {
+                    return (
+                      <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-300 font-extrabold text-sm bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 mt-1">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> Full Online Payment Successful
+                        </span>
+                        <span className="tabular-nums">₹{(totalAmount || 0).toFixed(2)}</span>
+                      </div>
+                    );
+                  }
+
+                  if (pInfo.method === "COD") {
+                    return (
+                      <div className="flex justify-between items-center text-foreground font-extrabold text-sm bg-muted/50 p-2.5 rounded-xl border mt-1">
+                        <span>Amount to Pay on {dInfo.id === "self_pickup" ? "Pickup" : "Delivery"}</span>
+                        <span className="tabular-nums text-primary font-bold text-base">₹{(totalAmount || 0).toFixed(2)}</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="flex justify-between items-center text-amber-800 font-bold text-xs bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-1">
+                      <span>Online Payment Pending</span>
+                      <span className="tabular-nums">₹{(totalAmount || 0).toFixed(2)}</span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </>

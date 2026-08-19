@@ -132,7 +132,13 @@ function OrderHistoryPage() {
             <div className="space-y-4">
               {orders.map((o: any) => {
                 const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
-                const pInfo = getPaymentMethodInfo(o.payment_method, o.payment_status, Number(o.total_amount || o.total || 0));
+                const pInfo = getPaymentMethodInfo(
+                  o.payment_method,
+                  o.payment_status,
+                  Number(o.total_amount || o.total || 0),
+                  dInfo.id === "self_pickup",
+                  o.payment?.amount != null ? Number(o.payment.amount) : null
+                );
                 const DIcon = dInfo.icon;
                 const PIcon = pInfo.icon;
 
@@ -164,6 +170,11 @@ function OrderHistoryPage() {
                             <PIcon className="h-3 w-3" />
                             {pInfo.shortLabel}
                           </span>
+                          {pInfo.isPartialAdvance && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border bg-teal-50 text-teal-800 border-teal-200">
+                              Advance Paid: ₹{pInfo.advancePaid.toFixed(2)} · Bal: ₹{pInfo.balanceAmount.toFixed(2)}
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground ml-1 font-semibold">
                             Total: <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
                           </span>

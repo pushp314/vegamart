@@ -335,10 +335,18 @@ function Checkout() {
         try {
           await runRazorpayFlow(orders);
         } catch (err) {
+          // Immediately cancel the created pending order(s) so unpaid orders never remain active/booked in the system!
+          await Promise.allSettled(
+            orders.map((entry: any) =>
+              entry?.order?.id
+                ? api.post(`/orders/${entry.order.id}/cancel`, { reason: "Payment cancelled by customer" })
+                : Promise.resolve()
+            )
+          );
           const message =
             err instanceof Error
               ? err.message
-              : "Payment could not be completed. Please try again.";
+              : "Payment could not be completed. Your order was not placed.";
           toast.error(message);
           return;
         }
@@ -890,7 +898,10 @@ function Checkout() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    Place Order <ArrowRight className="h-4 w-4" />
+                    {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100
+                      ? `Pay ₹${upfrontPaymentAmount.toFixed(2)} Advance`
+                      : "Place Order"}{" "}
+                    <ArrowRight className="h-4 w-4" />
                   </>
                 )}
               </button>

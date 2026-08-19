@@ -354,7 +354,15 @@ export async function listOrders(
 ): Promise<{ rows: OrderDetail[]; total: number }> {
   const where: Prisma.OrderWhereInput = { deleted_at: null };
   if (filter.userId) where.user_id = filter.userId;
-  if (filter.vendorId) where.vendor_id = filter.vendorId;
+  if (filter.vendorId) {
+    where.vendor_id = filter.vendorId;
+    // Exclude unpaid online checkout attempts from vendor view
+    where.NOT = {
+      status: "PENDING",
+      payment_method: "RAZORPAY",
+      payment_status: "PENDING",
+    };
+  }
   if (filter.status) where.status = filter.status as Prisma.OrderWhereInput["status"];
 
   const [rows, total] = await Promise.all([
