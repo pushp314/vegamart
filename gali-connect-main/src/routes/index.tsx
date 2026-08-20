@@ -1301,7 +1301,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                   .filter(Boolean);
               }
             }
-            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || "10-15 mins";
+            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || (typeof v.eta_min === "number" ? `${v.eta_min} mins` : "20-30 mins");
             const hasDistance = typeof v.distance_km === "number";
             const distance = hasDistance ? v.distance_km.toFixed(1) : "0.8";
 
@@ -1478,7 +1478,7 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
                   .filter(Boolean);
               }
             }
-            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || "20-30 mins";
+            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || (typeof v.eta_min === "number" ? `${v.eta_min} mins` : "20-30 mins");
 
             return (
               <Link

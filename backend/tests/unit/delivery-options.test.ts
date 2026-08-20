@@ -101,13 +101,36 @@ describe("4 Delivery Options System", () => {
     it("accepts partial delivery_configs in update vendor schema", () => {
       const payload = {
         delivery_configs: {
-          booking: { enabled: false },
-          shop_delivery: { enabled: true, delivery_fee: 50 },
+          estimated_delivery_time: "15-20 mins",
+          booking: { enabled: false, estimated_time: "2 days" },
+          shop_delivery: { enabled: true, delivery_fee: 50, estimated_time: "30 mins" },
         },
+        estimated_delivery_time: "15-20 mins",
       };
 
       const parsed = updateVendorSchema.safeParse(payload);
       expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.estimated_delivery_time).toBe("15-20 mins");
+        expect(parsed.data.delivery_configs?.estimated_delivery_time).toBe("15-20 mins");
+        expect(parsed.data.delivery_configs?.booking?.estimated_time).toBe("2 days");
+        expect(parsed.data.delivery_configs?.shop_delivery?.estimated_time).toBe("30 mins");
+      }
+    });
+
+    it("normalizes delivery configs preserving custom estimated times", () => {
+      const customConfigs = {
+        estimated_delivery_time: "25-35 mins",
+        booking: { enabled: true, advance_percentage: 20, min_order: 100, estimated_time: "1-2 days" },
+        self_pickup: { enabled: true, advance_percentage: 10, min_order: 0, estimated_time: "10 mins" },
+        shop_delivery: { enabled: true, delivery_fee: 40, min_order: 200, estimated_time: "20-30 mins" },
+      };
+
+      const result = normalizeDeliveryConfigs(customConfigs);
+      expect(result.estimated_delivery_time).toBe("25-35 mins");
+      expect(result.booking.estimated_time).toBe("1-2 days");
+      expect(result.self_pickup.estimated_time).toBe("10 mins");
+      expect(result.shop_delivery.estimated_time).toBe("20-30 mins");
     });
   });
 });

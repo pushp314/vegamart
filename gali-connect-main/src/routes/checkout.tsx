@@ -127,7 +127,7 @@ function Checkout() {
 
   const DELIVERY_OPTIONS: CheckoutDeliveryOption[] = [
     ...(isRoamingVendor
-      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Moving street cart arrives at your door", icon: "🛒", eta: "~15-20 mins", advancePct: 0, minOrder: 0, fee: 0 }]
+      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Moving street cart arrives at your door", icon: "🛒", eta: `~${vendorEta || "15-20 mins"}`, advancePct: 0, minOrder: 0, fee: 0 }]
       : []),
     ...(bookingConfig.enabled
       ? [
@@ -188,7 +188,7 @@ function Checkout() {
   ];
 
   const effectiveOptions: CheckoutDeliveryOption[] = DELIVERY_OPTIONS.length > 0 ? DELIVERY_OPTIONS : [
-    { id: "self_pickup", label: "Self Pickup", desc: "Store pickup", icon: "🚶", eta: "Ready in ~15 mins", advancePct: 10, minOrder: 0, fee: 0 }
+    { id: "self_pickup", label: "Self Pickup", desc: "Store pickup", icon: "🚶", eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`, advancePct: 10, minOrder: 0, fee: 0 }
   ];
 
   useEffect(() => {

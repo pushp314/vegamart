@@ -315,9 +315,11 @@ function CategoryPage() {
                           <img src={imageUrl} alt={p.name} loading="lazy" className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-sm" />
                         </div>
                         <div className="p-3 pt-0 flex flex-col flex-1">
-                          <div className="text-[10px] text-amber-600 flex items-center gap-1 mb-1 font-bold tracking-tight">
-                            <Clock className="h-3 w-3" /> 27 MINS
-                          </div>
+                          {Boolean((p as any).vendor?.estimated_delivery_time || (p as any).vendor?.delivery_configs?.estimated_delivery_time || (p as any).estimated_delivery_time || (p as any).eta) && (
+                            <div className="text-[10px] text-amber-600 flex items-center gap-1 mb-1 font-bold tracking-tight">
+                              <Clock className="h-3 w-3" /> {((p as any).vendor?.estimated_delivery_time || (p as any).vendor?.delivery_configs?.estimated_delivery_time || (p as any).estimated_delivery_time || (p as any).eta).toUpperCase()}
+                            </div>
+                          )}
                           <h3 className="font-semibold text-[13px] leading-tight line-clamp-2 mb-1 text-foreground/90">{p.name}</h3>
                           <p className="text-[11px] text-muted-foreground mb-3">{p.unit}</p>
                           <div className="mt-auto flex flex-col gap-1.5">

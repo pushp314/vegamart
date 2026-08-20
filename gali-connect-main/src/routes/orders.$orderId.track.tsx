@@ -271,7 +271,9 @@ function OrderIdTrackingPage() {
                       Live GPS Tracking Active
                     </span>
                   </div>
-                  <span className="text-xs font-bold text-emerald-700">~ 5 mins away</span>
+                  <span className="text-xs font-bold text-emerald-700">
+                    {order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time ? `~ ${order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time}` : "Arriving soon"}
+                  </span>
                 </div>
                 <div className="relative h-64 bg-muted w-full flex items-center justify-center overflow-hidden">
                   <div

@@ -207,7 +207,8 @@ function VendorsPage() {
                   }
                 }
                 const hasDistance = typeof v.distance_km === "number";
-                const hasEta = typeof v.eta_min === "number";
+                const etaText = profile.estimated_delivery_time || profile.delivery_configs?.estimated_delivery_time || (typeof v.eta_min === "number" ? `${v.eta_min} min` : null);
+                const hasEta = Boolean(etaText);
 
                 // Check if this vendor has an active daily location
                 const dailyLoc = dailyLocations.find((dl) => dl.vendor_id === v.id && dl.is_active);
@@ -271,7 +272,7 @@ function VendorsPage() {
                           )}
                           {hasEta && (
                             <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                              <Clock className="h-3 w-3" /> {v.eta_min} min
+                              <Clock className="h-3 w-3" /> {etaText}
                             </span>
                           )}
                         </div>

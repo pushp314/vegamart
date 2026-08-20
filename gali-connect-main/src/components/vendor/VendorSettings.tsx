@@ -174,6 +174,10 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
     onSuccess: () => {
       toast.success("Business settings saved successfully! ✨");
       queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor"] });
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      queryClient.invalidateQueries({ queryKey: ["nearbyVendors"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to save settings");

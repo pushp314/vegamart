@@ -64,8 +64,17 @@ export const Route = createFileRoute("/vendors/$vendorId")({
 });
 
 function VendorDetail() {
-  const { vendor } = Route.useLoaderData();
-  const profile: any = vendor.profile || (vendor as any);
+  const { vendor: initialVendor } = Route.useLoaderData();
+  const { vendorId } = Route.useParams();
+
+  const { data: liveVendorRes } = useQuery({
+    queryKey: ["vendor", vendorId],
+    queryFn: () => api.get<Vendor>(`/vendors/${vendorId}`),
+    initialData: { success: true, data: initialVendor },
+  });
+
+  const vendor = liveVendorRes?.data || initialVendor;
+  const profile: any = vendor?.profile || (vendor as any) || {};
   const { addToCart } = useCart();
   const [reviewOpen, setReviewOpen] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -132,6 +141,7 @@ function VendorDetail() {
   const phone = profile.phone || (vendor as any).phone || null;
   const isRoaming =
     profile.vendor_type === "roaming" || profile.roaming === true || profile.roaming === "true";
+  const isOpen = profile.is_open ?? (vendor as any)?.is_open ?? true;
 
   // Fetch daily location for this vendor (must be after isRoaming declaration)
   const { data: dailyLocRes } = useQuery({
@@ -202,9 +212,15 @@ function VendorDetail() {
 
         {/* Live Status Badge */}
         <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/90 backdrop-blur-md px-3 py-1 text-xs font-black text-white shadow-md">
-            <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-            {isRoaming ? "🟢 LIVE ROAMING CART" : "🟢 STORE OPEN NOW"}
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full backdrop-blur-md px-3 py-1 text-xs font-black text-white shadow-md ${
+              isOpen ? "bg-emerald-500/90" : "bg-rose-600/90"
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${isOpen ? "bg-white animate-pulse" : "bg-rose-200"}`} />
+            {isRoaming
+              ? (isOpen ? "🟢 LIVE ROAMING CART" : "🔴 CART OFFLINE")
+              : (isOpen ? "🟢 STORE OPEN NOW" : "🔴 STORE CLOSED")}
           </span>
         </div>
 

@@ -189,6 +189,8 @@ export async function createVendor(data: {
   available_from?: string | null;
   available_to?: string | null;
   roaming?: boolean;
+  estimated_delivery_time?: string | null;
+  delivery_configs?: any;
 }): Promise<VendorRow> {
   // If the previous profile for this user was soft-deleted (admin removed it and the
   // vendor re-registered), restore that row instead of failing on the unique user_id.
@@ -227,6 +229,8 @@ export async function createVendor(data: {
         available_from: data.available_from ?? null,
         available_to: data.available_to ?? null,
         roaming: data.roaming ?? false,
+        estimated_delivery_time: data.estimated_delivery_time ?? "20-30 mins",
+        ...(data.delivery_configs !== undefined ? { delivery_configs: data.delivery_configs } : {}),
         status: "PENDING",
         is_open: false,
       },
@@ -263,6 +267,8 @@ export async function createVendor(data: {
       available_from: data.available_from ?? null,
       available_to: data.available_to ?? null,
       roaming: data.roaming ?? false,
+      estimated_delivery_time: data.estimated_delivery_time ?? "20-30 mins",
+      ...(data.delivery_configs !== undefined ? { delivery_configs: data.delivery_configs } : {}),
     },
     select: baseSelect,
   });

@@ -35,20 +35,24 @@ export const createVendorSchema = z.object({
   provides_delivery: z.boolean().optional(),
   delivery_options: z.array(z.string().max(50)).optional(),
   delivery_configs: z.object({
+    estimated_delivery_time: z.string().trim().max(50).optional().nullable(),
     booking: z.object({
       enabled: z.boolean(),
       advance_percentage: z.coerce.number().min(0).max(100).optional(),
       min_order: z.coerce.number().min(0).optional(),
+      estimated_time: z.string().trim().max(50).optional().nullable(),
     }).optional(),
     self_pickup: z.object({
       enabled: z.boolean(),
       advance_percentage: z.coerce.number().min(0).max(100).optional(),
       min_order: z.coerce.number().min(0).optional(),
+      estimated_time: z.string().trim().max(50).optional().nullable(),
     }).optional(),
     shop_delivery: z.object({
       enabled: z.boolean(),
       delivery_fee: z.coerce.number().min(0).optional(),
       min_order: z.coerce.number().min(0).optional(),
+      estimated_time: z.string().trim().max(50).optional().nullable(),
     }).optional(),
     delivery_partner: z.object({
       enabled: z.boolean(),

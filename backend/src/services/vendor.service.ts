@@ -48,20 +48,24 @@ export interface NearbyVendor {
 }
 
 export interface VendorDeliveryConfigs {
+  estimated_delivery_time?: string;
   booking: {
     enabled: boolean;
     advance_percentage: number;
     min_order: number;
+    estimated_time?: string;
   };
   self_pickup: {
     enabled: boolean;
     advance_percentage: number;
     min_order: number;
+    estimated_time?: string;
   };
   shop_delivery: {
     enabled: boolean;
     delivery_fee: number;
     min_order: number;
+    estimated_time?: string;
   };
   delivery_partner: {
     enabled: boolean;
@@ -88,6 +92,7 @@ export function normalizeDeliveryConfigs(
     delivery_fee?: any;
     advance_payment_percentage?: any;
     min_order?: any;
+    estimated_delivery_time?: any;
   }
 ): VendorDeliveryConfigs {
   const configs = (rawConfigs && typeof rawConfigs === "object") ? rawConfigs : {};
@@ -97,20 +102,26 @@ export function normalizeDeliveryConfigs(
   const defaultShopDeliveryEnabled = Boolean(fallbackVendor?.provides_delivery);
 
   return {
+    ...(configs.estimated_delivery_time || fallbackVendor?.estimated_delivery_time
+      ? { estimated_delivery_time: configs.estimated_delivery_time || fallbackVendor?.estimated_delivery_time }
+      : {}),
     booking: {
       enabled: configs.booking?.enabled !== undefined ? Boolean(configs.booking.enabled) : false,
       advance_percentage: configs.booking?.advance_percentage !== undefined ? toNum(configs.booking.advance_percentage, defaultAdvance) : defaultAdvance,
       min_order: configs.booking?.min_order !== undefined ? toNum(configs.booking.min_order, defaultMinOrder) : defaultMinOrder,
+      ...(configs.booking?.estimated_time ? { estimated_time: configs.booking.estimated_time } : {}),
     },
     self_pickup: {
       enabled: configs.self_pickup?.enabled !== undefined ? Boolean(configs.self_pickup.enabled) : true,
       advance_percentage: configs.self_pickup?.advance_percentage !== undefined ? toNum(configs.self_pickup.advance_percentage, defaultAdvance) : defaultAdvance,
       min_order: configs.self_pickup?.min_order !== undefined ? toNum(configs.self_pickup.min_order, defaultMinOrder) : defaultMinOrder,
+      ...(configs.self_pickup?.estimated_time ? { estimated_time: configs.self_pickup.estimated_time } : {}),
     },
     shop_delivery: {
       enabled: configs.shop_delivery?.enabled !== undefined ? Boolean(configs.shop_delivery.enabled) : defaultShopDeliveryEnabled,
       delivery_fee: configs.shop_delivery?.delivery_fee !== undefined ? toNum(configs.shop_delivery.delivery_fee, defaultDeliveryFee) : defaultDeliveryFee,
       min_order: configs.shop_delivery?.min_order !== undefined ? toNum(configs.shop_delivery.min_order, defaultMinOrder) : defaultMinOrder,
+      ...(configs.shop_delivery?.estimated_time ? { estimated_time: configs.shop_delivery.estimated_time } : {}),
     },
     delivery_partner: {
       enabled: configs.delivery_partner?.enabled !== undefined ? Boolean(configs.delivery_partner.enabled) : true,
@@ -188,6 +199,8 @@ export const vendorService = {
       available_from: input.available_from ?? null,
       available_to: input.available_to ?? null,
       roaming: input.roaming ?? false,
+      estimated_delivery_time: input.estimated_delivery_time ?? null,
+      delivery_configs: input.delivery_configs ?? null,
     });
 
     await auditService.record(
@@ -261,6 +274,9 @@ export const vendorService = {
     if (input.available_from !== undefined) data.available_from = input.available_from || null;
     if (input.available_to !== undefined) data.available_to = input.available_to || null;
     if (input.roaming !== undefined) data.roaming = input.roaming;
+    if (input.estimated_delivery_time !== undefined) {
+      data.estimated_delivery_time = input.estimated_delivery_time || null;
+    }
 
     if (Object.keys(data).length > 0) {
       await vendorRepo.updateVendor(vendor.id, data as never);
