@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Plus,
   Percent,
+  AlertTriangle,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
@@ -325,7 +326,34 @@ function Checkout() {
     }
   }, [addresses, selectedAddressId]);
 
+function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
   const selectedAddress = addresses.find((a: any) => a.id === selectedAddressId) || addresses[0];
+
+  // Geofence & Delivery Radius calculation
+  const vendorLat = vendorData?.latitude || vendorGroup?.latitude;
+  const vendorLng = vendorData?.longitude || vendorGroup?.longitude;
+  const vendorDeliveryRadius = Number(vendorData?.delivery_radius_km || 5);
+  
+  const addressLat = selectedAddress?.latitude ? Number(selectedAddress.latitude) : null;
+  const addressLng = selectedAddress?.longitude ? Number(selectedAddress.longitude) : null;
+
+  let deliveryDistanceKm: number | null = null;
+  if (vendorLat && vendorLng && addressLat && addressLng) {
+    deliveryDistanceKm = calculateDistanceKm(addressLat, addressLng, Number(vendorLat), Number(vendorLng));
+  }
+
+  const isSelfPickup = selectedOptionObj?.id === "self_pickup";
+  const isOutOfDeliveryRadius = !isSelfPickup && deliveryDistanceKm !== null && deliveryDistanceKm > vendorDeliveryRadius;
 
   const createAddressMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -538,6 +566,12 @@ function Checkout() {
       toast.error("Please add and select a valid delivery address.");
       return;
     }
+    if (isOutOfDeliveryRadius) {
+      toast.error(
+        `Selected address (${deliveryDistanceKm} km away) is outside ${vendorName}'s delivery limit of ${vendorDeliveryRadius} km. Please select a delivery address in Sakti District or choose Self Pickup.`
+      );
+      return;
+    }
     if (!selectedOptionObj.onlinePaymentEnabled && !selectedOptionObj.codEnabled) {
       toast.error(`No payment methods are available for ${selectedOptionObj.label}. Please choose another delivery option.`);
       return;
@@ -718,6 +752,40 @@ function Checkout() {
                       </button>
                     );
                   })
+                )}
+
+                {/* 📍 Out of Delivery Radius Geo-Fence Warning */}
+                {isOutOfDeliveryRadius && selectedAddress && (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 space-y-2.5 mt-2 animate-in fade-in">
+                    <div className="flex items-center gap-2 font-bold text-xs">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Address Out of Delivery Zone ({deliveryDistanceKm} km away)</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {vendorName} currently delivers within a maximum of <strong className="text-foreground">{vendorDeliveryRadius} km</strong> (Sakti District). Your selected address in <strong className="text-foreground">{selectedAddress.city || selectedAddress.area || "selected location"}</strong> is beyond the deliverable zone.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setAddressModalOpen(true)}
+                        className="text-xs font-bold px-3 py-1 rounded-xl bg-card border border-border hover:bg-muted text-foreground transition-colors"
+                      >
+                        Change Delivery Address
+                      </button>
+                      {selfPickupConfig.enabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const idx = effectiveOptions.findIndex((o) => o.id === "self_pickup");
+                            if (idx >= 0) setDeliveryOption(idx);
+                          }}
+                          className="text-xs font-bold px-3 py-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                        >
+                          Switch to Self Pickup
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </section>
@@ -1074,6 +1142,11 @@ function Checkout() {
                 <div className="hidden md:block text-center p-3 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-xs font-bold border border-amber-300 dark:border-amber-800">
                   Add ₹{deficitAmount.toFixed(2)} more for {selectedOptionObj.label}
                 </div>
+              ) : isOutOfDeliveryRadius ? (
+                <div className="hidden md:block text-center p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-950 dark:text-amber-200 text-xs font-bold space-y-1">
+                  <div>Out of Delivery Range ({deliveryDistanceKm} km)</div>
+                  <div className="text-[10px] font-normal text-muted-foreground">Store limit: {vendorDeliveryRadius} km (Sakti District)</div>
+                </div>
               ) : availablePayments.length === 0 ? (
                 <div className="hidden md:block text-center p-3 rounded-2xl bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20">
                   Payment unavailable for this delivery option
@@ -1081,7 +1154,7 @@ function Checkout() {
               ) : (
                 <button
                   onClick={handlePlaceOrder}
-                  disabled={createOrderMutation.isPending || items.length === 0}
+                  disabled={createOrderMutation.isPending || items.length === 0 || isOutOfDeliveryRadius}
                   className="hidden md:flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {createOrderMutation.isPending ? (
@@ -1126,6 +1199,10 @@ function Checkout() {
               <div className="text-center bg-amber-400 text-amber-950 font-bold text-[11px] px-3 py-2 rounded-2xl shadow-xs">
                 Min ₹{optionMinOrder} Req.
               </div>
+            ) : isOutOfDeliveryRadius ? (
+              <div className="text-center bg-amber-400 text-amber-950 font-bold text-[11px] px-3 py-2 rounded-2xl shadow-xs">
+                Out of Range ({deliveryDistanceKm}km)
+              </div>
             ) : availablePayments.length === 0 ? (
               <div className="text-center bg-destructive text-destructive-foreground font-bold text-[11px] px-3 py-2 rounded-2xl">
                 Unavailable
@@ -1133,7 +1210,7 @@ function Checkout() {
             ) : (
               <button
                 onClick={handlePlaceOrder}
-                disabled={createOrderMutation.isPending || items.length === 0}
+                disabled={createOrderMutation.isPending || items.length === 0 || isOutOfDeliveryRadius}
                 className="inline-flex items-center gap-2 rounded-2xl bg-white text-emerald-900 font-bold text-xs h-11 px-4 shadow-xs hover:bg-emerald-50 disabled:opacity-50"
               >
                 {createOrderMutation.isPending ? (

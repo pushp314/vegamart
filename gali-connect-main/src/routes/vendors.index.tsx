@@ -60,11 +60,9 @@ function VendorsPage() {
     queryKey: ["vendors", activeAddress?.latitude, activeAddress?.longitude],
     queryFn: async () => {
       if (activeAddress?.latitude && activeAddress?.longitude) {
-        const url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}`;
+        const url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}&radius=50`;
         const res = await api.get<Vendor[]>(url);
-        if (res.data && res.data.length > 0) {
-          return res;
-        }
+        return res;
       }
       return api.get<Vendor[]>("/vendors");
     },
@@ -285,17 +283,43 @@ function VendorsPage() {
           )}
 
           {!loadingVendors && filtered.length === 0 && (
-            <div className="mt-10 text-center text-sm text-muted-foreground">
-              <p>No vendors match your search or filters.</p>
-              <button
-                onClick={() => {
-                  setQuery("");
-                  setActiveCat("all");
-                }}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground"
-              >
-                <X className="h-3.5 w-3.5" /> Clear search & filters
-              </button>
+            <div className="mt-8">
+              {activeAddress?.latitude && activeAddress?.longitude && !query && activeCat === "all" ? (
+                <div className="max-w-md mx-auto p-6 rounded-3xl bg-card border border-amber-500/30 shadow-lg text-center space-y-4 animate-in fade-in">
+                  <div className="h-14 w-14 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto border border-amber-500/20">
+                    <MapPin className="h-7 w-7" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="font-display text-base font-bold text-foreground">
+                      No Stores Delivering to {displayLocation}
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      VegaMart currently delivers fresh produce and groceries exclusively across <strong>Sakti District</strong>. Shops outside your immediate delivery radius are hidden to avoid undeliverable orders.
+                    </p>
+                  </div>
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                    <Link
+                      to="/addresses"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+                    >
+                      <MapPin className="h-3.5 w-3.5" /> Switch Address to Sakti
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-sm text-muted-foreground">
+                  <p>No vendors match your search or filters.</p>
+                  <button
+                    onClick={() => {
+                      setQuery("");
+                      setActiveCat("all");
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" /> Clear search & filters
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </main>

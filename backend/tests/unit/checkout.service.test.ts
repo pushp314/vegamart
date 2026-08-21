@@ -635,4 +635,79 @@ describe("checkout service", () => {
       })
     );
   });
+
+  it("throws OUT_OF_DELIVERY_RADIUS when delivery address exceeds vendor's delivery_radius_km", async () => {
+    mockedCartService.getMyCart.mockResolvedValue(makeCart());
+    // Vendor in Sakti (21.957, 82.958), delivery radius 5km
+    vendorRepoMock.findById.mockResolvedValue(
+      makeVendor({
+        latitude: 21.957,
+        longitude: 82.958,
+        delivery_radius_km: 5,
+      })
+    );
+    // Customer address in Bilaspur (22.079, 82.139, ~86 km away)
+    addressRepoMock.findById.mockResolvedValue({
+      id: "addr-bilaspur",
+      user_id: "u1",
+      city: "Bilaspur",
+      full_address: "Bilaspur Station Road",
+      latitude: 22.079,
+      longitude: 82.139,
+      deleted_at: null,
+    } as any);
+
+    await expect(
+      checkoutService.placeOrder(
+        "u1",
+        { address_id: "addr-bilaspur", payment_method: "RAZORPAY", delivery_slot: "VegaMart Home Delivery" },
+        mockReq
+      )
+    ).rejects.toThrow(/only delivers within 5 km/);
+  });
+
+  it("allows Self Pickup even when customer address coordinates are distant", async () => {
+    mockedCartService.getMyCart.mockResolvedValue(makeCart());
+    vendorRepoMock.findById.mockResolvedValue(
+      makeVendor({
+        latitude: 21.957,
+        longitude: 82.958,
+        delivery_radius_km: 5,
+        delivery_configs: {
+          self_pickup: {
+            enabled: true,
+            advance_percentage: 10,
+            min_order: 0,
+            online_payment_enabled: true,
+            cod_enabled: true,
+            full_payment_enabled: true,
+            advance_payment_enabled: true,
+          },
+        },
+      })
+    );
+    addressRepoMock.findById.mockResolvedValue({
+      id: "addr-bilaspur",
+      user_id: "u1",
+      city: "Bilaspur",
+      full_address: "Bilaspur Station Road",
+      latitude: 22.079,
+      longitude: 82.139,
+      deleted_at: null,
+    } as any);
+    orderRepoMock.createOrder.mockResolvedValue(makeOrderRow({ delivery_slot: "Self Pickup" }));
+    orderRepoMock.updateOrder.mockResolvedValue(makeOrderRow({ delivery_slot: "Self Pickup" }));
+    orderRepoMock.updateOrderStatus.mockResolvedValue(makeOrderRow({ delivery_slot: "Self Pickup" }));
+    orderRepoMock.findById.mockResolvedValue({ id: "order-1", items: [{ product_id: "p1", quantity: 2 }] } as any);
+    paymentRepoMock.createForOrder.mockResolvedValue(makePaymentRow());
+    gatewayMock.createOrder.mockResolvedValue({ id: "rzp-1" } as any);
+
+    const result = await checkoutService.placeOrder(
+      "u1",
+      { address_id: "addr-bilaspur", payment_method: "RAZORPAY", delivery_slot: "Self Pickup" },
+      mockReq
+    );
+
+    expect(result.orders).toHaveLength(1);
+  });
 });

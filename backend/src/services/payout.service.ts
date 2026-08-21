@@ -390,13 +390,13 @@ export const payoutService = {
     });
 
     // 3. Processed / Completed Withdrawals
-    const completedWithdrawalsAgg = await prisma.payoutRequest.aggregate({
+    const completedWithdrawalsAgg = await (prisma as any).payoutRequest.aggregate({
       where: { vendor_id: vendorId, status: "COMPLETED" },
       _sum: { amount: true },
     });
 
     // 4. In-flight / Pending Withdrawal Requests
-    const inFlightWithdrawalsAgg = await prisma.payoutRequest.aggregate({
+    const inFlightWithdrawalsAgg = await (prisma as any).payoutRequest.aggregate({
       where: {
         vendor_id: vendorId,
         status: { in: ["PENDING", "PROCESSING"] },
@@ -413,7 +413,7 @@ export const payoutService = {
     const availableBalance = Math.max(0, Math.round((totalSettledEarnings - totalWithdrawn - inFlightWithdrawing) * 100) / 100);
 
     // 5. Recent Withdrawal Requests
-    const recentWithdrawals = await prisma.payoutRequest.findMany({
+    const recentWithdrawals = await (prisma as any).payoutRequest.findMany({
       where: { vendor_id: vendorId },
       orderBy: { created_at: "desc" },
       take: 10,
@@ -448,7 +448,7 @@ export const payoutService = {
         razorpay_account_id: vendor.razorpay_account_id || null,
         payout_enabled: vendor.payout_enabled !== false,
       },
-      recent_withdrawals: recentWithdrawals.map((w) => ({
+      recent_withdrawals: recentWithdrawals.map((w: any) => ({
         id: w.id,
         amount: Number(w.amount),
         payout_mode: w.payout_mode,
@@ -513,7 +513,7 @@ export const payoutService = {
       throw new Error(`Insufficient available wallet balance. Maximum withdrawable: ₹${overview.available_balance.toFixed(2)}`);
     }
 
-    const request = await prisma.payoutRequest.create({
+    const request = await (prisma as any).payoutRequest.create({
       data: {
         vendor_id: vendorId,
         amount: requestedAmount,
@@ -555,7 +555,7 @@ export const payoutService = {
           },
         });
 
-        const updated = await prisma.payoutRequest.update({
+        const updated = await (prisma as any).payoutRequest.update({
           where: { id: request.id },
           data: {
             status: "COMPLETED",
@@ -600,7 +600,7 @@ export const payoutService = {
     adminUserId: string,
     input: { action: "APPROVE" | "REJECT"; utr_reference?: string; admin_notes?: string }
   ) {
-    const request = await prisma.payoutRequest.findUnique({
+    const request = await (prisma as any).payoutRequest.findUnique({
       where: { id: requestId },
       include: {
         vendor: {
@@ -621,7 +621,7 @@ export const payoutService = {
     const isApprove = input.action === "APPROVE";
     const ref = input.utr_reference || `BANK-UTR-${Date.now()}`;
 
-    const updated = await prisma.payoutRequest.update({
+    const updated = await (prisma as any).payoutRequest.update({
       where: { id: requestId },
       data: {
         status: isApprove ? "COMPLETED" : "REJECTED",
@@ -669,7 +669,7 @@ export const payoutService = {
       where.vendor_id = query.vendorId;
     }
 
-    const requests = await prisma.payoutRequest.findMany({
+    const requests = await (prisma as any).payoutRequest.findMany({
       where,
       include: {
         vendor: {

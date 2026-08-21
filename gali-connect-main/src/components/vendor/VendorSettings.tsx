@@ -68,6 +68,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   const [contactPhone, setContactPhone] = useState(profile.phone || "");
   const [taxRate, setTaxRate] = useState(profile.tax_rate !== null && profile.tax_rate !== undefined ? String(profile.tax_rate) : "");
   const [estimatedDeliveryTime, setEstimatedDeliveryTime] = useState(profile.estimated_delivery_time || "20-30 mins");
+  const [deliveryRadiusKm, setDeliveryRadiusKm] = useState(profile.delivery_radius_km ? String(profile.delivery_radius_km) : "5");
   const [logoUrl, setLogoUrl] = useState(profile.logo_url || "");
   const [bannerUrls, setBannerUrls] = useState<string[]>(profile.banner_urls || []);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
@@ -167,6 +168,9 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
     if (profile.tax_rate !== undefined) setTaxRate(profile.tax_rate !== null ? String(profile.tax_rate) : "");
     if (profile.estimated_delivery_time !== undefined || profile.delivery_configs?.estimated_delivery_time !== undefined) {
       setEstimatedDeliveryTime(profile.estimated_delivery_time || profile.delivery_configs?.estimated_delivery_time || "20-30 mins");
+    }
+    if (profile.delivery_radius_km !== undefined) {
+      setDeliveryRadiusKm(profile.delivery_radius_km ? String(profile.delivery_radius_km) : "5");
     }
     if (profile.logo_url !== undefined) setLogoUrl(profile.logo_url || "");
     if (profile.banner_urls !== undefined) setBannerUrls(profile.banner_urls || []);
@@ -337,6 +341,7 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
         estimated_delivery_time: estimatedDeliveryTime,
       },
       estimated_delivery_time: estimatedDeliveryTime,
+      delivery_radius_km: deliveryRadiusKm ? Number(deliveryRadiusKm) : 5,
       phone: contactPhone || null,
       tax_rate: taxRate !== "" ? Number(taxRate) : null,
       logo_url: logoUrl || null,
@@ -633,6 +638,93 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
               />
               <p className="text-[11px] text-muted-foreground">
                 Set a custom tax rate for your products. Leave blank to use the platform's default tax rate.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 📍 Store Delivery & Customer Visibility Radius */}
+        <Card className="rounded-3xl border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-card to-card shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent border-b border-border/50">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2.5 text-base font-bold">
+                <div className="h-9 w-9 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20">
+                  <Bike className="h-5 w-5" />
+                </div>
+                Store Delivery & Customer Visibility Radius (Sakti District)
+              </CardTitle>
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 font-mono">
+                {deliveryRadiusKm || 5} km Radius
+              </span>
+            </div>
+            <CardDescription className="text-xs">
+              Configure how far your store delivers. Customers beyond this radius (e.g. other districts like Bilaspur) cannot place home delivery orders.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5 p-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="deliveryRadiusKm" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Delivery & Visibility Radius (in km)
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    id="deliveryRadiusKm"
+                    type="number"
+                    min="0.5"
+                    max="50"
+                    step="0.5"
+                    value={deliveryRadiusKm}
+                    onChange={(e) => setDeliveryRadiusKm(e.target.value)}
+                    className="h-8 w-20 rounded-xl text-xs font-bold text-center font-mono bg-background"
+                  />
+                  <span className="text-xs font-bold text-muted-foreground">km</span>
+                </div>
+              </div>
+
+              {/* Slider */}
+              <input
+                type="range"
+                min="1"
+                max="50"
+                step="0.5"
+                value={deliveryRadiusKm || 5}
+                onChange={(e) => setDeliveryRadiusKm(e.target.value)}
+                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+
+              {/* Quick Preset Chips */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {[
+                  { label: "3 km (Hyperlocal)", val: "3" },
+                  { label: "5 km (Town / City)", val: "5" },
+                  { label: "10 km (Suburban)", val: "10" },
+                  { label: "15 km (District Edge)", val: "15" },
+                  { label: "25 km (Full Sakti District)", val: "25" },
+                ].map((preset) => (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() => setDeliveryRadiusKm(preset.val)}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                      deliveryRadiusKm === preset.val
+                        ? "bg-emerald-500 text-black border-emerald-500 shadow-sm"
+                        : "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-950 dark:text-emerald-200 space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                Geo-Fencing & Out-of-Area Order Protection Active
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Only customers located within <strong className="text-foreground">{deliveryRadiusKm || 5} km</strong> of your shop can view your store in nearby discovery and place home delivery orders. Any customer attempting to order from distant locations (e.g. Bilaspur or other non-serviced districts) will be blocked at checkout with a clear out-of-range notification.
               </p>
             </div>
           </CardContent>

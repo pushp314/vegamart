@@ -21,6 +21,7 @@ import { findById as findVendorById } from "../repositories/vendor.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
+import { haversineDistanceKm } from "../utils/geo";
 import { generateDeliveryOtp, generateInvoiceNumber, generateOrderNumber } from "../utils/order";
 import * as checkoutIdempotencyRepo from "../repositories/checkout-idempotency.repository";
 import * as dailyOrderCounterRepo from "../repositories/daily-order-counter.repository";
@@ -349,6 +350,35 @@ export const checkoutService = {
         advancePct = deliveryConfigs.self_pickup.advance_percentage;
       }
 
+      if (input.address_id) {
+        const address = await findAddressById(input.address_id);
+        const isPickup = slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway");
+        if (address && !isPickup && address.latitude && address.longitude && vendor.latitude && vendor.longitude) {
+          const distKm = haversineDistanceKm(
+            Number(address.latitude),
+            Number(address.longitude),
+            Number(vendor.latitude),
+            Number(vendor.longitude)
+          );
+          const maxRadius = Number(vendor.delivery_radius_km || 5);
+          if (distKm > maxRadius) {
+            throw new ApiError(
+              HttpStatus.BAD_REQUEST,
+              `Delivery address in ${address.city || address.full_address || "selected location"} is ${distKm.toFixed(1)} km away. ${vendor.business_name} only delivers within ${maxRadius} km. Please choose an address within Sakti District or select Self Pickup.`,
+              {
+                code: "OUT_OF_DELIVERY_RADIUS",
+                details: {
+                  distance_km: String(Math.round(distKm * 10) / 10),
+                  max_radius_km: String(maxRadius),
+                  vendor_name: vendor.business_name,
+                  address_city: address.city || "",
+                },
+              }
+            );
+          }
+        }
+      }
+
       summaryGroups.push({
         vendor_id: group.vendor_id,
         vendor_name: vendor.business_name,
@@ -470,6 +500,40 @@ export const checkoutService = {
     const address = await findAddressById(input.address_id);
     if (!address || address.user_id !== userId || address.deleted_at) {
       throw new NotFoundError("Address not found.");
+    }
+
+    const slotRaw = (input.delivery_slot || "").toLowerCase();
+    const isPickup = slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway");
+
+    // Enforce vendor delivery radius on all home deliveries
+    if (!isPickup && address.latitude && address.longitude) {
+      for (const group of summary.groups) {
+        const vendor = await findVendorById(group.vendor_id);
+        if (vendor && vendor.latitude && vendor.longitude) {
+          const distKm = haversineDistanceKm(
+            Number(address.latitude),
+            Number(address.longitude),
+            Number(vendor.latitude),
+            Number(vendor.longitude)
+          );
+          const maxRadius = Number(vendor.delivery_radius_km || 5);
+          if (distKm > maxRadius) {
+            throw new ApiError(
+              HttpStatus.BAD_REQUEST,
+              `Selected delivery address in ${address.city || address.full_address || "selected area"} is ${distKm.toFixed(1)} km away. ${vendor.business_name} only delivers within ${maxRadius} km (Sakti District). Please choose a closer address or select Self Pickup.`,
+              {
+                code: "OUT_OF_DELIVERY_RADIUS",
+                details: {
+                  distance_km: String(Math.round(distKm * 10) / 10),
+                  max_radius_km: String(maxRadius),
+                  vendor_name: vendor.business_name,
+                  address_city: address.city || "",
+                },
+              }
+            );
+          }
+        }
+      }
     }
 
     const idempotencyKey = input.idempotency_key ?? undefined;

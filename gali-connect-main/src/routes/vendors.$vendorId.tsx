@@ -15,6 +15,8 @@ import {
   BellRing,
   Loader2,
   Navigation,
+  AlertTriangle,
+  Bike,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
@@ -136,6 +138,9 @@ function VendorDetail() {
     lat != null && lng != null && activeAddress?.latitude && activeAddress?.longitude
       ? calculateDistance(activeAddress.latitude, activeAddress.longitude, lat, lng)
       : null;
+
+  const deliveryRadiusKm = Number(profile.delivery_radius_km || 5);
+  const isOutOfDeliveryRange = distanceKm != null && distanceKm > deliveryRadiusKm;
 
   const ownerName = profile.owner_name || vendor.business_name || "Verified Merchant";
   const phone = profile.phone || (vendor as any).phone || null;
@@ -293,6 +298,10 @@ function VendorDetail() {
                   <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
                     <Clock className="h-3.5 w-3.5" /> {profile.estimated_delivery_time || profile.delivery_configs?.estimated_delivery_time || "20-30 mins"}
                   </span>
+
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+                    <Bike className="h-3 w-3 text-emerald-600" /> Max {deliveryRadiusKm} km Radius
+                  </span>
                 </div>
               </div>
             </div>
@@ -340,6 +349,19 @@ function VendorDetail() {
               </button>
             </div>
           </div>
+
+          {/* Out of Delivery Radius Geo-Fence Banner */}
+          {isOutOfDeliveryRange && distanceKm != null && (
+            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 text-xs font-medium">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-bold">Your Location is Outside Store Delivery Range ({distanceKm.toFixed(1)} km away)</span>
+                <p className="text-[11px] text-muted-foreground">
+                  {vendor.business_name} only delivers home orders within <strong>{deliveryRadiusKm} km</strong> (Sakti District). You can still browse products or select <strong>Self Pickup</strong> during checkout.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Address & Operational Info */}
           {profile.address && (
