@@ -22,6 +22,7 @@ import {
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
 import { AddressModal, AddressData } from "@/components/marketplace/address-modal";
+import { PaymentFailureModal } from "@/components/checkout/PaymentFailureModal";
 import { Label } from "@/components/ui/label";
 
 import { toast } from "sonner";
@@ -62,6 +63,9 @@ function Checkout() {
   const [deliveryOption, setDeliveryOption] = useState(0);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
+  const [failureModalOpen, setFailureModalOpen] = useState(false);
+  const [pendingFailedOrders, setPendingFailedOrders] = useState<any[]>([]);
+  const [paymentFailureReason, setPaymentFailureReason] = useState<string>("");
 
   const { data: publicSettingsRes } = useQuery({
     queryKey: ["publicSettings"],
@@ -414,6 +418,72 @@ function Checkout() {
     }
   };
 
+  const handleRetryRazorpayFlow = async (ordersList: any[]) => {
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded) {
+      throw new Error("Razorpay SDK failed to load. Are you online?");
+    }
+    const RazorpayCtor = (window as any).Razorpay;
+    for (const entry of ordersList) {
+      const orderId = entry?.order?.id || entry?.id;
+      if (!orderId) continue;
+
+      const retryRes = await api.post<any>(`/payments/${orderId}/retry`, {});
+      if (!retryRes.success || !retryRes.data) {
+        throw new Error(retryRes.error?.message || "Failed to initialize payment retry.");
+      }
+      const retryData = retryRes.data;
+
+      await new Promise<void>((resolve, reject) => {
+        let paymentReceived = false;
+        const options = {
+          key: retryData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+          amount: Math.round((retryData.amount || total) * 100),
+          currency: retryData.currency || "INR",
+          name: "Vegamart",
+          description: `Order ${retryData.order_number}`,
+          order_id: retryData.razorpay_order_id,
+          handler: async (response: any) => {
+            paymentReceived = true;
+            try {
+              const res = await verifyMutation.mutateAsync({
+                razorpay_order_id: retryData.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+              if (res?.success) {
+                clearCart();
+                toast.success("Payment successful!");
+                navigate({ to: "/order-success", search: { orderId } });
+                resolve();
+              } else {
+                reject(new Error(res?.error?.message || "Payment verification failed."));
+              }
+            } catch {
+              reject(new Error("Payment verification failed."));
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              if (paymentReceived) return;
+              reject(new Error("Payment was cancelled. Your order has not been charged."));
+            },
+          },
+          prefill: {
+            name: user?.name || "Customer",
+            email: user?.email || "",
+            contact: selectedAddress?.phone || "9999999999",
+          },
+          theme: {
+            color: "#10b981",
+          },
+        };
+        const paymentObject = new RazorpayCtor(options);
+        paymentObject.open();
+      });
+    }
+  };
+
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await api.post<any>("/orders", data);
@@ -428,25 +498,26 @@ function Checkout() {
       if (payment === "upi" || payment === "card") {
         try {
           await runRazorpayFlow(orders);
-        } catch (err) {
-          // Immediately cancel the created pending order(s) so unpaid orders never remain active/booked in the system!
+          clearCart();
+          toast.success("Payment successful!");
+          navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
+        } catch (err: any) {
+          // Record payment failure with backend
           await Promise.allSettled(
-            orders.map((entry: any) =>
-              entry?.order?.id
-                ? api.post(`/orders/${entry.order.id}/cancel`, { reason: "Payment cancelled by customer" })
-                : Promise.resolve()
-            )
+            orders.map((entry: any) => {
+              const id = entry?.order?.id || entry?.id;
+              return id
+                ? api.post(`/payments/${id}/record-failure`, {
+                    reason: err?.message || "Payment incomplete/cancelled",
+                  })
+                : Promise.resolve();
+            })
           );
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Payment could not be completed. Your order was not placed.";
-          toast.error(message);
-          return;
+
+          setPendingFailedOrders(orders);
+          setPaymentFailureReason(err?.message || "Payment was cancelled or could not be completed.");
+          setFailureModalOpen(true);
         }
-        clearCart();
-        toast.success("Payment successful!");
-        navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
       } else {
         clearCart();
         toast.success("Order placed successfully via COD!");
@@ -1087,6 +1158,14 @@ function Checkout() {
         open={addressModalOpen}
         onClose={() => setAddressModalOpen(false)}
         onSave={(data) => createAddressMutation.mutateAsync(data)}
+      />
+
+      <PaymentFailureModal
+        isOpen={failureModalOpen}
+        onClose={() => setFailureModalOpen(false)}
+        orders={pendingFailedOrders}
+        errorMessage={paymentFailureReason}
+        onRetryRazorpay={handleRetryRazorpayFlow}
       />
     </div>
   );

@@ -37,6 +37,20 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
 import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
 
+function loadRazorpay(): Promise<any> {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && (window as any).Razorpay) {
+      resolve((window as any).Razorpay);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve((window as any).Razorpay);
+    script.onerror = () => resolve(null);
+    document.body.appendChild(script);
+  });
+}
+
 export const Route = createFileRoute("/orders/$orderId/track")({
   component: OrderIdTrackingPage,
 });
@@ -48,13 +62,15 @@ function OrderIdTrackingPage() {
   const queryClient = useQueryClient();
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
+  const [isSwitchingCod, setIsSwitchingCod] = useState(false);
 
   const cancelMutation = useMutation({
     mutationFn: () => api.post(`/orders/${orderId}/cancel`, { reason: cancelReason }),
     onSuccess: () => {
       toast.success("Order cancelled successfully");
       setCancelModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["orderDetail", orderId] });
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to cancel order");
@@ -101,6 +117,81 @@ function OrderIdTrackingPage() {
   const tax = Number(order?.tax ?? order?.platform_fee ?? 0);
   const discount = Number(order?.discount ?? 0);
   const totalAmount = Number(order?.total_amount ?? order?.total ?? 0);
+  const isPaymentUnpaid = !!order && ((order?.payment_status === "PENDING" && order?.payment_method !== "COD") || order?.payment_status === "FAILED");
+
+  const handleRetryPayment = async () => {
+    if (!order?.id) return;
+    setIsRetryingPayment(true);
+    try {
+      const RazorpayCtor = await loadRazorpay();
+      if (!RazorpayCtor) {
+        throw new Error("Razorpay SDK failed to load. Please check your internet connection.");
+      }
+      const res = await api.post<any>(`/payments/${order.id}/retry`, {});
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || "Failed to initialize payment retry.");
+      }
+      const retryData = res.data;
+
+      const options = {
+        key: retryData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+        amount: Math.round((retryData.amount || totalAmount) * 100),
+        currency: retryData.currency || "INR",
+        name: "Vegamart",
+        description: `Order ${retryData.order_number}`,
+        order_id: retryData.razorpay_order_id,
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await api.post<any>("/payments/verify", {
+              razorpay_order_id: retryData.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            if (verifyRes?.success) {
+              toast.success("Payment verified and completed successfully! 🎉");
+              refetch();
+            } else {
+              toast.error(verifyRes?.error?.message || "Verification failed. Please contact support.");
+            }
+          } catch {
+            toast.error("Payment verification failed. Please contact support.");
+          }
+        },
+        prefill: {
+          name: user?.name || "Customer",
+          email: user?.email || "",
+          contact: user?.phone || "9999999999",
+        },
+        theme: {
+          color: "#10b981",
+        },
+      };
+      const paymentObject = new RazorpayCtor(options);
+      paymentObject.open();
+    } catch (err: any) {
+      toast.error(err?.message || "Payment retry failed.");
+    } finally {
+      setIsRetryingPayment(false);
+    }
+  };
+
+  const handleSwitchToCod = async () => {
+    if (!order?.id) return;
+    setIsSwitchingCod(true);
+    try {
+      const res = await api.post<any>(`/payments/${order.id}/switch-to-cod`, {});
+      if (res.success) {
+        toast.success("Order switched to Cash on Delivery! Pay when delivered. 💵");
+        refetch();
+      } else {
+        toast.error(res.error?.message || "Failed to switch to Cash on Delivery.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to switch payment method.");
+    } finally {
+      setIsSwitchingCod(false);
+    }
+  };
 
   if (!authLoading && (!isAuthenticated || isGuest || role !== "customer")) {
     return (
@@ -171,6 +262,49 @@ function OrderIdTrackingPage() {
           </div>
         ) : (
           <>
+            {/* Payment Incomplete / Failed Fallback Recovery Banner */}
+            {isPaymentUnpaid && (
+              <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-5 shadow-soft space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-bold shadow-md shrink-0 mt-0.5">
+                      <AlertCircle className="h-5 w-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-sm text-foreground">Online Payment Incomplete</h3>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500 text-white">
+                          Action Required
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xl">
+                        Your online payment was not captured. <strong>Did your bank deduct money?</strong> Don't worry — if any amount was debited, your bank will auto-refund it in 3-5 business days. You can retry payment online or switch to Pay on Delivery.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                    <button
+                      onClick={handleRetryPayment}
+                      disabled={isRetryingPayment || isSwitchingCod}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-4 py-2.5 shadow-xs transition-colors"
+                    >
+                      {isRetryingPayment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      Retry Payment Online
+                    </button>
+                    <button
+                      onClick={handleSwitchToCod}
+                      disabled={isRetryingPayment || isSwitchingCod}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground font-bold text-xs px-4 py-2.5 shadow-xs transition-colors"
+                    >
+                      {isSwitchingCod ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Banknote className="h-3.5 w-3.5 text-emerald-600" />}
+                      Switch to COD
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Status Banner */}
             <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/5 p-5 shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">

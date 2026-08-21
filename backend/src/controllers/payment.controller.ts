@@ -126,3 +126,24 @@ export const refundPayment = asyncHandler(async (req: Request, res: Response) =>
 
   return sendSuccess(res, result);
 });
+
+export const retryOrderPayment = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.retryPayment(req.user!.id, req.params.order_id as string, req);
+  return sendSuccess(res, result);
+});
+
+export const switchOrderToCod = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.switchToCod(req.user!.id, req.params.order_id as string, req);
+  return sendSuccess(res, result);
+});
+
+export const recordOrderPaymentFailure = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.recordPaymentFailure(
+    req.user!.id,
+    req.params.order_id as string,
+    req.body ?? {},
+    req
+  );
+  return sendSuccess(res, result);
+});
+

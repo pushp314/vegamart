@@ -479,4 +479,165 @@ export const paymentService = {
 
     return { refund_id: refund.id, amount: refundAmount, status: refund.status, payment: updatedPayment };
   },
+
+  async retryPayment(userId: string, orderId: string, _req: Request) {
+    const order = await findOrderById(orderId);
+    if (!order) {
+      throw new NotFoundError("Order not found.");
+    }
+    if (order.user_id !== userId) {
+      throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
+    }
+    if (order.payment_status === "PAID") {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "This order is already paid.", { code: "ALREADY_PAID" });
+    }
+    if (order.status === "CANCELLED") {
+      // Re-activate order to PENDING so customer can pay
+      await orderRepo.updateOrderStatus(order.id, {
+        status: "PENDING",
+        note: "Customer retrying payment",
+        actorType: "customer",
+      });
+    }
+
+    const existingPayment = await paymentRepo.findByOrderId(order.id);
+    const amountToCharge = Number(existingPayment?.amount ?? order.total);
+    const amountPaise = Math.max(100, Math.round(amountToCharge * 100)); // minimum 1 INR for Razorpay
+
+    const gatewayOrder = await razorpayGateway.createOrder({
+      amountPaise,
+      currency: "INR",
+      receipt: order.order_number,
+      notes: {
+        order_number: order.order_number,
+        user_id: userId,
+        retry: "true",
+      },
+    });
+
+    if (existingPayment) {
+      await paymentRepo.updatePayment(existingPayment.id, {
+        razorpay_order_id: gatewayOrder.id,
+        status: "PENDING",
+      });
+    }
+
+    return {
+      order_id: order.id,
+      order_number: order.order_number,
+      amount: amountToCharge,
+      currency: "INR",
+      razorpay_order_id: gatewayOrder.id,
+      key: env.RAZORPAY_KEY_ID || "",
+    };
+  },
+
+  async switchToCod(userId: string, orderId: string, _req: Request) {
+    const order = await findOrderById(orderId);
+    if (!order) {
+      throw new NotFoundError("Order not found.");
+    }
+    if (order.user_id !== userId) {
+      throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
+    }
+    if (order.payment_status === "PAID") {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "This order is already paid.", { code: "ALREADY_PAID" });
+    }
+
+    // Switch payment method to COD and set order status to PENDING
+    await orderRepo.updateOrder(order.id, {
+      payment_method: "COD",
+      payment_status: "PENDING",
+      status: "PENDING",
+    });
+
+    await orderRepo.updateOrderStatus(order.id, {
+      status: "PENDING",
+      note: "Switched to Cash on Delivery after online payment failure/cancellation.",
+      actorType: "customer",
+    });
+
+    const existingPayment = await paymentRepo.findByOrderId(order.id);
+    if (existingPayment) {
+      await paymentRepo.updatePayment(existingPayment.id, {
+        method: "COD" as never,
+        status: "PENDING",
+      });
+    }
+
+    // Notify customer and vendor
+    await notificationService.orderStatus(
+      userId,
+      order.order_number,
+      "Switched to Cash on Delivery 💵",
+      `Your order #${order.order_number} has been switched to Cash on Delivery. Please pay ₹${Number(order.total).toFixed(2)} when your order arrives.`,
+      { order_id: order.id }
+    );
+
+    if (order.vendor?.user_id) {
+      await notificationService.vendor(
+        order.vendor.user_id,
+        "Order Switched to COD 💵",
+        `Customer switched Order #${order.order_number} to Cash on Delivery (₹${Number(order.total).toFixed(2)}).`,
+        {
+          order_id: order.id,
+          order_number: order.order_number,
+          total: Number(order.total),
+          payment_method: "COD",
+        }
+      );
+    }
+
+    return {
+      success: true,
+      order_id: order.id,
+      order_number: order.order_number,
+      payment_method: "COD",
+      total: Number(order.total),
+      message: "Order successfully switched to Cash on Delivery!",
+    };
+  },
+
+  async recordPaymentFailure(
+    userId: string,
+    orderId: string,
+    input: { reason?: string; error_code?: string; error_description?: string },
+    _req: Request
+  ) {
+    const order = await findOrderById(orderId);
+    if (!order) {
+      throw new NotFoundError("Order not found.");
+    }
+    if (order.user_id !== userId) {
+      throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
+    }
+
+    const existingPayment = await paymentRepo.findByOrderId(order.id);
+    if (existingPayment) {
+      await paymentRepo.updatePayment(existingPayment.id, {
+        status: "FAILED",
+        failure_reason: input.error_description || input.reason || "Payment declined/cancelled",
+      });
+    }
+
+    await orderRepo.updateOrderStatus(order.id, {
+      status: order.status === "PENDING" ? "PENDING" : order.status,
+      note: `Payment attempt failed: ${input.error_description || input.reason || "Gateway Error"} (Code: ${input.error_code || "UNKNOWN"})`,
+      actorType: "system",
+    });
+
+    await notificationService.payment(
+      userId,
+      "Payment Incomplete ⚠️",
+      `Payment of ₹${Number(order.total).toFixed(2)} for order #${order.order_number} was incomplete or declined. If your bank deducted any amount, it will be automatically refunded within 3-5 days. You can retry or switch to COD anytime.`,
+      { order_id: order.id }
+    );
+
+    return {
+      recorded: true,
+      order_id: order.id,
+      status: "FAILED",
+      advice: "If money was deducted, it will be auto-refunded to your bank in 3-5 business days. You can retry or switch to COD.",
+    };
+  },
 };
