@@ -1477,6 +1477,8 @@ export const deliveryService = {
       take: 25,
     });
 
+    const partnerData = partner as any;
+
     return {
       available_balance: availableBalance,
       deficit_balance: deficitBalance,
@@ -1486,14 +1488,14 @@ export const deliveryService = {
       in_flight_withdrawing: inFlightWithdrawing,
       lifetime_settled: totalSettledEarnings,
       completed_trips_count: completedTripsCount,
-      bank_configured: Boolean(partner.bank_account_number && partner.bank_ifsc),
+      bank_configured: Boolean(partnerData.bank_account_number && partnerData.bank_ifsc),
       bank_details: {
-        bank_account_number: partner.bank_account_number || null,
-        bank_ifsc: partner.bank_ifsc || null,
-        bank_account_holder_name: partner.bank_account_holder_name || null,
-        bank_name: partner.bank_name || null,
-        upi_id: partner.upi_id || null,
-        payout_enabled: partner.payout_enabled !== false,
+        bank_account_number: partnerData.bank_account_number || null,
+        bank_ifsc: partnerData.bank_ifsc || null,
+        bank_account_holder_name: partnerData.bank_account_holder_name || null,
+        bank_name: partnerData.bank_name || null,
+        upi_id: partnerData.upi_id || null,
+        payout_enabled: partnerData.payout_enabled !== false,
       },
       recent_withdrawals: recentWithdrawals.map((w: any) => ({
         id: w.id,
@@ -1534,7 +1536,8 @@ export const deliveryService = {
     });
 
     if (!partner) throw new Error("Delivery partner profile not found");
-    if (partner.payout_enabled === false) {
+    const partnerData = partner as any;
+    if (partnerData.payout_enabled === false) {
       throw new Error("Payouts are disabled for this delivery account. Please contact support.");
     }
 
@@ -1543,11 +1546,11 @@ export const deliveryService = {
       throw new Error("Minimum withdrawal amount for delivery partners is ₹50.");
     }
 
-    const mode = input.payout_mode || (partner.upi_id ? "UPI" : "BANK_TRANSFER");
-    if (mode === "BANK_TRANSFER" && (!partner.bank_account_number || !partner.bank_ifsc)) {
+    const mode = input.payout_mode || (partnerData.upi_id ? "UPI" : "BANK_TRANSFER");
+    if (mode === "BANK_TRANSFER" && (!partnerData.bank_account_number || !partnerData.bank_ifsc)) {
       throw new Error("Please configure your Bank Account Number and IFSC Code before requesting a bank payout.");
     }
-    if (mode === "UPI" && !partner.upi_id) {
+    if (mode === "UPI" && !partnerData.upi_id) {
       throw new Error("Please configure your UPI ID before requesting a UPI payout.");
     }
 
@@ -1561,11 +1564,11 @@ export const deliveryService = {
         delivery_partner_id: deliveryPartnerId,
         amount: requestedAmount,
         payout_mode: mode,
-        account_number: partner.bank_account_number,
-        ifsc_code: partner.bank_ifsc,
-        account_holder: partner.bank_account_holder_name || partner.user?.name,
-        bank_name: partner.bank_name,
-        upi_id: partner.upi_id,
+        account_number: partnerData.bank_account_number,
+        ifsc_code: partnerData.bank_ifsc,
+        account_holder: partnerData.bank_account_holder_name || partner.user?.name,
+        bank_name: partnerData.bank_name,
+        upi_id: partnerData.upi_id,
         status: "PENDING",
         notes: input.notes || null,
       },
@@ -1601,7 +1604,7 @@ export const deliveryService = {
       upi_id?: string | null;
     }
   ) {
-    const updated = await prisma.deliveryProfile.update({
+    const updated = await (prisma as any).deliveryProfile.update({
       where: { id: deliveryPartnerId },
       data: {
         bank_account_number: input.bank_account_number ?? undefined,
