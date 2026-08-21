@@ -12,6 +12,11 @@ export interface AddressData {
   city: string;
   state: string;
   pincode: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  full_address?: string | null;
+  area?: string | null;
+  type?: string | null;
   is_default: boolean;
 }
 
