@@ -91,26 +91,34 @@ describe("createOrderEarnings", () => {
   it("creates exactly one vendor ORDER_COMMISSION earning for a delivered order", async () => {
     await createOrderEarnings(makeOrder({ delivery_fee: 0 }), db);
 
-    expect(db.vendorEarning.create).toHaveBeenCalledTimes(1);
-    expect(db.vendorEarning.create).toHaveBeenCalledWith(
+    expect(db.vendorEarning.createMany).toHaveBeenCalledTimes(1);
+    expect(db.vendorEarning.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          vendor_id: "v1",
-          order_id: "order-1",
-          type: "ORDER_COMMISSION",
-          amount: 950,
-        }),
+        data: [
+          expect.objectContaining({
+            vendor_id: "v1",
+            order_id: "order-1",
+            type: "ORDER_COMMISSION",
+            amount: 950,
+            reference_id: "earning-ORDER_COMMISSION",
+          }),
+        ],
+        skipDuplicates: true,
       })
     );
-    expect(db.deliveryEarning.create).not.toHaveBeenCalled();
+    expect(db.deliveryEarning.createMany).not.toHaveBeenCalled();
   });
 
   it("marks self-delivery delivery fee as a vendor DELIVERY_FEE earning", async () => {
     await createOrderEarnings(makeOrder(), db);
-    expect(db.vendorEarning.create).toHaveBeenCalledTimes(2);
-    expect(db.vendorEarning.create).toHaveBeenCalledWith(
+    // One createMany for ORDER_COMMISSION + one for DELIVERY_FEE
+    expect(db.vendorEarning.createMany).toHaveBeenCalledTimes(2);
+    expect(db.vendorEarning.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ type: "DELIVERY_FEE", amount: 30 }),
+        data: [
+          expect.objectContaining({ type: "DELIVERY_FEE", amount: 30, reference_id: "earning-DELIVERY_FEE" }),
+        ],
+        skipDuplicates: true,
       })
     );
   });
@@ -118,21 +126,33 @@ describe("createOrderEarnings", () => {
   it("credits the delivery fee to the assigned delivery partner, not the vendor", async () => {
     await createOrderEarnings(makeOrder({ delivery_partner_id: "p1" }), db);
 
-    const vendorCalls = db.vendorEarning.create.mock.calls;
-    expect(vendorCalls).toHaveLength(1);
-    expect(vendorCalls[0][0].data.type).toBe("ORDER_COMMISSION");
-    expect(db.deliveryEarning.create).toHaveBeenCalledWith(
+    // Vendor should only get ORDER_COMMISSION
+    expect(db.vendorEarning.createMany).toHaveBeenCalledTimes(1);
+    expect(db.vendorEarning.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ delivery_partner_id: "p1", type: "DELIVERY_FEE", amount: 30 }),
+        data: [
+          expect.objectContaining({ type: "ORDER_COMMISSION" }),
+        ],
+      })
+    );
+    // Delivery partner gets DELIVERY_FEE
+    expect(db.deliveryEarning.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({ delivery_partner_id: "p1", type: "DELIVERY_FEE", amount: 30, reference_id: "earning-DELIVERY_FEE" }),
+        ],
+        skipDuplicates: true,
       })
     );
   });
 
-  it("does not duplicate earnings when the order already has an earning row", async () => {
-    db.vendorEarning.count.mockResolvedValue(1);
+  it("relies on skipDuplicates for idempotency (unique constraint on order_id + reference_id)", async () => {
+    // createMany with skipDuplicates handles dedup atomically via the DB unique constraint,
+    // so even when called twice, no duplicate rows are created.
     await createOrderEarnings(makeOrder(), db);
-    expect(db.vendorEarning.create).not.toHaveBeenCalled();
-    expect(db.deliveryEarning.create).not.toHaveBeenCalled();
+    expect(db.vendorEarning.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true })
+    );
   });
 });
 
@@ -286,6 +306,7 @@ describe("releaseEscrowEarnings", () => {
     expect(db.vendorEarning.updateMany).toHaveBeenCalledWith({
       where: {
         status: "PENDING",
+        type: { not: "REFUND" },
         created_at: { lte: expect.any(Date) },
       },
       data: {
@@ -296,6 +317,7 @@ describe("releaseEscrowEarnings", () => {
     expect(db.deliveryEarning.updateMany).toHaveBeenCalledWith({
       where: {
         status: "PENDING",
+        type: { not: "REFUND" },
         created_at: { lte: expect.any(Date) },
       },
       data: {

@@ -102,55 +102,55 @@ export function computeVendorEarning(basis: OrderEarningInput): VendorEarningBre
 export async function createOrderEarnings(order: OrderEarningInput, db: DbClient = prisma): Promise<void> {
   const { net } = computeVendorEarning(order);
 
+  // FLAW 3 FIX: Use createMany + skipDuplicates with a deterministic reference_id
+  // so the @@unique([order_id, reference_id]) constraint atomically prevents duplicates.
+  // This eliminates the TOCTOU race of the old count-then-create pattern.
   if (net > 0) {
-    const existing = await db.vendorEarning.count({
-      where: { order_id: order.id, type: "ORDER_COMMISSION" },
-    });
-    if (existing === 0) {
-      await db.vendorEarning.create({
-        data: {
+    await db.vendorEarning.createMany({
+      data: [
+        {
           vendor_id: order.vendor_id,
           order_id: order.id,
           type: "ORDER_COMMISSION",
           amount: net,
           status: "PENDING",
+          reference_id: `earning-ORDER_COMMISSION`,
         },
-      });
-    }
+      ],
+      skipDuplicates: true,
+    });
   }
 
   if (order.delivery_fee <= 0) return;
 
   if (order.delivery_partner_id) {
-    const existing = await db.deliveryEarning.count({
-      where: { order_id: order.id, type: "DELIVERY_FEE" },
-    });
-    if (existing === 0) {
-      await db.deliveryEarning.create({
-        data: {
+    await db.deliveryEarning.createMany({
+      data: [
+        {
           delivery_partner_id: order.delivery_partner_id,
           order_id: order.id,
           type: "DELIVERY_FEE",
           amount: round2(order.delivery_fee),
           status: "PENDING",
+          reference_id: `earning-DELIVERY_FEE`,
         },
-      });
-    }
-  } else {
-    const existing = await db.vendorEarning.count({
-      where: { order_id: order.id, type: "DELIVERY_FEE" },
+      ],
+      skipDuplicates: true,
     });
-    if (existing === 0) {
-      await db.vendorEarning.create({
-        data: {
+  } else {
+    await db.vendorEarning.createMany({
+      data: [
+        {
           vendor_id: order.vendor_id,
           order_id: order.id,
           type: "DELIVERY_FEE",
           amount: round2(order.delivery_fee),
           status: "PENDING",
+          reference_id: `earning-DELIVERY_FEE`,
         },
-      });
-    }
+      ],
+      skipDuplicates: true,
+    });
   }
 }
 
@@ -192,6 +192,9 @@ export async function reverseOrderEarnings(
     const delta = round2(target - alreadyReversed);
     if (delta <= 0.005) return;
 
+    // FLAW 2 FIX: REFUND rows are created as SETTLED immediately so they
+    // instantly reduce available balance. This prevents the escrow timing attack
+    // where a vendor could withdraw before the refund deduction kicks in.
     await db.vendorEarning.createMany({
       data: [
         {
@@ -199,7 +202,8 @@ export async function reverseOrderEarnings(
           order_id: order.id,
           type: "REFUND",
           amount: -delta,
-          status: "PENDING",
+          status: "SETTLED",
+          settled_at: new Date(),
           reference_id: referenceId,
         },
       ],
@@ -227,6 +231,7 @@ export async function reverseOrderEarnings(
     const delta = round2(target - alreadyReversed);
     if (delta <= 0.005) return;
 
+    // FLAW 2 FIX: Delivery REFUND rows also settle immediately.
     await db.deliveryEarning.createMany({
       data: [
         {
@@ -234,7 +239,8 @@ export async function reverseOrderEarnings(
           order_id: order.id,
           type: "REFUND",
           amount: -delta,
-          status: "PENDING",
+          status: "SETTLED",
+          settled_at: new Date(),
           reference_id: referenceId,
         },
       ],
@@ -330,9 +336,12 @@ export async function releaseEscrowEarnings(
 ): Promise<{ releasedVendorEarnings: number; releasedDeliveryEarnings: number }> {
   const cutoff = new Date(Date.now() - holdHours * 60 * 60 * 1000);
 
+  // FLAW 2 FIX: Exclude REFUND rows — they are already SETTLED on creation.
+  // Only release positive earnings (ORDER_COMMISSION, DELIVERY_FEE, TIP, BONUS).
   const vendorRes = await db.vendorEarning.updateMany({
     where: {
       status: "PENDING",
+      type: { not: "REFUND" },
       created_at: { lte: cutoff },
     },
     data: {
@@ -344,6 +353,7 @@ export async function releaseEscrowEarnings(
   const deliveryRes = await db.deliveryEarning.updateMany({
     where: {
       status: "PENDING",
+      type: { not: "REFUND" },
       created_at: { lte: cutoff },
     },
     data: {

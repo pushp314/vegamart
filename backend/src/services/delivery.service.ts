@@ -1453,9 +1453,9 @@ export const deliveryService = {
     const availableBalance = Math.max(0, netBalance);
     const deficitBalance = netBalance < 0 ? Math.abs(netBalance) : 0;
 
-    // Completed Trips Count
+    // Completed Trips Count (exclude REFUND rows — FLAW 12 FIX)
     const completedTripsCount = await prisma.deliveryEarning.count({
-      where: { delivery_partner_id: deliveryPartnerId },
+      where: { delivery_partner_id: deliveryPartnerId, type: { not: "REFUND" } },
     });
 
     // Recent Withdrawals
@@ -1525,6 +1525,9 @@ export const deliveryService = {
 
   /**
    * Submits an on-demand withdrawal request for a delivery partner.
+   *
+   * FLAW 1 FIX: Uses Prisma interactive transaction with `SELECT ... FOR UPDATE`
+   * on the delivery partner row to prevent concurrent double-spend.
    */
   async requestDeliveryWithdrawal(
     deliveryPartnerId: string,
@@ -1554,26 +1557,58 @@ export const deliveryService = {
       throw new Error("Please configure your UPI ID before requesting a UPI payout.");
     }
 
-    const overview = await this.getDeliveryWalletOverview(deliveryPartnerId);
-    if (requestedAmount > overview.available_balance) {
-      throw new Error(`Insufficient available balance. Maximum withdrawable: ₹${overview.available_balance.toFixed(2)}`);
-    }
+    // FLAW 1 FIX: Atomic balance check + withdrawal creation with row-level lock
+    const request = await prisma.$transaction(async (tx) => {
+      // Acquire advisory lock on the delivery partner row
+      await tx.$queryRawUnsafe(
+        `SELECT id FROM delivery_profiles WHERE id = $1 FOR UPDATE`,
+        deliveryPartnerId
+      );
 
-    const request = await (prisma as any).payoutRequest.create({
-      data: {
-        delivery_partner_id: deliveryPartnerId,
-        amount: requestedAmount,
-        payout_mode: mode,
-        account_number: partnerData.bank_account_number,
-        ifsc_code: partnerData.bank_ifsc,
-        account_holder: partnerData.bank_account_holder_name || partner.user?.name,
-        bank_name: partnerData.bank_name,
-        upi_id: partnerData.upi_id,
-        status: "PENDING",
-        notes: input.notes || null,
-      },
+      // Compute available balance within the transaction
+      const settledAgg = await tx.deliveryEarning.aggregate({
+        where: { delivery_partner_id: deliveryPartnerId, status: "SETTLED" },
+        _sum: { amount: true },
+      });
+      const completedWithdrawalsAgg = await (tx as any).payoutRequest.aggregate({
+        where: { delivery_partner_id: deliveryPartnerId, status: "COMPLETED" },
+        _sum: { amount: true },
+      });
+      const inFlightWithdrawalsAgg = await (tx as any).payoutRequest.aggregate({
+        where: {
+          delivery_partner_id: deliveryPartnerId,
+          status: { in: ["PENDING", "PROCESSING"] },
+        },
+        _sum: { amount: true },
+      });
+
+      const totalSettled = Number(settledAgg._sum.amount ?? 0);
+      const totalWithdrawn = Number(completedWithdrawalsAgg._sum.amount ?? 0);
+      const inFlight = Number(inFlightWithdrawalsAgg._sum.amount ?? 0);
+      const netBalance = Math.round((totalSettled - totalWithdrawn - inFlight) * 100) / 100;
+      const availableBalance = Math.max(0, netBalance);
+
+      if (requestedAmount > availableBalance) {
+        throw new Error(`Insufficient available balance. Maximum withdrawable: ₹${availableBalance.toFixed(2)}`);
+      }
+
+      return (tx as any).payoutRequest.create({
+        data: {
+          delivery_partner_id: deliveryPartnerId,
+          amount: requestedAmount,
+          payout_mode: mode,
+          account_number: partnerData.bank_account_number,
+          ifsc_code: partnerData.bank_ifsc,
+          account_holder: partnerData.bank_account_holder_name || partner.user?.name,
+          bank_name: partnerData.bank_name,
+          upi_id: partnerData.upi_id,
+          status: "PENDING",
+          notes: input.notes || null,
+        },
+      });
     });
 
+    // Notify outside the transaction (non-critical)
     if (partner.user_id) {
       await notificationService.payment(
         partner.user_id,

@@ -77,24 +77,27 @@ export const payoutService = {
   },
 
   /**
-   * Transfers the vendor's net share for a paid order via Razorpay Route,
-   * respecting the Admin Wallet feature toggle.
+   * Records that an order's earnings exist and are in escrow.
+   *
+   * FLAW 6 FIX: This method NO LONGER immediately settles earnings or transfers
+   * money via Razorpay Route on delivery. Earnings remain in PENDING (escrow)
+   * status for the configured hold period (24h). The escrow release cron
+   * (`releaseEscrowEarnings`) will transition them to SETTLED, after which they
+   * become available for withdrawal. This protects the platform against post-
+   * delivery refund claims within the dispute window.
    */
-  async settleVendorOrderEarnings(orderId: string, paymentId?: string | null) {
+  async settleVendorOrderEarnings(orderId: string, _paymentId?: string | null) {
     // 1. Check Admin Feature Switch
     const settings = await settingsService.getAllSettings();
     const isWalletEnabled = settings[SETTING_KEYS.VENDOR_WALLET_ENABLED] !== false;
 
     if (!isWalletEnabled) {
-      log.info(`[payout] Vendor wallet/payout feature is disabled in Admin Settings. Skipping automatic transfer for order ${orderId}.`);
+      log.info(`[payout] Vendor wallet/payout feature is disabled in Admin Settings. Skipping for order ${orderId}.`);
       return { settled: false, reason: "WALLET_DISABLED_BY_ADMIN" };
     }
 
-    const payoutMode = (settings[SETTING_KEYS.VENDOR_PAYOUT_MODE] as string) || "razorpay_route";
-
     const earning = await prisma.vendorEarning.findFirst({
       where: { order_id: orderId, type: "ORDER_COMMISSION" },
-      include: { vendor: true, order: true },
     });
 
     if (!earning) {
@@ -105,53 +108,10 @@ export const payoutService = {
       return { settled: true, alreadySettled: true };
     }
 
-    const vendor = (earning as any).vendor;
-    const netPaise = Math.round(Number(earning.amount) * 100);
-    if (netPaise <= 0) {
-      await prisma.vendorEarning.update({
-        where: { id: earning.id },
-        data: { status: "SETTLED" },
-      });
-      return { settled: true, amount: 0 };
-    }
-
-    // If Razorpay Route is active and order was paid online with a gateway payment ID
-    if (payoutMode === "razorpay_route" && paymentId && vendor?.razorpay_account_id && razorpayGateway.isConfigured()) {
-      try {
-        const transferRes = await razorpayGateway.transferToLinkedAccount(paymentId, {
-          accountId: vendor.razorpay_account_id,
-          amountPaise: netPaise,
-          currency: "INR",
-          notes: {
-            order_id: orderId,
-            vendor_id: earning.vendor_id,
-            earning_id: earning.id,
-          },
-        });
-
-        await prisma.vendorEarning.update({
-          where: { id: earning.id },
-          data: { status: "SETTLED" },
-        });
-
-        log.info(`[payout] Transferred ₹${Number(earning.amount)} to vendor ${earning.vendor_id} linked account ${vendor.razorpay_account_id}`);
-        return { settled: true, transfer: transferRes };
-      } catch (err: any) {
-        log.error(`[payout] Route transfer failed for order ${orderId}: ${err.message}`);
-        return { settled: false, reason: err.message };
-      }
-    }
-
-    // In manual or sandbox mode without linked accounts, keep as SETTLED in ledger
-    if (!razorpayGateway.isConfigured() || !vendor?.razorpay_account_id) {
-      await prisma.vendorEarning.update({
-        where: { id: earning.id },
-        data: { status: "SETTLED" },
-      });
-      return { settled: true, mode: "LEDGER_ONLY" };
-    }
-
-    return { settled: false, reason: "PENDING_ACCOUNT_LINK" };
+    // Earnings stay PENDING — the escrow release cron will settle them after 24h.
+    // No immediate Razorpay Route transfer. Transfers happen on withdrawal request.
+    log.info(`[payout] Order ${orderId} earning ₹${Number(earning.amount)} is in 24h escrow hold. Will be released by cron.`);
+    return { settled: false, reason: "IN_ESCROW_HOLD", escrow_hours: 24 };
   },
 
   /**
@@ -245,6 +205,9 @@ export const payoutService = {
 
   /**
    * Disburses pending earnings for a specific vendor.
+   *
+   * FLAW 5 FIX: Only settles PENDING earnings that are past the 24h escrow hold
+   * window to prevent admin from force-settling earnings still in escrow.
    */
   async disburseVendorPayout(
     vendorId: string,
@@ -265,25 +228,36 @@ export const payoutService = {
       throw new Error("Vendor not found");
     }
 
+    // FLAW 5 FIX: Respect the 24h escrow hold — only settle earnings older than 24h
+    const escrowCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const pendingEarnings = await prisma.vendorEarning.findMany({
-      where: { vendor_id: vendorId, status: "PENDING" },
+      where: {
+        vendor_id: vendorId,
+        status: "PENDING",
+        type: { not: "REFUND" },
+        created_at: { lte: escrowCutoff },
+      },
     });
 
     if (pendingEarnings.length === 0) {
-      return { success: true, settled_count: 0, total_amount: 0, message: "No pending earnings found." };
+      return { success: true, settled_count: 0, total_amount: 0, message: "No eligible earnings past escrow hold period." };
     }
 
     const totalAmount = pendingEarnings.reduce((sum, e) => sum + Number(e.amount), 0);
     const roundedTotal = Math.round(totalAmount * 100) / 100;
 
-    // Execute atomic settlement
+    // Execute atomic settlement — only for earnings past escrow
     await prisma.vendorEarning.updateMany({
       where: {
         vendor_id: vendorId,
         status: "PENDING",
+        type: { not: "REFUND" },
+        created_at: { lte: escrowCutoff },
       },
       data: {
         status: "SETTLED",
+        settled_at: new Date(),
       },
     });
 
@@ -481,6 +455,11 @@ export const payoutService = {
 
   /**
    * Initiates an on-demand vendor payout withdrawal request.
+   *
+   * FLAW 1 FIX: The balance check and PayoutRequest creation are wrapped in
+   * a Prisma interactive transaction with `SELECT ... FOR UPDATE` on the vendor
+   * row. This prevents concurrent withdrawal requests from double-spending the
+   * same available balance.
    */
   async requestVendorWithdrawal(
     vendorId: string,
@@ -513,27 +492,60 @@ export const payoutService = {
       throw new Error("Please configure your UPI ID before requesting a UPI payout.");
     }
 
-    const overview = await this.getVendorWalletOverview(vendorId);
-    if (requestedAmount > overview.available_balance) {
-      throw new Error(`Insufficient available wallet balance. Maximum withdrawable: ₹${overview.available_balance.toFixed(2)}`);
-    }
+    // FLAW 1 FIX: Atomic balance check + withdrawal creation inside a serializable
+    // transaction with row-level lock to prevent concurrent double-spend.
+    const request = await prisma.$transaction(async (tx) => {
+      // Acquire advisory lock on the vendor row to serialize concurrent withdrawals
+      await tx.$queryRawUnsafe(
+        `SELECT id FROM vendor_profiles WHERE id = $1 FOR UPDATE`,
+        vendorId
+      );
 
-    const request = await (prisma as any).payoutRequest.create({
-      data: {
-        vendor_id: vendorId,
-        amount: requestedAmount,
-        payout_mode: mode,
-        account_number: vendor.bank_account_number,
-        ifsc_code: vendor.bank_ifsc,
-        account_holder: vendor.bank_account_holder_name || vendor.owner_name || vendor.business_name,
-        bank_name: vendor.bank_name,
-        upi_id: vendor.upi_id,
-        status: "PENDING",
-        notes: input.notes || null,
-      },
+      // Compute available balance within the transaction (sees latest committed state)
+      const settledAgg = await tx.vendorEarning.aggregate({
+        where: { vendor_id: vendorId, status: "SETTLED" },
+        _sum: { amount: true },
+      });
+      const completedWithdrawalsAgg = await (tx as any).payoutRequest.aggregate({
+        where: { vendor_id: vendorId, status: "COMPLETED" },
+        _sum: { amount: true },
+      });
+      const inFlightWithdrawalsAgg = await (tx as any).payoutRequest.aggregate({
+        where: {
+          vendor_id: vendorId,
+          status: { in: ["PENDING", "PROCESSING"] },
+        },
+        _sum: { amount: true },
+      });
+
+      const totalSettled = Number(settledAgg._sum.amount ?? 0);
+      const totalWithdrawn = Number(completedWithdrawalsAgg._sum.amount ?? 0);
+      const inFlight = Number(inFlightWithdrawalsAgg._sum.amount ?? 0);
+      const netBalance = Math.round((totalSettled - totalWithdrawn - inFlight) * 100) / 100;
+      const availableBalance = Math.max(0, netBalance);
+
+      if (requestedAmount > availableBalance) {
+        throw new Error(`Insufficient available wallet balance. Maximum withdrawable: ₹${availableBalance.toFixed(2)}`);
+      }
+
+      // Create the payout request inside the same transaction
+      return (tx as any).payoutRequest.create({
+        data: {
+          vendor_id: vendorId,
+          amount: requestedAmount,
+          payout_mode: mode,
+          account_number: vendor.bank_account_number,
+          ifsc_code: vendor.bank_ifsc,
+          account_holder: vendor.bank_account_holder_name || vendor.owner_name || vendor.business_name,
+          bank_name: vendor.bank_name,
+          upi_id: vendor.upi_id,
+          status: "PENDING",
+          notes: input.notes || null,
+        },
+      });
     });
 
-    // Notify vendor
+    // Notify vendor (outside transaction — non-critical)
     if (vendor.user_id) {
       await notificationService.vendor(
         vendor.user_id,

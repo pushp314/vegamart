@@ -109,7 +109,7 @@ describe("payoutService", () => {
       expect(razorpayGateway.transferToLinkedAccount).not.toHaveBeenCalled();
     });
 
-    it("executes Route transfer when wallet is enabled and vendor has linked account", async () => {
+    it("keeps earnings in escrow hold instead of immediately transferring (FLAW 6 FIX)", async () => {
       (settingsService.getAllSettings as any).mockResolvedValue({
         "platform.vendor_wallet_enabled": true,
         "platform.vendor_payout_mode": "razorpay_route",
@@ -121,30 +121,15 @@ describe("payoutService", () => {
         vendor_id: "v-1",
         amount: { toString: () => "450.00" },
         status: "PENDING",
-        vendor: {
-          id: "v-1",
-          razorpay_account_id: "acc_123456",
-        },
       });
-
-      (razorpayGateway.isConfigured as any).mockReturnValue(true);
-      (razorpayGateway.transferToLinkedAccount as any).mockResolvedValue({
-        items: [{ id: "trf_1", amount: 45000, recipient: "acc_123456" }],
-      });
-      (prisma.vendorEarning.update as any).mockResolvedValue({});
 
       const result = await payoutService.settleVendorOrderEarnings("order-1", "pay-1");
-      expect(result.settled).toBe(true);
-      expect(razorpayGateway.transferToLinkedAccount).toHaveBeenCalledWith("pay-1", {
-        accountId: "acc_123456",
-        amountPaise: 45000,
-        currency: "INR",
-        notes: expect.any(Object),
-      });
-      expect(prisma.vendorEarning.update).toHaveBeenCalledWith({
-        where: { id: "earn-1" },
-        data: { status: "SETTLED" },
-      });
+
+      // Earnings should stay in PENDING escrow — no immediate transfer
+      expect(result.settled).toBe(false);
+      expect(result.reason).toBe("IN_ESCROW_HOLD");
+      expect(razorpayGateway.transferToLinkedAccount).not.toHaveBeenCalled();
+      expect(prisma.vendorEarning.update).not.toHaveBeenCalled();
     });
   });
 });
