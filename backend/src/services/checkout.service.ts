@@ -8,6 +8,7 @@ import { auditService } from "./audit.service";
 import { cartService } from "./cart.service";
 import { couponService } from "./coupon.service";
 import { notificationService } from "./notification.service";
+import { realtime } from "../realtime/realtime";
 import * as cartRepo from "../repositories/cart.repository";
 import * as couponRepo from "../repositories/coupon.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
@@ -55,29 +56,21 @@ function groupByVendor(cart: cartRepo.CartRow): VendorGroup[] {
   return [...groups.values()];
 }
 
-/** Case-insensitive check for self-pickup or booking delivery slot requiring advance payment. */
-function isSelfPickupSlot(deliverySlot?: string | null): boolean {
-  if (!deliverySlot) return false;
-  const normalized = deliverySlot.toLowerCase();
-  return (
-    normalized.includes("self") ||
-    normalized.includes("pickup") ||
-    normalized.includes("takeaway") ||
-    normalized.includes("book") ||
-    normalized.includes("advance")
-  );
-}
-
-function isAdvanceRequiredSlot(deliverySlot?: string | null): boolean {
-  if (!deliverySlot) return false;
-  const normalized = deliverySlot.toLowerCase();
-  return (
-    normalized.includes("self") ||
-    normalized.includes("pickup") ||
-    normalized.includes("takeaway") ||
-    normalized.includes("book") ||
-    normalized.includes("advance")
-  );
+export function getDeliveryOptionConfig(
+  slot: string | undefined | null,
+  configs: VendorDeliveryConfigs
+): { id: "booking" | "self_pickup" | "shop_delivery" | "delivery_partner"; name: string; config: import("./vendor.service").DeliveryOptionConfig } {
+  const normalized = (slot || "").toLowerCase();
+  if (normalized.includes("book")) {
+    return { id: "booking", name: "Advance Booking", config: configs.booking };
+  }
+  if (normalized.includes("self") || normalized.includes("pickup") || normalized.includes("takeaway")) {
+    return { id: "self_pickup", name: "Self Pickup", config: configs.self_pickup };
+  }
+  if (normalized.includes("shop") || normalized.includes("direct")) {
+    return { id: "shop_delivery", name: "Shop Direct Delivery", config: configs.shop_delivery };
+  }
+  return { id: "delivery_partner", name: "VegaMart Home Delivery", config: configs.delivery_partner };
 }
 
 function computeDeliveryFee(
@@ -452,6 +445,7 @@ export const checkoutService = {
         coupon_code: input.coupon_code,
         delivery_slot: input.delivery_slot,
         payment_method: input.payment_method,
+        payment_type: input.payment_type,
         idempotency_key: input.idempotency_key,
       },
       req
@@ -480,7 +474,63 @@ export const checkoutService = {
 
     const idempotencyKey = input.idempotency_key ?? undefined;
     const paymentMethod = input.payment_method ?? "RAZORPAY";
+    const paymentType = input.payment_type ?? "FULL";
     const requestHash = idempotencyKey ? computeRequestHash(userId, input, summary) : null;
+
+    // Validate payment method and payment type against each vendor's delivery options config
+    for (const group of summary.groups) {
+      if (group.delivery_configs) {
+        const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, group.delivery_configs);
+        const optConfig = deliveryInfo.config;
+
+        if (!optConfig.enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `${group.vendor_name} does not offer ${deliveryInfo.name} at this time.`,
+            { code: "DELIVERY_OPTION_DISABLED" }
+          );
+        }
+
+        // Validate Online vs COD
+        if (paymentMethod === "COD" && !optConfig.cod_enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `Cash on Delivery/Pickup is disabled for ${deliveryInfo.name}. Please select an Online payment method.`,
+            { code: "COD_NOT_ALLOWED" }
+          );
+        }
+        if (paymentMethod === "RAZORPAY" && !optConfig.online_payment_enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `Online payment is disabled for ${deliveryInfo.name}. Please select Cash on Delivery.`,
+            { code: "ONLINE_PAYMENT_NOT_ALLOWED" }
+          );
+        }
+        if (!optConfig.online_payment_enabled && !optConfig.cod_enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `No payment methods are available for ${deliveryInfo.name}.`,
+            { code: "PAYMENT_UNAVAILABLE" }
+          );
+        }
+
+        // Validate Full vs Advance
+        if (paymentType === "ADVANCE" && !optConfig.advance_payment_enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `Advance payment is not available for ${deliveryInfo.name}. Please select Full Payment.`,
+            { code: "ADVANCE_PAYMENT_NOT_ALLOWED" }
+          );
+        }
+        if (paymentType === "FULL" && !optConfig.full_payment_enabled && optConfig.advance_payment_enabled) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            `Full payment is disabled for ${deliveryInfo.name}. Only Advance Payment is accepted.`,
+            { code: "FULL_PAYMENT_NOT_ALLOWED" }
+          );
+        }
+      }
+    }
 
     // Idempotent replay fast-path: reusing the same key must return the original
     // result (never a second order). A key used with different request params is
@@ -524,9 +574,9 @@ export const checkoutService = {
     const dailyLimits = await Promise.all(
       computations.map((c) =>
         membershipPlanService
-          .getMyMembership(c.group.vendor_id)
-          .then((membership) => membership?.plan?.daily_order_limit ?? 5)
-          .catch(() => 5)
+            .getMyMembership(c.group.vendor_id)
+            .then((membership) => membership?.plan?.daily_order_limit ?? 5)
+            .catch(() => 5)
       )
     );
 
@@ -534,10 +584,15 @@ export const checkoutService = {
     const gatewayOrders = await Promise.all(
       computations.map((c) => {
         let amountToCharge = c.groupTotal;
-        if (isSelfPickupSlot(input.delivery_slot) && amountToCharge > 0) {
-          // Require upfront online payment for Self Pickup based on vendor settings
-          const advancePct = c.group.advance_payment_percentage ?? 10;
-          amountToCharge = advancePct === 0 ? amountToCharge : Math.max(1, Math.round(amountToCharge * (advancePct / 100) * 100) / 100);
+        if (c.group.delivery_configs) {
+          const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, c.group.delivery_configs);
+          const optConfig = deliveryInfo.config;
+          if (paymentMethod === "RAZORPAY" && paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
+            const advancePct = optConfig.advance_percentage || 20;
+            amountToCharge = advancePct <= 0 || advancePct >= 100
+              ? c.groupTotal
+              : Math.max(1, Math.round(c.groupTotal * (advancePct / 100) * 100) / 100);
+          }
         }
         if (amountToCharge > 0 && amountToCharge < 1) {
           amountToCharge = 1; // Razorpay minimum is 1 INR
@@ -548,9 +603,14 @@ export const checkoutService = {
               amountPaise: Math.round(amountToCharge * 100),
               currency: DEFAULT_CURRENCY,
               receipt: c.orderNumber,
-              notes: { order_number: c.orderNumber, user_id: userId, delivery_slot: input.delivery_slot || "" },
+              notes: {
+                order_number: c.orderNumber,
+                user_id: userId,
+                delivery_slot: input.delivery_slot || "",
+                payment_type: paymentType,
+              },
             })
-          : undefined
+          : undefined;
       })
     );
 
@@ -572,6 +632,28 @@ export const checkoutService = {
         for (let i = 0; i < computations.length; i++) {
           const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
 
+          const deliveryInfo = group.delivery_configs
+            ? getDeliveryOptionConfig(input.delivery_slot, group.delivery_configs)
+            : null;
+          const optConfig = deliveryInfo?.config;
+          const isAdvance = paymentType === "ADVANCE" && !!optConfig?.advance_payment_enabled;
+
+          let amountCharged = groupTotal;
+          if (isAdvance && optConfig) {
+            const advancePct = optConfig.advance_percentage || 20;
+            amountCharged = advancePct <= 0 || advancePct >= 100
+              ? groupTotal
+              : Math.max(1, Math.round(groupTotal * (advancePct / 100) * 100) / 100);
+          }
+          if (amountCharged > 0 && amountCharged < 1) {
+            amountCharged = 1;
+          }
+
+          const deliverySlotLabel = input.delivery_slot || deliveryInfo?.name || "Standard Delivery";
+          const advanceNote = isAdvance
+            ? ` (${optConfig?.advance_percentage || 20}% Advance: ₹${amountCharged} paid online, Balance due at delivery/pickup: ₹${Math.max(0, groupTotal - amountCharged)})`
+            : "";
+
           const order = await orderRepo.createOrder(
             {
               order_number: orderNumber,
@@ -585,7 +667,7 @@ export const checkoutService = {
               tax: 0,
               total: 0,
               payment_method: paymentMethod,
-              delivery_note: input.delivery_slot || (isAdvanceRequiredSlot(input.delivery_slot) ? "Self Pickup" : "Delivery partner"),
+              delivery_note: `${deliverySlotLabel}${advanceNote}`,
               items: group.items.map((item) => ({
                 product_id: item.product_id,
                 product_name: item.name,
@@ -642,14 +724,6 @@ export const checkoutService = {
 
           let payment;
           if (paymentMethod === "RAZORPAY") {
-            let amountCharged = groupTotal;
-            if (isSelfPickupSlot(input.delivery_slot) && amountCharged > 0) {
-              const advancePct = group.advance_payment_percentage ?? 10;
-              amountCharged = advancePct === 0 ? amountCharged : Math.max(1, Math.round(amountCharged * (advancePct / 100) * 100) / 100);
-            }
-            if (amountCharged > 0 && amountCharged < 1) {
-              amountCharged = 1;
-            }
             if (amountCharged === 0) {
               payment = await paymentRepo.createForOrder(
                 {
@@ -769,11 +843,15 @@ export const checkoutService = {
       await analyticsService.recordCustomer(group.vendor_id, userId, entry.order.id);
     }
 
-    // For COD, the order is confirmed immediately, so notify the customer now.
+    // For COD, the order is confirmed immediately, so notify the customer and vendor now.
     // For RAZORPAY, the order is awaiting payment capture; notifications and alerts
     // fire upon payment verification in payment.service.ts.
     if (paymentMethod !== "RAZORPAY") {
-      for (const entry of serializedOrders) {
+      for (let i = 0; i < serializedOrders.length; i++) {
+        const entry = serializedOrders[i]!;
+        const group = computations[i]?.group;
+        const groupTotal = computations[i]?.groupTotal ?? entry.order.total;
+
         await notificationService.orderStatus(
           userId,
           entry.order.order_number,
@@ -781,6 +859,46 @@ export const checkoutService = {
           `Your order ${entry.order.order_number} has been placed successfully via Cash on Delivery.`,
           { order_id: entry.order.id }
         );
+
+        if (group) {
+          const vendor = await findVendorById(group.vendor_id);
+          if (vendor) {
+            const customerName = (req.user as any)?.name || address?.label || "Customer";
+            const customerPhone = address?.phone || (req.user as any)?.phone || undefined;
+            const deliverySlot = input.delivery_slot || "Standard Delivery";
+
+            await notificationService.vendor(
+              vendor.user_id,
+              "New Order Received! 🛒",
+              `Order #${entry.order.order_number} has been placed (${group.items.length} item${group.items.length === 1 ? "" : "s"}, ₹${groupTotal}).`,
+              {
+                order_id: entry.order.id,
+                order_number: entry.order.order_number,
+                total: groupTotal,
+                customer_name: customerName,
+                delivery_slot: deliverySlot,
+                payment_method: "COD",
+              }
+            );
+
+            realtime.publishVendorOrder(group.vendor_id, {
+              order_id: entry.order.id,
+              order_number: entry.order.order_number,
+              total: groupTotal,
+              items_count: group.items.length,
+              customer_name: customerName,
+              customer_phone: customerPhone,
+              delivery_slot: deliverySlot,
+              payment_method: "COD",
+              items: group.items.map((it) => ({
+                name: it.name,
+                quantity: it.quantity,
+                price: it.unit_price,
+              })),
+              created_at: new Date().toISOString(),
+            });
+          }
+        }
       }
     }
 

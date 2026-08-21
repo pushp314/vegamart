@@ -22,6 +22,7 @@ export const placeOrderSchema = z.object({
   coupon_code: z.string().trim().min(1).max(50).optional(),
   delivery_slot: z.string().trim().max(60).optional(),
   payment_method: paymentMethodEnum.default("RAZORPAY"),
+  payment_type: z.enum(["FULL", "ADVANCE"]).default("FULL").optional(),
   idempotency_key: z.string().trim().min(8).max(120).optional(),
 }).strict();
 
@@ -32,6 +33,7 @@ export const createOrderFromCartSchema = z.object({
     .enum(["upi", "card", "cod", "RAZORPAY", "COD"])
     .default("RAZORPAY")
     .transform((value) => (value === "cod" || value === "COD" ? "COD" : "RAZORPAY")),
+  payment_type: z.enum(["FULL", "ADVANCE"]).default("FULL").optional(),
   delivery_slot: z.string().trim().max(60).optional(),
   idempotency_key: z.string().trim().min(8).max(120).optional(),
   items: z

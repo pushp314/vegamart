@@ -13,6 +13,7 @@ const baseSelect = {
   sort_order: true,
   is_active: true,
   is_featured: true,
+  commission_rate: true,
   created_at: true,
   updated_at: true,
 } as const;
@@ -28,6 +29,7 @@ export type CategoryRow = {
   sort_order: number;
   is_active: boolean;
   is_featured: boolean;
+  commission_rate?: number | null;
   created_at: Date;
   updated_at: Date;
 };

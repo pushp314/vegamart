@@ -41,23 +41,42 @@ export const createVendorSchema = z.object({
       advance_percentage: z.coerce.number().min(0).max(100).optional(),
       min_order: z.coerce.number().min(0).optional(),
       estimated_time: z.string().trim().max(50).optional().nullable(),
+      online_payment_enabled: z.boolean().optional(),
+      cod_enabled: z.boolean().optional(),
+      full_payment_enabled: z.boolean().optional(),
+      advance_payment_enabled: z.boolean().optional(),
     }).optional(),
     self_pickup: z.object({
       enabled: z.boolean(),
       advance_percentage: z.coerce.number().min(0).max(100).optional(),
       min_order: z.coerce.number().min(0).optional(),
       estimated_time: z.string().trim().max(50).optional().nullable(),
+      online_payment_enabled: z.boolean().optional(),
+      cod_enabled: z.boolean().optional(),
+      full_payment_enabled: z.boolean().optional(),
+      advance_payment_enabled: z.boolean().optional(),
     }).optional(),
     shop_delivery: z.object({
       enabled: z.boolean(),
       delivery_fee: z.coerce.number().min(0).optional(),
       min_order: z.coerce.number().min(0).optional(),
       estimated_time: z.string().trim().max(50).optional().nullable(),
+      online_payment_enabled: z.boolean().optional(),
+      cod_enabled: z.boolean().optional(),
+      full_payment_enabled: z.boolean().optional(),
+      advance_payment_enabled: z.boolean().optional(),
+      advance_percentage: z.coerce.number().min(0).max(100).optional(),
     }).optional(),
     delivery_partner: z.object({
       enabled: z.boolean(),
       delivery_fee: z.coerce.number().min(0).optional(),
       min_order: z.coerce.number().min(0).optional(),
+      estimated_time: z.string().trim().max(50).optional().nullable(),
+      online_payment_enabled: z.boolean().optional(),
+      cod_enabled: z.boolean().optional(),
+      full_payment_enabled: z.boolean().optional(),
+      advance_payment_enabled: z.boolean().optional(),
+      advance_percentage: z.coerce.number().min(0).max(100).optional(),
     }).optional(),
   }).optional().nullable(),
   tax_rate: z.coerce.number().min(0).max(100).optional().nullable(),
@@ -72,11 +91,30 @@ export const createVendorSchema = z.object({
   available_from: z.string().max(20).optional().nullable(),
   available_to: z.string().max(20).optional().nullable(),
   roaming: z.boolean().optional(),
+  bank_account_number: z.string().trim().max(50).optional().nullable(),
+  bank_ifsc: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid Indian IFSC code format (e.g. HDFC0001234)")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  bank_account_holder_name: z.string().trim().max(160).optional().nullable(),
+  bank_name: z.string().trim().max(100).optional().nullable(),
+  upi_id: z
+    .string()
+    .trim()
+    .regex(/^[\w.\-_]{2,256}@[a-zA-Z]{2,64}$/, "Invalid UPI ID format (e.g. name@okhdfcbank)")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
 }).strict();
 
 export const updateVendorSchema = createVendorSchema.partial().extend({
   subscription_plan: z.string().trim().max(100).optional(),
   gstin: z.string().trim().max(20).optional().nullable(),
+  payout_enabled: z.boolean().optional(),
 });
 
 export const vendorAvailabilitySchema = z.object({

@@ -45,6 +45,12 @@ import {
   getMaintenanceStatus,
   completeMaintenanceTask,
   updateMaintenanceContact,
+  getPayoutSummary,
+  getVendorsWithPendingPayouts,
+  disburseVendorPayout,
+  disburseAllPendingPayouts,
+  exportPayoutsCsv,
+  getDisputesQueue,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -187,6 +193,16 @@ router.post("/membership-plans", validate({ body: createMembershipPlanSchema }),
 router.patch("/membership-plans/:plan_id", validate({ params: membershipPlanIdParamsSchema, body: updateMembershipPlanSchema }), updateMembershipPlan);
 router.delete("/membership-plans/:plan_id", validate({ params: membershipPlanIdParamsSchema }), deleteMembershipPlan);
 router.get("/vendors/:vendor_id/earnings", validate({ params: vendorIdParamsSchema }), getVendorEarnings);
+
+// Vendor Payouts Hub
+router.get("/payouts/summary", getPayoutSummary);
+router.get("/payouts/vendors", getVendorsWithPendingPayouts);
+router.post("/payouts/disburse/:vendor_id", validate({ params: vendorIdParamsSchema }), disburseVendorPayout);
+router.post("/payouts/disburse-all", disburseAllPendingPayouts);
+router.get("/payouts/export-csv", exportPayoutsCsv);
+
+// Customer Disputes & Refunds Hub
+router.get("/disputes", getDisputesQueue);
 
 // Delivery partner management
 router.post(

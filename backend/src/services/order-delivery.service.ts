@@ -173,12 +173,22 @@ export async function completeDelivery(input: CompleteDeliveryInput): Promise<Or
     // Immutable earning ledger rows are created in the same transaction that
     // wins the atomic DELIVERED claim, so replayed/raced completions (count === 0)
     // can never double-create vendor or delivery earnings.
-    const row = await tx.order.findUnique({
+    const row: any = await tx.order.findUnique({
       where: { id: input.orderId },
       include: {
-        items: { select: { total_price: true, status: true } },
+        items: {
+          select: {
+            total_price: true,
+            status: true,
+            product: {
+              select: {
+                category: true,
+              },
+            },
+          },
+        },
         vendor: { select: { commission_rate: true } },
-      },
+      } as any,
     });
     if (row) {
       await createOrderEarnings(
@@ -186,13 +196,16 @@ export async function completeDelivery(input: CompleteDeliveryInput): Promise<Or
           id: row.id,
           vendor_id: row.vendor_id,
           delivery_partner_id: row.delivery_partner_id,
-          items_subtotal: row.items_subtotal.toNumber(),
-          delivery_fee: row.delivery_fee.toNumber(),
-          discount: row.discount.toNumber(),
-          commission_rate: row.vendor?.commission_rate.toNumber() ?? 0,
-          items: row.items.map((item) => ({
-            total_price: item.total_price.toNumber(),
+          items_subtotal: Number(row.items_subtotal),
+          delivery_fee: Number(row.delivery_fee),
+          discount: Number(row.discount),
+          commission_rate: Number(row.vendor?.commission_rate ?? 0),
+          items: (row.items || []).map((item: any) => ({
+            total_price: Number(item.total_price),
             status: item.status,
+            category_commission_rate: item.product?.category?.commission_rate
+              ? Number(item.product.category.commission_rate)
+              : null,
           })),
         },
         tx

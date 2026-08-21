@@ -23,7 +23,7 @@ export interface OrderEarningInput {
   delivery_fee: number;
   discount: number;
   commission_rate: number;
-  items: Array<{ total_price: number; status: string }>;
+  items: Array<{ total_price: number; status: string; category_commission_rate?: number | null }>;
 }
 
 export interface RefundEarningInput {
@@ -47,7 +47,7 @@ export interface VendorEarningBreakdown {
  *   activeSubtotal = sum of accepted item line totals (rejected items excluded)
  *   discountShare   = order discount scaled to the accepted-item share
  *   item_revenue    = activeSubtotal - discountShare
- *   commission      = item_revenue * commission_rate / 100
+ *   commission      = item_revenue * commission_rate / 100 (or category-specific rates per item)
  *   net             = item_revenue - commission
  *
  * Taxes are a platform pass-through (never part of vendor revenue) and the
@@ -61,7 +61,28 @@ export function computeVendorEarning(basis: OrderEarningInput): VendorEarningBre
   const ratio = basis.items_subtotal > 0 ? Math.min(1, Math.max(0, activeSubtotal / basis.items_subtotal)) : 1;
   const discountShare = round2(basis.discount * ratio);
   const itemRevenue = round2(Math.max(0, activeSubtotal - discountShare));
-  const commission = round2((itemRevenue * Math.max(0, basis.commission_rate)) / 100);
+
+  const hasCategoryRates = basis.items.some(
+    (i) => typeof i.category_commission_rate === "number" && !isNaN(i.category_commission_rate)
+  );
+
+  let totalCommission = 0;
+  if (hasCategoryRates && activeSubtotal > 0) {
+    for (const item of basis.items) {
+      if (item.status === "rejected") continue;
+      const itemRatio = item.total_price / activeSubtotal;
+      const itemNetRevenue = Math.max(0, item.total_price - discountShare * itemRatio);
+      const rate =
+        typeof item.category_commission_rate === "number" && !isNaN(item.category_commission_rate)
+          ? Math.max(0, item.category_commission_rate)
+          : Math.max(0, basis.commission_rate);
+      totalCommission += (itemNetRevenue * rate) / 100;
+    }
+  } else {
+    totalCommission = (itemRevenue * Math.max(0, basis.commission_rate)) / 100;
+  }
+
+  const commission = round2(totalCommission);
   const net = round2(Math.max(0, itemRevenue - commission));
   return { item_revenue: itemRevenue, commission, net };
 }

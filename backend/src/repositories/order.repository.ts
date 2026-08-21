@@ -116,6 +116,7 @@ export interface OrderDetail extends OrderRow {
   } | null;
   vendor: {
     id: string;
+    user_id?: string;
     business_name: string;
     phone?: string | null;
     address?: string | null;
@@ -204,6 +205,7 @@ const detailSelect = {
   vendor: {
     select: {
       id: true,
+      user_id: true,
       business_name: true,
       phone: true,
       address: true,

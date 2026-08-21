@@ -53,6 +53,7 @@ import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminMembershipPlansRouteImport } from './routes/admin/membership-plans'
 import { Route as AdminNotificationsRouteImport } from './routes/admin/notifications'
 import { Route as AdminOrdersRouteImport } from './routes/admin/orders'
+import { Route as AdminPayoutsRouteImport } from './routes/admin/payouts'
 import { Route as AdminProductsRouteImport } from './routes/admin/products'
 import { Route as AdminRefundsRouteImport } from './routes/admin/refunds'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
@@ -305,6 +306,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
+  id: '/payouts',
+  path: '/payouts',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminProductsRoute = AdminProductsRouteImport.update({
   id: '/products',
   path: '/products',
@@ -505,6 +511,7 @@ export interface FileRoutesByFullPath {
   '/admin/membership-plans': typeof AdminMembershipPlansRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -580,6 +587,7 @@ export interface FileRoutesByTo {
   '/admin/membership-plans': typeof AdminMembershipPlansRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -657,6 +665,7 @@ export interface FileRoutesById {
   '/admin/membership-plans': typeof AdminMembershipPlansRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -736,6 +745,7 @@ export interface FileRouteTypes {
     | '/admin/membership-plans'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/payouts'
     | '/admin/products'
     | '/admin/refunds'
     | '/admin/reports'
@@ -811,6 +821,7 @@ export interface FileRouteTypes {
     | '/admin/membership-plans'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/payouts'
     | '/admin/products'
     | '/admin/refunds'
     | '/admin/reports'
@@ -887,6 +898,7 @@ export interface FileRouteTypes {
     | '/admin/membership-plans'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/payouts'
     | '/admin/products'
     | '/admin/refunds'
     | '/admin/reports'
@@ -1269,6 +1281,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/payouts': {
+      id: '/admin/payouts'
+      path: '/payouts'
+      fullPath: '/admin/payouts'
+      preLoaderRoute: typeof AdminPayoutsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/products': {
       id: '/admin/products'
       path: '/products'
@@ -1502,6 +1521,7 @@ interface AdminRouteRouteChildren {
   AdminMembershipPlansRoute: typeof AdminMembershipPlansRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminProductsRoute: typeof AdminProductsRoute
   AdminRefundsRoute: typeof AdminRefundsRoute
   AdminReportsRoute: typeof AdminReportsRoute
@@ -1526,6 +1546,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminMembershipPlansRoute: AdminMembershipPlansRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
+  AdminPayoutsRoute: AdminPayoutsRoute,
   AdminProductsRoute: AdminProductsRoute,
   AdminRefundsRoute: AdminRefundsRoute,
   AdminReportsRoute: AdminReportsRoute,

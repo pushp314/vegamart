@@ -4,6 +4,7 @@ import { env } from "../config";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { notificationService } from "./notification.service";
+import { realtime } from "../realtime/realtime";
 import { cacheService } from "../database/cache";
 import * as paymentRepo from "../repositories/payment.repository";
 import * as orderRepo from "../repositories/order.repository";
@@ -12,6 +13,7 @@ import { findById as findOrderById } from "../repositories/order.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { subscriptionPaymentService } from "./subscription-payment.service";
 import { reverseOrderEarnings } from "./earning.service";
+import { payoutService } from "./payout.service";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -163,6 +165,40 @@ export const paymentService = {
       payment_id: payment.id,
     });
 
+    if (order.vendor?.user_id) {
+      await notificationService.vendor(
+        order.vendor.user_id,
+        "New Paid Order Received! 🛒",
+        `Order #${order.order_number} has been paid and confirmed (₹${amountPaid.toFixed(2)}).`,
+        {
+          order_id: order.id,
+          order_number: order.order_number,
+          total: amountPaid,
+          customer_name: order.customer?.name ?? undefined,
+          payment_method: "RAZORPAY",
+        }
+      );
+
+      realtime.publishVendorOrder(order.vendor_id, {
+        order_id: order.id,
+        order_number: order.order_number,
+        total: amountPaid,
+        items_count: order.items?.length ?? 0,
+        customer_name: order.customer?.name ?? undefined,
+        customer_phone: order.customer?.phone ?? undefined,
+        payment_method: "RAZORPAY",
+        items: order.items?.map((it) => ({
+          name: it.product_name,
+          quantity: it.quantity,
+          price: Number(it.total_price),
+        })),
+        created_at: new Date().toISOString(),
+      });
+
+      // Automatically trigger vendor split payout settlement if wallet is active
+      await payoutService.settleVendorOrderEarnings(order.id, input.razorpay_payment_id).catch(() => {});
+    }
+
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "payment", entityId: payment.id, newValues: { razorpay_payment_id: input.razorpay_payment_id, order_id: order.id, amount: amountPaid } },
       req
@@ -298,6 +334,40 @@ export const paymentService = {
     await notificationService.payment(order.user_id, "Payment successful", `Your payment of ₹${amountPaid.toFixed(2)} for ${order.order_number} was successful.`, {
       order_id: order.id,
     });
+
+    if (order.vendor?.user_id) {
+      await notificationService.vendor(
+        order.vendor.user_id,
+        "New Paid Order Received! 🛒",
+        `Order #${order.order_number} has been paid and confirmed (₹${amountPaid.toFixed(2)}).`,
+        {
+          order_id: order.id,
+          order_number: order.order_number,
+          total: amountPaid,
+          customer_name: order.customer?.name ?? undefined,
+          payment_method: "RAZORPAY",
+        }
+      );
+
+      realtime.publishVendorOrder(order.vendor_id, {
+        order_id: order.id,
+        order_number: order.order_number,
+        total: amountPaid,
+        items_count: order.items?.length ?? 0,
+        customer_name: order.customer?.name ?? undefined,
+        customer_phone: order.customer?.phone ?? undefined,
+        payment_method: "RAZORPAY",
+        items: order.items?.map((it) => ({
+          name: it.product_name,
+          quantity: it.quantity,
+          price: Number(it.total_price),
+        })),
+        created_at: new Date().toISOString(),
+      });
+
+      // Automatically trigger vendor split payout settlement if wallet is active
+      await payoutService.settleVendorOrderEarnings(order.id, entity.id).catch(() => {});
+    }
   },
 
   async refund(userId: string, orderId: string, input: { amount?: number; reason?: string }, req: Request): Promise<unknown> {

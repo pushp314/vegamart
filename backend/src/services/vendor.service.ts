@@ -38,6 +38,7 @@ import type { CreateReviewBody } from "../validators/product.validators";
 import * as dailyLocationRepo from "../repositories/vendor-daily-location.repository";
 import { ROLES } from "../constants/roles";
 import { membershipPlanService } from "./membership-plan.service";
+import { payoutService } from "./payout.service";
 import { subscriptionPaymentService } from "./subscription-payment.service";
 
 export interface NearbyVendor {
@@ -47,31 +48,24 @@ export interface NearbyVendor {
   longitude: number;
 }
 
+export interface DeliveryOptionConfig {
+  enabled: boolean;
+  min_order: number;
+  delivery_fee: number;
+  estimated_time: string;
+  online_payment_enabled: boolean;
+  cod_enabled: boolean;
+  full_payment_enabled: boolean;
+  advance_payment_enabled: boolean;
+  advance_percentage: number;
+}
+
 export interface VendorDeliveryConfigs {
   estimated_delivery_time?: string;
-  booking: {
-    enabled: boolean;
-    advance_percentage: number;
-    min_order: number;
-    estimated_time?: string;
-  };
-  self_pickup: {
-    enabled: boolean;
-    advance_percentage: number;
-    min_order: number;
-    estimated_time?: string;
-  };
-  shop_delivery: {
-    enabled: boolean;
-    delivery_fee: number;
-    min_order: number;
-    estimated_time?: string;
-  };
-  delivery_partner: {
-    enabled: boolean;
-    delivery_fee?: number;
-    min_order?: number;
-  };
+  booking: DeliveryOptionConfig;
+  self_pickup: DeliveryOptionConfig;
+  shop_delivery: DeliveryOptionConfig;
+  delivery_partner: DeliveryOptionConfig;
 }
 
 function toNum(val: any, fallback = 0): number {
@@ -83,6 +77,11 @@ function toNum(val: any, fallback = 0): number {
   }
   const parsed = Number(val);
   return isNaN(parsed) ? fallback : parsed;
+}
+
+function toBool(val: any, fallback: boolean): boolean {
+  if (val === undefined || val === null) return fallback;
+  return Boolean(val);
 }
 
 export function normalizeDeliveryConfigs(
@@ -107,26 +106,47 @@ export function normalizeDeliveryConfigs(
       : {}),
     booking: {
       enabled: configs.booking?.enabled !== undefined ? Boolean(configs.booking.enabled) : false,
-      advance_percentage: configs.booking?.advance_percentage !== undefined ? toNum(configs.booking.advance_percentage, defaultAdvance) : defaultAdvance,
+      advance_percentage: configs.booking?.advance_percentage !== undefined ? toNum(configs.booking.advance_percentage, defaultAdvance || 20) : (defaultAdvance || 20),
       min_order: configs.booking?.min_order !== undefined ? toNum(configs.booking.min_order, defaultMinOrder) : defaultMinOrder,
-      ...(configs.booking?.estimated_time ? { estimated_time: configs.booking.estimated_time } : {}),
+      delivery_fee: 0,
+      estimated_time: configs.booking?.estimated_time || "1-2 days",
+      online_payment_enabled: toBool(configs.booking?.online_payment_enabled, true),
+      cod_enabled: toBool(configs.booking?.cod_enabled, false),
+      full_payment_enabled: toBool(configs.booking?.full_payment_enabled, true),
+      advance_payment_enabled: toBool(configs.booking?.advance_payment_enabled, true),
     },
     self_pickup: {
       enabled: configs.self_pickup?.enabled !== undefined ? Boolean(configs.self_pickup.enabled) : true,
-      advance_percentage: configs.self_pickup?.advance_percentage !== undefined ? toNum(configs.self_pickup.advance_percentage, defaultAdvance) : defaultAdvance,
+      advance_percentage: configs.self_pickup?.advance_percentage !== undefined ? toNum(configs.self_pickup.advance_percentage, defaultAdvance || 10) : (defaultAdvance || 10),
       min_order: configs.self_pickup?.min_order !== undefined ? toNum(configs.self_pickup.min_order, defaultMinOrder) : defaultMinOrder,
-      ...(configs.self_pickup?.estimated_time ? { estimated_time: configs.self_pickup.estimated_time } : {}),
+      delivery_fee: 0,
+      estimated_time: configs.self_pickup?.estimated_time || "15 mins",
+      online_payment_enabled: toBool(configs.self_pickup?.online_payment_enabled, true),
+      cod_enabled: toBool(configs.self_pickup?.cod_enabled, true),
+      full_payment_enabled: toBool(configs.self_pickup?.full_payment_enabled, true),
+      advance_payment_enabled: toBool(configs.self_pickup?.advance_payment_enabled, true),
     },
     shop_delivery: {
       enabled: configs.shop_delivery?.enabled !== undefined ? Boolean(configs.shop_delivery.enabled) : defaultShopDeliveryEnabled,
       delivery_fee: configs.shop_delivery?.delivery_fee !== undefined ? toNum(configs.shop_delivery.delivery_fee, defaultDeliveryFee) : defaultDeliveryFee,
       min_order: configs.shop_delivery?.min_order !== undefined ? toNum(configs.shop_delivery.min_order, defaultMinOrder) : defaultMinOrder,
-      ...(configs.shop_delivery?.estimated_time ? { estimated_time: configs.shop_delivery.estimated_time } : {}),
+      estimated_time: configs.shop_delivery?.estimated_time || "30-45 mins",
+      online_payment_enabled: toBool(configs.shop_delivery?.online_payment_enabled, true),
+      cod_enabled: toBool(configs.shop_delivery?.cod_enabled, true),
+      full_payment_enabled: toBool(configs.shop_delivery?.full_payment_enabled, true),
+      advance_payment_enabled: toBool(configs.shop_delivery?.advance_payment_enabled, false),
+      advance_percentage: configs.shop_delivery?.advance_percentage !== undefined ? toNum(configs.shop_delivery.advance_percentage, 20) : 20,
     },
     delivery_partner: {
       enabled: configs.delivery_partner?.enabled !== undefined ? Boolean(configs.delivery_partner.enabled) : true,
-      delivery_fee: configs.delivery_partner?.delivery_fee !== undefined ? toNum(configs.delivery_partner.delivery_fee) : undefined,
-      min_order: configs.delivery_partner?.min_order !== undefined ? toNum(configs.delivery_partner.min_order) : undefined,
+      delivery_fee: configs.delivery_partner?.delivery_fee !== undefined ? toNum(configs.delivery_partner.delivery_fee, 0) : 0,
+      min_order: configs.delivery_partner?.min_order !== undefined ? toNum(configs.delivery_partner.min_order, 0) : 0,
+      estimated_time: configs.delivery_partner?.estimated_time || "20-30 mins",
+      online_payment_enabled: toBool(configs.delivery_partner?.online_payment_enabled, true),
+      cod_enabled: toBool(configs.delivery_partner?.cod_enabled, true),
+      full_payment_enabled: toBool(configs.delivery_partner?.full_payment_enabled, true),
+      advance_payment_enabled: toBool(configs.delivery_partner?.advance_payment_enabled, false),
+      advance_percentage: configs.delivery_partner?.advance_percentage !== undefined ? toNum(configs.delivery_partner.advance_percentage, 20) : 20,
     },
   };
 }
@@ -273,13 +293,26 @@ export const vendorService = {
     if (input.phone !== undefined) data.phone = input.phone || null;
     if (input.available_from !== undefined) data.available_from = input.available_from || null;
     if (input.available_to !== undefined) data.available_to = input.available_to || null;
-    if (input.roaming !== undefined) data.roaming = input.roaming;
     if (input.estimated_delivery_time !== undefined) {
       data.estimated_delivery_time = input.estimated_delivery_time || null;
     }
+    if (input.bank_account_number !== undefined) data.bank_account_number = input.bank_account_number || null;
+    if (input.bank_ifsc !== undefined) data.bank_ifsc = input.bank_ifsc ? input.bank_ifsc.toUpperCase() : null;
+    if (input.bank_account_holder_name !== undefined) data.bank_account_holder_name = input.bank_account_holder_name || null;
+    if (input.bank_name !== undefined) data.bank_name = input.bank_name || null;
+    if (input.upi_id !== undefined) data.upi_id = input.upi_id || null;
+    if (input.payout_enabled !== undefined) data.payout_enabled = input.payout_enabled;
 
     if (Object.keys(data).length > 0) {
       await vendorRepo.updateVendor(vendor.id, data as never);
+    }
+
+    if (input.bank_account_number || input.bank_ifsc || input.bank_account_holder_name) {
+      await payoutService.syncVendorLinkedAccount(vendor.id, {
+        bank_account_number: (input.bank_account_number as string) ?? undefined,
+        bank_ifsc: (input.bank_ifsc as string) ?? undefined,
+        bank_account_holder_name: (input.bank_account_holder_name as string) ?? undefined,
+      }).catch(() => {});
     }
 
     if (input.subscription_plan) {
@@ -1650,6 +1683,16 @@ export const vendorService = {
         total: o.total.toNumber(),
         created_at: o.created_at,
       })),
+      bank_details: {
+        configured: Boolean(vendor.bank_account_number && vendor.bank_ifsc),
+        bank_account_number: vendor.bank_account_number ? `••••${vendor.bank_account_number.slice(-4)}` : null,
+        bank_ifsc: vendor.bank_ifsc,
+        bank_account_holder_name: vendor.bank_account_holder_name,
+        bank_name: vendor.bank_name,
+        upi_id: vendor.upi_id,
+        razorpay_account_id: vendor.razorpay_account_id,
+        payout_enabled: vendor.payout_enabled,
+      },
     };
   },
 

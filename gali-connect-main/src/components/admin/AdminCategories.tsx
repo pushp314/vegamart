@@ -167,12 +167,17 @@ export function AdminCategories() {
                   <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
                     Order: {category.sort_order ?? 0}
                   </span>
+                  <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                    {category.commission_rate !== null && category.commission_rate !== undefined
+                      ? `${category.commission_rate}% Comm.`
+                      : "Default Comm."}
+                  </span>
                 </div>
               </div>
 
               <div className="mt-6 pt-4 border-t border-border flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => openEditModal(category)}>
-                  <Edit2 className="h-4 w-4" />
+                  <Edit2 className="h-4 w-4 mr-1.5" /> Edit
                 </Button>
                 <Button
                   variant="outline"
@@ -195,7 +200,11 @@ export function AdminCategories() {
         </div>
       )}
 
-      <AdminPaginationBar pagination={pagination} onPageChange={setPage} />
+      {pagination && (
+        <div className="mt-8">
+          <AdminPaginationBar pagination={pagination} onPageChange={setPage} />
+        </div>
+      )}
 
       <Dialog
         open={isModalOpen}
@@ -215,11 +224,13 @@ export function AdminCategories() {
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.target as HTMLFormElement);
+              const commVal = fd.get("commission_rate");
               const data = {
                 name: fd.get("name"),
                 image_url: fd.get("image_url") || undefined,
                 sort_order: Number(fd.get("sort_order")) || 0,
                 is_active: fd.get("is_active") === "on",
+                commission_rate: commVal && commVal !== "" ? Number(commVal) : null,
               };
 
               if (editingCategory) {
@@ -274,6 +285,31 @@ export function AdminCategories() {
                 </Button>
               </div>
             </div>
+
+            {/* Custom Commission Rate Input */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Category Commission Rate (%)
+                </label>
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  Optional
+                </span>
+              </div>
+              <Input
+                name="commission_rate"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                placeholder="e.g. 5.0 (Leave empty to use vendor base commission)"
+                defaultValue={editingCategory?.commission_rate ?? ""}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Overrides vendor base rate for products in this category (e.g. 3% for Veggies, 10% for Bakery).
+              </p>
+            </div>
+
             <div className="flex items-center gap-2 mt-4">
               <input
                 type="checkbox"

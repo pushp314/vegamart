@@ -205,4 +205,91 @@ export const razorpayGateway = {
     const expected = hmacSha256Hex(input.body, secret);
     return safeEqualHashes(expected, input.signature);
   },
+
+  async createLinkedAccount(input: {
+    name: string;
+    email: string;
+    phone?: string;
+    businessName: string;
+    accountNumber: string;
+    ifscCode: string;
+    beneficiaryName: string;
+    notes?: Record<string, string>;
+  }): Promise<{ id: string; type: string; status: string }> {
+    return request<{ id: string; type: string; status: string }>("/accounts", {
+      method: "POST",
+      body: {
+        type: "route",
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        tnc_accepted: true,
+        account_details: {
+          business_name: input.businessName,
+          business_type: "individual",
+        },
+        bank_account: {
+          ifsc_code: input.ifscCode,
+          account_number: input.accountNumber,
+          beneficiary_name: input.beneficiaryName,
+        },
+        notes: input.notes,
+      },
+    });
+  },
+
+  async fetchLinkedAccount(accountId: string): Promise<{ id: string; type: string; status: string }> {
+    return request<{ id: string; type: string; status: string }>(`/accounts/${accountId}`);
+  },
+
+  async transferToLinkedAccount(
+    paymentId: string,
+    input: {
+      accountId: string;
+      amountPaise: number;
+      currency?: string;
+      notes?: Record<string, string>;
+      onHold?: boolean;
+    }
+  ): Promise<{ items: Array<{ id: string; amount: number; recipient: string }> }> {
+    return request<{ items: Array<{ id: string; amount: number; recipient: string }> }>(`/payments/${paymentId}/transfers`, {
+      method: "POST",
+      body: {
+        transfers: [
+          {
+            account: input.accountId,
+            amount: input.amountPaise,
+            currency: input.currency || "INR",
+            notes: input.notes,
+            on_hold: input.onHold ?? false,
+          },
+        ],
+      },
+    });
+  },
+
+  async createDirectPayout(input: {
+    accountNumber: string;
+    fundAccountId?: string;
+    amountPaise: number;
+    currency?: string;
+    mode?: "IMPS" | "NEFT" | "UPI";
+    purpose?: string;
+    narration?: string;
+    notes?: Record<string, string>;
+  }): Promise<{ id: string; amount: number; status: string }> {
+    return request<{ id: string; amount: number; status: string }>("/payouts", {
+      method: "POST",
+      body: {
+        account_number: input.accountNumber,
+        fund_account_id: input.fundAccountId,
+        amount: input.amountPaise,
+        currency: input.currency || "INR",
+        mode: input.mode || "IMPS",
+        purpose: input.purpose || "payout",
+        narration: input.narration || "Vegamart Payout",
+        notes: input.notes,
+      },
+    });
+  },
 };

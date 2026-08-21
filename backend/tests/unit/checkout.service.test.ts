@@ -1,4 +1,6 @@
 import { checkoutService } from "../../src/services/checkout.service";
+import { notificationService } from "../../src/services/notification.service";
+import { realtime } from "../../src/realtime/realtime";
 
 jest.mock("../../src/services/cart.service", () => ({
   cartService: { getMyCart: jest.fn() },
@@ -14,6 +16,17 @@ jest.mock("../../src/services/notification.service", () => ({
     orderStatus: jest.fn().mockResolvedValue(undefined),
     payment: jest.fn().mockResolvedValue(undefined),
     vendor: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock("../../src/realtime/realtime", () => ({
+  realtime: {
+    publishRoamingVendor: jest.fn(),
+    publishVendorAlert: jest.fn(),
+    publishVendorOrder: jest.fn(),
+    publishOrderLocation: jest.fn(),
+    publishOrderEta: jest.fn(),
+    publishOrderStatus: jest.fn(),
   },
 }));
 
@@ -591,6 +604,35 @@ describe("checkout service", () => {
       "key-checkout-1",
       "u1",
       expect.objectContaining({ orders: result.orders })
+    );
+  });
+
+  it("notifies vendor and publishes realtime event on COD order placement", async () => {
+    mockedCartService.getMyCart.mockResolvedValue(makeCart());
+    vendorRepoMock.findById.mockResolvedValue(makeVendor({ user_id: "vendor-user-1" }));
+    addressRepoMock.findById.mockResolvedValue({ id: "addr-1", user_id: "u1", label: "Home", deleted_at: null } as any);
+    orderRepoMock.createOrder.mockResolvedValue(makeOrderRow({ payment_method: "COD" }));
+    orderRepoMock.updateOrder.mockResolvedValue(makeOrderRow({ payment_method: "COD" }));
+    orderRepoMock.updateOrderStatus.mockResolvedValue(makeOrderRow({ payment_method: "COD", status: "CONFIRMED" }));
+    orderRepoMock.findById.mockResolvedValue({ id: "order-1", items: [{ product_id: "p1", quantity: 2 }] } as any);
+    paymentRepoMock.createForOrder.mockResolvedValue(makePaymentRow({ method: "COD" }));
+
+    const result = await checkoutService.placeOrder("u1", { address_id: "addr-1", payment_method: "COD" }, mockReq);
+
+    expect(result.orders).toHaveLength(1);
+    expect(notificationService.vendor).toHaveBeenCalledWith(
+      "vendor-user-1",
+      expect.stringContaining("New Order Received"),
+      expect.any(String),
+      expect.objectContaining({ payment_method: "COD" })
+    );
+    expect(realtime.publishVendorOrder).toHaveBeenCalledWith(
+      "v1",
+      expect.objectContaining({
+        order_id: "order-1",
+        payment_method: "COD",
+        total: 240,
+      })
     );
   });
 });

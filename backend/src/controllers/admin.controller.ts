@@ -11,6 +11,7 @@ import { adminOrderService } from "../services/admin-order.service";
 import { productService } from "../services/product.service";
 import { membershipPlanService } from "../services/membership-plan.service";
 import { maintenanceService } from "../services/maintenance.service";
+import { payoutService } from "../services/payout.service";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { HttpStatus } from "../utils/httpStatus";
@@ -1024,5 +1025,44 @@ export const completeMaintenanceTask = asyncHandler(async (req: Request, res: Re
 export const updateMaintenanceContact = asyncHandler(async (req: Request, res: Response) => {
   const body = req.body as { contact_email?: string | null; contact_phone?: string | null };
   const data = await maintenanceService.updateContact(body, req.user!.id, req);
+  return sendSuccess(res, data);
+});
+
+export const getPayoutSummary = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await payoutService.getPayoutSummary();
+  return sendSuccess(res, data);
+});
+
+export const getVendorsWithPendingPayouts = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await payoutService.getVendorsWithPendingPayouts();
+  return sendSuccess(res, data);
+});
+
+export const disburseVendorPayout = asyncHandler(async (req: Request, res: Response) => {
+  const data = await payoutService.disburseVendorPayout(req.params.vendor_id as string, {
+    mode: req.body?.mode,
+    reference: req.body?.reference,
+    adminUserId: req.user?.id,
+  });
+  return sendSuccess(res, data);
+});
+
+export const disburseAllPendingPayouts = asyncHandler(async (req: Request, res: Response) => {
+  const data = await payoutService.disburseAllPendingPayouts({
+    adminUserId: req.user?.id,
+    reference: req.body?.reference,
+  });
+  return sendSuccess(res, data);
+});
+
+export const exportPayoutsCsv = asyncHandler(async (_req: Request, res: Response) => {
+  const csv = await payoutService.exportPayoutsCsv();
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="vegamart-vendor-payouts-${Date.now()}.csv"`);
+  return res.status(200).send(csv);
+});
+
+export const getDisputesQueue = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminOrderService.getDisputesAndRefunds(req.query as never);
   return sendSuccess(res, data);
 });

@@ -19,6 +19,9 @@ export const SETTING_KEYS = {
   HOMEPAGE_SECTIONS: "platform.homepage_sections",
   DEFAULT_DELIVERY_ETA: "platform.default_delivery_eta",
   VEGAMART_DELIVERY_ENABLED: "platform.vegamart_delivery_enabled",
+  VENDOR_WALLET_ENABLED: "platform.vendor_wallet_enabled",
+  VENDOR_PAYOUT_MODE: "platform.vendor_payout_mode",
+  VENDOR_MIN_WITHDRAWAL_AMOUNT: "platform.vendor_min_withdrawal_amount",
 } as const;
 
 export type SettingValue =
@@ -190,6 +193,27 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "boolean",
     default: true,
     description: "Master switch to enable or disable VegaMart Delivery Partner fleet platform-wide.",
+    is_public: true,
+  },
+  [SETTING_KEYS.VENDOR_WALLET_ENABLED]: {
+    key: SETTING_KEYS.VENDOR_WALLET_ENABLED,
+    type: "boolean",
+    default: true,
+    description: "Master switch to enable or disable Vendor Wallet & automated direct bank payouts.",
+    is_public: true,
+  },
+  [SETTING_KEYS.VENDOR_PAYOUT_MODE]: {
+    key: SETTING_KEYS.VENDOR_PAYOUT_MODE,
+    type: "string",
+    default: "razorpay_route",
+    description: "Vendor settlement and payout mode: razorpay_route | razorpay_payouts | manual.",
+    is_public: true,
+  },
+  [SETTING_KEYS.VENDOR_MIN_WITHDRAWAL_AMOUNT]: {
+    key: SETTING_KEYS.VENDOR_MIN_WITHDRAWAL_AMOUNT,
+    type: "number",
+    default: 100,
+    description: "Minimum balance threshold in INR required for vendor withdrawal or settlement.",
     is_public: true,
   },
 };

@@ -12,6 +12,7 @@ import {
   Bell,
   FileBarChart,
   ClipboardList,
+  Banknote,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
@@ -52,6 +53,7 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
     { id: "products", label: "Products", icon: Package },
     { id: "cms", label: "CMS & Marketing", icon: ClipboardList },
     { id: "reports", label: "Reports", icon: FileBarChart },
+    { id: "payouts", label: "Vendor Payouts", icon: Banknote },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "audit_logs", label: "Audit Logs", icon: RotateCcw },
     { id: "refunds", label: "Refunds", icon: RotateCcw },

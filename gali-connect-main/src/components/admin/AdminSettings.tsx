@@ -24,6 +24,8 @@ import {
   Mail,
   CheckCircle2,
   RefreshCw,
+  Wallet,
+  Landmark,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
@@ -43,6 +45,9 @@ interface Settings {
   "platform.logo_url"?: string;
   "platform.default_delivery_eta"?: string;
   "platform.vegamart_delivery_enabled"?: boolean;
+  "platform.vendor_wallet_enabled"?: boolean;
+  "platform.vendor_payout_mode"?: string;
+  "platform.vendor_min_withdrawal_amount"?: number;
   "support.email"?: string;
   "support.phone"?: string;
 }
@@ -441,6 +446,125 @@ export function AdminSettings() {
                   })
                 }
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Vendor Wallet & Direct Payout Architecture */}
+        <Card className="border-border shadow-md">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-emerald-600" />
+                Vendor Wallet & Direct Bank Payouts
+              </CardTitle>
+              {settings["platform.vendor_wallet_enabled"] !== false ? (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-xs">
+                  Active 🟢
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-xs">
+                  Disabled
+                </Badge>
+              )}
+            </div>
+            <CardDescription>
+              Control whether vendors receive automatic split settlements directly into their bank account via Razorpay Route or hold ledger balances.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Master Toggle */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl border bg-muted/40">
+              <div className="space-y-0.5">
+                <Label className="font-semibold text-foreground">
+                  Enable Vendor Wallet & Automated Payouts
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  When enabled, verified online orders trigger automated split settlements to the vendor's bank account / UPI ID.
+                </p>
+              </div>
+              <Switch
+                checked={settings["platform.vendor_wallet_enabled"] !== false}
+                onCheckedChange={(checked) =>
+                  setSettings({
+                    ...settings,
+                    "platform.vendor_wallet_enabled": checked,
+                  })
+                }
+              />
+            </div>
+
+            {/* Payout Mode */}
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Vendor Settlement & Payout Gateway Mode</span>
+                <span className="text-[11px] text-muted-foreground font-normal">Active Integration</span>
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  {
+                    id: "razorpay_route",
+                    title: "Razorpay Route",
+                    desc: "Automated Sub-Merchant Split on Order Capture (Recommended)",
+                  },
+                  {
+                    id: "razorpay_payouts",
+                    title: "RazorpayX Payouts",
+                    desc: "Instant IMPS / UPI transfer from platform current account",
+                  },
+                  {
+                    id: "manual",
+                    title: "Manual Settlement",
+                    desc: "Ledger recording only; settlements done manually outside gateway",
+                  },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() =>
+                      setSettings({
+                        ...settings,
+                        "platform.vendor_payout_mode": mode.id,
+                      })
+                    }
+                    className={`text-left p-3 rounded-2xl border transition-all cursor-pointer ${
+                      (settings["platform.vendor_payout_mode"] || "razorpay_route") === mode.id
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground ring-1 ring-emerald-500/30"
+                        : "border-border bg-card/60 text-muted-foreground hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Landmark className="h-3.5 w-3.5 text-emerald-600" />
+                      {mode.title}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                      {mode.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Minimum Withdrawal Threshold */}
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Minimum Payout / Withdrawal Threshold (₹)</span>
+                <span className="text-[11px] text-muted-foreground font-normal">Minimum ledger balance</span>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                value={settings["platform.vendor_min_withdrawal_amount"] ?? 100}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    "platform.vendor_min_withdrawal_amount": Number(e.target.value),
+                  })
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Minimum earnings balance a vendor must accumulate before automated or manual batch payouts are triggered.
+              </p>
             </div>
           </CardContent>
         </Card>

@@ -187,6 +187,19 @@ function publishToRoom(room: string, type: string, data: unknown): void {
   broadcast(roomKey(room), type, data);
 }
 
+export interface VendorOrderEventData {
+  order_id: string;
+  order_number: string;
+  total: number;
+  items_count: number;
+  customer_name?: string;
+  customer_phone?: string;
+  delivery_slot?: string;
+  payment_method?: string;
+  items?: Array<{ name: string; quantity: number; price: number }>;
+  created_at?: string;
+}
+
 export const realtime = {
   publishRoamingVendor(vendorId: string, latitude: number, longitude: number): void {
     publishToRoom("roaming", "roaming_vendor_location", { vendor_id: vendorId, lat: latitude, lng: longitude });
@@ -196,6 +209,9 @@ export const realtime = {
     data: { address: string; note?: string | null; customer_name: string }
   ): void {
     publishToRoom(`vendor:${vendorId}`, "gali_bell_alert", data);
+  },
+  publishVendorOrder(vendorId: string, data: VendorOrderEventData): void {
+    publishToRoom(`vendor:${vendorId}`, "new_order_received", data);
   },
   publishOrderLocation(orderId: string, latitude: number, longitude: number): void {
     publishToRoom(`order:${orderId}`, "location_update", { lat: latitude, lng: longitude });
@@ -207,3 +223,4 @@ export const realtime = {
     publishToRoom(`order:${orderId}`, "order_status_update", { status });
   },
 };
+

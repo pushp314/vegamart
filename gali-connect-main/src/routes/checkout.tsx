@@ -16,10 +16,13 @@ import {
   Store,
   Clock,
   ShoppingBag,
+  Plus,
+  Percent,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
 import { AddressModal, AddressData } from "@/components/marketplace/address-modal";
+import { Label } from "@/components/ui/label";
 
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -55,6 +58,7 @@ function Checkout() {
   } = useCart();
 
   const [payment, setPayment] = useState("upi");
+  const [paymentType, setPaymentType] = useState<"FULL" | "ADVANCE">("FULL");
   const [deliveryOption, setDeliveryOption] = useState(0);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
@@ -87,21 +91,44 @@ function Checkout() {
 
   const rawConfigs = vendorGroup?.delivery_configs || vendorData?.delivery_configs;
 
-  const bookingConfig = rawConfigs?.booking ?? { enabled: false, advance_percentage: 20, min_order: 0, estimated_time: "1-2 days" };
+  const bookingConfig = rawConfigs?.booking ?? {
+    enabled: false,
+    advance_percentage: 20,
+    min_order: 0,
+    estimated_time: "1-2 days",
+    online_payment_enabled: true,
+    cod_enabled: false,
+    full_payment_enabled: true,
+    advance_payment_enabled: true,
+  };
   const selfPickupConfig = rawConfigs?.self_pickup ?? {
     enabled: true,
     advance_percentage: vendorGroup?.advance_payment_percentage ?? 10,
     min_order: 0,
     estimated_time: "15 mins",
+    online_payment_enabled: true,
+    cod_enabled: true,
+    full_payment_enabled: true,
+    advance_payment_enabled: true,
   };
   const shopDeliveryConfig = rawConfigs?.shop_delivery ?? {
     enabled: !!(items.some((i) => !!(i.product?.vendor?.provides_delivery || (i.product as any)?.vendor_provides_delivery))),
     delivery_fee: vendorGroup?.delivery_fee ?? 30,
     min_order: 0,
     estimated_time: "30-45 mins",
+    online_payment_enabled: true,
+    cod_enabled: true,
+    full_payment_enabled: true,
+    advance_payment_enabled: false,
+    advance_percentage: 20,
   };
   const deliveryPartnerConfig = rawConfigs?.delivery_partner ?? {
     enabled: true,
+    online_payment_enabled: true,
+    cod_enabled: true,
+    full_payment_enabled: true,
+    advance_payment_enabled: false,
+    advance_percentage: 20,
   };
 
   const adminDeliveryFee = vendorGroup?.admin_delivery_fee ?? publicSettings.delivery_fee ?? 30;
@@ -123,23 +150,44 @@ function Checkout() {
     advancePct: number;
     minOrder: number;
     fee: number;
+    onlinePaymentEnabled: boolean;
+    codEnabled: boolean;
+    fullPaymentEnabled: boolean;
+    advancePaymentEnabled: boolean;
   }
 
   const DELIVERY_OPTIONS: CheckoutDeliveryOption[] = [
     ...(isRoamingVendor
-      ? [{ id: "vendor_comes_to_me", label: "Vendor comes to me", desc: "Moving street cart arrives at your door", icon: "🛒", eta: `~${vendorEta || "15-20 mins"}`, advancePct: 0, minOrder: 0, fee: 0 }]
+      ? [{
+          id: "vendor_comes_to_me",
+          label: "Vendor comes to me",
+          desc: "Moving street cart arrives at your door",
+          icon: "🛒",
+          eta: `~${vendorEta || "15-20 mins"}`,
+          advancePct: 0,
+          minOrder: 0,
+          fee: 0,
+          onlinePaymentEnabled: true,
+          codEnabled: true,
+          fullPaymentEnabled: true,
+          advancePaymentEnabled: false,
+        }]
       : []),
     ...(bookingConfig.enabled
       ? [
           {
             id: "booking",
             label: "Advance Booking",
-            desc: `Advance scheduled booking (${bookingConfig.advance_percentage}% upfront)`,
+            desc: `Advance scheduled booking${bookingConfig.advance_payment_enabled ? ` (${bookingConfig.advance_percentage}% upfront)` : ""}`,
             icon: "📅",
             eta: `~${bookingConfig.estimated_time || "1-2 days"}`,
             advancePct: Number(bookingConfig.advance_percentage) || 20,
             minOrder: Number(bookingConfig.min_order) || 0,
             fee: 0,
+            onlinePaymentEnabled: bookingConfig.online_payment_enabled !== false,
+            codEnabled: Boolean(bookingConfig.cod_enabled),
+            fullPaymentEnabled: bookingConfig.full_payment_enabled !== false,
+            advancePaymentEnabled: Boolean(bookingConfig.advance_payment_enabled),
           },
         ]
       : []),
@@ -148,12 +196,16 @@ function Checkout() {
           {
             id: "self_pickup",
             label: "Self Pickup",
-            desc: `Collect at store counter (${selfPickupConfig.advance_percentage}% upfront)`,
+            desc: `Collect at store counter${selfPickupConfig.advance_payment_enabled ? ` (${selfPickupConfig.advance_percentage}% upfront)` : ""}`,
             icon: "🚶",
             eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
             advancePct: Number(selfPickupConfig.advance_percentage) || 10,
             minOrder: Number(selfPickupConfig.min_order) || 0,
             fee: 0,
+            onlinePaymentEnabled: selfPickupConfig.online_payment_enabled !== false,
+            codEnabled: selfPickupConfig.cod_enabled !== false,
+            fullPaymentEnabled: selfPickupConfig.full_payment_enabled !== false,
+            advancePaymentEnabled: Boolean(selfPickupConfig.advance_payment_enabled),
           },
         ]
       : []),
@@ -165,9 +217,13 @@ function Checkout() {
             desc: `Delivered by store staff (₹${shopDeliveryConfig.delivery_fee})`,
             icon: "🏪",
             eta: `~${shopDeliveryConfig.estimated_time || vendorEta}`,
-            advancePct: 0,
+            advancePct: Number(shopDeliveryConfig.advance_percentage) || 20,
             minOrder: Number(shopDeliveryConfig.min_order) || 0,
             fee: Number(shopDeliveryConfig.delivery_fee) || 0,
+            onlinePaymentEnabled: shopDeliveryConfig.online_payment_enabled !== false,
+            codEnabled: shopDeliveryConfig.cod_enabled !== false,
+            fullPaymentEnabled: shopDeliveryConfig.full_payment_enabled !== false,
+            advancePaymentEnabled: Boolean(shopDeliveryConfig.advance_payment_enabled),
           },
         ]
       : []),
@@ -179,21 +235,59 @@ function Checkout() {
             desc: `Express rider delivery (₹${adminDeliveryFee})`,
             icon: "🏍️",
             eta: `~${platformDeliveryEta || vendorEta}`,
-            advancePct: 0,
+            advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
             minOrder: Number(adminMinOrder) || 0,
             fee: (adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold) ? 0 : Number(adminDeliveryFee) || 30,
+            onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
+            codEnabled: deliveryPartnerConfig.cod_enabled !== false,
+            fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
+            advancePaymentEnabled: Boolean(deliveryPartnerConfig.advance_payment_enabled),
           },
         ]
       : []),
   ];
 
   const effectiveOptions: CheckoutDeliveryOption[] = DELIVERY_OPTIONS.length > 0 ? DELIVERY_OPTIONS : [
-    { id: "self_pickup", label: "Self Pickup", desc: "Store pickup", icon: "🚶", eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`, advancePct: 10, minOrder: 0, fee: 0 }
+    {
+      id: "self_pickup",
+      label: "Self Pickup",
+      desc: "Store pickup",
+      icon: "🚶",
+      eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
+      advancePct: 10,
+      minOrder: 0,
+      fee: 0,
+      onlinePaymentEnabled: true,
+      codEnabled: true,
+      fullPaymentEnabled: true,
+      advancePaymentEnabled: true,
+    }
   ];
 
   useEffect(() => {
     setDeliveryOption((i) => Math.min(i, Math.max(0, effectiveOptions.length - 1)));
   }, [effectiveOptions.length]);
+
+  const selectedOptionObj = effectiveOptions[deliveryOption] || effectiveOptions[0];
+
+  // Auto-synchronize Payment Type (Full vs Advance) & Payment Method (Online vs COD)
+  useEffect(() => {
+    if (!selectedOptionObj) return;
+
+    // 1. Sync Payment Type
+    if (!selectedOptionObj.fullPaymentEnabled && selectedOptionObj.advancePaymentEnabled) {
+      setPaymentType("ADVANCE");
+    } else if (selectedOptionObj.fullPaymentEnabled && !selectedOptionObj.advancePaymentEnabled) {
+      setPaymentType("FULL");
+    }
+
+    // 2. Sync Payment Method
+    if (!selectedOptionObj.onlinePaymentEnabled && selectedOptionObj.codEnabled) {
+      setPayment("cod");
+    } else if (selectedOptionObj.onlinePaymentEnabled && !selectedOptionObj.codEnabled && payment === "cod") {
+      setPayment("upi");
+    }
+  }, [selectedOptionObj]);
 
   const { data: offersRes } = useQuery({
     queryKey: ["availableOffers"],
@@ -373,6 +467,10 @@ function Checkout() {
       toast.error("Please add and select a valid delivery address.");
       return;
     }
+    if (!selectedOptionObj.onlinePaymentEnabled && !selectedOptionObj.codEnabled) {
+      toast.error(`No payment methods are available for ${selectedOptionObj.label}. Please choose another delivery option.`);
+      return;
+    }
     if (!isMinOrderMet) {
       toast.error(`Minimum order of ₹${optionMinOrder} is required for ${selectedOptionObj.label}. Please add ₹${deficitAmount.toFixed(2)} more to proceed.`);
       return;
@@ -381,6 +479,7 @@ function Checkout() {
     createOrderMutation.mutate({
       address_id: selectedAddress.id,
       payment_method: payment,
+      payment_type: paymentType,
       coupon_code: appliedCoupon || undefined,
       delivery_slot: selectedOptionObj.label,
       items: items.map((item) => ({
@@ -416,20 +515,27 @@ function Checkout() {
     );
   }
 
-  const selectedOptionObj = effectiveOptions[deliveryOption] || effectiveOptions[0];
-  const selectedDeliveryId = selectedOptionObj.id;
-  const isAdvanceOption = selectedDeliveryId === "self_pickup" || selectedDeliveryId === "booking";
-
   const displayDeliveryFee = selectedOptionObj.fee;
   const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + tax - discount);
-  const advancePct = selectedOptionObj.advancePct;
-  const upfrontPaymentAmount = isAdvanceOption && payment !== "cod"
-    ? (advancePct === 0 ? finalOrderTotal : Math.max(1, Math.round(finalOrderTotal * (advancePct / 100) * 100) / 100))
-    : finalOrderTotal;
+  const isAdvanceSelected = paymentType === "ADVANCE" && selectedOptionObj.advancePaymentEnabled && payment !== "cod";
+  const advancePct = selectedOptionObj.advancePct || 20;
+  const upfrontPaymentAmount = isAdvanceSelected
+    ? (advancePct <= 0 || advancePct >= 100 ? finalOrderTotal : Math.max(1, Math.round(finalOrderTotal * (advancePct / 100) * 100) / 100))
+    : (payment === "cod" ? 0 : finalOrderTotal);
+  const balanceDue = Math.max(0, finalOrderTotal - (payment === "cod" ? 0 : upfrontPaymentAmount));
 
   const optionMinOrder = selectedOptionObj.minOrder || 0;
   const isMinOrderMet = optionMinOrder <= 0 || subtotal >= optionMinOrder;
   const deficitAmount = Math.max(0, optionMinOrder - subtotal);
+
+  // Filter available payment methods based on selected delivery option
+  const availablePayments = PAYMENTS.filter((p) => {
+    if (p.v === "cod") {
+      return selectedOptionObj.codEnabled;
+    } else {
+      return selectedOptionObj.onlinePaymentEnabled;
+    }
+  });
 
   return (
     <div className="min-h-screen bg-background pb-32 md:pb-16">
@@ -458,145 +564,124 @@ function Checkout() {
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
                         {vendorAddress}
                       </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {items.length} {items.length === 1 ? "item" : "items"} in cart
-                      </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
-                {/* Vendor Estimated Delivery Time Badge */}
-                <div className="flex items-center gap-2.5 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/10 border border-emerald-500/30 px-4 py-2.5 rounded-2xl shrink-0 shadow-xs">
-                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-600 text-white font-bold shrink-0 shadow-xs">
-                    <Clock className="h-4 w-4" />
-                  </div>
+                <div className="flex items-center gap-2 rounded-2xl bg-muted/60 p-2.5 px-3.5 border border-border/50 text-xs self-start sm:self-auto">
+                  <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                      Est. Delivery Time
-                    </div>
-                    <div className="font-display text-sm font-black text-emerald-950 dark:text-emerald-200 flex items-center gap-1">
-                      ⚡ {vendorEta}
-                    </div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block leading-none">Option Time</span>
+                    <span className="font-bold text-foreground">{selectedOptionObj.eta || vendorEta}</span>
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Address Selection */}
+            {/* Delivery Address */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
-              {loadingAddr ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading addresses...
-                </div>
-              ) : addresses.length > 0 ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="grid h-9 w-9 place-items-center rounded-2xl bg-emerald-100 text-primary">
-                        <Home className="h-5 w-5" />
-                      </span>
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                          Delivery Address
-                        </div>
-                        <div className="font-display text-sm font-bold text-foreground">
-                          {selectedAddress?.label || "Select an address"}
-                        </div>
-                      </div>
-                    </div>
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-base font-bold">Delivery Address</h2>
+                <button
+                  onClick={() => setAddressModalOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add New
+                </button>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {addresses.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed rounded-2xl p-4 bg-muted/30">
+                    <p className="text-xs text-muted-foreground">No saved addresses found.</p>
                     <button
                       onClick={() => setAddressModalOpen(true)}
-                      className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-primary px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 transition-colors"
                     >
-                      <MapPin className="h-3.5 w-3.5" /> Add New
+                      <Plus className="h-3.5 w-3.5" /> Add Address
                     </button>
                   </div>
-
-                  <div className="mt-4 space-y-2">
-                    {addresses.map((a: any) => {
-                      const active = a.id === selectedAddressId;
-                      return (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => setSelectedAddressId(a.id)}
-                          className={`w-full flex items-start gap-3 rounded-2xl border p-3 text-left transition-all ${
-                            active
-                              ? "border-primary bg-emerald-50/60"
-                              : "border-border bg-card hover:border-primary/40"
+                ) : (
+                  addresses.map((a: any) => {
+                    const active = selectedAddress?.id === a.id;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => setSelectedAddressId(a.id)}
+                        className={`w-full flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
+                          active
+                            ? "border-primary bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
+                            : "border-border hover:border-primary/40 bg-card"
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-xl ${
+                            active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
                           }`}
                         >
-                          <span
-                            className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
-                              active ? "border-primary bg-primary" : "border-border"
-                            }`}
-                          >
-                            {active && <span className="h-2 w-2 rounded-full bg-white" />}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-foreground">{a.label}</span>
-                              {a.is_default && (
-                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
-                                  DEFAULT
-                                </span>
-                              )}
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                              {a.full_name} · {a.line1}
-                              {a.line2 ? `, ${a.line2}` : ""}, {a.city} — {a.pincode}
-                            </p>
-                            <p className="text-[11px] font-semibold text-foreground mt-0.5">
-                              {a.phone}
-                            </p>
+                          <MapPin className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold capitalize text-foreground">
+                              {a.type || "Home"}
+                            </span>
+                            {a.is_default && (
+                              <span className="text-[9.5px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                                Default
+                              </span>
+                            )}
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-bold">No saved addresses</div>
-                  <button
-                    onClick={() => setAddressModalOpen(true)}
-                    className="text-primary text-xs font-bold hover:underline"
-                  >
-                    Add New
-                  </button>
-                </div>
-              )}
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                            {a.line1}, {a.city}, {a.pincode}
+                          </p>
+                        </div>
+                        <span
+                          className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                            active ? "border-primary bg-primary" : "border-border"
+                          }`}
+                        >
+                          {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </section>
 
-            {/* Checkout Delivery Options */}
+            {/* Delivery Options (4 Options) */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-display text-base font-bold">Delivery Options</h2>
-                <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                <div>
+                  <h2 className="font-display text-base font-bold">Delivery &amp; Pickup Options</h2>
+                  <p className="text-xs text-muted-foreground">Select how you want to receive your order</p>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
                   {effectiveOptions.length} available
                 </span>
               </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {effectiveOptions.map((opt, i) => {
-                  const active = i === deliveryOption;
-                  const meetsMin = (opt.minOrder || 0) <= 0 || subtotal >= (opt.minOrder || 0);
+                  const active = deliveryOption === i;
+                  const meetsMin = opt.minOrder <= 0 || subtotal >= opt.minOrder;
 
                   return (
                     <button
                       key={opt.id}
                       type="button"
                       onClick={() => setDeliveryOption(i)}
-                      className={`rounded-2xl border-2 p-4 text-left transition-all flex flex-col justify-between gap-2.5 relative ${
+                      className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
                         active
-                          ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm"
-                          : "border-border hover:border-primary/30 bg-card"
-                      }`}
+                          ? "border-primary bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs ring-2 ring-primary/20"
+                          : "border-border hover:border-primary/40 bg-card"
+                      } ${!meetsMin ? "opacity-90" : ""}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-2xl leading-none">{opt.icon}</span>
-                        <div className="flex flex-wrap gap-1 items-center justify-end">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-xl shrink-0">{opt.icon}</span>
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
                           {opt.eta && (
                             <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
                               <Clock className="h-2.5 w-2.5" /> {opt.eta}
@@ -609,14 +694,9 @@ function Checkout() {
                               Min ₹{opt.minOrder}
                             </span>
                           )}
-                          {opt.advancePct > 0 && (
-                            <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                              {opt.advancePct}% Advance
-                            </span>
-                          )}
                           {opt.fee === 0 && (
                             <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                              Free
+                              Free Delivery
                             </span>
                           )}
                         </div>
@@ -630,57 +710,128 @@ function Checkout() {
                   );
                 })}
               </div>
-
-              {!isMinOrderMet && (
-                <div className="mt-3.5 flex items-start gap-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 p-3.5 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
-                  <span className="text-base shrink-0">⚠️</span>
-                  <div className="leading-snug">
-                    <strong>Minimum order requirement not met for {selectedOptionObj.label}:</strong> Minimum cart total of <strong>₹{optionMinOrder}</strong> required. Add <strong>₹{deficitAmount.toFixed(2)}</strong> more to your cart to use this delivery option.
-                  </div>
-                </div>
-              )}
             </section>
 
-            {/* Payment Method */}
-            <section className="rounded-3xl bg-card border p-5 shadow-soft">
-              <h2 className="font-display text-base font-bold">Payment Method</h2>
-              <div className="mt-3 space-y-2">
-                {PAYMENTS.map((p) => {
-                  const active = payment === p.v;
-                  const Icon = p.icon;
-                  return (
+            {/* Payment Method & Type Controls */}
+            <section className="rounded-3xl bg-card border p-5 shadow-soft space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-display text-base font-bold">Payment Method &amp; Type</h2>
+                  <p className="text-xs text-muted-foreground">Configured independently for {selectedOptionObj.label}</p>
+                </div>
+              </div>
+
+              {/* 1. Payment Type Selector: Full Payment vs Advance Payment */}
+              {selectedOptionObj.fullPaymentEnabled && selectedOptionObj.advancePaymentEnabled ? (
+                <div className="rounded-2xl bg-muted/40 border p-3.5 space-y-2.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <CreditCard className="h-3.5 w-3.5 text-primary" /> Choose Payment Type
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Full Payment Option */}
                     <button
-                      key={p.v}
                       type="button"
-                      onClick={() => setPayment(p.v)}
-                      className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${
-                        active
-                          ? "border-primary bg-emerald-50/50 shadow-xs"
+                      onClick={() => setPaymentType("FULL")}
+                      className={`flex flex-col rounded-xl border p-3 text-left transition-all ${
+                        paymentType === "FULL"
+                          ? "border-primary bg-primary/10 shadow-xs ring-2 ring-primary/20"
                           : "border-border hover:border-primary/40 bg-card"
                       }`}
                     >
-                      <span
-                        className={`grid h-9 w-9 place-items-center rounded-xl ${
-                          active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-foreground">{p.label}</div>
-                        <div className="text-[11px] text-muted-foreground">{p.desc}</div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-foreground">💯 Full Payment (100%)</span>
+                        <span className={`grid h-4 w-4 place-items-center rounded-full border ${paymentType === "FULL" ? "border-primary bg-primary" : "border-border"}`}>
+                          {paymentType === "FULL" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                        </span>
                       </div>
-                      <span
-                        className={`grid h-5 w-5 place-items-center rounded-full border ${
-                          active ? "border-primary bg-primary" : "border-border"
+                      <p className="text-[11px] text-muted-foreground">
+                        Pay total ₹{finalOrderTotal.toFixed(2)} right now.
+                      </p>
+                    </button>
+
+                    {/* Advance Payment Option */}
+                    <button
+                      type="button"
+                      onClick={() => setPaymentType("ADVANCE")}
+                      className={`flex flex-col rounded-xl border p-3 text-left transition-all ${
+                        paymentType === "ADVANCE"
+                          ? "border-purple-600 bg-purple-500/10 shadow-xs ring-2 ring-purple-500/20"
+                          : "border-border hover:border-purple-500/40 bg-card"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-foreground">⏳ Advance ({advancePct}%)</span>
+                        <span className={`grid h-4 w-4 place-items-center rounded-full border ${paymentType === "ADVANCE" ? "border-purple-600 bg-purple-600" : "border-border"}`}>
+                          {paymentType === "ADVANCE" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Pay ₹{((finalOrderTotal * (advancePct / 100))).toFixed(2)} now, ₹{(finalOrderTotal - (finalOrderTotal * (advancePct / 100))).toFixed(2)} on arrival.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              ) : selectedOptionObj.advancePaymentEnabled ? (
+                <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/50 text-xs text-purple-900 dark:text-purple-200">
+                  <Percent className="h-4 w-4 text-purple-600 shrink-0" />
+                  <div>
+                    <strong>Advance Payment Required ({advancePct}%):</strong> Store requires an upfront token payment of {advancePct}% for {selectedOptionObj.label}.
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-xs text-emerald-900 dark:text-emerald-200">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <strong>Full Payment (100%):</strong> Total order value is paid upfront or via cash on delivery.
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Payment Method Selector */}
+              {availablePayments.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>No payment methods are enabled by the vendor for {selectedOptionObj.label}. Please select another delivery option.</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {availablePayments.map((p) => {
+                    const active = payment === p.v;
+                    const Icon = p.icon;
+                    return (
+                      <button
+                        key={p.v}
+                        type="button"
+                        onClick={() => setPayment(p.v)}
+                        className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${
+                          active
+                            ? "border-primary bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
+                            : "border-border hover:border-primary/40 bg-card"
                         }`}
                       >
-                        {active && <span className="h-2 w-2 rounded-full bg-white" />}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                        <span
+                          className={`grid h-9 w-9 place-items-center rounded-xl ${
+                            active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-foreground">{p.label}</div>
+                          <div className="text-[11px] text-muted-foreground">{p.desc}</div>
+                        </div>
+                        <span
+                          className={`grid h-5 w-5 place-items-center rounded-full border ${
+                            active ? "border-primary bg-primary" : "border-border"
+                          }`}
+                        >
+                          {active && <span className="h-2 w-2 rounded-full bg-white" />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             {/* Offers For You */}
@@ -814,28 +965,31 @@ function Checkout() {
                     ₹{finalOrderTotal.toFixed(2)}
                   </span>
                 </div>
-                {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
-                  <div className="flex items-center justify-between text-emerald-700">
-                    <span className="text-xs font-semibold">{advancePct}% Upfront ({selectedOptionObj.label})</span>
-                    <span className="text-xs font-bold tabular-nums">
-                      ₹{upfrontPaymentAmount.toFixed(2)}
-                    </span>
-                  </div>
+
+                {/* Advance vs Remaining Breakdown */}
+                {isAdvanceSelected && (
+                  <>
+                    <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
+                      <span className="text-xs font-semibold">{advancePct}% Advance (Online)</span>
+                      <span className="text-xs font-bold tabular-nums">
+                        ₹{upfrontPaymentAmount.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-xs font-medium">Balance due on delivery/pickup</span>
+                      <span className="text-xs font-medium tabular-nums">
+                        ₹{balanceDue.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
                 )}
-                {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 && (
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="text-xs font-medium">Balance at Collection</span>
-                    <span className="text-xs font-medium tabular-nums">
-                      ₹{(finalOrderTotal - upfrontPaymentAmount).toFixed(2)}
-                    </span>
-                  </div>
-                )}
+
                 <div className="flex items-center justify-between pt-1">
                   <span className="font-display text-sm font-bold">
-                    {isAdvanceOption && payment !== "cod" ? "To Pay Now" : "Total Payable"}
+                    {isAdvanceSelected ? "To Pay Now" : (payment === "cod" ? "Pay on Delivery/Pickup" : "Total Payable")}
                   </span>
                   <span className="font-display text-xl font-bold tabular-nums text-primary">
-                    ₹{upfrontPaymentAmount.toFixed(2)}
+                    ₹{(payment === "cod" ? finalOrderTotal : upfrontPaymentAmount).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -849,6 +1003,10 @@ function Checkout() {
                 <div className="hidden md:block text-center p-3 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-xs font-bold border border-amber-300 dark:border-amber-800">
                   Add ₹{deficitAmount.toFixed(2)} more for {selectedOptionObj.label}
                 </div>
+              ) : availablePayments.length === 0 ? (
+                <div className="hidden md:block text-center p-3 rounded-2xl bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20">
+                  Payment unavailable for this delivery option
+                </div>
               ) : (
                 <button
                   onClick={handlePlaceOrder}
@@ -859,7 +1017,12 @@ function Checkout() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 ? `Pay ₹${upfrontPaymentAmount.toFixed(2)} Advance & Place Order` : "Place Order"} <ArrowRight className="h-4 w-4" />
+                      {isAdvanceSelected
+                        ? `Pay ₹${upfrontPaymentAmount.toFixed(2)} Advance & Place Order`
+                        : payment === "cod"
+                        ? "Place Order (Cash on Delivery)"
+                        : `Pay ₹${finalOrderTotal.toFixed(2)} & Place Order`}{" "}
+                      <ArrowRight className="h-4 w-4" />
                     </>
                   )}
                 </button>
@@ -878,15 +1041,23 @@ function Checkout() {
           <div className="pointer-events-auto flex items-center gap-3 rounded-3xl bg-primary text-primary-foreground p-2 pl-5 shadow-glow">
             <div className="flex-1 min-w-0">
               <div className="text-[10px] font-bold uppercase tracking-wider opacity-80">
-                {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100 ? `To Pay Now (${advancePct}%)` : "Total Payable"}
+                {isAdvanceSelected
+                  ? `Pay Now (${advancePct}%)`
+                  : payment === "cod"
+                  ? "Due on Delivery"
+                  : "Total Payable"}
               </div>
               <div className="font-display text-lg font-bold leading-none tabular-nums">
-                ₹{upfrontPaymentAmount.toFixed(2)}
+                ₹{(payment === "cod" ? finalOrderTotal : upfrontPaymentAmount).toFixed(2)}
               </div>
             </div>
             {!isMinOrderMet ? (
               <div className="text-center bg-amber-400 text-amber-950 font-bold text-[11px] px-3 py-2 rounded-2xl shadow-xs">
                 Min ₹{optionMinOrder} Req.
+              </div>
+            ) : availablePayments.length === 0 ? (
+              <div className="text-center bg-destructive text-destructive-foreground font-bold text-[11px] px-3 py-2 rounded-2xl">
+                Unavailable
               </div>
             ) : (
               <button
@@ -898,8 +1069,10 @@ function Checkout() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    {isAdvanceOption && payment !== "cod" && advancePct > 0 && advancePct < 100
+                    {isAdvanceSelected
                       ? `Pay ₹${upfrontPaymentAmount.toFixed(2)} Advance`
+                      : payment === "cod"
+                      ? "Place Order (COD)"
                       : "Place Order"}{" "}
                     <ArrowRight className="h-4 w-4" />
                   </>

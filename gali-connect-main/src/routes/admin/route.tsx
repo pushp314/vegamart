@@ -73,6 +73,7 @@ function AdminLayout() {
       url: "/admin/support-tickets",
     },
     { id: "audit_logs", title: "Audit Logs", icon: FileText, url: "/admin/audit-logs" },
+    { id: "payouts", title: "Vendor Payouts", icon: Banknote, url: "/admin/payouts" },
     { id: "refunds", title: "Refunds", icon: Banknote, url: "/admin/refunds" },
     { id: "settings", title: "Settings", icon: Settings, url: "/admin/settings" },
     { id: "faqs", title: "FAQs", icon: HelpCircle, url: "/admin/faqs" },

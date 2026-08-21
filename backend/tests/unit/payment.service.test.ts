@@ -1,4 +1,6 @@
 import { paymentService } from "../../src/services/payment.service";
+import { notificationService } from "../../src/services/notification.service";
+import { realtime } from "../../src/realtime/realtime";
 
 jest.mock("../../src/services/audit.service", () => ({
   auditService: { record: jest.fn().mockResolvedValue(undefined) },
@@ -7,9 +9,20 @@ jest.mock("../../src/services/audit.service", () => ({
 jest.mock("../../src/services/notification.service", () => ({
   notificationService: {
     send: jest.fn(),
-    orderStatus: jest.fn(),
+    orderStatus: jest.fn().mockResolvedValue(undefined),
     payment: jest.fn().mockResolvedValue(undefined),
-    vendor: jest.fn(),
+    vendor: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock("../../src/realtime/realtime", () => ({
+  realtime: {
+    publishRoamingVendor: jest.fn(),
+    publishVendorAlert: jest.fn(),
+    publishVendorOrder: jest.fn(),
+    publishOrderLocation: jest.fn(),
+    publishOrderEta: jest.fn(),
+    publishOrderStatus: jest.fn(),
   },
 }));
 
@@ -118,6 +131,23 @@ function makeOrder(overrides: Partial<orderRepo.OrderRow> = {}) {
     discount: dec(0),
     tax: dec(10),
     total: dec(240),
+    vendor: {
+      id: "v1",
+      user_id: "vendor-user-1",
+      business_name: "Fresh Store",
+    },
+    customer: {
+      id: "u1",
+      name: "Customer One",
+      phone: "+919876543210",
+    },
+    items: [
+      {
+        product_name: "Fresh Apples",
+        quantity: 2,
+        total_price: dec(200),
+      },
+    ],
     ...overrides,
   } as any;
 }
@@ -174,6 +204,16 @@ describe("payment service - verifyPayment", () => {
     expect(orderRepoMock.updateOrder).toHaveBeenCalledWith("order-1", { payment_status: "PAID" });
     expect(orderRepoMock.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "CONFIRMED" }));
     expect(txRepo.create).toHaveBeenCalledWith(expect.objectContaining({ amount: 240, reference: "rzp-pay-1" }));
+    expect(notificationService.vendor).toHaveBeenCalledWith(
+      "vendor-user-1",
+      expect.stringContaining("New Paid Order Received"),
+      expect.any(String),
+      expect.objectContaining({ payment_method: "RAZORPAY" })
+    );
+    expect(realtime.publishVendorOrder).toHaveBeenCalledWith(
+      "v1",
+      expect.objectContaining({ order_id: "order-1", total: 240, payment_method: "RAZORPAY" })
+    );
     expect(invRepo.reserveQuantityFromOrder).not.toHaveBeenCalled();
   });
 

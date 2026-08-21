@@ -1,3 +1,4 @@
+import { describe, it, expect } from "@jest/globals";
 import { normalizeDeliveryConfigs } from "../../src/services/vendor.service";
 import { createVendorSchema, updateVendorSchema } from "../../src/validators/vendor.validators";
 
@@ -15,21 +16,45 @@ describe("4 Delivery Options System", () => {
         enabled: false,
         advance_percentage: 15,
         min_order: 100,
+        delivery_fee: 0,
+        estimated_time: "1-2 days",
+        online_payment_enabled: true,
+        cod_enabled: false,
+        full_payment_enabled: true,
+        advance_payment_enabled: true,
       });
       expect(result.self_pickup).toEqual({
         enabled: true,
         advance_percentage: 15,
         min_order: 100,
+        delivery_fee: 0,
+        estimated_time: "15 mins",
+        online_payment_enabled: true,
+        cod_enabled: true,
+        full_payment_enabled: true,
+        advance_payment_enabled: true,
       });
       expect(result.shop_delivery).toEqual({
         enabled: true,
         delivery_fee: 45,
         min_order: 100,
+        estimated_time: "30-45 mins",
+        online_payment_enabled: true,
+        cod_enabled: true,
+        full_payment_enabled: true,
+        advance_payment_enabled: false,
+        advance_percentage: 20,
       });
       expect(result.delivery_partner).toEqual({
         enabled: true,
-        delivery_fee: undefined,
-        min_order: undefined,
+        delivery_fee: 0,
+        min_order: 0,
+        estimated_time: "20-30 mins",
+        online_payment_enabled: true,
+        cod_enabled: true,
+        full_payment_enabled: true,
+        advance_payment_enabled: false,
+        advance_percentage: 20,
       });
     });
 

@@ -15,6 +15,7 @@ export const createCategorySchema = z.object({
   sort_order: z.coerce.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
   is_featured: z.boolean().optional(),
+  commission_rate: z.coerce.number().min(0).max(100).optional().nullable(),
 }).strict();
 
 export const updateCategorySchema = createCategorySchema.partial();

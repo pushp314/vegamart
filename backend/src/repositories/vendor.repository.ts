@@ -50,6 +50,13 @@ const baseSelect = {
   membership_tier: true,
   membership_plan_id: true,
   membership_expires_at: true,
+  bank_account_number: true,
+  bank_ifsc: true,
+  bank_account_holder_name: true,
+  bank_name: true,
+  upi_id: true,
+  razorpay_account_id: true,
+  payout_enabled: true,
   membership_plan: {
     select: {
       id: true,
@@ -114,6 +121,13 @@ export type VendorRow = {
   membership_tier: string;
   membership_plan_id: string | null;
   membership_expires_at: Date | null;
+  bank_account_number?: string | null;
+  bank_ifsc?: string | null;
+  bank_account_holder_name?: string | null;
+  bank_name?: string | null;
+  upi_id?: string | null;
+  razorpay_account_id?: string | null;
+  payout_enabled?: boolean;
   membership_plan: {
     id: string;
     name: string;

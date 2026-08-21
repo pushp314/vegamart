@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useNotifications } from "@/hooks/use-notifications";
 
 interface NavItem {
   id?: string;
@@ -56,6 +57,7 @@ export function PortalLayout({
 }: PortalLayoutProps) {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { unreadCount } = useNotifications();
 
   return (
     <SidebarProvider>
@@ -188,10 +190,16 @@ export function PortalLayout({
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 <span className="sr-only">Toggle theme</span>
               </Button>
-              <Button asChild variant="ghost" size="icon" aria-label="Notifications">
+              <Button asChild variant="ghost" size="icon" aria-label="Notifications" className="relative">
                 <Link to="/notifications">
                   <Bell className="h-5 w-5" />
-                  <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-primary animate-pulse border border-background"></span>
+                  {unreadCount > 0 ? (
+                    <span className="absolute -top-1 -right-1 flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-emerald-600 text-white font-black text-[10px] shadow-md animate-pulse border-2 border-background">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : (
+                    <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-primary/40"></span>
+                  )}
                 </Link>
               </Button>
             </div>

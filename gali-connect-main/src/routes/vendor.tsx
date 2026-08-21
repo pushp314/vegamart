@@ -24,6 +24,7 @@ import {
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { VendorKYCForm } from "@/components/vendor/shared";
 import { VendorPlanOnboarding } from "@/components/vendor/VendorPlanOnboarding";
+import { VendorOrderNotificationProvider } from "@/components/vendor/VendorOrderNotificationProvider";
 
 export const Route = createFileRoute("/vendor")({
   component: VendorParentLayout,
@@ -38,7 +39,11 @@ function VendorParentLayout() {
     return <Outlet />;
   }
 
-  return <VendorDashboard />;
+  return (
+    <VendorOrderNotificationProvider>
+      <VendorDashboard />
+    </VendorOrderNotificationProvider>
+  );
 }
 
 function VendorDashboard() {

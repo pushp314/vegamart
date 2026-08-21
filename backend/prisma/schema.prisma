@@ -366,6 +366,7 @@ model Category {
   sort_order  Int       @default(0)
   is_active   Boolean   @default(true)
   is_featured Boolean   @default(false)
+  commission_rate Decimal? @db.Decimal(5, 2)
   created_at  DateTime  @default(now())
   updated_at  DateTime  @updatedAt
   deleted_at  DateTime?
@@ -428,6 +429,13 @@ model VendorProfile {
   available_from          String?      @db.VarChar(20)
   available_to            String?      @db.VarChar(20)
   roaming                 Boolean      @default(false)
+  bank_account_number     String?      @db.VarChar(50)
+  bank_ifsc               String?      @db.VarChar(20)
+  bank_account_holder_name String?     @db.VarChar(160)
+  bank_name               String?      @db.VarChar(100)
+  upi_id                  String?      @db.VarChar(100)
+  razorpay_account_id     String?      @db.VarChar(100)
+  payout_enabled          Boolean      @default(true)
   created_at              DateTime     @default(now())
   updated_at              DateTime     @updatedAt
   deleted_at              DateTime?

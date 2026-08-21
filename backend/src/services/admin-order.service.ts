@@ -388,4 +388,86 @@ export const adminOrderService = {
 
     return updated;
   },
+
+  async getDisputesAndRefunds(query: { page?: number; per_page?: number; status?: string }) {
+    const page = Math.max(1, query.page ?? 1);
+    const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
+    const skip = (page - 1) * perPage;
+
+    const where: Prisma.OrderWhereInput = {
+      deleted_at: null,
+      OR: [
+        { refund_reason: { not: null } },
+        { payment_status: { in: ["REFUNDED" as never, "PARTIALLY_REFUNDED" as never] } },
+        {
+          AND: [
+            { status: "CANCELLED" as never },
+            { payment_status: "PAID" as never },
+          ],
+        },
+      ],
+    };
+
+    if (query.status === "PENDING") {
+      where.payment_status = { in: ["PAID" as never, "PARTIALLY_REFUNDED" as never] };
+      where.status = { not: "REFUNDED" as never };
+    } else if (query.status === "REFUNDED") {
+      where.payment_status = "REFUNDED" as never;
+    }
+
+    const [orders, total, refundStats] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, email: true, phone: true } },
+          vendor: { select: { id: true, business_name: true, phone: true } },
+          items: {
+            select: {
+              id: true,
+              product_name: true,
+              quantity: true,
+              unit_price: true,
+              total_price: true,
+              status: true,
+            },
+          },
+          payment: true,
+        },
+        orderBy: { updated_at: "desc" },
+        skip,
+        take: perPage,
+      }),
+      prisma.order.count({ where }),
+      prisma.payment.aggregate({
+        _sum: { refund_amount: true },
+        where: { refund_amount: { gt: 0 } },
+      }),
+    ]);
+
+    const pendingCount = await prisma.order.count({
+      where: {
+        deleted_at: null,
+        OR: [
+          { refund_reason: { not: null } },
+          { AND: [{ status: "CANCELLED" as never }, { payment_status: "PAID" as never }] },
+        ],
+        payment_status: { in: ["PAID" as never, "PARTIALLY_REFUNDED" as never] },
+      },
+    });
+
+    return {
+      data: orders.map((o) => ({ ...o, user: (o as any).customer })),
+      pagination: {
+        page,
+        per_page: perPage,
+        total_items: total,
+        total_pages: Math.ceil(total / perPage),
+      },
+      stats: {
+        pending_count: pendingCount,
+        total_refunded_amount: Number(refundStats._sum.refund_amount ?? 0),
+        total_cases: total,
+      },
+    };
+  },
 };
