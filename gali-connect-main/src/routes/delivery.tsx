@@ -35,6 +35,7 @@ import { useAuth } from "@/context/auth-context";
 import { DeliveryHistory } from "@/components/delivery/DeliveryHistory";
 import { DeliveryProfile } from "@/components/delivery/DeliveryProfile";
 import { DeliverySettings } from "@/components/delivery/DeliverySettings";
+import { DeliveryWalletTab } from "@/components/delivery/DeliveryWalletTab";
 import { lazy, Suspense } from "react";
 import { ClientOnly } from "@/components/system/client-only";
 const DeliveryMapModal =
@@ -884,64 +885,7 @@ function DeliveryDashboard() {
         )}
 
         {/* EARNINGS TAB */}
-        {activeTab === "earnings" && (
-          <div className="space-y-4">
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-3xl p-6 border border-emerald-200 shadow-soft relative overflow-hidden">
-              <div className="absolute right-0 top-0 opacity-10">
-                <Wallet className="h-32 w-32 -mt-4 -mr-4 text-emerald-600" />
-              </div>
-              <div className="text-emerald-700 font-bold text-xs uppercase tracking-widest mb-2">
-                Today's Earnings
-              </div>
-              <div className="font-black text-5xl text-emerald-900 mb-6">₹{totalEarnings}</div>
-
-              <div className="grid grid-cols-2 gap-4 border-t border-emerald-200/60 pt-4">
-                <div>
-                  <div className="text-[10px] text-emerald-700 uppercase font-bold mb-1">
-                    Completed
-                  </div>
-                  <div className="font-bold text-xl text-foreground">{completedOrders.length}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-emerald-700 uppercase font-bold mb-1">
-                    Rating
-                  </div>
-                  <div className="font-bold text-xl text-amber-600">
-                    ★ {deliveryStats.partner?.rating ?? 0}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-card rounded-3xl p-5 border border-border shadow-soft">
-              <h3 className="font-bold mb-4 text-sm uppercase tracking-wider text-muted-foreground">
-                Recent Deliveries
-              </h3>
-              {completedOrders.length === 0 ? (
-                <div className="text-muted-foreground/70 text-sm italic">
-                  No deliveries completed today.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {completedOrders.map((o: any) => (
-                    <div
-                      key={o.id}
-                      className="flex justify-between items-center py-2 border-b border-border last:border-0"
-                    >
-                      <div>
-                        <div className="font-bold text-sm">Order #{o.id.substring(0, 6)}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {o.vendor?.business_name}
-                        </div>
-                      </div>
-                      <div className="font-black text-emerald-600">+₹{o.delivery_fee}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {activeTab === "earnings" && <DeliveryWalletTab />}
 
         {/* HISTORY TAB */}
         {activeTab === "history" && <DeliveryHistory />}

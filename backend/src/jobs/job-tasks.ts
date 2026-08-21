@@ -256,3 +256,91 @@ export async function remindExpiringMemberships(): Promise<number> {
   }
   return count;
 }
+
+/**
+ * Hourly Cron: Releases pending escrow earnings older than 24 hours into available balance.
+ */
+export async function processEscrowReleaseJob(): Promise<{ releasedVendors: number; releasedDelivery: number }> {
+  const { releaseEscrowEarnings } = await import("../services/earning.service");
+  const result = await releaseEscrowEarnings(24);
+  if (result.releasedVendorEarnings > 0 || result.releasedDeliveryEarnings > 0) {
+    log.info(
+      `[cron] Escrow Release: Transitioned ${result.releasedVendorEarnings} vendor & ${result.releasedDeliveryEarnings} delivery earnings to SETTLED`,
+      { context: "cron" }
+    );
+  }
+  return {
+    releasedVendors: result.releasedVendorEarnings,
+    releasedDelivery: result.releasedDeliveryEarnings,
+  };
+}
+
+/**
+ * Daily Cron: Automatically processes vendor payouts for accounts with available balance above threshold (e.g. ₹500).
+ */
+export async function processScheduledVendorPayoutsJob(minThreshold = 500): Promise<number> {
+  const { payoutService } = await import("../services/payout.service");
+  const vendors = await prisma.vendorProfile.findMany({
+    where: { payout_enabled: true },
+    select: { id: true, business_name: true, user_id: true, bank_account_number: true, upi_id: true },
+  });
+
+  let processedCount = 0;
+  for (const v of vendors) {
+    if (!v.bank_account_number && !v.upi_id) continue;
+    try {
+      const overview = await payoutService.getVendorWalletOverview(v.id);
+      if (overview.available_balance >= minThreshold) {
+        log.info(`[cron] Auto-payout triggered for ${v.business_name}: ₹${overview.available_balance}`);
+        await payoutService.requestVendorWithdrawal(v.id, {
+          amount: overview.available_balance,
+          payout_mode: v.upi_id ? "UPI" : "BANK_TRANSFER",
+          notes: `Automated Scheduled Daily Settlement (Balance: ₹${overview.available_balance})`,
+        });
+        processedCount += 1;
+      }
+    } catch (err: any) {
+      log.warn(`[cron] Auto-payout skipped for vendor ${v.id}: ${err.message}`);
+    }
+  }
+
+  if (processedCount > 0) {
+    log.info(`[cron] Completed automated scheduled payouts for ${processedCount} vendors`, { context: "cron" });
+  }
+  return processedCount;
+}
+
+/**
+ * Daily Cron: Automatically processes delivery partner payouts above threshold.
+ */
+export async function processScheduledDeliveryPayoutsJob(minThreshold = 300): Promise<number> {
+  const { deliveryService } = await import("../services/delivery.service");
+  const riders = await prisma.deliveryProfile.findMany({
+    where: { payout_enabled: true },
+    select: { id: true, user_id: true, bank_account_number: true, upi_id: true },
+  });
+
+  let processedCount = 0;
+  for (const r of riders) {
+    if (!r.bank_account_number && !r.upi_id) continue;
+    try {
+      const overview = await deliveryService.getDeliveryWalletOverview(r.id);
+      if (overview.available_balance >= minThreshold) {
+        log.info(`[cron] Rider auto-payout triggered for ${r.id}: ₹${overview.available_balance}`);
+        await deliveryService.requestDeliveryWithdrawal(r.id, {
+          amount: overview.available_balance,
+          payout_mode: r.upi_id ? "UPI" : "BANK_TRANSFER",
+          notes: `Automated Scheduled Daily Settlement (Balance: ₹${overview.available_balance})`,
+        });
+        processedCount += 1;
+      }
+    } catch (err: any) {
+      log.warn(`[cron] Rider auto-payout skipped for partner ${r.id}: ${err.message}`);
+    }
+  }
+
+  if (processedCount > 0) {
+    log.info(`[cron] Completed automated scheduled payouts for ${processedCount} riders`, { context: "cron" });
+  }
+  return processedCount;
+}

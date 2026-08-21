@@ -16,6 +16,12 @@ import {
   markDelivered,
   submitDeliveryKyc,
   getDeliveryTracking,
+  getDeliveryWallet,
+  requestDeliveryWithdrawal,
+  updateDeliveryBankDetails,
+  exportDeliveryWalletStatement,
+  verifyDeliveryUpi,
+  verifyDeliveryBank,
 } from "../../controllers/delivery.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
@@ -68,6 +74,14 @@ router.get(
   validate({ query: deliveryEarningsQuerySchema }),
   getMyEarnings
 );
+
+// Delivery Wallet & Payouts Hub
+router.get("/delivery/me/wallet", authenticate, requireRole(ROLES.DELIVERY_PARTNER), getDeliveryWallet);
+router.post("/delivery/me/withdrawals/request", authenticate, requireRole(ROLES.DELIVERY_PARTNER), requestDeliveryWithdrawal);
+router.put("/delivery/me/bank-details", authenticate, requireRole(ROLES.DELIVERY_PARTNER), updateDeliveryBankDetails);
+router.post("/delivery/me/verify-upi", authenticate, requireRole(ROLES.DELIVERY_PARTNER), verifyDeliveryUpi);
+router.post("/delivery/me/verify-bank", authenticate, requireRole(ROLES.DELIVERY_PARTNER), verifyDeliveryBank);
+router.get("/delivery/me/wallet/statement/export", authenticate, requireRole(ROLES.DELIVERY_PARTNER), exportDeliveryWalletStatement);
 
 router.put(
   "/delivery/orders/:id/accept",

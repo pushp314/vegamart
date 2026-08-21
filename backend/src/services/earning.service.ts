@@ -319,3 +319,41 @@ export async function listVendorEarningsRecent(
     };
   });
 }
+
+/**
+ * Releases escrow earnings past the dispute/return hold period (default 24h)
+ * transitioning them from PENDING to SETTLED.
+ */
+export async function releaseEscrowEarnings(
+  holdHours = 24,
+  db: DbClient = prisma
+): Promise<{ releasedVendorEarnings: number; releasedDeliveryEarnings: number }> {
+  const cutoff = new Date(Date.now() - holdHours * 60 * 60 * 1000);
+
+  const vendorRes = await db.vendorEarning.updateMany({
+    where: {
+      status: "PENDING",
+      created_at: { lte: cutoff },
+    },
+    data: {
+      status: "SETTLED",
+      settled_at: new Date(),
+    },
+  });
+
+  const deliveryRes = await db.deliveryEarning.updateMany({
+    where: {
+      status: "PENDING",
+      created_at: { lte: cutoff },
+    },
+    data: {
+      status: "SETTLED",
+      settled_at: new Date(),
+    },
+  });
+
+  return {
+    releasedVendorEarnings: vendorRes.count,
+    releasedDeliveryEarnings: deliveryRes.count,
+  };
+}

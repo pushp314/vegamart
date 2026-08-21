@@ -13,6 +13,9 @@ import {
   expireExpiredCoupons,
   expireExpiredMemberships,
   remindExpiringMemberships,
+  processEscrowReleaseJob,
+  processScheduledVendorPayoutsJob,
+  processScheduledDeliveryPayoutsJob,
 } from "./job-tasks";
 
 interface RegisteredJob {
@@ -85,6 +88,15 @@ export function startJobs(): void {
     await computeDailySalesReport(yesterday);
     await computeDailyVendorSummaries(yesterday);
   });
+
+  // Hourly: release pending escrow earnings older than 24 hours into available balance
+  register("settle-escrow-earnings", "0 * * * *", () => processEscrowReleaseJob());
+
+  // Daily at 10:00 AM IST: scheduled automated batch payouts for eligible vendors (>= ₹500)
+  register("scheduled-vendor-auto-payouts", "0 10 * * *", () => processScheduledVendorPayoutsJob(500));
+
+  // Daily at 10:30 AM IST: scheduled automated batch payouts for delivery partners (>= ₹300)
+  register("scheduled-delivery-auto-payouts", "30 10 * * *", () => processScheduledDeliveryPayoutsJob(300));
 }
 
 export function stopJobs(): void {

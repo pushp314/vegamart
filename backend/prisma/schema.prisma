@@ -614,13 +614,20 @@ model DeliveryProfile {
   rating              Float              @default(0) @db.DoublePrecision
   review_count        Int                @default(0)
   rejection_reason    String?            @db.Text
+  bank_account_number      String?            @db.VarChar(50)
+  bank_ifsc                String?            @db.VarChar(20)
+  bank_account_holder_name String?            @db.VarChar(160)
+  bank_name                String?            @db.VarChar(100)
+  upi_id                   String?            @db.VarChar(100)
+  payout_enabled           Boolean            @default(true)
   created_at          DateTime           @default(now())
   updated_at          DateTime           @updatedAt
   deleted_at          DateTime?
 
-  user     User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  orders   Order[]           @relation("AssignedOrders")
-  earnings DeliveryEarning[]
+  user            User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  orders          Order[]           @relation("AssignedOrders")
+  earnings        DeliveryEarning[]
+  payout_requests PayoutRequest[]
 
   @@index([user_id])
   @@index([status])
@@ -1119,27 +1126,30 @@ model DeliveryEarning {
 }
 
 model PayoutRequest {
-  id              String              @id @default(uuid()) @db.Uuid
-  vendor_id       String              @db.Uuid
-  amount          Decimal             @db.Decimal(10, 2)
-  payout_mode     String              @default("BANK_TRANSFER") @db.VarChar(50)
-  account_number  String?             @db.VarChar(50)
-  ifsc_code       String?             @db.VarChar(20)
-  account_holder  String?             @db.VarChar(160)
-  bank_name       String?             @db.VarChar(100)
-  upi_id          String?             @db.VarChar(100)
-  status          PayoutRequestStatus @default(PENDING)
-  utr_reference   String?             @db.VarChar(120)
-  notes           String?             @db.VarChar(500)
-  admin_notes     String?             @db.VarChar(500)
-  processed_by    String?             @db.Uuid
-  processed_at    DateTime?
-  created_at      DateTime            @default(now())
-  updated_at      DateTime            @updatedAt
+  id                  String              @id @default(uuid()) @db.Uuid
+  vendor_id           String?             @db.Uuid
+  delivery_partner_id String?             @db.Uuid
+  amount              Decimal             @db.Decimal(10, 2)
+  payout_mode         String              @default("BANK_TRANSFER") @db.VarChar(50)
+  account_number      String?             @db.VarChar(50)
+  ifsc_code           String?             @db.VarChar(20)
+  account_holder      String?             @db.VarChar(160)
+  bank_name           String?             @db.VarChar(100)
+  upi_id              String?             @db.VarChar(100)
+  status              PayoutRequestStatus @default(PENDING)
+  utr_reference       String?             @db.VarChar(120)
+  notes               String?             @db.VarChar(500)
+  admin_notes         String?             @db.VarChar(500)
+  processed_by        String?             @db.Uuid
+  processed_at        DateTime?
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
 
-  vendor          VendorProfile       @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+  vendor           VendorProfile?   @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+  delivery_partner DeliveryProfile? @relation(fields: [delivery_partner_id], references: [id], onDelete: Cascade)
 
   @@index([vendor_id, status])
+  @@index([delivery_partner_id, status])
   @@index([status])
   @@index([created_at])
   @@map("payout_requests")

@@ -409,8 +409,10 @@ export const payoutService = {
     const totalWithdrawn = Number(completedWithdrawalsAgg._sum.amount ?? 0);
     const inFlightWithdrawing = Number(inFlightWithdrawalsAgg._sum.amount ?? 0);
 
-    // Available balance is total settled earnings minus what has already been withdrawn or is in-flight
-    const availableBalance = Math.max(0, Math.round((totalSettledEarnings - totalWithdrawn - inFlightWithdrawing) * 100) / 100);
+    // Real net balance (preserves deficit if refunds occurred post-withdrawal)
+    const netBalance = Math.round((totalSettledEarnings - totalWithdrawn - inFlightWithdrawing) * 100) / 100;
+    const availableBalance = Math.max(0, netBalance);
+    const deficitBalance = netBalance < 0 ? Math.abs(netBalance) : 0;
 
     // 5. Recent Withdrawal Requests
     const recentWithdrawals = await (prisma as any).payoutRequest.findMany({
@@ -433,10 +435,13 @@ export const payoutService = {
 
     return {
       available_balance: availableBalance,
+      deficit_balance: deficitBalance,
+      net_balance: netBalance,
       pending_escrow: totalPendingEscrow,
       total_withdrawn: totalWithdrawn,
       in_flight_withdrawing: inFlightWithdrawing,
       lifetime_settled: totalSettledEarnings,
+      escrow_hold_hours: 24,
       commission_rate: Number(vendor.commission_rate ?? 5),
       bank_configured: Boolean(vendor.bank_account_number && vendor.bank_ifsc),
       bank_details: {
@@ -746,5 +751,139 @@ export const payoutService = {
       name: input.name,
     });
     return result;
+  },
+
+  /**
+   * Generates a comprehensive Monthly Tax Invoice & Settlement Statement.
+   * Calculates Gross GMV, Platform Commission, 18% GST (SAC 998311), TDS u/s 194-O (0.1%),
+   * Net Earnings, and Bank Disbursements with UTR references.
+   */
+  async getMonthlySettlementStatement(vendorId: string, monthStr?: string) {
+    const vendor = await prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+      include: { user: true },
+    });
+
+    if (!vendor) throw new Error("Vendor profile not found");
+
+    // Parse month (YYYY-MM)
+    const targetMonth = monthStr || new Date().toISOString().slice(0, 7);
+    const [yearStr, mStr] = targetMonth.split("-");
+    const year = parseInt(yearStr || "2026", 10);
+    const month = parseInt(mStr || "8", 10);
+
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+
+    // 1. Fetch delivered orders for the vendor in that calendar month
+    const orders = await prisma.order.findMany({
+      where: {
+        vendor_id: vendorId,
+        status: "DELIVERED",
+        created_at: { gte: startDate, lt: endDate },
+      },
+      select: {
+        id: true,
+        order_number: true,
+        total: true,
+        items_subtotal: true,
+        discount: true,
+        delivery_fee: true,
+        created_at: true,
+      },
+    });
+
+    // 2. Fetch vendor earnings in that month
+    const earnings = await prisma.vendorEarning.findMany({
+      where: {
+        vendor_id: vendorId,
+        created_at: { gte: startDate, lt: endDate },
+      },
+      include: {
+        order: { select: { order_number: true, total: true } },
+      },
+      orderBy: { created_at: "asc" },
+    });
+
+    // 3. Fetch completed withdrawals disbursed in that month
+    const withdrawals = await (prisma as any).payoutRequest.findMany({
+      where: {
+        vendor_id: vendorId,
+        status: "COMPLETED",
+        processed_at: { gte: startDate, lt: endDate },
+      },
+      orderBy: { processed_at: "asc" },
+    });
+
+    const grossGmv = orders.reduce((sum, o) => sum + Number(o.items_subtotal || o.total), 0);
+    const totalOrderNetEarnings = earnings
+      .filter((e) => e.type !== "REFUND")
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+    const totalRefundReversals = Math.abs(
+      earnings.filter((e) => e.type === "REFUND").reduce((sum, e) => sum + Number(e.amount), 0)
+    );
+
+    const netEarnings = Math.max(0, totalOrderNetEarnings - totalRefundReversals);
+    const platformCommission = Math.max(0, grossGmv - totalOrderNetEarnings);
+    const gstOnCommission = Math.round(platformCommission * 0.18 * 100) / 100; // 18% GST (SAC 998311)
+    const tds194O = Math.round(grossGmv * 0.001 * 100) / 100; // 0.1% TDS on Gross E-Commerce GMV
+
+    const totalDisbursed = withdrawals.reduce((sum: number, w: any) => sum + Number(w.amount), 0);
+
+    const invoiceNumber = `VM-INV-${targetMonth.replace("-", "")}-${vendorId.slice(0, 6).toUpperCase()}`;
+
+    return {
+      invoice_number: invoiceNumber,
+      invoice_date: new Date().toISOString(),
+      billing_period: {
+        month: targetMonth,
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+      },
+      platform: {
+        name: "VegaMart Technologies India Pvt. Ltd.",
+        tagline: "Hyperlocal Marketplace — Sakti District, Chhattisgarh",
+        address: "Station Road, Sakti, Chhattisgarh 495689, India",
+        gstin: "22AAAAA0000A1Z5",
+        pan: "AAAAA0000A",
+        sac_code: "998311", // Support services to e-commerce
+        support_email: "billing@vegamart.in",
+      },
+      vendor: {
+        id: vendor.id,
+        business_name: vendor.business_name,
+        owner_name: vendor.owner_name,
+        phone: vendor.phone || vendor.user?.phone,
+        city: vendor.city || "Sakti",
+        state: vendor.state || "Chhattisgarh",
+        bank_account_number: vendor.bank_account_number ? `XXXX${vendor.bank_account_number.slice(-4)}` : null,
+        bank_ifsc: vendor.bank_ifsc,
+        bank_name: vendor.bank_name,
+        upi_id: vendor.upi_id,
+      },
+      metrics: {
+        delivered_orders_count: orders.length,
+        gross_gmv: Math.round(grossGmv * 100) / 100,
+        platform_commission: Math.round(platformCommission * 100) / 100,
+        gst_on_commission: gstOnCommission,
+        tds_194_o: tds194O,
+        refund_reversals: Math.round(totalRefundReversals * 100) / 100,
+        net_payable_earnings: Math.round(netEarnings * 100) / 100,
+        total_disbursed_payouts: Math.round(totalDisbursed * 100) / 100,
+      },
+      disbursements: withdrawals.map((w: any) => ({
+        id: w.id,
+        amount: Number(w.amount),
+        payout_mode: w.payout_mode,
+        utr_reference: w.utr_reference || "N/A",
+        processed_at: w.processed_at,
+      })),
+      orders_summary: orders.slice(0, 50).map((o) => ({
+        id: o.id,
+        order_number: o.order_number,
+        total: Number(o.total),
+        created_at: o.created_at,
+      })),
+    };
   },
 };

@@ -1405,4 +1405,238 @@ export const deliveryService = {
       order_status: order.status,
     };
   },
+
+  /**
+   * Retrieves full wallet overview, available balance, escrow transit balance, and recent trips ledger for a delivery partner.
+   */
+  async getDeliveryWalletOverview(deliveryPartnerId: string) {
+    const partner = await prisma.deliveryProfile.findUnique({
+      where: { id: deliveryPartnerId },
+      include: { user: true },
+    });
+
+    if (!partner) throw new Error("Delivery partner profile not found");
+
+    // 1. Settled Earnings
+    const settledAgg = await prisma.deliveryEarning.aggregate({
+      where: { delivery_partner_id: deliveryPartnerId, status: "SETTLED" },
+      _sum: { amount: true },
+    });
+
+    // 2. Pending Escrow
+    const pendingAgg = await prisma.deliveryEarning.aggregate({
+      where: { delivery_partner_id: deliveryPartnerId, status: "PENDING" },
+      _sum: { amount: true },
+    });
+
+    // 3. Completed Withdrawals
+    const completedWithdrawalsAgg = await (prisma as any).payoutRequest.aggregate({
+      where: { delivery_partner_id: deliveryPartnerId, status: "COMPLETED" },
+      _sum: { amount: true },
+    });
+
+    // 4. In-flight Withdrawals
+    const inFlightWithdrawalsAgg = await (prisma as any).payoutRequest.aggregate({
+      where: {
+        delivery_partner_id: deliveryPartnerId,
+        status: { in: ["PENDING", "PROCESSING"] },
+      },
+      _sum: { amount: true },
+    });
+
+    const totalSettledEarnings = Number(settledAgg._sum.amount ?? 0);
+    const totalPendingEscrow = Number(pendingAgg._sum.amount ?? 0);
+    const totalWithdrawn = Number(completedWithdrawalsAgg._sum.amount ?? 0);
+    const inFlightWithdrawing = Number(inFlightWithdrawalsAgg._sum.amount ?? 0);
+
+    const netBalance = Math.round((totalSettledEarnings - totalWithdrawn - inFlightWithdrawing) * 100) / 100;
+    const availableBalance = Math.max(0, netBalance);
+    const deficitBalance = netBalance < 0 ? Math.abs(netBalance) : 0;
+
+    // Completed Trips Count
+    const completedTripsCount = await prisma.deliveryEarning.count({
+      where: { delivery_partner_id: deliveryPartnerId },
+    });
+
+    // Recent Withdrawals
+    const recentWithdrawals = await (prisma as any).payoutRequest.findMany({
+      where: { delivery_partner_id: deliveryPartnerId },
+      orderBy: { created_at: "desc" },
+      take: 10,
+    });
+
+    // Recent Earnings Ledger
+    const recentEarnings = await prisma.deliveryEarning.findMany({
+      where: { delivery_partner_id: deliveryPartnerId },
+      include: {
+        order: {
+          select: { order_number: true, total: true, delivery_fee: true, created_at: true },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      take: 25,
+    });
+
+    return {
+      available_balance: availableBalance,
+      deficit_balance: deficitBalance,
+      net_balance: netBalance,
+      pending_escrow: totalPendingEscrow,
+      total_withdrawn: totalWithdrawn,
+      in_flight_withdrawing: inFlightWithdrawing,
+      lifetime_settled: totalSettledEarnings,
+      completed_trips_count: completedTripsCount,
+      bank_configured: Boolean(partner.bank_account_number && partner.bank_ifsc),
+      bank_details: {
+        bank_account_number: partner.bank_account_number || null,
+        bank_ifsc: partner.bank_ifsc || null,
+        bank_account_holder_name: partner.bank_account_holder_name || null,
+        bank_name: partner.bank_name || null,
+        upi_id: partner.upi_id || null,
+        payout_enabled: partner.payout_enabled !== false,
+      },
+      recent_withdrawals: recentWithdrawals.map((w: any) => ({
+        id: w.id,
+        amount: Number(w.amount),
+        payout_mode: w.payout_mode,
+        account_number: w.account_number,
+        ifsc_code: w.ifsc_code,
+        upi_id: w.upi_id,
+        status: w.status,
+        utr_reference: w.utr_reference,
+        notes: w.notes,
+        created_at: w.created_at,
+        processed_at: w.processed_at,
+      })),
+      wallet_ledger: recentEarnings.map((e) => ({
+        id: e.id,
+        type: e.type,
+        status: e.status,
+        amount: Number(e.amount),
+        order_number: e.order?.order_number || null,
+        order_total: e.order ? Number(e.order.total) : null,
+        reference_id: e.reference_id,
+        created_at: e.created_at,
+      })),
+    };
+  },
+
+  /**
+   * Submits an on-demand withdrawal request for a delivery partner.
+   */
+  async requestDeliveryWithdrawal(
+    deliveryPartnerId: string,
+    input: { amount: number; payout_mode?: "BANK_TRANSFER" | "UPI"; notes?: string }
+  ) {
+    const partner = await prisma.deliveryProfile.findUnique({
+      where: { id: deliveryPartnerId },
+      include: { user: true },
+    });
+
+    if (!partner) throw new Error("Delivery partner profile not found");
+    if (partner.payout_enabled === false) {
+      throw new Error("Payouts are disabled for this delivery account. Please contact support.");
+    }
+
+    const requestedAmount = Math.round(Number(input.amount) * 100) / 100;
+    if (isNaN(requestedAmount) || requestedAmount < 50) {
+      throw new Error("Minimum withdrawal amount for delivery partners is ₹50.");
+    }
+
+    const mode = input.payout_mode || (partner.upi_id ? "UPI" : "BANK_TRANSFER");
+    if (mode === "BANK_TRANSFER" && (!partner.bank_account_number || !partner.bank_ifsc)) {
+      throw new Error("Please configure your Bank Account Number and IFSC Code before requesting a bank payout.");
+    }
+    if (mode === "UPI" && !partner.upi_id) {
+      throw new Error("Please configure your UPI ID before requesting a UPI payout.");
+    }
+
+    const overview = await this.getDeliveryWalletOverview(deliveryPartnerId);
+    if (requestedAmount > overview.available_balance) {
+      throw new Error(`Insufficient available balance. Maximum withdrawable: ₹${overview.available_balance.toFixed(2)}`);
+    }
+
+    const request = await (prisma as any).payoutRequest.create({
+      data: {
+        delivery_partner_id: deliveryPartnerId,
+        amount: requestedAmount,
+        payout_mode: mode,
+        account_number: partner.bank_account_number,
+        ifsc_code: partner.bank_ifsc,
+        account_holder: partner.bank_account_holder_name || partner.user?.name,
+        bank_name: partner.bank_name,
+        upi_id: partner.upi_id,
+        status: "PENDING",
+        notes: input.notes || null,
+      },
+    });
+
+    if (partner.user_id) {
+      await notificationService.payment(
+        partner.user_id,
+        "Withdrawal Request Submitted 🏍️💸",
+        `Your payout request for ₹${requestedAmount.toFixed(2)} via ${mode === "UPI" ? "UPI" : "Bank Transfer"} has been received. Funds will be transferred to your account shortly.`
+      );
+    }
+
+    return {
+      success: true,
+      request_id: request.id,
+      amount: requestedAmount,
+      status: "PENDING",
+      message: `Withdrawal request for ₹${requestedAmount.toFixed(2)} submitted successfully.`,
+    };
+  },
+
+  /**
+   * Updates bank and UPI credentials for a delivery partner.
+   */
+  async updateDeliveryBankDetails(
+    deliveryPartnerId: string,
+    input: {
+      bank_account_number?: string | null;
+      bank_ifsc?: string | null;
+      bank_account_holder_name?: string | null;
+      bank_name?: string | null;
+      upi_id?: string | null;
+    }
+  ) {
+    const updated = await prisma.deliveryProfile.update({
+      where: { id: deliveryPartnerId },
+      data: {
+        bank_account_number: input.bank_account_number ?? undefined,
+        bank_ifsc: input.bank_ifsc ? input.bank_ifsc.toUpperCase().trim() : undefined,
+        bank_account_holder_name: input.bank_account_holder_name ?? undefined,
+        bank_name: input.bank_name ?? undefined,
+        upi_id: input.upi_id ? input.upi_id.toLowerCase().trim() : undefined,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
+   * Exports rider earnings ledger as CSV.
+   */
+  async exportDeliveryWalletStatementCsv(deliveryPartnerId: string): Promise<string> {
+    const earnings = await prisma.deliveryEarning.findMany({
+      where: { delivery_partner_id: deliveryPartnerId },
+      include: {
+        order: { select: { order_number: true, total: true, delivery_fee: true } },
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    const headers = ["Date", "Order Number", "Transaction Type", "Delivery Fee (INR)", "Status", "Reference"];
+    const rows = earnings.map((e) => [
+      `"${new Date(e.created_at).toISOString()}"`,
+      `"${e.order?.order_number || ""}"`,
+      `"${e.type}"`,
+      Number(e.amount).toFixed(2),
+      `"${e.status}"`,
+      `"${e.reference_id || ""}"`,
+    ]);
+
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  },
 };

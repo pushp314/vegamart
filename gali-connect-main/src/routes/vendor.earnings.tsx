@@ -19,10 +19,13 @@ import {
   History,
   FileText,
   BadgeIndianRupee,
+  Receipt,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VendorBankDetailsModal } from "@/components/vendor/VendorBankDetailsModal";
 import { VendorWithdrawalModal } from "@/components/vendor/VendorWithdrawalModal";
+import { VendorMonthlyInvoiceModal } from "@/components/vendor/VendorMonthlyInvoiceModal";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/vendor/earnings")({
@@ -34,6 +37,7 @@ function VendorEarningsPage() {
   const [earningsMonthFilter, setEarningsMonthFilter] = useState("");
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   const { data: vendorRes } = useQuery({
@@ -64,6 +68,7 @@ function VendorEarningsPage() {
   const availableBalance = Number(wallet.available_balance ?? earnings.total_payout ?? 0);
   const pendingEscrow = Number(wallet.pending_escrow ?? earnings.pending_payout ?? 0);
   const totalWithdrawn = Number(wallet.total_withdrawn ?? 0);
+  const deficitBalance = Number(wallet.deficit_balance ?? 0);
   const bankDetails = wallet.bank_details || earnings.bank_details || {};
   const isBankConfigured = Boolean(wallet.bank_configured || earnings.bank_details?.configured);
 
@@ -115,7 +120,16 @@ function VendorEarningsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="outline"
+            onClick={() => setInvoiceModalOpen(true)}
+            className="rounded-2xl border-emerald-500/30 text-emerald-700 dark:text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10 h-11 text-xs font-bold flex items-center gap-1.5 shadow-xs"
+          >
+            <Receipt className="h-4 w-4 text-emerald-600" />
+            Monthly Tax Invoice
+          </Button>
+
           <Button
             variant="outline"
             onClick={handleExportStatement}
@@ -135,6 +149,20 @@ function VendorEarningsPage() {
           </Button>
         </div>
       </div>
+
+      {/* ⚠️ Deficit Alert Banner if negative balance exists */}
+      {deficitBalance > 0 && (
+        <div className="p-4 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 animate-in fade-in">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-xs">
+            <span className="font-bold">Wallet Deficit Balance: -₹{deficitBalance.toFixed(2)}</span>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              A customer dispute refund was reversed after funds were already disbursed. Incoming order earnings will
+              automatically replenish this deficit until your available balance returns to positive.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 💼 Wallet Core Balance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
@@ -178,7 +206,7 @@ function VendorEarningsPage() {
                 Pending in Escrow
               </span>
               <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                Active Orders
+                24h Dispute Hold
               </span>
             </div>
             <div className="font-display text-3xl font-black text-amber-600 dark:text-amber-400 mt-2">
@@ -186,7 +214,7 @@ function VendorEarningsPage() {
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-amber-500/20 text-[11px] text-muted-foreground">
-            Releases to Available upon OTP delivery confirmation.
+            Releases to Available balance 24h after delivery (Dispute Protection).
           </div>
         </div>
 
@@ -631,6 +659,11 @@ function VendorEarningsPage() {
         availableBalance={availableBalance}
         bankDetails={bankDetails}
         onOpenBankModal={() => setBankModalOpen(true)}
+      />
+
+      <VendorMonthlyInvoiceModal
+        isOpen={invoiceModalOpen}
+        onClose={() => setInvoiceModalOpen(false)}
       />
     </div>
   );

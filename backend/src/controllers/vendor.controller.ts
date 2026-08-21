@@ -889,4 +889,12 @@ export const verifyBank = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(res, result);
 });
 
+export const getMonthlyInvoice = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  if (!vendor) throw new Error("Vendor profile not found");
+  const monthStr = (req.query?.month as string) || undefined;
+  const statement = await payoutService.getMonthlySettlementStatement(vendor.id, monthStr);
+  return sendSuccess(res, statement);
+});
+
 

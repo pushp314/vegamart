@@ -3,6 +3,7 @@ import {
   createOrderEarnings,
   reverseOrderEarnings,
   listVendorEarningsRecent,
+  releaseEscrowEarnings,
   type OrderEarningInput,
 } from "../../src/services/earning.service";
 
@@ -263,6 +264,46 @@ describe("listVendorEarningsRecent", () => {
       commission_amount: 50,
       commission_rate: 5,
       vendor_earning: 950,
+    });
+  });
+});
+
+describe("releaseEscrowEarnings", () => {
+  it("transitions pending vendor and delivery earnings past the hold cutoff to SETTLED", async () => {
+    const db = {
+      vendorEarning: {
+        updateMany: jest.fn().mockResolvedValue({ count: 5 }),
+      },
+      deliveryEarning: {
+        updateMany: jest.fn().mockResolvedValue({ count: 3 }),
+      },
+    } as any;
+
+    const result = await releaseEscrowEarnings(24, db);
+
+    expect(db.vendorEarning.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: "PENDING",
+        created_at: { lte: expect.any(Date) },
+      },
+      data: {
+        status: "SETTLED",
+        settled_at: expect.any(Date),
+      },
+    });
+    expect(db.deliveryEarning.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: "PENDING",
+        created_at: { lte: expect.any(Date) },
+      },
+      data: {
+        status: "SETTLED",
+        settled_at: expect.any(Date),
+      },
+    });
+    expect(result).toEqual({
+      releasedVendorEarnings: 5,
+      releasedDeliveryEarnings: 3,
     });
   });
 });

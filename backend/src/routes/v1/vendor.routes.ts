@@ -42,6 +42,7 @@ import {
   exportVendorWalletStatement,
   verifyUpi,
   verifyBank,
+  getMonthlyInvoice,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
 import { requirePlan } from "../../middlewares/subscription.middleware";
@@ -89,6 +90,7 @@ router.put("/vendors/me/bank-details", authenticate, requireRole(ROLES.VENDOR), 
 router.post("/vendors/me/verify-upi", authenticate, requireRole(ROLES.VENDOR), verifyUpi);
 router.post("/vendors/me/verify-bank", authenticate, requireRole(ROLES.VENDOR), verifyBank);
 router.get("/vendors/me/wallet/statement/export", authenticate, requireRole(ROLES.VENDOR), exportVendorWalletStatement);
+router.get("/vendors/me/invoices/monthly", authenticate, requireRole(ROLES.VENDOR), getMonthlyInvoice);
 router.get("/vendors/me/membership", authenticate, requireRole(ROLES.VENDOR), getMyMembership);
 router.post(
   "/vendors/me/membership",

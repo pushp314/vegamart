@@ -171,3 +171,55 @@ export const submitDeliveryKyc = asyncHandler(async (req: Request, res: Response
 export const getDeliveryTracking = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(res, await deliveryService.getDeliveryTracking(req.user!, req.params.id as string));
 });
+
+export const getDeliveryWallet = asyncHandler(async (req: Request, res: Response) => {
+  const profile = await deliveryService.getDeliveryMe(req.user!.id);
+  if (!profile) throw new Error("Delivery profile not found");
+  const wallet = await deliveryService.getDeliveryWalletOverview(profile.id);
+  return sendSuccess(res, wallet);
+});
+
+export const requestDeliveryWithdrawal = asyncHandler(async (req: Request, res: Response) => {
+  const profile = await deliveryService.getDeliveryMe(req.user!.id);
+  if (!profile) throw new Error("Delivery profile not found");
+  const result = await deliveryService.requestDeliveryWithdrawal(profile.id, req.body);
+  return sendSuccess(res, result, { message: result.message });
+});
+
+export const updateDeliveryBankDetails = asyncHandler(async (req: Request, res: Response) => {
+  const profile = await deliveryService.getDeliveryMe(req.user!.id);
+  if (!profile) throw new Error("Delivery profile not found");
+  const updated = await deliveryService.updateDeliveryBankDetails(profile.id, req.body);
+  return sendSuccess(res, updated, { message: "Bank and UPI details updated successfully." });
+});
+
+export const exportDeliveryWalletStatement = asyncHandler(async (req: Request, res: Response) => {
+  const profile = await deliveryService.getDeliveryMe(req.user!.id);
+  if (!profile) throw new Error("Delivery profile not found");
+  const csv = await deliveryService.exportDeliveryWalletStatementCsv(profile.id);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename=rider-statement-${profile.id.slice(0, 8)}.csv`);
+  return res.send(csv);
+});
+
+export const verifyDeliveryUpi = asyncHandler(async (req: Request, res: Response) => {
+  const { payoutService } = await import("../services/payout.service");
+  const upiId = (req.body?.upi_id || req.query?.upi_id || "").toString().trim();
+  if (!upiId) return sendSuccess(res, { valid: false, message: "Please provide a valid UPI ID." });
+  const result = await payoutService.verifyVendorUpi(upiId);
+  return sendSuccess(res, result);
+});
+
+export const verifyDeliveryBank = asyncHandler(async (req: Request, res: Response) => {
+  const { payoutService } = await import("../services/payout.service");
+  const { account_number, ifsc, name } = req.body || {};
+  if (!account_number || !ifsc) {
+    return sendSuccess(res, { valid: false, message: "Account number and IFSC code are required." });
+  }
+  const result = await payoutService.verifyVendorBank({
+    accountNumber: String(account_number),
+    ifsc: String(ifsc),
+    name: name ? String(name) : undefined,
+  });
+  return sendSuccess(res, result);
+});
