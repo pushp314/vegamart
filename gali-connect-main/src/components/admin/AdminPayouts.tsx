@@ -57,6 +57,7 @@ interface VendorPayoutItem {
 
 export function AdminPayouts() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"balances" | "requests">("balances");
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"ALL" | "READY" | "MISSING_BANK">("ALL");
   const [selectedVendor, setSelectedVendor] = useState<VendorPayoutItem | null>(null);
@@ -65,6 +66,12 @@ export function AdminPayouts() {
   const [payoutMode, setPayoutMode] = useState<"DIRECT_TRANSFER" | "MANUAL_SETTLE">("MANUAL_SETTLE");
   const [transactionRef, setTransactionRef] = useState("");
   const [isExporting, setIsExporting] = useState(false);
+
+  // Withdrawal Requests processing state
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [isProcessRequestModalOpen, setIsProcessRequestModalOpen] = useState(false);
+  const [requestAction, setRequestAction] = useState<"APPROVE" | "REJECT">("APPROVE");
+  const [adminNotes, setAdminNotes] = useState("");
 
   // Fetch summary
   const {
@@ -88,6 +95,17 @@ export function AdminPayouts() {
   });
   const rawVendors = vendorsRes?.data?.data || vendorsRes?.data || [];
   const vendors: VendorPayoutItem[] = Array.isArray(rawVendors) ? rawVendors : [];
+
+  // Fetch vendor withdrawal requests queue
+  const {
+    data: requestsRes,
+    isLoading: isRequestsLoading,
+    refetch: refetchRequests,
+  } = useQuery({
+    queryKey: ["adminPayoutsRequests"],
+    queryFn: () => api.get<any>("/admin/payouts/requests"),
+  });
+  const payoutRequests: any[] = requestsRes?.data?.data || requestsRes?.data || [];
 
   // Single disburse mutation
   const disburseMutation = useMutation({
@@ -119,6 +137,28 @@ export function AdminPayouts() {
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to batch disburse payouts");
+    },
+  });
+
+  // Process On-Demand Withdrawal Request mutation
+  const processRequestMutation = useMutation({
+    mutationFn: ({ requestId, action, utr, notes }: { requestId: string; action: "APPROVE" | "REJECT"; utr?: string; notes?: string }) =>
+      api.post(`/admin/payouts/requests/${requestId}/process`, {
+        action,
+        utr_reference: utr,
+        admin_notes: notes,
+      }),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ["adminPayoutsRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["adminPayoutsSummary"] });
+      toast.success(res?.message || "Withdrawal request processed successfully! 🎉");
+      setIsProcessRequestModalOpen(false);
+      setSelectedRequest(null);
+      setTransactionRef("");
+      setAdminNotes("");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to process withdrawal request");
     },
   });
 
@@ -308,147 +348,427 @@ export function AdminPayouts() {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search vendor, bank account, or UPI..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 rounded-xl"
-            />
-          </div>
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-2 border-b border-border pb-1">
+        <button
+          onClick={() => setActiveTab("balances")}
+          className={`px-4 py-2.5 text-xs font-bold rounded-2xl transition-all flex items-center gap-2 ${
+            activeTab === "balances"
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          }`}
+        >
+          <Building2 className="h-4 w-4" />
+          Pending Vendor Balances ({vendors.length})
+        </button>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button
-              variant={filter === "ALL" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("ALL")}
-              className="rounded-xl text-xs"
-            >
-              All ({vendors.length})
-            </Button>
-            <Button
-              variant={filter === "READY" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("READY")}
-              className="rounded-xl text-xs"
-            >
-              Bank Linked ({vendors.filter((v) => v.has_valid_bank).length})
-            </Button>
-            <Button
-              variant={filter === "MISSING_BANK" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("MISSING_BANK")}
-              className="rounded-xl text-xs text-amber-600"
-            >
-              Missing Bank ({vendors.filter((v) => !v.has_valid_bank).length})
-            </Button>
-          </div>
-        </div>
-
-        {/* Vendors Payout Table */}
-        {isVendorsLoading ? (
-          <div className="flex items-center justify-center p-16">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : filteredVendors.length === 0 ? (
-          <div className="py-16 text-center text-muted-foreground border-2 border-dashed border-border rounded-2xl">
-            <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500 mb-2 opacity-80" />
-            <div className="font-bold text-foreground">No Pending Payouts Found</div>
-            <p className="text-xs mt-1">All vendor accounts are up to date and settled.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-border bg-muted/30 text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                <tr>
-                  <th className="py-3.5 px-4 rounded-l-xl">Vendor Business</th>
-                  <th className="py-3.5 px-4">Bank / UPI Details</th>
-                  <th className="py-3.5 px-4 text-center">Unpaid Orders</th>
-                  <th className="py-3.5 px-4 text-right">Payable Balance</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-right rounded-r-xl">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredVendors.map((v) => (
-                  <tr key={v.vendor_id} className="hover:bg-muted/20 transition-colors">
-                    <td className="py-4 px-4">
-                      <div className="font-bold text-foreground">{v.business_name}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {v.owner_name} • {v.phone || v.email}
-                      </div>
-                    </td>
-
-                    <td className="py-4 px-4">
-                      {v.bank_account_number ? (
-                        <div>
-                          <div className="font-mono text-xs font-bold text-foreground">
-                            A/C: ••••{v.bank_account_number.slice(-4)} ({v.bank_ifsc})
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {v.bank_account_holder_name || v.owner_name}
-                            {v.bank_name ? ` • ${v.bank_name}` : ""}
-                          </div>
-                        </div>
-                      ) : v.upi_id ? (
-                        <div className="font-mono text-xs font-bold text-foreground">
-                          UPI: {v.upi_id}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-amber-600 font-semibold flex items-center gap-1">
-                          <ShieldAlert className="h-3.5 w-3.5" /> No bank details
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-4 px-4 text-center">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {v.unsettled_orders_count} orders
-                      </Badge>
-                    </td>
-
-                    <td className="py-4 px-4 text-right">
-                      <div className="font-display font-black text-base text-foreground">
-                        ₹{v.pending_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </div>
-                    </td>
-
-                    <td className="py-4 px-4 text-center">
-                      {v.has_valid_bank ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Ready
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                          <HelpCircle className="h-3.5 w-3.5" /> Needs Setup
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-4 px-4 text-right">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedVendor(v);
-                          setIsDisburseModalOpen(true);
-                        }}
-                        disabled={v.pending_amount <= 0}
-                        className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 px-3.5 shadow-sm"
-                      >
-                        <Banknote className="h-3.5 w-3.5 mr-1.5" /> Disburse
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <button
+          onClick={() => setActiveTab("requests")}
+          className={`px-4 py-2.5 text-xs font-bold rounded-2xl transition-all flex items-center gap-2 ${
+            activeTab === "requests"
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          }`}
+        >
+          <Send className="h-4 w-4" />
+          On-Demand Withdrawal Requests ({payoutRequests.length})
+          {payoutRequests.filter((r) => r.status === "PENDING").length > 0 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-extrabold animate-pulse">
+              {payoutRequests.filter((r) => r.status === "PENDING").length} Pending
+            </span>
+          )}
+        </button>
       </div>
+
+      {activeTab === "balances" ? (
+        /* Filter and Search Bar for Vendor Balances */
+        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search vendor, bank account, or UPI..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                variant={filter === "ALL" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter("ALL")}
+                className="rounded-xl text-xs"
+              >
+                All ({vendors.length})
+              </Button>
+              <Button
+                variant={filter === "READY" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter("READY")}
+                className="rounded-xl text-xs"
+              >
+                Bank Linked ({vendors.filter((v) => v.has_valid_bank).length})
+              </Button>
+              <Button
+                variant={filter === "MISSING_BANK" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter("MISSING_BANK")}
+                className="rounded-xl text-xs text-amber-600"
+              >
+                Missing Bank ({vendors.filter((v) => !v.has_valid_bank).length})
+              </Button>
+            </div>
+          </div>
+
+          {/* Vendors Payout Table */}
+          {isVendorsLoading ? (
+            <div className="flex items-center justify-center p-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : filteredVendors.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground border-2 border-dashed border-border rounded-2xl">
+              <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500 mb-2 opacity-80" />
+              <div className="font-bold text-foreground">No Pending Payouts Found</div>
+              <p className="text-xs mt-1">All vendor accounts are up to date and settled.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-border bg-muted/30 text-xs uppercase font-bold text-muted-foreground tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4 rounded-l-xl">Vendor Business</th>
+                    <th className="py-3.5 px-4">Bank / UPI Details</th>
+                    <th className="py-3.5 px-4 text-center">Unpaid Orders</th>
+                    <th className="py-3.5 px-4 text-right">Payable Balance</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-right rounded-r-xl">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredVendors.map((v) => (
+                    <tr key={v.vendor_id} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="font-bold text-foreground">{v.business_name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {v.owner_name} • {v.phone || v.email}
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4">
+                        {v.bank_account_number ? (
+                          <div>
+                            <div className="font-mono text-xs font-bold text-foreground">
+                              A/C: ••••{v.bank_account_number.slice(-4)} ({v.bank_ifsc})
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {v.bank_account_holder_name || v.owner_name}
+                              {v.bank_name ? ` • ${v.bank_name}` : ""}
+                            </div>
+                          </div>
+                        ) : v.upi_id ? (
+                          <div className="font-mono text-xs font-bold text-foreground">
+                            UPI: {v.upi_id}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-amber-600 font-semibold flex items-center gap-1">
+                            <ShieldAlert className="h-3.5 w-3.5" /> No bank details
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-4 px-4 text-center">
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {v.unsettled_orders_count} orders
+                        </Badge>
+                      </td>
+
+                      <td className="py-4 px-4 text-right">
+                        <div className="font-display font-black text-base text-foreground">
+                          ₹{v.pending_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4 text-center">
+                        {v.has_valid_bank ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Ready
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                            <HelpCircle className="h-3.5 w-3.5" /> Needs Setup
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-4 px-4 text-right">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedVendor(v);
+                            setIsDisburseModalOpen(true);
+                          }}
+                          disabled={v.pending_amount <= 0}
+                          className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 px-3.5 shadow-sm"
+                        >
+                          <Banknote className="h-3.5 w-3.5 mr-1.5" /> Disburse
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* On-Demand Withdrawal Requests Queue */
+        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-display font-bold text-base text-foreground">
+                Vendor Withdrawal Requests Queue
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Review and disburse on-demand payout requests initiated by vendors.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchRequests()}
+              className="rounded-xl text-xs flex items-center gap-1.5"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </Button>
+          </div>
+
+          {isRequestsLoading ? (
+            <div className="flex items-center justify-center p-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : payoutRequests.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground border-2 border-dashed border-border rounded-2xl">
+              <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500 mb-2 opacity-80" />
+              <div className="font-bold text-foreground">No Withdrawal Requests in Queue</div>
+              <p className="text-xs mt-1">Vendors haven't initiated any pending withdrawal requests.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-border bg-muted/30 text-xs uppercase font-bold text-muted-foreground tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4 rounded-l-xl">Requested Date</th>
+                    <th className="py-3.5 px-4">Vendor</th>
+                    <th className="py-3.5 px-4 text-right">Amount</th>
+                    <th className="py-3.5 px-4">Destination</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4">UTR Reference</th>
+                    <th className="py-3.5 px-4 text-right rounded-r-xl">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {payoutRequests.map((req) => (
+                    <tr key={req.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-4 px-4 text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(req.created_at).toLocaleString()}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="font-bold text-foreground">{req.vendor_name}</div>
+                        <div className="text-xs text-muted-foreground">{req.owner_name}</div>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="font-display font-black text-base text-foreground">
+                          ₹{req.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-xs">
+                        {req.payout_mode === "UPI" ? (
+                          <div className="font-mono font-bold text-foreground">
+                            UPI: {req.upi_id}
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="font-mono font-bold text-foreground">
+                              A/C: ••••{(req.account_number || "").slice(-4)} ({req.ifsc_code})
+                            </div>
+                            <div className="text-muted-foreground">{req.bank_name || req.account_holder}</div>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        {req.status === "COMPLETED" ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                            <CheckCircle2 className="h-3 w-3" /> Transferred
+                          </span>
+                        ) : req.status === "REJECTED" ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-rose-500/15 text-rose-700 dark:text-rose-400 px-2.5 py-1 rounded-full border border-rose-500/20">
+                            Declined
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20 animate-pulse">
+                            <Clock className="h-3 w-3" /> Pending Review
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4 font-mono text-xs text-muted-foreground">
+                        {req.utr_reference || "—"}
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        {req.status === "PENDING" ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedRequest(req);
+                                setRequestAction("APPROVE");
+                                setTransactionRef("");
+                                setIsProcessRequestModalOpen(true);
+                              }}
+                              className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-3"
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedRequest(req);
+                                setRequestAction("REJECT");
+                                setAdminNotes("");
+                                setIsProcessRequestModalOpen(true);
+                              }}
+                              className="rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 text-xs h-8 px-3 border-rose-200 dark:border-rose-900"
+                            >
+                              Decline
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">Processed</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Process On-Demand Withdrawal Request Modal */}
+      <Dialog open={isProcessRequestModalOpen} onOpenChange={setIsProcessRequestModalOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-display text-xl font-bold">
+              {requestAction === "APPROVE" ? (
+                <>
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                  Approve & Disburse Payout
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="h-6 w-6 text-rose-600" />
+                  Decline Withdrawal Request
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {requestAction === "APPROVE"
+                ? "Enter the Bank IMPS/UPI reference number to confirm settlement."
+                : "Specify the reason for declining this withdrawal request."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRequest && (
+            <div className="space-y-3 py-2">
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Vendor:</span>
+                  <span className="font-bold text-foreground">{selectedRequest.vendor_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount:</span>
+                  <span className="font-black text-sm text-emerald-600">₹{selectedRequest.amount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Destination:</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {selectedRequest.payout_mode === "UPI"
+                      ? selectedRequest.upi_id
+                      : `A/C: ••••${(selectedRequest.account_number || "").slice(-4)} (${selectedRequest.ifsc_code})`}
+                  </span>
+                </div>
+              </div>
+
+              {requestAction === "APPROVE" ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Bank Transfer UTR / Reference ID
+                  </label>
+                  <Input
+                    placeholder="e.g. UTR-982348123 or IMPS-8291823"
+                    value={transactionRef}
+                    onChange={(e) => setTransactionRef(e.target.value)}
+                    className="rounded-xl text-sm font-mono"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Decline Reason (Shown to vendor)
+                  </label>
+                  <Input
+                    placeholder="e.g. Incorrect bank account number or KYC discrepancy"
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    className="rounded-xl text-sm"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsProcessRequestModalOpen(false)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (selectedRequest) {
+                  processRequestMutation.mutate({
+                    requestId: selectedRequest.id,
+                    action: requestAction,
+                    utr: transactionRef || undefined,
+                    notes: adminNotes || undefined,
+                  });
+                }
+              }}
+              disabled={processRequestMutation.isPending}
+              className={`rounded-xl font-bold text-white ${
+                requestAction === "APPROVE"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-rose-600 hover:bg-rose-700"
+              }`}
+            >
+              {processRequestMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : requestAction === "APPROVE" ? (
+                "Confirm & Mark Transferred"
+              ) : (
+                "Decline Request"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Single Vendor Disburse Modal */}
       <Dialog open={isDisburseModalOpen} onOpenChange={setIsDisburseModalOpen}>

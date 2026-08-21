@@ -3,6 +3,7 @@ import prisma from "../database/prisma";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { settingsService } from "./settings.service";
 import { SETTING_KEYS } from "../constants/settings";
+import { notificationService } from "./notification.service";
 
 export interface VendorBankInput {
   bank_account_number?: string | null;
@@ -355,6 +356,373 @@ export const payoutService = {
       v.pending_amount.toFixed(2),
       v.unsettled_orders_count,
       `"${v.vendor_id}"`,
+    ]);
+
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  },
+
+  /**
+   * Retrieves comprehensive wallet overview for a specific vendor.
+   */
+  async getVendorWalletOverview(vendorId: string) {
+    const rawVendor = await prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+      include: {
+        user: { select: { name: true, email: true, phone: true } },
+      },
+    });
+
+    if (!rawVendor) {
+      throw new Error("Vendor profile not found");
+    }
+    const vendor = rawVendor as any;
+
+    // 1. Settled Earnings (Gross earned ready for withdrawal)
+    const settledAgg = await prisma.vendorEarning.aggregate({
+      where: { vendor_id: vendorId, status: "SETTLED" },
+      _sum: { amount: true },
+    });
+
+    // 2. Pending Escrow (Earnings locked on active/in-transit orders)
+    const pendingAgg = await prisma.vendorEarning.aggregate({
+      where: { vendor_id: vendorId, status: "PENDING" },
+      _sum: { amount: true },
+    });
+
+    // 3. Processed / Completed Withdrawals
+    const completedWithdrawalsAgg = await prisma.payoutRequest.aggregate({
+      where: { vendor_id: vendorId, status: "COMPLETED" },
+      _sum: { amount: true },
+    });
+
+    // 4. In-flight / Pending Withdrawal Requests
+    const inFlightWithdrawalsAgg = await prisma.payoutRequest.aggregate({
+      where: {
+        vendor_id: vendorId,
+        status: { in: ["PENDING", "PROCESSING"] },
+      },
+      _sum: { amount: true },
+    });
+
+    const totalSettledEarnings = Number(settledAgg._sum.amount ?? 0);
+    const totalPendingEscrow = Number(pendingAgg._sum.amount ?? 0);
+    const totalWithdrawn = Number(completedWithdrawalsAgg._sum.amount ?? 0);
+    const inFlightWithdrawing = Number(inFlightWithdrawalsAgg._sum.amount ?? 0);
+
+    // Available balance is total settled earnings minus what has already been withdrawn or is in-flight
+    const availableBalance = Math.max(0, Math.round((totalSettledEarnings - totalWithdrawn - inFlightWithdrawing) * 100) / 100);
+
+    // 5. Recent Withdrawal Requests
+    const recentWithdrawals = await prisma.payoutRequest.findMany({
+      where: { vendor_id: vendorId },
+      orderBy: { created_at: "desc" },
+      take: 10,
+    });
+
+    // 6. Recent Line-by-Line Wallet Ledger (Earning credits, reversals, payouts)
+    const recentEarnings = await prisma.vendorEarning.findMany({
+      where: { vendor_id: vendorId },
+      include: {
+        order: {
+          select: { order_number: true, total: true, status: true, created_at: true },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      take: 20,
+    });
+
+    return {
+      available_balance: availableBalance,
+      pending_escrow: totalPendingEscrow,
+      total_withdrawn: totalWithdrawn,
+      in_flight_withdrawing: inFlightWithdrawing,
+      lifetime_settled: totalSettledEarnings,
+      commission_rate: Number(vendor.commission_rate ?? 5),
+      bank_configured: Boolean(vendor.bank_account_number && vendor.bank_ifsc),
+      bank_details: {
+        bank_account_number: vendor.bank_account_number || null,
+        bank_ifsc: vendor.bank_ifsc || null,
+        bank_account_holder_name: vendor.bank_account_holder_name || null,
+        bank_name: vendor.bank_name || null,
+        upi_id: vendor.upi_id || null,
+        razorpay_account_id: vendor.razorpay_account_id || null,
+        payout_enabled: vendor.payout_enabled !== false,
+      },
+      recent_withdrawals: recentWithdrawals.map((w) => ({
+        id: w.id,
+        amount: Number(w.amount),
+        payout_mode: w.payout_mode,
+        account_number: w.account_number,
+        ifsc_code: w.ifsc_code,
+        upi_id: w.upi_id,
+        status: w.status,
+        utr_reference: w.utr_reference,
+        notes: w.notes,
+        created_at: w.created_at,
+        processed_at: w.processed_at,
+      })),
+      wallet_ledger: recentEarnings.map((e) => ({
+        id: e.id,
+        type: e.type,
+        status: e.status,
+        amount: Number(e.amount),
+        order_number: e.order?.order_number || null,
+        order_total: e.order ? Number(e.order.total) : null,
+        reference_id: e.reference_id,
+        created_at: e.created_at,
+      })),
+    };
+  },
+
+  /**
+   * Initiates an on-demand vendor payout withdrawal request.
+   */
+  async requestVendorWithdrawal(
+    vendorId: string,
+    input: { amount: number; payout_mode?: "BANK_TRANSFER" | "UPI"; notes?: string }
+  ) {
+    const rawVendor = await prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+      include: { user: true },
+    });
+
+    if (!rawVendor) {
+      throw new Error("Vendor profile not found");
+    }
+    const vendor = rawVendor as any;
+
+    if (vendor.payout_enabled === false) {
+      throw new Error("Payouts are disabled for this account. Please contact support.");
+    }
+
+    const requestedAmount = Math.round(Number(input.amount) * 100) / 100;
+    if (isNaN(requestedAmount) || requestedAmount < 100) {
+      throw new Error("Minimum withdrawal amount is ₹100.");
+    }
+
+    const mode = input.payout_mode || (vendor.upi_id ? "UPI" : "BANK_TRANSFER");
+    if (mode === "BANK_TRANSFER" && (!vendor.bank_account_number || !vendor.bank_ifsc)) {
+      throw new Error("Please configure your Bank Account Number and IFSC Code before requesting a bank payout.");
+    }
+    if (mode === "UPI" && !vendor.upi_id) {
+      throw new Error("Please configure your UPI ID before requesting a UPI payout.");
+    }
+
+    const overview = await this.getVendorWalletOverview(vendorId);
+    if (requestedAmount > overview.available_balance) {
+      throw new Error(`Insufficient available wallet balance. Maximum withdrawable: ₹${overview.available_balance.toFixed(2)}`);
+    }
+
+    const request = await prisma.payoutRequest.create({
+      data: {
+        vendor_id: vendorId,
+        amount: requestedAmount,
+        payout_mode: mode,
+        account_number: vendor.bank_account_number,
+        ifsc_code: vendor.bank_ifsc,
+        account_holder: vendor.bank_account_holder_name || vendor.owner_name || vendor.business_name,
+        bank_name: vendor.bank_name,
+        upi_id: vendor.upi_id,
+        status: "PENDING",
+        notes: input.notes || null,
+      },
+    });
+
+    // Notify vendor
+    if (vendor.user_id) {
+      await notificationService.vendor(
+        vendor.user_id,
+        "Withdrawal Request Submitted 💸",
+        `Your request for ₹${requestedAmount.toFixed(2)} via ${mode === "UPI" ? "UPI" : "Bank Transfer"} has been received. Funds will be transferred to your account shortly.`,
+        { payout_request_id: request.id, amount: requestedAmount }
+      );
+    }
+
+    // Auto-disburse if Razorpay Route Linked Account exists and Admin auto-payout is on
+    const settings = await settingsService.getAllSettings();
+    const isWalletEnabled = settings[SETTING_KEYS.VENDOR_WALLET_ENABLED] !== false;
+    const payoutMode = (settings[SETTING_KEYS.VENDOR_PAYOUT_MODE] as string) || "razorpay_route";
+
+    if (isWalletEnabled && payoutMode === "razorpay_route" && vendor.razorpay_account_id && razorpayGateway.isConfigured()) {
+      try {
+        const transferRes = await razorpayGateway.transferToLinkedAccount("direct_payout", {
+          accountId: vendor.razorpay_account_id,
+          amountPaise: Math.round(requestedAmount * 100),
+          currency: "INR",
+          notes: {
+            payout_request_id: request.id,
+            vendor_id: vendorId,
+          },
+        });
+
+        const updated = await prisma.payoutRequest.update({
+          where: { id: request.id },
+          data: {
+            status: "COMPLETED",
+            utr_reference: (transferRes as any)?.id || (transferRes as any)?.items?.[0]?.id || `ROUTE-${Date.now()}`,
+            processed_at: new Date(),
+          },
+        });
+
+        if (vendor.user_id) {
+          await notificationService.vendor(
+            vendor.user_id,
+            "Payout Disbursed to Bank 🎉",
+            `₹${requestedAmount.toFixed(2)} has been credited to your linked account via Razorpay Route.`,
+            { payout_request_id: request.id, amount: requestedAmount }
+          );
+        }
+
+        return {
+          success: true,
+          request: updated,
+          auto_settled: true,
+          message: "Payout automatically transferred via Razorpay Route!",
+        };
+      } catch (err: any) {
+        log.warn(`[payout] Auto-transfer via Route skipped for withdrawal ${request.id}: ${err.message}`);
+      }
+    }
+
+    return {
+      success: true,
+      request,
+      auto_settled: false,
+      message: "Withdrawal request submitted successfully! Admin will process your payout.",
+    };
+  },
+
+  /**
+   * Admin approves or rejects a vendor payout request.
+   */
+  async adminProcessPayoutRequest(
+    requestId: string,
+    adminUserId: string,
+    input: { action: "APPROVE" | "REJECT"; utr_reference?: string; admin_notes?: string }
+  ) {
+    const request = await prisma.payoutRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        vendor: {
+          include: { user: true },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new Error("Payout request not found");
+    }
+
+    if (request.status === "COMPLETED" || request.status === "REJECTED") {
+      throw new Error(`This request has already been ${request.status.toLowerCase()}.`);
+    }
+
+    const vendor = (request as any).vendor;
+    const isApprove = input.action === "APPROVE";
+    const ref = input.utr_reference || `BANK-UTR-${Date.now()}`;
+
+    const updated = await prisma.payoutRequest.update({
+      where: { id: requestId },
+      data: {
+        status: isApprove ? "COMPLETED" : "REJECTED",
+        utr_reference: isApprove ? ref : null,
+        admin_notes: input.admin_notes || null,
+        processed_by: adminUserId,
+        processed_at: new Date(),
+      },
+    });
+
+    if (vendor?.user_id) {
+      if (isApprove) {
+        await notificationService.vendor(
+          vendor.user_id,
+          "Payout Credited to Your Bank! 💸",
+          `₹${Number(request.amount).toFixed(2)} has been transferred to your account (${request.payout_mode}) with UTR Ref: ${ref}.`,
+          { payout_request_id: request.id, amount: Number(request.amount), utr: ref }
+        );
+      } else {
+        await notificationService.vendor(
+          vendor.user_id,
+          "Withdrawal Request Declined ⚠️",
+          `Your withdrawal request for ₹${Number(request.amount).toFixed(2)} was declined. Reason: ${input.admin_notes || "Please verify your bank details."}`,
+          { payout_request_id: request.id, amount: Number(request.amount) }
+        );
+      }
+    }
+
+    return {
+      success: true,
+      request: updated,
+      message: isApprove ? "Payout marked as completed." : "Payout request rejected.",
+    };
+  },
+
+  /**
+   * Admin lists all payout requests with status filter.
+   */
+  async adminListPayoutRequests(query?: { status?: string; vendorId?: string }) {
+    const where: any = {};
+    if (query?.status && query.status !== "ALL") {
+      where.status = query.status;
+    }
+    if (query?.vendorId) {
+      where.vendor_id = query.vendorId;
+    }
+
+    const requests = await prisma.payoutRequest.findMany({
+      where,
+      include: {
+        vendor: {
+          include: {
+            user: { select: { name: true, email: true, phone: true } },
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    return requests.map((r: any) => ({
+      id: r.id,
+      vendor_id: r.vendor_id,
+      vendor_name: r.vendor?.business_name || "Unknown Store",
+      owner_name: r.vendor?.owner_name || r.vendor?.user?.name || "",
+      amount: Number(r.amount),
+      payout_mode: r.payout_mode,
+      account_number: r.account_number,
+      ifsc_code: r.ifsc_code,
+      account_holder: r.account_holder,
+      bank_name: r.bank_name,
+      upi_id: r.upi_id,
+      status: r.status,
+      utr_reference: r.utr_reference,
+      notes: r.notes,
+      admin_notes: r.admin_notes,
+      created_at: r.created_at,
+      processed_at: r.processed_at,
+    }));
+  },
+
+  /**
+   * Exports line-by-line wallet statement CSV for vendor accounting.
+   */
+  async exportVendorWalletStatementCsv(vendorId: string): Promise<string> {
+    const earnings = await prisma.vendorEarning.findMany({
+      where: { vendor_id: vendorId },
+      include: {
+        order: { select: { order_number: true, total: true, status: true } },
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    const headers = ["Date", "Order Number", "Transaction Type", "Order Value (INR)", "Net Earning (INR)", "Status", "Reference"];
+    const rows = earnings.map((e) => [
+      `"${new Date(e.created_at).toISOString()}"`,
+      `"${e.order?.order_number || ""}"`,
+      `"${e.type}"`,
+      e.order ? Number(e.order.total).toFixed(2) : "0.00",
+      Number(e.amount).toFixed(2),
+      `"${e.status}"`,
+      `"${e.reference_id || ""}"`,
     ]);
 
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

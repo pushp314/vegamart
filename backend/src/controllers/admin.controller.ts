@@ -1073,3 +1073,18 @@ export const getStorageHealthMetrics = asyncHandler(async (_req: Request, res: R
   return sendSuccess(res, data);
 });
 
+export const listPayoutRequests = asyncHandler(async (req: Request, res: Response) => {
+  const data = await payoutService.adminListPayoutRequests(req.query as never);
+  return sendSuccess(res, data);
+});
+
+export const processPayoutRequest = asyncHandler(async (req: Request, res: Response) => {
+  const data = await payoutService.adminProcessPayoutRequest(
+    req.params.id as string,
+    req.user!.id,
+    req.body as never
+  );
+  return sendSuccess(res, data);
+});
+
+

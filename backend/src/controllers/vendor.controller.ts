@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { vendorService } from "../services/vendor.service";
+import { payoutService } from "../services/payout.service";
 import { discoveryService } from "../services/discovery.service";
 import { analyticsService } from "../services/analytics.service";
 import { supportService } from "../services/support.service";
@@ -829,3 +830,41 @@ export const bulkUploadProducts = asyncHandler(async (req: Request, res: Respons
   const result = await vendorService.bulkUploadProducts(req.user!.id, req.file.buffer);
   return sendSuccess(res, result, { message: "Products uploaded successfully" });
 });
+
+export const getVendorWallet = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  if (!vendor) throw new Error("Vendor profile not found");
+  const wallet = await payoutService.getVendorWalletOverview(vendor.id);
+  return sendSuccess(res, wallet);
+});
+
+export const requestVendorWithdrawal = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  if (!vendor) throw new Error("Vendor profile not found");
+  const result = await payoutService.requestVendorWithdrawal(vendor.id, req.body);
+  return sendSuccess(res, result, { message: result.message });
+});
+
+export const updateVendorBankDetails = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  if (!vendor) throw new Error("Vendor profile not found");
+  
+  // Update vendor profile fields
+  const updatedVendor = await vendorService.update(req.user!.id, req.body, req);
+  
+  // Attempt sync with Razorpay Linked Sub-Merchant Account if configured
+  await payoutService.syncVendorLinkedAccount(vendor.id, req.body);
+
+  return sendSuccess(res, updatedVendor, { message: "Bank & Payout details updated successfully." });
+});
+
+export const exportVendorWalletStatement = asyncHandler(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getMyVendor(req.user!.id);
+  if (!vendor) throw new Error("Vendor profile not found");
+  const csv = await payoutService.exportVendorWalletStatementCsv(vendor.id);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename=wallet-statement-${vendor.id.slice(0, 8)}.csv`);
+  return res.send(csv);
+});
+
+

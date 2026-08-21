@@ -52,6 +52,8 @@ import {
   exportPayoutsCsv,
   getDisputesQueue,
   getStorageHealthMetrics,
+  listPayoutRequests,
+  processPayoutRequest,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -198,6 +200,8 @@ router.get("/vendors/:vendor_id/earnings", validate({ params: vendorIdParamsSche
 // Vendor Payouts Hub
 router.get("/payouts/summary", getPayoutSummary);
 router.get("/payouts/vendors", getVendorsWithPendingPayouts);
+router.get("/payouts/requests", listPayoutRequests);
+router.post("/payouts/requests/:id/process", processPayoutRequest);
 router.post("/payouts/disburse/:vendor_id", validate({ params: vendorIdParamsSchema }), disburseVendorPayout);
 router.post("/payouts/disburse-all", disburseAllPendingPayouts);
 router.get("/payouts/export-csv", exportPayoutsCsv);

@@ -36,6 +36,10 @@ import {
   upsertDailyLocation,
   bulkUploadProducts,
   createSuspensionAppeal,
+  getVendorWallet,
+  requestVendorWithdrawal,
+  updateVendorBankDetails,
+  exportVendorWalletStatement,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
 import { requirePlan } from "../../middlewares/subscription.middleware";
@@ -77,6 +81,10 @@ router.put("/vendors/me", authenticate, validate({ body: updateVendorSchema }), 
 router.get("/vendors/me/kyc", authenticate, requireRole(ROLES.VENDOR), getVendorKyc);
 router.post("/vendors/me/kyc", authenticate, blockGuest, requireRole(ROLES.VENDOR), validate({ body: vendorKycSchema }), submitVendorKyc);
 router.get("/vendors/me/earnings", authenticate, requireRole(ROLES.VENDOR), getVendorEarnings);
+router.get("/vendors/me/wallet", authenticate, requireRole(ROLES.VENDOR), getVendorWallet);
+router.post("/vendors/me/withdrawals/request", authenticate, requireRole(ROLES.VENDOR), requestVendorWithdrawal);
+router.put("/vendors/me/bank-details", authenticate, requireRole(ROLES.VENDOR), updateVendorBankDetails);
+router.get("/vendors/me/wallet/statement/export", authenticate, requireRole(ROLES.VENDOR), exportVendorWalletStatement);
 router.get("/vendors/me/membership", authenticate, requireRole(ROLES.VENDOR), getMyMembership);
 router.post(
   "/vendors/me/membership",
