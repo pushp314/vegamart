@@ -40,6 +40,8 @@ import {
   requestVendorWithdrawal,
   updateVendorBankDetails,
   exportVendorWalletStatement,
+  verifyUpi,
+  verifyBank,
 } from "../../controllers/vendor.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
 import { requirePlan } from "../../middlewares/subscription.middleware";
@@ -84,6 +86,8 @@ router.get("/vendors/me/earnings", authenticate, requireRole(ROLES.VENDOR), getV
 router.get("/vendors/me/wallet", authenticate, requireRole(ROLES.VENDOR), getVendorWallet);
 router.post("/vendors/me/withdrawals/request", authenticate, requireRole(ROLES.VENDOR), requestVendorWithdrawal);
 router.put("/vendors/me/bank-details", authenticate, requireRole(ROLES.VENDOR), updateVendorBankDetails);
+router.post("/vendors/me/verify-upi", authenticate, requireRole(ROLES.VENDOR), verifyUpi);
+router.post("/vendors/me/verify-bank", authenticate, requireRole(ROLES.VENDOR), verifyBank);
 router.get("/vendors/me/wallet/statement/export", authenticate, requireRole(ROLES.VENDOR), exportVendorWalletStatement);
 router.get("/vendors/me/membership", authenticate, requireRole(ROLES.VENDOR), getMyMembership);
 router.post(

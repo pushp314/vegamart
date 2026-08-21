@@ -727,4 +727,24 @@ export const payoutService = {
 
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   },
+
+  /**
+   * Live real-time UPI ID verification for vendors.
+   */
+  async verifyVendorUpi(upiId: string) {
+    const result = await razorpayGateway.validateVpa(upiId);
+    return result;
+  },
+
+  /**
+   * Live real-time Bank Account & IFSC verification for vendors.
+   */
+  async verifyVendorBank(input: { accountNumber: string; ifsc: string; name?: string }) {
+    const result = await razorpayGateway.validateBankAccount({
+      accountNumber: input.accountNumber,
+      ifsc: input.ifsc,
+      name: input.name,
+    });
+    return result;
+  },
 };

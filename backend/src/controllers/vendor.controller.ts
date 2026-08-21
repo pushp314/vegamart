@@ -867,4 +867,26 @@ export const exportVendorWalletStatement = asyncHandler(async (req: Request, res
   return res.send(csv);
 });
 
+export const verifyUpi = asyncHandler(async (req: Request, res: Response) => {
+  const upiId = (req.body?.upi_id || req.query?.upi_id || "").toString().trim();
+  if (!upiId) {
+    return sendSuccess(res, { valid: false, message: "Please provide a valid UPI ID." });
+  }
+  const result = await payoutService.verifyVendorUpi(upiId);
+  return sendSuccess(res, result);
+});
+
+export const verifyBank = asyncHandler(async (req: Request, res: Response) => {
+  const { account_number, ifsc, name } = req.body || {};
+  if (!account_number || !ifsc) {
+    return sendSuccess(res, { valid: false, message: "Account number and IFSC code are required." });
+  }
+  const result = await payoutService.verifyVendorBank({
+    accountNumber: String(account_number),
+    ifsc: String(ifsc),
+    name: name ? String(name) : undefined,
+  });
+  return sendSuccess(res, result);
+});
+
 
