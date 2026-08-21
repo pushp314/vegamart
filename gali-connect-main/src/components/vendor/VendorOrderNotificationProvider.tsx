@@ -141,6 +141,29 @@ export function VendorOrderNotificationProvider({
     return audioCtxRef.current;
   }, []);
 
+  // Unlock AudioContext on first user interaction to bypass autoplay restrictions
+  useEffect(() => {
+    const unlockAudio = () => {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      document.removeEventListener("pointerdown", unlockAudio);
+      document.removeEventListener("keydown", unlockAudio);
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("pointerdown", unlockAudio);
+      document.addEventListener("keydown", unlockAudio);
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.removeEventListener("pointerdown", unlockAudio);
+        document.removeEventListener("keydown", unlockAudio);
+      }
+    };
+  }, [getAudioContext]);
+
   const startAlarmSound = useCallback(() => {
     if (!isSoundEnabled || isMuted) return;
     const ctx = getAudioContext();
@@ -403,10 +426,22 @@ export function VendorOrderNotificationProvider({
   }, [stopAlarmSound, startAlarmSound]);
 
   const handleAcceptAndView = useCallback(
-    (orderId: string) => {
+    async (orderId: string) => {
       dismissActiveOrder();
+      
+      try {
+        // Mark notifications as read so the badge clears when they view the order
+        await api.put("/notifications/read-all");
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+        
+        // Also optimistically set to 0 to feel instant
+        queryClient.setQueryData(["notifications", "unread-count"], { count: 0 });
+      } catch (err) {
+        console.error("Failed to mark notifications read", err);
+      }
     },
-    [dismissActiveOrder]
+    [dismissActiveOrder, queryClient]
   );
 
   return (

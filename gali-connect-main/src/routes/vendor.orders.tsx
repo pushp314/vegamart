@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -13,17 +13,27 @@ import {
 } from "@/components/ui/dialog";
 import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
 
+type VendorOrdersSearch = {
+  highlight?: string;
+};
+
 export const Route = createFileRoute("/vendor/orders")({
+  validateSearch: (search: Record<string, unknown>): VendorOrdersSearch => {
+    return {
+      highlight: typeof search.highlight === "string" ? search.highlight : undefined,
+    };
+  },
   component: VendorOrdersPage,
 });
 
 function VendorOrdersPage() {
+  const { highlight } = useSearch({ from: "/vendor/orders" });
   const queryClient = useQueryClient();
   const [otpTarget, setOtpTarget] = useState<any | null>(null);
   const [otpInput, setOtpInput] = useState("");
   const [rejectTarget, setRejectTarget] = useState<{ orderId: string; item: any } | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(highlight || "");
 
   const playDing = () => {
     try {
