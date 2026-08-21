@@ -280,13 +280,13 @@ export async function processEscrowReleaseJob(): Promise<{ releasedVendors: numb
  */
 export async function processScheduledVendorPayoutsJob(minThreshold = 500): Promise<number> {
   const { payoutService } = await import("../services/payout.service");
-  const vendors = await prisma.vendorProfile.findMany({
+  const vendors = await (prisma as any).vendorProfile.findMany({
     where: { payout_enabled: true },
     select: { id: true, business_name: true, user_id: true, bank_account_number: true, upi_id: true },
   });
 
   let processedCount = 0;
-  for (const v of vendors) {
+  for (const v of vendors as any[]) {
     if (!v.bank_account_number && !v.upi_id) continue;
     try {
       const overview = await payoutService.getVendorWalletOverview(v.id);
@@ -315,13 +315,13 @@ export async function processScheduledVendorPayoutsJob(minThreshold = 500): Prom
  */
 export async function processScheduledDeliveryPayoutsJob(minThreshold = 300): Promise<number> {
   const { deliveryService } = await import("../services/delivery.service");
-  const riders = await prisma.deliveryProfile.findMany({
+  const riders = await (prisma as any).deliveryProfile.findMany({
     where: { payout_enabled: true },
     select: { id: true, user_id: true, bank_account_number: true, upi_id: true },
   });
 
   let processedCount = 0;
-  for (const r of riders) {
+  for (const r of riders as any[]) {
     if (!r.bank_account_number && !r.upi_id) continue;
     try {
       const overview = await deliveryService.getDeliveryWalletOverview(r.id);
