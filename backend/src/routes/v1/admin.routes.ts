@@ -51,6 +51,7 @@ import {
   disburseAllPendingPayouts,
   exportPayoutsCsv,
   getDisputesQueue,
+  getStorageHealthMetrics,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -247,10 +248,11 @@ router.get("/analytics/growth", validate({ query: growthQuerySchema }), analytic
 router.get("/audit-logs", validate({ query: auditLogQuerySchema }), listAuditLogs);
 router.get("/audit-logs/:audit_log_id", validate({ params: auditLogIdParamsSchema }), getAuditLog);
 
-// Settings
+// Settings & Storage Health
 router.get("/settings", getSettings);
 router.patch("/settings", validate({ body: settingsUpdateSchema }), updateSettings);
 router.put("/settings", validate({ body: settingsUpdateSchema }), updateSettings);
+router.get("/storage/metrics", getStorageHealthMetrics);
 
 // Maintenance scheduling & alerts
 router.get("/maintenance", getMaintenanceStatus);

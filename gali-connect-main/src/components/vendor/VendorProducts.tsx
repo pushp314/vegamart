@@ -103,14 +103,14 @@ export function VendorProducts({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
           {productList.map((p: any) => (
             <div
               key={p.id}
-              className={`rounded-3xl border border-border bg-muted/50 p-4 space-y-3 shadow-2xl relative ${!p.is_active ? "opacity-70" : ""}`}
+              className={`rounded-2xl border border-border bg-card p-2.5 sm:p-3.5 space-y-2 shadow-sm relative ${!p.is_active ? "opacity-70" : ""}`}
             >
               {!p.is_active && (
-                <div className="absolute top-2 right-2 bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
+                <div className="absolute top-2 right-2 bg-rose-500 text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
                   Out of Stock
                 </div>
               )}
@@ -120,52 +120,49 @@ export function VendorProducts({
                   "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300"
                 }
                 alt={p.name}
-                className="h-28 w-full rounded-2xl object-cover"
+                className="h-24 sm:h-28 w-full rounded-xl object-cover"
               />
-              <div>
-                <div className="font-bold text-sm truncate">{p.name}</div>
-                <div className="text-xs text-muted-foreground">
+              <div className="space-y-0.5">
+                <div className="font-bold text-xs sm:text-sm truncate text-foreground">{p.name}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
                   {p.category?.name || "Uncategorized"}
                 </div>
-                <div className="text-xs font-bold text-emerald-600 mt-0.5">
+                <div className="text-xs sm:text-sm font-bold text-emerald-600">
                   ₹{p.price}{" "}
-                  <span className="text-muted-foreground font-normal text-[11px]">/ {p.unit}</span>
+                  <span className="text-muted-foreground font-normal text-[10px] sm:text-[11px]">/ {p.unit}</span>
                 </div>
-                <div className="mt-1 flex items-center gap-1.5 text-[10.5px] font-semibold">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold pt-0.5">
                   <span
-                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${
                       (p.stock ?? 0) > 0 ? "bg-emerald-500" : "bg-rose-500"
                     }`}
                   />
-                  <span className={p.stock > 0 ? "text-emerald-700" : "text-rose-600"}>
+                  <span className={p.stock > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"}>
                     {p.stock ?? 0} in stock
                   </span>
-                  {typeof p.total_stock === "number" && (
-                    <span className="text-muted-foreground">· {p.total_stock} total</span>
-                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 pt-2 border-t">
+              <div className="pt-1.5 border-t border-border/60 space-y-1.5">
                 <button
                   onClick={() => handleToggleStock(p)}
-                  className="flex-1 rounded-xl border border-border py-1.5 text-[11px] font-semibold hover:bg-accent/50"
+                  className="w-full rounded-lg border border-border py-1 text-[10px] sm:text-[11px] font-semibold hover:bg-accent/50 transition-colors"
                 >
                   {p.is_active ? "Mark Out of Stock" : "Mark In Stock"}
                 </button>
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  onClick={() => handleOpenEditProduct(p)}
-                  className="flex-1 flex items-center justify-center gap-1 rounded-xl border border-border py-1.5 text-[11px] font-semibold hover:bg-accent/50"
-                >
-                  <Edit2 className="h-3.5 w-3.5" /> Edit
-                </button>
-                <button
-                  onClick={() => setDeleteTarget(p)}
-                  className="p-1.5 rounded-xl border border-border text-destructive hover:bg-rose-500/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleOpenEditProduct(p)}
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-border py-1 text-[10px] sm:text-[11px] font-semibold hover:bg-accent/50 transition-colors"
+                  >
+                    <Edit2 className="h-3 w-3" /> Edit
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(p)}
+                    className="p-1 rounded-lg border border-border text-destructive hover:bg-rose-500/10 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}

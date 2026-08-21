@@ -472,7 +472,7 @@ function VendorProductsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4">
           {filteredProducts.map((p) => {
             const hasMrp = p.mrp && p.mrp > p.price;
             const discountPct = hasMrp ? Math.round(((p.mrp! - p.price) / p.mrp!) * 100) : 0;
@@ -480,34 +480,35 @@ function VendorProductsPage() {
             return (
               <div
                 key={p.id}
-                className={`group relative flex flex-col rounded-3xl border border-border bg-card p-4 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${
+                className={`group relative flex flex-col rounded-2xl border border-border bg-card p-2.5 sm:p-3.5 shadow-sm transition-all duration-200 hover:shadow-md ${
                   !p.is_active ? "opacity-75 bg-muted/20" : ""
                 } ${selectedProductIds.has(p.id) ? "ring-2 ring-emerald-500 bg-emerald-500/5" : ""}`}
               >
+                {/* Select Checkbox */}
                 <div 
-                  className="absolute top-3 left-3 z-20 cursor-pointer p-1 hover:scale-110 transition-transform"
+                  className="absolute top-2 left-2 z-20 cursor-pointer p-0.5 hover:scale-110 transition-transform"
                   onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}
                 >
                   {selectedProductIds.has(p.id) ? (
-                    <CheckSquare className="h-6 w-6 text-emerald-500 bg-white rounded-md shadow-sm" />
+                    <CheckSquare className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500 bg-white dark:bg-slate-900 rounded shadow-xs" />
                   ) : (
-                    <Square className="h-6 w-6 text-muted-foreground bg-white/50 backdrop-blur-sm rounded-md shadow-sm" />
+                    <Square className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground bg-white/70 dark:bg-slate-900/70 backdrop-blur-xs rounded shadow-xs" />
                   )}
                 </div>
 
                 {!p.is_active && (
-                  <span className="absolute top-3 right-3 z-10 rounded-full bg-rose-500/90 text-white text-[10px] font-bold px-2.5 py-0.5 shadow-sm backdrop-blur-sm">
+                  <span className="absolute top-2 right-2 z-10 rounded-full bg-rose-500 text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 shadow-xs backdrop-blur-xs">
                     Out of Stock
                   </span>
                 )}
 
                 {hasMrp && (
-                  <span className="absolute top-12 left-3 z-10 rounded-full bg-emerald-500 text-black text-[10px] font-black uppercase px-2.5 py-0.5 shadow-sm">
+                  <span className="absolute top-8 left-2 z-10 rounded-full bg-emerald-500 text-black text-[8px] sm:text-[9px] font-black uppercase px-1.5 py-0.5 shadow-xs">
                     {discountPct}% OFF
                   </span>
                 )}
 
-                <div className="relative mb-3 h-36 w-full overflow-hidden rounded-2xl bg-muted">
+                <div className="relative mb-2 sm:mb-2.5 h-24 sm:h-32 w-full overflow-hidden rounded-xl bg-muted">
                   <img
                     src={
                       p.images?.[0]?.url ||
@@ -518,43 +519,42 @@ function VendorProductsPage() {
                   />
                 </div>
 
-                <div className="flex-1 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="flex-1 space-y-0.5 sm:space-y-1">
+                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
                     {p.category?.name || "General"}
                   </div>
-                  <h3 className="font-bold text-sm truncate text-foreground">{p.name}</h3>
+                  <h3 className="font-bold text-xs sm:text-sm truncate text-foreground leading-snug">{p.name}</h3>
 
-                  <div className="flex items-baseline gap-2 pt-1">
-                    <span className="font-display text-lg font-black text-emerald-600">
+                  <div className="flex items-baseline gap-1 sm:gap-1.5 pt-0.5 flex-wrap">
+                    <span className="font-display text-sm sm:text-base font-black text-emerald-600">
                       ₹{p.price}
                     </span>
                     {hasMrp && (
-                      <span className="text-xs text-muted-foreground line-through">
+                      <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
                         ₹{p.mrp}
                       </span>
                     )}
-                    <span className="text-[11px] text-muted-foreground">/ {p.unit}</span>
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground">/ {p.unit}</span>
                   </div>
 
-                  <div className="text-[11px] text-muted-foreground pt-1 flex items-center gap-2 font-medium">
-                    <span className={`h-2 w-2 rounded-full ${(p.stock ?? 0) > 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
-                    <span>{p.stock ?? 0} remaining</span>
-
+                  <div className="text-[10px] sm:text-[11px] text-muted-foreground pt-0.5 flex items-center gap-1.5 font-medium">
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${(p.stock ?? 0) > 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                    <span className="truncate">{p.stock ?? 0} in stock</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-4 mt-3 border-t border-border/50">
+                <div className="grid grid-cols-2 gap-1.5 pt-2 mt-2 border-t border-border/60">
                   <button
                     onClick={() => handleOpenEdit(p)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted/40 py-2 text-xs font-bold hover:bg-accent"
+                    className="flex items-center justify-center gap-1 rounded-lg border border-border bg-muted/40 py-1.5 text-[10px] sm:text-xs font-bold hover:bg-accent transition-colors"
                   >
-                    <Edit2 className="h-3.5 w-3.5" /> Edit
+                    <Edit2 className="h-3 w-3" /> Edit
                   </button>
                   <button
                     onClick={() => setDeleteTarget(p)}
-                    className="flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50/50 py-2 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/20 dark:border-rose-900"
+                    className="flex items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50/50 py-1.5 text-[10px] sm:text-xs font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/20 dark:border-rose-900 transition-colors"
                   >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                    <Trash2 className="h-3 w-3" /> Delete
                   </button>
                 </div>
               </div>

@@ -12,6 +12,7 @@ import { productService } from "../services/product.service";
 import { membershipPlanService } from "../services/membership-plan.service";
 import { maintenanceService } from "../services/maintenance.service";
 import { payoutService } from "../services/payout.service";
+import { getStorageMetrics } from "../storage/r2.client";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 import { HttpStatus } from "../utils/httpStatus";
@@ -1066,3 +1067,9 @@ export const getDisputesQueue = asyncHandler(async (req: Request, res: Response)
   const data = await adminOrderService.getDisputesAndRefunds(req.query as never);
   return sendSuccess(res, data);
 });
+
+export const getStorageHealthMetrics = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await getStorageMetrics();
+  return sendSuccess(res, data);
+});
+

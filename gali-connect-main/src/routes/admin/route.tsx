@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { MaintenanceAlertModal } from "@/components/admin/MaintenanceAlertModal";
+import { StorageAlertBanner } from "@/components/admin/StorageAlertBanner";
 import { useAuth } from "@/context/auth-context";
 
 export const Route = createFileRoute("/admin")({
@@ -105,6 +106,7 @@ function AdminLayout() {
         navigate({ to: "/login" });
       }}
     >
+      <StorageAlertBanner />
       <MaintenanceAlertModal />
       <Outlet />
     </PortalLayout>

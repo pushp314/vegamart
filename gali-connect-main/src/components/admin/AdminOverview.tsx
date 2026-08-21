@@ -1,5 +1,7 @@
-import { Users, Store, IndianRupee, ShoppingBag, ArrowUpRight, ArrowDownRight, Tags, Megaphone, UserCheck } from "lucide-react";
+import { Users, Store, IndianRupee, ShoppingBag, ArrowUpRight, ArrowDownRight, Tags, Megaphone, UserCheck, HardDrive, AlertTriangle, Sparkles } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import {
   AreaChart,
   Area,
@@ -19,6 +21,13 @@ interface AdminOverviewProps {
 export function AdminOverview({ stats }: AdminOverviewProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+
+  const { data: storageRes } = useQuery({
+    queryKey: ["adminStorageMetrics"],
+    queryFn: () => api.get<any>("/admin/storage/metrics"),
+    refetchInterval: 60000,
+  });
+  const storage = storageRes?.data?.data || storageRes?.data;
 
   const AXIS_COLOR = isDark ? "#a1a1aa" : "#71717a";
   const GRID_COLOR = isDark ? "rgba(255,255,255,0.08)" : "#e4e4e7";
@@ -175,6 +184,84 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
           );
         })}
       </div>
+
+      {/* Cloudflare R2 Storage Health Card */}
+      {storage && (
+        <div className="rounded-3xl border border-border bg-card p-6 shadow-soft">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className={`p-3 rounded-2xl ring-1 ${
+                storage.is_full 
+                  ? "bg-rose-50 text-rose-600 ring-rose-200 dark:bg-rose-950/40" 
+                  : storage.is_near_full 
+                  ? "bg-amber-50 text-amber-600 ring-amber-200 dark:bg-amber-950/40" 
+                  : "bg-indigo-50 text-indigo-600 ring-indigo-200 dark:bg-indigo-950/40"
+              }`}>
+                <HardDrive className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base text-foreground">Cloudflare R2 Object Storage</h3>
+                  <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                    storage.is_full 
+                      ? "bg-rose-500 text-white" 
+                      : storage.is_near_full 
+                      ? "bg-amber-500/20 text-amber-700 dark:text-amber-300" 
+                      : "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                  }`}>
+                    {storage.configured ? `${storage.percent_used}% Full` : "Mock Local"}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {storage.configured 
+                    ? `Bucket: ${storage.bucket_name || "vegamart-r2"} • ${storage.total_objects} total media files`
+                    : "R2 storage not configured. Using local static mock placeholder mode."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-black text-foreground">
+                  {storage.used_gb} GB <span className="text-xs text-muted-foreground font-normal">/ {storage.quota_gb} GB</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {(storage.quota_gb - storage.used_gb).toFixed(2)} GB available
+                </div>
+              </div>
+              <Link
+                to="/admin/settings"
+                className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/50 px-3.5 py-2 text-xs font-bold hover:bg-accent transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Maintenance & Cleanup
+              </Link>
+            </div>
+          </div>
+
+          {storage.configured && (
+            <div className="mt-4 space-y-1.5">
+              <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    storage.is_full 
+                      ? "bg-rose-500" 
+                      : storage.is_near_full 
+                      ? "bg-amber-500" 
+                      : "bg-emerald-500"
+                  }`}
+                  style={{ width: `${Math.min(storage.percent_used, 100)}%` }}
+                />
+              </div>
+              {storage.is_near_full && (
+                <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-semibold pt-1">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{storage.message}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Revenue Chart */}
