@@ -47,16 +47,29 @@ export interface ApiResponse<T = unknown> {
 }
 
 export function formatErrorMessage(
-  error?: { code?: string; message?: string; details?: Record<string, string> } | null,
+  error?: { code?: string; message?: string; details?: Record<string, string> | Array<{ path?: string | string[]; message?: string }> } | null,
   fallback = "An unexpected error occurred",
 ): string {
   if (!error) return fallback;
-  if (error.details && Object.keys(error.details).length > 0) {
-    const detailList = Object.entries(error.details)
-      .map(([field, msg]) => `${field.replace(/^body\./, "")}: ${msg}`)
-      .join(" | ");
-    return `${error.message || "Validation failed"}: ${detailList}`;
+
+  if (error.details) {
+    if (Array.isArray(error.details) && error.details.length > 0) {
+      const messages = error.details.map((d) => d.message || JSON.stringify(d)).filter(Boolean);
+      if (messages.length > 0) return messages.join(" • ");
+    } else if (typeof error.details === "object" && Object.keys(error.details).length > 0) {
+      const detailList = Object.entries(error.details)
+        .map(([field, msg]) => {
+          const cleanField = field
+            .replace(/^body\./, "")
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+          return `${cleanField}: ${msg}`;
+        })
+        .join(" • ");
+      return detailList || error.message || fallback;
+    }
   }
+
   return error.message || fallback;
 }
 
