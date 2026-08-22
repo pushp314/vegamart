@@ -23,6 +23,7 @@ import {
   createReviewSchema,
   listProductsQuerySchema,
   productIdParamsSchema,
+  productImageIdParamsSchema,
   productImagesSchema,
   setPrimaryImageSchema,
   updateProductSchema,
@@ -55,7 +56,7 @@ router.post(
 router.delete(
   "/products/:product_id/images/:image_id",
   authenticate,
-  validate({ params: productIdParamsSchema }),
+  validate({ params: productImageIdParamsSchema }),
   removeProductImage
 );
 router.put(

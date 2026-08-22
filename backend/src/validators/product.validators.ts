@@ -6,6 +6,11 @@ export const productIdParamsSchema = z.object({
   product_id: z.string().uuid("product_id must be a valid UUID."),
 }).strict();
 
+export const productImageIdParamsSchema = z.object({
+  product_id: z.string().uuid("product_id must be a valid UUID."),
+  image_id: z.string().uuid("image_id must be a valid UUID."),
+}).strict();
+
 export const productVariantSchema = z
   .object({
     unit: z.string().trim().min(1).max(50),

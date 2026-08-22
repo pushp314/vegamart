@@ -78,9 +78,12 @@ export default function VendorProductsPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [previewZoomUrl, setPreviewZoomUrl] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
+  const [replacingImageIndex, setReplacingImageIndex] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageUploadRef = useRef<HTMLInputElement>(null);
+  const replaceUploadRef = useRef<HTMLInputElement>(null);
 
   // Form Fields
   const [prodName, setProdName] = useState("");
@@ -191,6 +194,7 @@ export default function VendorProductsPage() {
     setProdDescription("");
     setProdImages([]);
     setUrlInput("");
+    setDeletedImageIds([]);
     setFieldErrors({});
     setProductModalOpen(true);
   };
@@ -229,6 +233,7 @@ export default function VendorProductsPage() {
 
     setProdImages(existingImages);
     setUrlInput("");
+    setDeletedImageIds([]);
     setFieldErrors({});
     setProductModalOpen(true);
   };
@@ -321,17 +326,39 @@ export default function VendorProductsPage() {
           console.warn("Inventory sync failed:", e);
         }
 
-        // Sync Product Images
-        if (prodImages.length > 0) {
+        // 1. Delete removed images on server if editing
+        if (editingProduct && deletedImageIds.length > 0) {
+          for (const imgId of deletedImageIds) {
+            try {
+              await api.delete(`/products/${productId}/images/${imgId}`);
+            } catch (e) {
+              console.warn("Failed to delete image on server:", e);
+            }
+          }
+        }
+
+        // 2. Upload any new images (those without an id)
+        const newImagesToUpload = prodImages.filter((img) => !img.id);
+        if (newImagesToUpload.length > 0) {
           try {
             await api.post(`/products/${productId}/images`, {
-              images: prodImages.map((img, idx) => ({
+              images: newImagesToUpload.map((img, idx) => ({
                 url: img.url,
-                is_primary: img.is_primary ?? idx === 0,
+                is_primary: img.is_primary ?? (!editingProduct && idx === 0),
               })),
             });
           } catch (e) {
             console.warn("Image linking failed:", e);
+          }
+        }
+
+        // 3. Sync primary image if set on an existing image
+        const primaryImg = prodImages.find((img) => img.is_primary);
+        if (editingProduct && primaryImg?.id) {
+          try {
+            await api.put(`/products/${productId}/images/primary`, { image_id: primaryImg.id });
+          } catch (e) {
+            console.warn("Failed to update primary image:", e);
           }
         }
       }
@@ -466,12 +493,63 @@ export default function VendorProductsPage() {
 
   const handleRemoveImage = (index: number) => {
     setProdImages((prev) => {
+      const removed = prev[index];
+      if (removed?.id) {
+        setDeletedImageIds((d) => [...d, removed.id!]);
+      }
       const updated = prev.filter((_, i) => i !== index);
       if (updated.length > 0 && !updated.some((img) => img.is_primary)) {
         updated[0].is_primary = true;
       }
       return updated;
     });
+    toast.success("Photo removed from product");
+  };
+
+  const handleStartReplaceImage = (index: number) => {
+    setReplacingImageIndex(index);
+    replaceUploadRef.current?.click();
+  };
+
+  const handleFileReplace = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || replacingImageIndex === null) return;
+
+    setIsUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "products");
+
+    try {
+      const res: any = await api.post("/uploads", formData);
+      if (res.success) {
+        const uploadedUrl =
+          res?.data?.data?.url || res?.data?.url || res?.url || res?.data?.fileUrl;
+        if (uploadedUrl) {
+          setProdImages((prev) => {
+            const copy = [...prev];
+            const old = copy[replacingImageIndex];
+            if (old?.id) {
+              setDeletedImageIds((d) => [...d, old.id!]);
+            }
+            copy[replacingImageIndex] = {
+              url: uploadedUrl,
+              is_primary: old?.is_primary ?? replacingImageIndex === 0,
+            };
+            return copy;
+          });
+          toast.success("Product photo replaced successfully!");
+        }
+      } else {
+        toast.error(formatErrorMessage(res.error, "Failed to upload replacement image"));
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Error replacing image");
+    } finally {
+      setIsUploadingImage(false);
+      setReplacingImageIndex(null);
+      if (replaceUploadRef.current) replaceUploadRef.current.value = "";
+    }
   };
 
   const handleMoveImage = (fromIndex: number, toIndex: number) => {
@@ -1066,6 +1144,13 @@ export default function VendorProductsPage() {
                       multiple
                       className="hidden"
                     />
+                    <input
+                      type="file"
+                      ref={replaceUploadRef}
+                      onChange={handleFileReplace}
+                      accept="image/jpeg, image/png, image/webp, image/avif, image/gif"
+                      className="hidden"
+                    />
                     <button
                       type="button"
                       onClick={() => imageUploadRef.current?.click()}
@@ -1131,6 +1216,14 @@ export default function VendorProductsPage() {
                               title="Zoom Preview"
                             >
                               <Maximize2 className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStartReplaceImage(idx)}
+                              className="h-6 w-6 rounded-md bg-amber-500/80 hover:bg-amber-500 text-slate-950 flex items-center justify-center"
+                              title="Replace Photo"
+                            >
+                              <Edit2 className="h-3 w-3" />
                             </button>
                             <button
                               type="button"
