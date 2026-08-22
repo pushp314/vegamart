@@ -5,12 +5,11 @@ import {
   MapPin,
   Phone,
   Share2,
-  Heart,
+  ArrowRight,
   ShieldCheck,
   ArrowLeft,
   Sparkles,
   Store,
-  Radio,
   Bell,
   BellRing,
   Loader2,
@@ -19,7 +18,7 @@ import {
   Bike,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { api, authStorage, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
@@ -174,21 +173,33 @@ function VendorDetail() {
     : [coverUrl];
 
   // Embla Select Event
-  useMemo(() => {
+  useEffect(() => {
     if (!emblaApi) return;
     const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
     emblaApi.on("select", onSelect);
     emblaApi.on("reInit", onSelect);
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
+    };
   }, [emblaApi]);
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-28 md:pb-16">
       {/* Hero Cover Banner Carousel */}
-      <div className="relative h-60 sm:h-72 lg:h-80 overflow-hidden" ref={emblaRef}>
+      <div className="relative h-60 sm:h-72 lg:h-80 overflow-hidden group" ref={emblaRef}>
         <div className="flex h-full w-full touch-pan-y">
           {banners.map((url: string, index: number) => (
             <div key={index} className="flex-[0_0_100%] min-w-0 h-full relative">
-              <img src={url} alt={`${vendor.business_name} banner ${index + 1}`} className="h-full w-full object-cover" />
+              <img
+                src={url}
+                alt={`${vendor.business_name} banner ${index + 1}`}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1200";
+                }}
+              />
             </div>
           ))}
         </div>
@@ -231,18 +242,40 @@ function VendorDetail() {
 
         {/* Dot Indicators */}
         {banners.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
             {banners.map((_: any, i: number) => (
               <button
                 key={i}
                 onClick={() => emblaApi?.scrollTo(i)}
-                className={`h-2 w-2 rounded-full transition-all ${
-                  i === selectedIndex ? "bg-white w-4" : "bg-white/50 hover:bg-white/80"
+                className={`h-2 rounded-full transition-all ${
+                  i === selectedIndex ? "bg-white w-5" : "bg-white/50 w-2 hover:bg-white/80"
                 }`}
                 aria-label={`Go to slide ${i + 1}`}
               />
             ))}
           </div>
+        )}
+
+        {/* Prev / Next Slide Navigation Controls (Desktop hover) */}
+        {banners.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => emblaApi?.scrollPrev()}
+              aria-label="Previous banner"
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-all shadow-md"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => emblaApi?.scrollNext()}
+              aria-label="Next banner"
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-all shadow-md"
+            >
+              <ArrowRight className="h-5 w-5" />
+            </button>
+          </>
         )}
       </div>
 

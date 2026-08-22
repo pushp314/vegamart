@@ -35,6 +35,7 @@ import { useVendorOrderNotifications } from "./VendorOrderNotificationProvider";
 import { Logo } from "@/components/system/logo";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { VendorBannerCarouselManager } from "./VendorBannerCarouselManager";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -448,98 +449,20 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
           </CardContent>
         </Card>
 
-        {/* Banner Images Section */}
-        <Card className="rounded-3xl border-border shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ImagePlus className="h-5 w-5 text-violet-500" />
-              Store Banners / Cover Images
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Upload multiple banner images for your store's cover carousel. They will appear on your store page.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Banner Preview Grid */}
-            {bannerUrls.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {bannerUrls.map((url, idx) => (
-                  <div key={idx} className="relative group rounded-2xl overflow-hidden border border-border aspect-video bg-muted">
-                    <img src={url} alt={`Banner ${idx + 1}`} className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBannerUrls((prev) => prev.filter((_, i) => i !== idx));
-                        toast.info(`Banner ${idx + 1} removed. Click Save to apply.`);
-                      }}
-                      className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-black/60 backdrop-blur-sm text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                      aria-label={`Remove banner ${idx + 1}`}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                    <div className="absolute bottom-1.5 left-1.5 bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      {idx + 1}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Upload Button */}
-            <div className="flex items-center gap-3">
-              <input
-                type="file"
-                ref={bannerFileInputRef}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.size > 10 * 1024 * 1024) {
-                    toast.error("File size exceeds 10MB limit.");
-                    return;
-                  }
-                  setIsUploadingBanner(true);
-                  const formData = new FormData();
-                  formData.append("file", file);
-                  formData.append("folder", "vendors");
-                  try {
-                    const res: any = await api.post("/uploads", formData);
-                    const uploadedUrl = res?.data?.data?.url || res?.data?.url || res?.url || res?.data?.fileUrl;
-                    if (uploadedUrl) {
-                      setBannerUrls((prev) => [...prev, uploadedUrl]);
-                      toast.success("Banner uploaded! Click Save to apply.");
-                    } else {
-                      toast.error("Failed to parse uploaded image URL");
-                    }
-                  } catch (err: any) {
-                    toast.error(err?.message || "Failed to upload banner image");
-                  } finally {
-                    setIsUploadingBanner(false);
-                    if (bannerFileInputRef.current) bannerFileInputRef.current.value = "";
-                  }
-                }}
-                accept="image/*"
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => bannerFileInputRef.current?.click()}
-                disabled={isUploadingBanner}
-                className="h-10 rounded-2xl text-xs font-bold border-violet-300 hover:border-violet-500 hover:bg-violet-50 flex items-center gap-1.5"
-              >
-                {isUploadingBanner ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-500" />
-                ) : (
-                  <ImagePlus className="h-3.5 w-3.5 text-violet-500" />
-                )}
-                Add Banner Image
-              </Button>
-              <span className="text-[11px] text-muted-foreground">
-                {bannerUrls.length} banner{bannerUrls.length !== 1 ? "s" : ""} added
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Banner Carousel Studio Section */}
+        <VendorBannerCarouselManager
+          bannerUrls={bannerUrls}
+          onChange={setBannerUrls}
+          vendorName={profile.business_name || profile.name || "Your Store"}
+          isOpen={profile.is_open ?? true}
+          isRoaming={profile.roaming ?? false}
+          onSaveDirect={async (urls) => {
+            await updateMutation.mutateAsync({
+              banner_urls: urls,
+            });
+          }}
+          isSavingDirect={updateMutation.isPending}
+        />
 
         <Card className="rounded-3xl border-border shadow-xl">
           <CardHeader>

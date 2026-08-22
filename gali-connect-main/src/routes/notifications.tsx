@@ -109,6 +109,8 @@ function NotificationsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "global-alert-feed"] });
     },
   });
 
@@ -122,6 +124,9 @@ function NotificationsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "global-alert-feed"] });
+      queryClient.setQueryData(["notifications", "unread-count"], { count: 0 });
       toast.success("All notifications marked as read");
     },
   });

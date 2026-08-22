@@ -22,6 +22,7 @@ import { ClientOnly } from "../components/system/client-only";
 import { AuthProvider } from "../context/auth-context";
 import { CartProvider } from "../context/cart-context";
 import { WishlistProvider } from "../context/wishlist-context";
+import { GlobalNotificationAlertProvider } from "../components/notifications/GlobalNotificationAlertProvider";
 import { Toaster } from "../components/ui/sonner";
 import { checkMaintenanceStatus } from "../lib/api";
 
@@ -221,24 +222,26 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <CartProvider>
-          <WishlistProvider>
-            <ClientOnly>
-              <SplashScreen />
-              <NetworkIndicator />
-              <MaintenanceWatcher />
-            </ClientOnly>
-            {!isFullScreenRoute && <Navbar />}
-            <AnimatedOutlet />
-            <ClientOnly>
-              <InstallAppBanner />
-            </ClientOnly>
-            {!isPortalRoute && <BottomNav />}
-            <ClientOnly>
-              <Toaster position="top-center" />
-            </ClientOnly>
-          </WishlistProvider>
-        </CartProvider>
+        <GlobalNotificationAlertProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <ClientOnly>
+                <SplashScreen />
+                <NetworkIndicator />
+                <MaintenanceWatcher />
+              </ClientOnly>
+              {!isFullScreenRoute && <Navbar />}
+              <AnimatedOutlet />
+              <ClientOnly>
+                <InstallAppBanner />
+              </ClientOnly>
+              {!isPortalRoute && <BottomNav />}
+              <ClientOnly>
+                <Toaster position="top-center" />
+              </ClientOnly>
+            </WishlistProvider>
+          </CartProvider>
+        </GlobalNotificationAlertProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

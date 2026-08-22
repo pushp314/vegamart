@@ -288,7 +288,12 @@ export const vendorService = {
     }
     if (input.advance_payment_percentage !== undefined) data.advance_payment_percentage = input.advance_payment_percentage;
     if (input.tax_rate !== undefined) data.tax_rate = input.tax_rate;
-    if (input.banner_urls !== undefined) data.banner_urls = input.banner_urls;
+    if (input.banner_urls !== undefined) {
+      data.banner_urls = input.banner_urls;
+      if (input.banner_url === undefined) {
+        data.banner_url = input.banner_urls[0] || null;
+      }
+    }
     if (input.owner_name !== undefined) data.owner_name = input.owner_name || null;
     if (input.phone !== undefined) data.phone = input.phone || null;
     if (input.available_from !== undefined) data.available_from = input.available_from || null;
