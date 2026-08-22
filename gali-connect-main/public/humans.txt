@@ -1,0 +1,19 @@
+/* TEAM */
+Lead Software Engineer & Architect: Pushp Raj Sharma
+Portfolio: https://pushp-portfolio.vercel.app/
+GitHub: https://github.com/pushp314
+LinkedIn: https://www.linkedin.com/in/pushp-raj-sharma/
+Twitter / X: https://x.com/pushpa_builds
+Contact: pusprajsharma314@gmail.com
+Location: India
+
+/* ABOUT THE PLATFORM */
+Tagline: Building practical software, cybersecurity tools, and scalable digital products.
+Engineered By: Pushp Raj Sharma
+Powered By: Pushpa.builds
+
+/* SITE & TECH STACK */
+Standards: HTML5, CSS3, ESNext, TypeScript
+Frontend: React 19, TanStack Start, TanStack Router, TanStack Query, TailwindCSS, Radix UI, Framer Motion
+Backend: Node.js, Express, TypeScript, Prisma ORM, PostgreSQL, Redis, Socket.io
+Components: Shadcn UI, Lucide Icons

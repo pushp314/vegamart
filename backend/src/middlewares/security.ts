@@ -11,7 +11,11 @@ import { securityEventFromReq } from "../monitoring/security-events";
  */
 export function securityHeaders(req: Request, res: Response, next: NextFunction): void {
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  res.setHeader("X-Engineered-By", "Pushp Raj Sharma");
+  res.setHeader("X-Powered-By", "Pushpa.builds");
+  res.setHeader("X-Author-Website", "https://pushp-portfolio.vercel.app/");
   helmet({
+    hidePoweredBy: false,
     contentSecurityPolicy: isProduction
       ? {
           directives: {

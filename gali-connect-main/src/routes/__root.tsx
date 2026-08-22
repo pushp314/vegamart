@@ -13,6 +13,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import appCss from "../styles.css?url";
 import { registerServiceWorker } from "../lib/pwa";
+import { initDeveloperCredits } from "../lib/branding";
 import { BottomNav } from "../components/layout/bottom-nav";
 import { Navbar } from "../components/layout/navbar";
 import { SplashScreen } from "../components/system/splash-screen";
@@ -99,7 +100,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "India's hyperlocal marketplace connecting you with trusted local street vendors and neighbourhood shops. Fresh groceries, chai, street food and more — delivered in minutes.",
       },
-      { name: "author", content: "Vegamart" },
+      { name: "author", content: "Pushp Raj Sharma (pushpa.builds)" },
+      { name: "creator", content: "Pushp Raj Sharma" },
+      { name: "publisher", content: "Pushpa.builds" },
+      { name: "developer", content: "Pushp Raj Sharma (https://pushp-portfolio.vercel.app/)" },
       { name: "theme-color", content: "#ffffff" },
       { property: "og:title", content: "Vegamart — Discover Everything Around You" },
       {
@@ -120,6 +124,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "thumbnail", content: "https://vegamart.in/favicon.ico" },
     ],
     links: [
+      { rel: "author", href: "/humans.txt" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "shortcut icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
@@ -206,6 +211,7 @@ function RootComponent() {
 
   useEffect(() => {
     registerServiceWorker();
+    initDeveloperCredits();
   }, []);
 
   // Portal routes (vendor / delivery / admin) have their own chrome — hide the
