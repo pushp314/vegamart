@@ -131,6 +131,27 @@ function OrderSuccess() {
               </div>
             )}
           </div>
+
+          {/* Pay Online Option for COD Orders */}
+          {order?.payment_method === "COD" && order?.payment_status !== "PAID" && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/5 border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+              <div>
+                <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                  <span className="text-base">💳</span> Want to Pay Online Instead?
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  You can pay digitally anytime or when the delivery partner arrives via UPI, QR, or Card.
+                </p>
+              </div>
+              <Link
+                to="/orders/$orderId/track"
+                params={{ orderId: orderId || "" }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2 rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                Pay Online / UPI QR →
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-2.5 sm:flex-row pt-2">

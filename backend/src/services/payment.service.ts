@@ -14,6 +14,9 @@ import { razorpayGateway } from "../payments/razorpay.gateway";
 import { subscriptionPaymentService } from "./subscription-payment.service";
 import { reverseOrderEarnings } from "./earning.service";
 import { payoutService } from "./payout.service";
+import { checkoutService } from "./checkout.service";
+import log from "../config/logger";
+import type { InitiateCheckoutPaymentBody } from "../validators/payment.validators";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -128,14 +131,17 @@ export const paymentService = {
     }
 
     const updatedPayment = await paymentRepo.findByRazorpayOrderId(input.razorpay_order_id) ?? payment;
-    await orderRepo.updateOrder(order.id, { payment_status: "PAID" });
+    await orderRepo.updateOrder(order.id, {
+      payment_status: "PAID",
+      payment_method: "RAZORPAY",
+    });
     // Only a non-terminal order may be confirmed. If the order was cancelled or
     // otherwise left the confirmation flow while payment settled, the payment is
     // recorded as PAID but the order is never revived.
     if (order.status === "PENDING" || order.status === "CONFIRMED") {
       await orderRepo.updateOrderStatus(order.id, {
         status: "CONFIRMED",
-        note: "Payment verified. Order confirmed.",
+        note: "Online Payment verified and completed successfully.",
         actorType: "system",
       });
     }
@@ -501,7 +507,7 @@ export const paymentService = {
     }
 
     const existingPayment = await paymentRepo.findByOrderId(order.id);
-    const amountToCharge = Number(existingPayment?.amount ?? order.total);
+    const amountToCharge = Number(existingPayment?.amount && Number(existingPayment.amount) > 0 ? existingPayment.amount : order.total);
     const amountPaise = Math.max(100, Math.round(amountToCharge * 100)); // minimum 1 INR for Razorpay
 
     const gatewayOrder = await razorpayGateway.createOrder({
@@ -518,7 +524,16 @@ export const paymentService = {
     if (existingPayment) {
       await paymentRepo.updatePayment(existingPayment.id, {
         razorpay_order_id: gatewayOrder.id,
+        amount: amountToCharge as any,
+        method: "RAZORPAY" as never,
         status: "PENDING",
+      });
+    } else {
+      await paymentRepo.createForOrder({
+        order_id: order.id,
+        amount: amountToCharge,
+        method: "RAZORPAY",
+        razorpay_order_id: gatewayOrder.id,
       });
     }
 
@@ -639,5 +654,63 @@ export const paymentService = {
       status: "FAILED",
       advice: "If money was deducted, it will be auto-refunded to your bank in 3-5 business days. You can retry or switch to COD.",
     };
+  },
+
+  async initiateCheckoutPayment(userId: string, input: InitiateCheckoutPaymentBody, req: Request) {
+    return checkoutService.initiateOnlinePayment(userId, input, req);
+  },
+
+  async verifyAndCreateOrder(
+    userId: string,
+    input: {
+      razorpay_order_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+      checkout_payload: InitiateCheckoutPaymentBody;
+    },
+    req: Request
+  ) {
+    // 1. Cryptographically verify signature using secret
+    const valid = razorpayGateway.verifySignature({
+      orderId: input.razorpay_order_id,
+      paymentId: input.razorpay_payment_id,
+      signature: input.razorpay_signature,
+    });
+    if (!valid) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid payment signature.", { code: "INVALID_SIGNATURE" });
+    }
+
+    // 2. Fetch payment entity from Razorpay API to confirm capture
+    let entity: CapturedPaymentEntity | null = null;
+    try {
+      entity = await razorpayGateway.fetchPayment(input.razorpay_payment_id);
+    } catch (e) {
+      log.warn(`[payment] Could not fetch payment ${input.razorpay_payment_id} from Razorpay: ${String(e)}`);
+    }
+
+    if (entity) {
+      if (entity.order_id && entity.order_id !== input.razorpay_order_id) {
+        throw new ApiError(HttpStatus.BAD_REQUEST, "Payment does not belong to this checkout session.", {
+          code: "PAYMENT_ORDER_MISMATCH",
+        });
+      }
+      if (entity.status && !ACCEPTABLE_PAYMENT_STATUSES.has(entity.status)) {
+        throw new ApiError(HttpStatus.BAD_REQUEST, `Payment status is not acceptable (${entity.status}).`, {
+          code: "PAYMENT_STATUS_NOT_ACCEPTABLE",
+        });
+      }
+    }
+
+    // 3. Atomically create the Order & Payment in DB with status PAID
+    return checkoutService.placeOrderWithVerifiedPayment(
+      userId,
+      input.checkout_payload,
+      {
+        razorpay_order_id: input.razorpay_order_id,
+        razorpay_payment_id: input.razorpay_payment_id,
+        razorpay_signature: input.razorpay_signature,
+      },
+      req
+    );
   },
 };

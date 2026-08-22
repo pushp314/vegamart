@@ -67,6 +67,7 @@ function Checkout() {
   const [failureModalOpen, setFailureModalOpen] = useState(false);
   const [pendingFailedOrders, setPendingFailedOrders] = useState<any[]>([]);
   const [paymentFailureReason, setPaymentFailureReason] = useState<string>("");
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const { data: publicSettingsRes } = useQuery({
     queryKey: ["publicSettings"],
@@ -523,41 +524,16 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
     onSuccess: async (res) => {
       const orders: any[] = res?.orders ?? [];
       const firstOrder = orders[0]?.order ?? null;
-      if (payment === "upi" || payment === "card") {
-        try {
-          await runRazorpayFlow(orders);
-          clearCart();
-          toast.success("Payment successful!");
-          navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
-        } catch (err: any) {
-          // Record payment failure with backend
-          await Promise.allSettled(
-            orders.map((entry: any) => {
-              const id = entry?.order?.id || entry?.id;
-              return id
-                ? api.post(`/payments/${id}/record-failure`, {
-                    reason: err?.message || "Payment incomplete/cancelled",
-                  })
-                : Promise.resolve();
-            })
-          );
-
-          setPendingFailedOrders(orders);
-          setPaymentFailureReason(err?.message || "Payment was cancelled or could not be completed.");
-          setFailureModalOpen(true);
-        }
-      } else {
-        clearCart();
-        toast.success("Order placed successfully via COD!");
-        navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
-      }
+      clearCart();
+      toast.success("Order placed successfully via Cash on Delivery!");
+      navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Failed to place order");
     },
   });
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (items.length === 0) {
       toast.error("Your cart is empty!");
       return;
@@ -581,7 +557,7 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
       return;
     }
 
-    createOrderMutation.mutate({
+    const payload = {
       address_id: selectedAddress.id,
       payment_method: payment,
       payment_type: paymentType,
@@ -592,7 +568,87 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
         quantity: item.quantity,
         selected_unit: item.selectedVariant || item.product.unit,
       })),
-    });
+    };
+
+    // 1. COD Orders are created immediately as CONFIRMED / UNPAID
+    if (payment === "cod") {
+      createOrderMutation.mutate(payload);
+      return;
+    }
+
+    // 2. Online Payment (UPI / Card): Orders are ONLY created after verified payment
+    setIsProcessingPayment(true);
+    try {
+      // Step A: Initiate payment session without writing order to DB
+      const initRes = await api.post<any>("/payments/initiate-checkout", payload);
+      if (!initRes.success || !initRes.data) {
+        throw new Error(initRes.error?.message || "Failed to initiate online payment session.");
+      }
+      const sessionData = initRes.data;
+
+      // Step B: Load Razorpay SDK and open payment modal
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error("Payment gateway SDK failed to load. Please check your internet connection.");
+      }
+
+      const RazorpayCtor = (window as any).Razorpay;
+      await new Promise<void>((resolve, reject) => {
+        let paymentReceived = false;
+        const options = {
+          key: sessionData.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+          amount: Math.round(sessionData.amount),
+          currency: sessionData.currency || "INR",
+          name: "Vegamart",
+          description: `Checkout (${items.length} items)`,
+          order_id: sessionData.razorpay_order_id,
+          handler: async (response: any) => {
+            paymentReceived = true;
+            try {
+              // Step C: Server-side cryptographic verification and atomic order creation
+              const verifyRes = await api.post<any>("/payments/verify-and-create-order", {
+                razorpay_order_id: sessionData.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                checkout_payload: sessionData.checkout_payload || payload,
+              });
+
+              if (verifyRes.success && verifyRes.data) {
+                clearCart();
+                toast.success("Payment successful! Your order has been placed.");
+                const firstOrder = verifyRes.data?.orders?.[0]?.order;
+                navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
+                resolve();
+              } else {
+                reject(new Error(verifyRes.error?.message || "Payment verification failed on server."));
+              }
+            } catch (err: any) {
+              reject(err instanceof Error ? err : new Error("Payment verification failed on server."));
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              if (paymentReceived) return;
+              reject(new Error("Payment was cancelled. Your order was not placed and your cart is saved."));
+            },
+          },
+          prefill: {
+            name: user?.name || "Customer",
+            email: user?.email || "",
+            contact: selectedAddress?.phone || "9999999999",
+          },
+          theme: {
+            color: "#10b981",
+          },
+        };
+        const paymentObject = new RazorpayCtor(options);
+        paymentObject.open();
+      });
+    } catch (err: any) {
+      toast.info(err?.message || "Payment was not completed.");
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   if (!authLoading && !isAuthenticated) {
@@ -1154,10 +1210,10 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
               ) : (
                 <button
                   onClick={handlePlaceOrder}
-                  disabled={createOrderMutation.isPending || items.length === 0 || isOutOfDeliveryRadius}
+                  disabled={createOrderMutation.isPending || isProcessingPayment || items.length === 0 || isOutOfDeliveryRadius}
                   className="hidden md:flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {createOrderMutation.isPending ? (
+                  {createOrderMutation.isPending || isProcessingPayment ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
@@ -1210,10 +1266,10 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
             ) : (
               <button
                 onClick={handlePlaceOrder}
-                disabled={createOrderMutation.isPending || items.length === 0 || isOutOfDeliveryRadius}
+                disabled={createOrderMutation.isPending || isProcessingPayment || items.length === 0 || isOutOfDeliveryRadius}
                 className="inline-flex items-center gap-2 rounded-2xl bg-white text-emerald-900 font-bold text-xs h-11 px-4 shadow-xs hover:bg-emerald-50 disabled:opacity-50"
               >
-                {createOrderMutation.isPending ? (
+                {createOrderMutation.isPending || isProcessingPayment ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>

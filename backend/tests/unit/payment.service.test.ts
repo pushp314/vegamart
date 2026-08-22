@@ -201,7 +201,10 @@ describe("payment service - verifyPayment", () => {
       "pay-1",
       expect.objectContaining({ razorpay_payment_id: "rzp-pay-1", razorpay_signature: "good" })
     );
-    expect(orderRepoMock.updateOrder).toHaveBeenCalledWith("order-1", { payment_status: "PAID" });
+    expect(orderRepoMock.updateOrder).toHaveBeenCalledWith("order-1", {
+      payment_status: "PAID",
+      payment_method: "RAZORPAY",
+    });
     expect(orderRepoMock.updateOrderStatus).toHaveBeenCalledWith("order-1", expect.objectContaining({ status: "CONFIRMED" }));
     expect(txRepo.create).toHaveBeenCalledWith(expect.objectContaining({ amount: 240, reference: "rzp-pay-1" }));
     expect(notificationService.vendor).toHaveBeenCalledWith(
@@ -493,4 +496,30 @@ describe("payment service - refund", () => {
     });
     expect(reverseOrderEarnings).not.toHaveBeenCalled();
   });
+
+  describe("verifyAndCreateOrder", () => {
+    it("rejects when Razorpay signature is invalid without creating orders", async () => {
+      gatewayMock.verifySignature.mockReturnValue(false);
+
+      await expect(
+        paymentService.verifyAndCreateOrder(
+          "user-1",
+          {
+            razorpay_order_id: "order_test_123",
+            razorpay_payment_id: "pay_test_123",
+            razorpay_signature: "invalid_sig",
+            checkout_payload: {
+              address_id: "11111111-1111-1111-1111-111111111111",
+              items: [{ product_id: "22222222-2222-2222-2222-222222222222", quantity: 1 }],
+            },
+          },
+          mockReq
+        )
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: "INVALID_SIGNATURE",
+      });
+    });
+  });
 });
+

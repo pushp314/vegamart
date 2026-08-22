@@ -27,6 +27,7 @@ import {
   Info,
   Receipt,
   ChevronRight,
+  QrCode,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -46,7 +47,7 @@ const DeliveryMapModal =
         })),
       )
     : () => null;
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -207,6 +208,7 @@ function DeliveryDashboard() {
   // Full Order Details Modal
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsOrder, setDetailsOrder] = useState<any | null>(null);
+  const [upiQrModalOrder, setUpiQrModalOrder] = useState<any | null>(null);
 
   // Fetch Delivery Profile
   const { data: profileRes, isLoading: partnerLoading } = useQuery({
@@ -747,8 +749,20 @@ function DeliveryDashboard() {
 
                               if (isCod) {
                                 return (
-                                  <div className="mt-2 font-black text-sm text-amber-600">
-                                    Collect Cash/UPI: ₹{totAmount.toFixed(2)}
+                                  <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="font-black text-sm text-amber-600">
+                                      Collect Cash/UPI: ₹{totAmount.toFixed(2)}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setUpiQrModalOrder(o);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors"
+                                    >
+                                      <QrCode className="h-3 w-3" /> Show UPI QR
+                                    </button>
                                   </div>
                                 );
                               }
@@ -1271,6 +1285,54 @@ function DeliveryDashboard() {
           </Suspense>
         </ClientOnly>
       )}
+      {/* DELIVERY UPI QR MODAL */}
+      <Dialog open={!!upiQrModalOrder} onOpenChange={(open) => !open && setUpiQrModalOrder(null)}>
+        <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg font-bold">Customer UPI Scan & Pay</DialogTitle>
+            <DialogDescription className="text-center text-xs text-muted-foreground">
+              Show this QR code to the customer to collect payment digitally via Google Pay, PhonePe, Paytm, or BHIM.
+            </DialogDescription>
+          </DialogHeader>
+
+          {upiQrModalOrder && (
+            <>
+              <div className="p-4 bg-white rounded-2xl border shadow-inner inline-block mx-auto">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                    `upi://pay?pa=vegamart@icici&pn=Vegamart&am=${Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2)}&tn=Order_${upiQrModalOrder.order_number || upiQrModalOrder.id}&cu=INR`
+                  )}`}
+                  alt="UPI QR Code"
+                  className="h-48 w-48 object-contain mx-auto"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground font-semibold">Amount to Collect</div>
+                <div className="text-2xl font-black text-emerald-600 tabular-nums">
+                  ₹{Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2)}
+                </div>
+                <div className="text-[11px] text-muted-foreground font-mono">
+                  Order #{upiQrModalOrder.order_number || upiQrModalOrder.id}
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  className="w-full h-11 rounded-2xl font-bold"
+                  onClick={() => {
+                    setUpiQrModalOrder(null);
+                    refetchRequests();
+                  }}
+                >
+                  Close / Refresh
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,21 @@
 import request from "supertest";
 
+jest.mock("../../src/repositories/session.repository", () => ({
+  findActiveById: jest.fn().mockResolvedValue({ id: "test-session" }),
+}));
+
 import app from "../../src/app";
+import { ROLES } from "../../src/constants/roles";
+import { signAccessToken } from "../../src/services/token.service";
+
+function customerToken(): string {
+  return signAccessToken({
+    sub: "00000000-0000-0000-0000-000000000002",
+    email: "customer@test.local",
+    role: ROLES.CUSTOMER,
+    session_id: "test-session",
+  });
+}
 
 describe("Phase 5 routes (validation & authorization, no DB)", () => {
   it("requires auth to patch vendor location", async () => {
@@ -40,8 +55,7 @@ describe("Phase 5 routes (validation & authorization, no DB)", () => {
   });
 
   it("rejects an image upload with an invalid folder as 422", async () => {
-    const guest = await request(app).post("/api/v1/auth/guest");
-    const token = guest.body.data.access_token as string;
+    const token = customerToken();
     const res = await request(app)
       .post("/api/v1/upload/image")
       .set("Authorization", `Bearer ${token}`)

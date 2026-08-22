@@ -21,6 +21,7 @@ import {
   Calendar,
   Hash,
   Clock,
+  QrCode,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import {
@@ -64,6 +65,7 @@ function OrderIdTrackingPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [isSwitchingCod, setIsSwitchingCod] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   const cancelMutation = useMutation({
     mutationFn: () => api.post(`/orders/${orderId}/cancel`, { reason: cancelReason }),
@@ -117,7 +119,8 @@ function OrderIdTrackingPage() {
   const tax = Number(order?.tax ?? order?.platform_fee ?? 0);
   const discount = Number(order?.discount ?? 0);
   const totalAmount = Number(order?.total_amount ?? order?.total ?? 0);
-  const isPaymentUnpaid = !!order && ((order?.payment_status === "PENDING" && order?.payment_method !== "COD") || order?.payment_status === "FAILED");
+  const isPaymentUnpaid = !!order && ((order?.payment_status === "PENDING" && order?.payment_method !== "COD") || order?.payment_status === "FAILED") && !["cancelled", "refunded"].includes(String(order?.status || "").toLowerCase());
+  const isCodUnpaid = !!order && order?.payment_method === "COD" && order?.payment_status !== "PAID" && !["cancelled", "refunded", "failed"].includes(String(order?.status || "").toLowerCase());
 
   const handleRetryPayment = async () => {
     if (!order?.id) return;
@@ -262,6 +265,48 @@ function OrderIdTrackingPage() {
           </div>
         ) : (
           <>
+            {/* Pay Online Option for COD Orders (Pay Now or At Delivery) */}
+            {isCodUnpaid && (
+              <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-emerald-500/10 p-5 shadow-soft space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-2xl bg-emerald-500 text-black flex items-center justify-center font-bold shadow-md shrink-0 mt-0.5">
+                      <CreditCard className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-sm text-foreground">Pay Online Option (UPI / QR / Card)</h3>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500 text-black">
+                          Available Anytime / At Delivery
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xl">
+                        This order is currently <strong>Cash on Delivery (₹{totalAmount.toFixed(2)})</strong>. If you want to pay digitally now or when the delivery partner arrives at your doorstep, you can pay online via Google Pay, PhonePe, Paytm, QR, or Card.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end flex-wrap sm:flex-nowrap">
+                    <button
+                      onClick={handleRetryPayment}
+                      disabled={isRetryingPayment}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-4 py-2.5 shadow-xs transition-colors"
+                    >
+                      {isRetryingPayment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Smartphone className="h-3.5 w-3.5" />}
+                      Pay Online (UPI / Card)
+                    </button>
+                    <button
+                      onClick={() => setShowQrModal(true)}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground font-bold text-xs px-4 py-2.5 shadow-xs transition-colors"
+                    >
+                      <QrCode className="h-3.5 w-3.5 text-emerald-600" />
+                      Scan UPI QR
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Payment Incomplete / Failed Fallback Recovery Banner */}
             {isPaymentUnpaid && (
               <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-5 shadow-soft space-y-3">
@@ -1033,6 +1078,57 @@ function OrderIdTrackingPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* UPI QR Modal for Instant Scan & Pay */}
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+        <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg font-bold">Scan & Pay with Any UPI App</DialogTitle>
+            <DialogDescription className="text-center text-xs text-muted-foreground">
+              Scan with Google Pay, PhonePe, Paytm, BHIM, or CRED to pay at your doorstep or right now.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-4 bg-white rounded-2xl border shadow-inner inline-block mx-auto">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                `upi://pay?pa=vegamart@icici&pn=Vegamart&am=${totalAmount.toFixed(2)}&tn=Order_${order?.order_number || orderId}&cu=INR`
+              )}`}
+              alt="UPI QR Code"
+              className="h-48 w-48 object-contain mx-auto"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">Total Payable Amount</div>
+            <div className="text-2xl font-black text-emerald-600 tabular-nums">₹{totalAmount.toFixed(2)}</div>
+            <div className="text-[11px] text-muted-foreground font-mono">Order #{order?.order_number || orderId}</div>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              onClick={() => {
+                setShowQrModal(false);
+                handleRetryPayment();
+              }}
+              disabled={isRetryingPayment}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs h-11 shadow-sm"
+            >
+              <Smartphone className="h-4 w-4" /> Open UPI / Card Gateway
+            </button>
+            <button
+              onClick={() => {
+                refetch();
+                setShowQrModal(false);
+                toast.success("Checking payment status...");
+              }}
+              className="w-full rounded-2xl border border-border bg-card hover:bg-muted font-bold text-xs h-10"
+            >
+              Done / Refresh Status
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -147,3 +147,13 @@ export const recordOrderPaymentFailure = asyncHandler(async (req: Request, res: 
   return sendSuccess(res, result);
 });
 
+export const initiateCheckoutPayment = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.initiateCheckoutPayment(req.user!.id, req.body, req);
+  return sendSuccess(res, result);
+});
+
+export const verifyAndCreateOrder = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.verifyAndCreateOrder(req.user!.id, req.body, req);
+  return sendSuccess(res, result, { status: 201 });
+});
+

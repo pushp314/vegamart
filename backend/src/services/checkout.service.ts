@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import type { Prisma } from "@prisma/client";
 import prisma from "../database/prisma";
+import { env } from "../config";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { DEFAULT_CURRENCY, OTP_TTL_MINUTES, TAX_RATE_PERCENT } from "../constants";
@@ -968,6 +969,361 @@ export const checkoutService = {
 
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.ORDER_PLACED, entityType: "order", entityId: serializedOrders.map((o) => o.order.id).join(","), newValues: { count: serializedOrders.length, total: summary.total, payment_method: paymentMethod } },
+      req
+    );
+
+    return { summary, orders: serializedOrders };
+  },
+
+  async initiateOnlinePayment(
+    userId: string,
+    input: {
+      address_id: string;
+      coupon_code?: string;
+      delivery_slot?: string;
+      payment_type?: "FULL" | "ADVANCE";
+      items: Array<{ product_id: string; quantity: number; selected_unit?: string }>;
+    },
+    req: Request
+  ) {
+    const cart = await cartRepo.getOrCreate(userId);
+    await cartRepo.clear(cart.id);
+    for (const item of input.items) {
+      await cartService.addItem(
+        userId,
+        { product_id: item.product_id, quantity: item.quantity, selected_unit: item.selected_unit },
+        req
+      );
+    }
+
+    const currentCart = await cartService.getMyCart(userId);
+    const groups = groupByVendor(currentCart);
+    const summary = await this.buildSummary(currentCart, groups, input, userId);
+
+    for (const group of summary.groups) {
+      if (group.items_subtotal < group.min_order) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `Minimum order for ${group.vendor_name} is ₹${group.min_order}. Please add more items.`,
+          { code: "MIN_ORDER_NOT_MET" }
+        );
+      }
+    }
+
+    const address = await findAddressById(input.address_id);
+    if (!address || address.user_id !== userId || address.deleted_at) {
+      throw new NotFoundError("Address not found.");
+    }
+
+    const slotRaw = (input.delivery_slot || "").toLowerCase();
+    const isPickup = slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway");
+
+    if (!isPickup && address.latitude && address.longitude) {
+      for (const group of summary.groups) {
+        const vendor = await findVendorById(group.vendor_id);
+        if (vendor && vendor.latitude && vendor.longitude) {
+          const distKm = haversineDistanceKm(
+            Number(address.latitude),
+            Number(address.longitude),
+            Number(vendor.latitude),
+            Number(vendor.longitude)
+          );
+          const maxRadius = Number(vendor.delivery_radius_km || 5);
+          if (distKm > maxRadius) {
+            throw new ApiError(
+              HttpStatus.BAD_REQUEST,
+              `Selected delivery address in ${address.city || address.full_address || "selected area"} is ${distKm.toFixed(1)} km away. ${vendor.business_name} only delivers within ${maxRadius} km (Sakti District). Please choose a closer address or select Self Pickup.`,
+              {
+                code: "OUT_OF_DELIVERY_RADIUS",
+                details: {
+                  distance_km: String(Math.round(distKm * 10) / 10),
+                  max_radius_km: String(maxRadius),
+                  vendor_name: vendor.business_name,
+                  address_city: address.city || "",
+                },
+              }
+            );
+          }
+        }
+      }
+    }
+
+    let totalToCharge = summary.total;
+    const paymentType = input.payment_type ?? "FULL";
+
+    if (summary.groups.length === 1 && summary.groups[0]?.delivery_configs) {
+      const group = summary.groups[0];
+      const configs = group.delivery_configs;
+      if (configs) {
+        const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, configs);
+        const optConfig = deliveryInfo.config;
+        if (paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
+          const advancePct = optConfig.advance_percentage || 20;
+          totalToCharge = advancePct <= 0 || advancePct >= 100
+            ? summary.total
+            : Math.max(1, Math.round(summary.total * (advancePct / 100) * 100) / 100);
+        }
+      }
+    }
+
+    if (totalToCharge > 0 && totalToCharge < 1) {
+      totalToCharge = 1;
+    }
+
+    const receipt = `rcpt_${generateOrderNumber()}`;
+    const gatewayOrder = await razorpayGateway.createOrder({
+      amountPaise: Math.round(totalToCharge * 100),
+      currency: DEFAULT_CURRENCY,
+      receipt,
+      notes: {
+        user_id: userId,
+        delivery_slot: input.delivery_slot || "",
+        payment_type: paymentType,
+      },
+    });
+
+    return {
+      razorpay_order_id: gatewayOrder.id,
+      amount: gatewayOrder.amount,
+      amount_inr: totalToCharge,
+      currency: gatewayOrder.currency || "INR",
+      key_id: env.RAZORPAY_KEY_ID || "",
+      checkout_payload: input,
+      summary,
+    };
+  },
+
+  async placeOrderWithVerifiedPayment(
+    userId: string,
+    input: {
+      address_id: string;
+      coupon_code?: string;
+      delivery_slot?: string;
+      payment_type?: "FULL" | "ADVANCE";
+      items: Array<{ product_id: string; quantity: number; selected_unit?: string }>;
+    },
+    verifiedPayment: {
+      razorpay_order_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+    },
+    req: Request
+  ): Promise<CheckoutResult> {
+    const cart = await cartRepo.getOrCreate(userId);
+    await cartRepo.clear(cart.id);
+    for (const item of input.items) {
+      await cartService.addItem(
+        userId,
+        { product_id: item.product_id, quantity: item.quantity, selected_unit: item.selected_unit },
+        req
+      );
+    }
+
+    const currentCart = await cartService.getMyCart(userId);
+    const groups = groupByVendor(currentCart);
+    const summary = await this.buildSummary(currentCart, groups, input, userId);
+
+    const address = await findAddressById(input.address_id);
+    if (!address || address.user_id !== userId || address.deleted_at) {
+      throw new NotFoundError("Address not found.");
+    }
+
+    const paymentType = input.payment_type ?? "FULL";
+    const groupDiscounts = summary.group_discounts;
+    const computations = summary.groups.map((group) => {
+      const groupDiscount = groupDiscounts[group.vendor_id] ?? 0;
+      const discountRatio = group.items_subtotal > 0 ? groupDiscount / group.items_subtotal : 0;
+      const groupSubtotal = group.items_subtotal;
+      let groupTaxRaw = 0;
+      for (const item of group.items) {
+        const itemDiscount = item.line_total * discountRatio;
+        const itemTaxable = Math.max(0, item.line_total - itemDiscount);
+        groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
+      }
+      const groupTax = Math.round(groupTaxRaw * 100) / 100;
+      const groupTotal = Math.round((groupSubtotal + group.delivery_fee - groupDiscount + groupTax) * 100) / 100;
+      return { group, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
+    });
+
+    const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
+
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < computations.length; i++) {
+        const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
+
+        const deliveryInfo = group.delivery_configs
+          ? getDeliveryOptionConfig(input.delivery_slot, group.delivery_configs)
+          : null;
+        const optConfig = deliveryInfo?.config;
+        const isAdvance = paymentType === "ADVANCE" && !!optConfig?.advance_payment_enabled;
+
+        let amountCharged = groupTotal;
+        if (isAdvance && optConfig) {
+          const advancePct = optConfig.advance_percentage || 20;
+          amountCharged = advancePct <= 0 || advancePct >= 100
+            ? groupTotal
+            : Math.max(1, Math.round(groupTotal * (advancePct / 100) * 100) / 100);
+        }
+
+        const order = await orderRepo.createOrder(
+          {
+            order_number: orderNumber,
+            user_id: userId,
+            vendor_id: group.vendor_id,
+            address_id: address.id,
+            coupon_id: summary.coupon?.id ?? null,
+            coupon_discount: groupDiscount,
+            items_subtotal: group.items_subtotal,
+            delivery_fee: group.delivery_fee,
+            tax: groupTax,
+            total: groupTotal,
+            payment_method: "RAZORPAY",
+            delivery_note: input.delivery_slot ?? null,
+            items: group.items.map((item) => ({
+              product_id: item.product_id,
+              product_name: item.name,
+              unit: item.unit,
+              selected_unit: item.selected_unit,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              total_price: item.line_total,
+              image_url: item.image_url ?? null,
+            })),
+          },
+          tx
+        );
+
+        const updated = await orderRepo.updateOrder(
+          order.id,
+          {
+            discount: groupDiscount,
+            tax: groupTax,
+            total: groupTotal,
+            invoice_number: generateInvoiceNumber(orderNumber),
+            otp_code: generateDeliveryOtp(),
+            otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+          },
+          tx
+        );
+
+        await orderRepo.updateOrderStatus(
+          order.id,
+          {
+            status: "CONFIRMED",
+            note: "Order confirmed via Verified Online Payment.",
+            actorType: "customer",
+            actorId: userId,
+          },
+          tx
+        );
+
+        await dailyOrderCounterRepo.incrementForVendor(
+          group.vendor_id,
+          startOfToday(),
+          50,
+          tx
+        );
+
+        const paymentRecord = await paymentRepo.createForOrder(
+          {
+            order_id: order.id,
+            amount: amountCharged,
+            method: "RAZORPAY",
+            razorpay_order_id: verifiedPayment.razorpay_order_id,
+          },
+          tx
+        );
+
+        await paymentRepo.claimAsPaid(
+          paymentRecord.id,
+          {
+            razorpay_payment_id: verifiedPayment.razorpay_payment_id,
+            razorpay_signature: verifiedPayment.razorpay_signature,
+          }
+        );
+
+        serializedOrders.push(serializeOrder(updated, { ...paymentRecord, status: "PAID" } as any));
+      }
+
+      const reservationItems = computations.flatMap((c) =>
+        c.group.items.map((item) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          name: item.name,
+        }))
+      );
+      await inventoryRepo.reserveAvailable(reservationItems, tx);
+
+      if (summary.coupon) {
+        const firstOrderId = serializedOrders[0]?.order.id;
+        if (firstOrderId) {
+          await couponRepo.claimUsage(summary.coupon.id, firstOrderId, userId, summary.discount, tx);
+        }
+      }
+    });
+
+    await cartRepo.clear(cart.id);
+
+    for (let i = 0; i < computations.length; i++) {
+      const { group, groupTotal } = computations[i]!;
+      const entry = serializedOrders[i];
+      if (!entry) continue;
+
+      await notificationService.orderStatus(
+        userId,
+        entry.order.order_number,
+        "Order Confirmed & Paid",
+        `Your order ${entry.order.order_number} has been placed and paid successfully (₹${groupTotal}).`,
+        { order_id: entry.order.id }
+      );
+
+      const vendor = await findVendorById(group.vendor_id);
+      if (vendor) {
+        const customerName = (req.user as any)?.name || address?.label || "Customer";
+        const customerPhone = address?.phone || (req.user as any)?.phone || undefined;
+        const deliverySlot = input.delivery_slot || "Standard Delivery";
+
+        await notificationService.vendor(
+          vendor.user_id,
+          "New Paid Order Received! 🛒",
+          `Order #${entry.order.order_number} has been paid online (${group.items.length} items, ₹${groupTotal}).`,
+          {
+            order_id: entry.order.id,
+            order_number: entry.order.order_number,
+            total: groupTotal,
+            customer_name: customerName,
+            delivery_slot: deliverySlot,
+            payment_method: "RAZORPAY",
+          }
+        );
+
+        realtime.publishVendorOrder(group.vendor_id, {
+          order_id: entry.order.id,
+          order_number: entry.order.order_number,
+          total: groupTotal,
+          items_count: group.items.length,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          delivery_slot: deliverySlot,
+          payment_method: "RAZORPAY",
+          items: group.items.map((it) => ({
+            name: it.name,
+            quantity: it.quantity,
+            price: it.unit_price,
+          })),
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    await auditService.record(
+      {
+        userId,
+        action: AUDIT_ACTIONS.ORDER_PLACED,
+        entityType: "order",
+        entityId: serializedOrders.map((o) => o.order.id).join(","),
+        newValues: { count: serializedOrders.length, total: summary.total, payment_method: "RAZORPAY" },
+      },
       req
     );
 
