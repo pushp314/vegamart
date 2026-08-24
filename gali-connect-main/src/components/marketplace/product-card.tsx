@@ -32,18 +32,21 @@ export function ProductCard({
     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
 
   const vendorOffline = product.vendor?.is_open === false;
+  const isZeroStock = typeof product.stock === "number" && product.stock <= 0;
   const outOfStock =
     product.is_available === false ||
     product.is_active === false ||
-    (typeof product.stock === "number" && product.stock <= 0) ||
+    isZeroStock ||
     vendorOffline;
   const lowStock =
     !outOfStock && typeof product.stock === "number" && product.stock > 0 && product.stock <= 5;
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border bg-card p-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-glow ${
-        outOfStock ? "opacity-80" : ""
+      className={`group relative overflow-hidden rounded-2xl border p-3 shadow-soft transition-all ${
+        outOfStock
+          ? "bg-muted/40 border-muted-foreground/30 grayscale contrast-90 brightness-95 opacity-85 select-none"
+          : "bg-card hover:-translate-y-0.5 hover:shadow-glow"
       }`}
     >
       <Link
@@ -59,11 +62,11 @@ export function ProductCard({
           src={image}
           alt={product.name}
           loading="lazy"
-          className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 ${
-            outOfStock ? "grayscale-[40%]" : ""
+          className={`h-full w-full object-cover transition-transform duration-500 ${
+            outOfStock ? "grayscale contrast-75 brightness-90" : "group-hover:scale-110"
           }`}
         />
-        {product.vendor?.is_sponsored && (
+        {product.vendor?.is_sponsored && !outOfStock && (
           <div className="absolute left-2 top-2 z-[2] rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
             Sponsored
           </div>
@@ -78,8 +81,8 @@ export function ProductCard({
           </div>
         )}
         {outOfStock && (
-          <div className="absolute inset-x-0 bottom-0 z-[3] bg-rose-950/80 px-2 py-1 text-center text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-xs">
-            {vendorOffline ? "Store Closed" : "Sold Out"}
+          <div className="absolute inset-x-0 bottom-0 z-[3] bg-zinc-950/85 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-xs border-t border-white/10">
+            {vendorOffline ? "Store Closed" : "Out of Stock"}
           </div>
         )}
         {lowStock && (
@@ -114,22 +117,28 @@ export function ProductCard({
       </div>
 
       <div className="relative mt-3">
-        <h4 className="text-sm font-semibold truncate">{product.name}</h4>
+        <h4 className={`text-sm font-semibold truncate ${outOfStock ? "text-muted-foreground" : "text-foreground"}`}>
+          {product.name}
+        </h4>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
-            <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+          <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+            outOfStock ? "bg-muted text-muted-foreground" : "bg-amber-100/80 text-amber-700"
+          }`}>
+            <Star className={`h-2.5 w-2.5 ${outOfStock ? "fill-muted-foreground text-muted-foreground" : "fill-amber-400 text-amber-400"}`} />
             {typeof product.rating === "number" && product.rating > 0
               ? product.rating.toFixed(1)
               : "New"}
             {typeof product.review_count === "number" && product.review_count > 0 && (
-              <span className="font-semibold text-amber-600 ml-0.5">({product.review_count})</span>
+              <span className="font-semibold ml-0.5">({product.review_count})</span>
             )}
           </span>
           <span>•</span> <span>{product.unit}</span>
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="flex flex-col justify-center">
-            <span className="text-sm font-bold leading-none">₹{product.price}</span>
+            <span className={`text-sm font-bold leading-none ${outOfStock ? "text-muted-foreground line-through" : "text-foreground"}`}>
+              ₹{product.price}
+            </span>
             {product.mrp > product.price && (
               <span className="mt-1 text-[10px] text-muted-foreground line-through leading-none">
                 ₹{product.mrp}
@@ -138,7 +147,7 @@ export function ProductCard({
           </div>
           {!hideAddToCart && (
             outOfStock ? (
-              <span className="relative z-[5] text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg shrink-0">
+              <span className="relative z-[5] text-[10px] font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-200/80 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 px-2 py-1 rounded-lg shrink-0 cursor-not-allowed">
                 {vendorOffline ? "Closed" : "Out of stock"}
               </span>
             ) : (

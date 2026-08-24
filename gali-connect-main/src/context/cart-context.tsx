@@ -92,6 +92,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     (vendorId ? vendorId.replace(/-/g, " ").toUpperCase() : "Current Store");
 
   const addToCartDirectly = (product: Product, quantity = 1, variantLabel?: string) => {
+    const availableStock =
+      typeof product.stock === "number" && product.stock > 0
+        ? Math.min(MAX_ITEM_QTY, product.stock)
+        : MAX_ITEM_QTY;
+
     setItems((prev) => {
       const existingIndex = prev.findIndex(
         (i) => i.product.id === product.id && i.selectedVariant === variantLabel,
@@ -100,16 +105,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (existingIndex > -1) {
         const next = [...prev];
         const existing = next[existingIndex];
-        if (existing.quantity + quantity > MAX_ITEM_QTY) {
-          toast.warning(`Maximum ${MAX_ITEM_QTY} units per item`);
-          next[existingIndex] = { ...existing, quantity: MAX_ITEM_QTY };
+        if (existing.quantity + quantity > availableStock) {
+          toast.warning(`Only ${availableStock} units available in stock`);
+          next[existingIndex] = { ...existing, quantity: availableStock };
           return next;
         }
         next[existingIndex].quantity += quantity;
         return next;
       }
 
-      return [...prev, { id: `c_${Date.now()}`, product, quantity, selectedVariant: variantLabel }];
+      const initialQty = Math.min(quantity, availableStock);
+      return [...prev, { id: `c_${Date.now()}`, product, quantity: initialQty, selectedVariant: variantLabel }];
     });
   };
 
@@ -151,11 +157,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const handleConfirmClearAndAdd = () => {
     if (!pendingItem) return;
+    const availableStock =
+      typeof pendingItem.product.stock === "number" && pendingItem.product.stock > 0
+        ? Math.min(MAX_ITEM_QTY, pendingItem.product.stock)
+        : MAX_ITEM_QTY;
+    const initialQty = Math.min(pendingItem.quantity, availableStock);
+
     setItems([
       {
         id: `c_${Date.now()}`,
         product: pendingItem.product,
-        quantity: pendingItem.quantity,
+        quantity: initialQty,
         selectedVariant: pendingItem.variantLabel,
       },
     ]);

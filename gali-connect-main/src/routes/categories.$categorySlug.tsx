@@ -304,41 +304,72 @@ function CategoryPage() {
                   {products.map((p) => {
                     const discountPercent = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
                     const imageUrl = p.images?.[0]?.url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop";
+                    const outOfStock =
+                      p.is_available === false ||
+                      p.is_active === false ||
+                      (typeof p.stock === "number" && p.stock <= 0) ||
+                      (p.vendor as any)?.is_open === false;
                     return (
-                      <li key={p.id} className="bg-card border rounded-[20px] overflow-hidden flex flex-col shadow-sm relative">
-                        {discountPercent > 0 && (
-                          <div className="absolute top-0 left-0 z-10 bg-blue-600 text-white text-[11px] font-bold px-2 py-1 rounded-br-lg shadow-sm">
-                            {discountPercent}% OFF
+                      <li
+                        key={p.id}
+                        className={`border rounded-[20px] overflow-hidden flex flex-col shadow-sm relative transition-all ${
+                          outOfStock
+                            ? "bg-muted/40 grayscale contrast-90 brightness-95 opacity-85 select-none"
+                            : "bg-card"
+                        }`}
+                      >
+                        <Link to="/products/$productId" params={{ productId: p.id }} className="block">
+                          {discountPercent > 0 && !outOfStock && (
+                            <div className="absolute top-0 left-0 z-10 bg-blue-600 text-white text-[11px] font-bold px-2 py-1 rounded-br-lg shadow-sm">
+                              {discountPercent}% OFF
+                            </div>
+                          )}
+                          <div className="relative h-[110px] sm:h-[130px] w-full bg-muted/40 p-4 flex items-center justify-center">
+                            <img
+                              src={imageUrl}
+                              alt={p.name}
+                              loading="lazy"
+                              className={`max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-sm ${
+                                outOfStock ? "grayscale contrast-75 brightness-90" : ""
+                              }`}
+                            />
+                            {outOfStock && (
+                              <div className="absolute inset-x-0 bottom-0 bg-zinc-950/85 text-white text-[9px] font-black uppercase text-center py-1 tracking-wider border-t border-white/10">
+                                {(p.vendor as any)?.is_open === false ? "Store Closed" : "Out of Stock"}
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <div className="relative h-[110px] sm:h-[130px] w-full bg-muted/40 p-4 flex items-center justify-center">
-                          <img src={imageUrl} alt={p.name} loading="lazy" className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-sm" />
-                        </div>
-                        <div className="p-3 pt-0 flex flex-col flex-1">
+                        </Link>
+                        <div className="p-3 pt-2 flex flex-col flex-1">
                           {Boolean((p as any).vendor?.estimated_delivery_time || (p as any).vendor?.delivery_configs?.estimated_delivery_time || (p as any).estimated_delivery_time || (p as any).eta) && (
                             <div className="text-[10px] text-amber-600 flex items-center gap-1 mb-1 font-bold tracking-tight">
                               <Clock className="h-3 w-3" /> {((p as any).vendor?.estimated_delivery_time || (p as any).vendor?.delivery_configs?.estimated_delivery_time || (p as any).estimated_delivery_time || (p as any).eta).toUpperCase()}
                             </div>
                           )}
-                          <h3 className="font-semibold text-[13px] leading-tight line-clamp-2 mb-1 text-foreground/90">{p.name}</h3>
+                          <Link to="/products/$productId" params={{ productId: p.id }} className="block">
+                            <h3 className={`font-semibold text-[13px] leading-tight line-clamp-2 mb-1 ${outOfStock ? "text-muted-foreground" : "text-foreground/90"}`}>{p.name}</h3>
+                          </Link>
                           <p className="text-[11px] text-muted-foreground mb-3">{p.unit}</p>
                           <div className="mt-auto flex flex-col gap-1.5">
                             <div className="flex items-center justify-between">
                               <div className="flex flex-col">
-                                <span className="font-bold text-sm leading-none">₹{p.price}</span>
+                                <span className={`font-bold text-sm leading-none ${outOfStock ? "line-through text-muted-foreground" : ""}`}>₹{p.price}</span>
                                 {p.mrp > p.price && (
                                   <span className="text-[10px] text-muted-foreground line-through decoration-muted-foreground/50 leading-none mt-1">₹{p.mrp}</span>
                                 )}
                               </div>
-                              <button 
-                                onClick={() => addToCart(p, 1)}
-                                className="bg-white text-emerald-700 border border-emerald-700/30 hover:bg-emerald-50 text-[12px] font-bold px-4 py-1.5 rounded-lg uppercase shadow-sm transition-colors shrink-0"
-                              >
-                                ADD
-                              </button>
-                            </div>
-                            <div className="text-[9px] text-muted-foreground text-right mt-1 w-full flex justify-end pr-3">
-                              2 options
+                              {outOfStock ? (
+                                <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-lg border">
+                                  Sold
+                                </span>
+                              ) : (
+                                <button 
+                                  onClick={() => addToCart(p, 1)}
+                                  className="bg-white text-emerald-700 border border-emerald-700/30 hover:bg-emerald-50 text-[12px] font-bold px-4 py-1.5 rounded-lg uppercase shadow-sm transition-colors shrink-0"
+                                >
+                                  ADD
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>

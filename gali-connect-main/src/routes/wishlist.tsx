@@ -43,10 +43,19 @@ function WishlistPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
             {wishlist.map((p) => {
               const disc = Math.round(((p.mrp - p.price) / p.mrp) * 100);
+              const outOfStock =
+                p.is_available === false ||
+                p.is_active === false ||
+                (typeof p.stock === "number" && p.stock <= 0) ||
+                p.vendor?.is_open === false;
               return (
                 <div
                   key={p.id}
-                  className="group relative rounded-3xl bg-card border overflow-hidden shadow-soft transition-transform hover:-translate-y-1"
+                  className={`group relative rounded-3xl border overflow-hidden shadow-soft transition-all ${
+                    outOfStock
+                      ? "bg-muted/40 grayscale contrast-90 brightness-95 opacity-85 select-none"
+                      : "bg-card hover:-translate-y-1"
+                  }`}
                 >
                   <Link to="/products/$productId" params={{ productId: p.id }} className="block">
                     <div className="relative aspect-square bg-muted">
@@ -56,11 +65,18 @@ function WishlistPage() {
                           "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500"
                         }
                         alt={p.name}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        className={`h-full w-full object-cover transition-transform ${
+                          outOfStock ? "grayscale contrast-75 brightness-90" : "group-hover:scale-105"
+                        }`}
                       />
-                      {disc > 0 && (
+                      {disc > 0 && !outOfStock && (
                         <span className="absolute top-2 left-2 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs">
                           {disc}% OFF
+                        </span>
+                      )}
+                      {outOfStock && (
+                        <span className="absolute inset-x-0 bottom-0 bg-zinc-950/85 text-white text-[9px] font-black uppercase text-center py-1 tracking-wider border-t border-white/10">
+                          {p.vendor?.is_open === false ? "Store Closed" : "Out of Stock"}
                         </span>
                       )}
                     </div>
@@ -78,12 +94,14 @@ function WishlistPage() {
                   </button>
 
                   <div className="p-3.5 space-y-2">
-                    <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {p.rating}
+                    <div className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                      outOfStock ? "bg-muted text-muted-foreground border-border" : "text-amber-600 bg-amber-50 border-amber-200"
+                    }`}>
+                      <Star className={`h-3 w-3 ${outOfStock ? "fill-muted-foreground text-muted-foreground" : "fill-amber-500 text-amber-500"}`} /> {p.rating}
                     </div>
 
                     <div>
-                      <h3 className="font-display text-sm font-bold text-foreground truncate">
+                      <h3 className={`font-display text-sm font-bold truncate ${outOfStock ? "text-muted-foreground" : "text-foreground"}`}>
                         {p.name}
                       </h3>
                       <p className="text-[11px] text-muted-foreground">{p.unit}</p>
@@ -91,7 +109,7 @@ function WishlistPage() {
 
                     <div className="flex items-center justify-between pt-1">
                       <div>
-                        <span className="font-display font-bold text-base text-foreground">
+                        <span className={`font-display font-bold text-base ${outOfStock ? "line-through text-muted-foreground" : "text-foreground"}`}>
                           ₹{p.price}
                         </span>
                         {p.mrp > p.price && (
@@ -101,15 +119,21 @@ function WishlistPage() {
                         )}
                       </div>
 
-                      <button
-                        onClick={() => {
-                          addToCart(p, 1);
-                          toast.success(`Added ${p.name} to cart`);
-                        }}
-                        className="flex items-center gap-1 rounded-2xl bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 shadow-xs hover:bg-primary/90 transition-colors"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add
-                      </button>
+                      {outOfStock ? (
+                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1.5 rounded-xl border">
+                          Sold Out
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            addToCart(p, 1);
+                            toast.success(`Added ${p.name} to cart`);
+                          }}
+                          className="flex items-center gap-1 rounded-2xl bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 shadow-xs hover:bg-primary/90 transition-colors"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

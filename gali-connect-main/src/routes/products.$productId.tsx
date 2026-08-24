@@ -225,7 +225,7 @@ function ProductDetail() {
               </button>
             </div>
           </div>
-          <div className="aspect-square w-full overflow-hidden bg-white flex items-center justify-center">
+          <div className="aspect-square w-full overflow-hidden bg-white flex items-center justify-center relative">
             {gallery[imageIdx]?.match(/\.(mp4|webm|ogg)$/i) ? (
               <video
                 src={gallery[imageIdx]}
@@ -234,17 +234,22 @@ function ProductDetail() {
                 loop
                 muted
                 playsInline
-                className="h-full w-full object-contain bg-black"
+                className={`h-full w-full object-contain bg-black ${isOutOfStock ? "grayscale contrast-75 brightness-90" : ""}`}
               />
             ) : (
               <img
                 src={gallery[imageIdx]}
                 alt={product.name}
-                className="h-full w-full object-contain"
+                className={`h-full w-full object-contain ${isOutOfStock ? "grayscale contrast-75 brightness-90" : ""}`}
               />
             )}
+            {isOutOfStock && (
+              <div className="absolute inset-x-0 bottom-0 z-[5] bg-zinc-950/85 px-3 py-2 text-center text-xs font-black uppercase tracking-wider text-white backdrop-blur-xs border-t border-white/10">
+                {vendorOffline ? "Store Closed" : "Out of Stock"}
+              </div>
+            )}
           </div>
-          {discount > 0 && (
+          {discount > 0 && !isOutOfStock && (
             <span className="absolute left-4 bottom-4 rounded-full bg-emerald-700 px-3 py-1 text-[11px] font-bold text-white">
               {discount}% OFF
             </span>
@@ -262,7 +267,7 @@ function ProductDetail() {
                       onClick={() => setImageIdx(i)}
                       className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 transition bg-muted flex items-center justify-center shadow-md ${
                         imageIdx === i ? "border-primary" : "border-white/60 opacity-80"
-                      }`}
+                      } ${isOutOfStock ? "grayscale" : ""}`}
                       aria-label={`View media ${i + 1}`}
                     >
                       {isVideo ? (
@@ -286,13 +291,17 @@ function ProductDetail() {
 
         <main className="mx-auto max-w-3xl px-4 -mt-6 relative z-30 lg:mx-0 lg:max-w-none lg:px-0 lg:mt-0 lg:z-auto">
           {/* Info card */}
-          <section className="rounded-t-[32px] rounded-b-[24px] lg:rounded-2xl bg-card border p-5 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.1)] lg:shadow-sm">
+          <section className={`rounded-t-[32px] rounded-b-[24px] lg:rounded-2xl border p-5 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.1)] lg:shadow-sm ${
+            isOutOfStock ? "bg-card/90" : "bg-card"
+          }`}>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100/80 px-2 py-0.5 text-[10.5px] font-black text-amber-700">
-                <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+              <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-black ${
+                isOutOfStock ? "bg-muted text-muted-foreground" : "bg-amber-100/80 text-amber-700"
+              }`}>
+                <Star className={`h-2.5 w-2.5 ${isOutOfStock ? "fill-muted-foreground text-muted-foreground" : "fill-amber-400 text-amber-400"}`} />
                 {typeof product.rating === "number" && product.rating > 0 ? product.rating.toFixed(1) : "New"}
                 {reviewCount > 0 && (
-                  <span className="font-semibold text-amber-600 ml-1">
+                  <span className="font-semibold ml-1">
                     ({reviewCount.toLocaleString("en-IN")})
                   </span>
                 )}
@@ -311,7 +320,7 @@ function ProductDetail() {
               </div>
             )}
             
-            <h1 className="mt-2 font-display text-2xl font-bold leading-tight">{product.name}</h1>
+            <h1 className={`mt-2 font-display text-2xl font-bold leading-tight ${isOutOfStock ? "text-muted-foreground" : "text-foreground"}`}>{product.name}</h1>
             {vendor && (
               <p className="mt-1 text-[13px] text-muted-foreground">
                 by{" "}
@@ -328,13 +337,13 @@ function ProductDetail() {
 
             {/* Price */}
             <div className="mt-4 flex items-baseline gap-3">
-              <span className="font-display text-3xl font-bold tabular-nums">₹{unitPrice}</span>
+              <span className={`font-display text-3xl font-bold tabular-nums ${isOutOfStock ? "text-muted-foreground line-through" : "text-foreground"}`}>₹{unitPrice}</span>
               {unitMrp > unitPrice && (
                 <span className="text-sm text-muted-foreground line-through tabular-nums">
                   ₹{unitMrp}
                 </span>
               )}
-              {discount > 0 && (
+              {discount > 0 && !isOutOfStock && (
                 <span className="text-[12px] font-bold text-primary">
                   You save ₹{unitMrp - unitPrice}
                 </span>
@@ -371,9 +380,9 @@ function ProductDetail() {
 
             {/* Out of stock Alert */}
             {isOutOfStock && (
-              <div className="mt-4 rounded-2xl bg-rose-50 border border-rose-200 p-3.5 flex items-center gap-2.5 text-rose-700 text-sm font-bold">
-                <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                <span>{vendorOffline ? "Store is currently closed · Not accepting orders" : "Sold Out · Currently Out of Stock"}</span>
+              <div className="mt-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-300 dark:border-zinc-700 p-3.5 flex items-center gap-2.5 text-zinc-800 dark:text-zinc-200 text-sm font-bold">
+                <span className="h-2.5 w-2.5 rounded-full bg-zinc-500 shrink-0" />
+                <span>{vendorOffline ? "Store is currently closed · Not accepting orders" : "Out of Stock · Currently Unavailable"}</span>
               </div>
             )}
 
@@ -390,7 +399,7 @@ function ProductDetail() {
                 <button
                   disabled={isOutOfStock}
                   onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  className="grid h-10 w-10 place-items-center disabled:opacity-40"
+                  className="grid h-10 w-10 place-items-center disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label="Decrease"
                 >
                   <Minus className="h-4 w-4" />
@@ -399,7 +408,7 @@ function ProductDetail() {
                 <button
                   disabled={isOutOfStock}
                   onClick={() => setQty((q) => Math.min(typeof product.stock === "number" && product.stock > 0 ? product.stock : 20, q + 1))}
-                  className="grid h-10 w-10 place-items-center disabled:opacity-40"
+                  className="grid h-10 w-10 place-items-center disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label="Increase"
                 >
                   <Plus className="h-4 w-4" />
@@ -445,7 +454,7 @@ function ProductDetail() {
                 onClick={handleBuyNow}
                 className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-sm font-bold h-12 px-7 shadow-md hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isOutOfStock ? "Sold Out" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
+                {isOutOfStock ? "Out of Stock" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
               </button>
             </div>
           </section>
@@ -494,48 +503,67 @@ function ProductDetail() {
                 const imageUrl =
                   p.images?.[0]?.url ||
                   "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                const pOutOfStock =
+                  p.is_available === false ||
+                  p.is_active === false ||
+                  (typeof p.stock === "number" && p.stock <= 0);
                 return (
                   <Link
                     key={p.id}
                     to="/products/$productId"
                     params={{ productId: p.id }}
-                    className="rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
+                    className={`rounded-2xl border overflow-hidden shadow-sm transition-all ${
+                      pOutOfStock
+                        ? "bg-muted/40 grayscale contrast-90 brightness-95 opacity-85"
+                        : "bg-card hover:border-primary/40"
+                    }`}
                   >
                     <div className="relative aspect-square bg-white border-b overflow-hidden flex items-center justify-center p-2">
-                      <img src={imageUrl} alt={p.name} className="max-h-full max-w-full object-contain" />
-                      {disc > 0 && (
+                      <img src={imageUrl} alt={p.name} className={`max-h-full max-w-full object-contain ${pOutOfStock ? "grayscale" : ""}`} />
+                      {disc > 0 && !pOutOfStock && (
                         <span className="absolute top-2 left-2 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
                           {disc}% OFF
                         </span>
                       )}
+                      {pOutOfStock && (
+                        <span className="absolute inset-x-0 bottom-0 bg-zinc-950/80 text-white text-[9px] font-black uppercase text-center py-1 tracking-wider">
+                          Out of stock
+                        </span>
+                      )}
                     </div>
                     <div className="p-3 pt-2">
-                      <div className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 mb-1">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {p.rating || "0.0"}
+                      <div className={`inline-flex items-center gap-1 text-[11px] font-bold mb-1 ${pOutOfStock ? "text-muted-foreground" : "text-amber-600"}`}>
+                        <Star className={`h-3 w-3 ${pOutOfStock ? "fill-muted-foreground text-muted-foreground" : "fill-amber-400 text-amber-400"}`} /> {p.rating || "0.0"}
                       </div>
                       <h3 className="font-semibold text-[13.5px] leading-tight line-clamp-2 text-foreground/90">{p.name}</h3>
                       <p className="mt-1 text-[11.5px] text-muted-foreground">{p.unit}</p>
                       <div className="mt-3 flex items-center justify-between">
                         <div className="flex flex-col">
-                          <span className="font-bold text-sm leading-none">₹{p.price}</span>
+                          <span className={`font-bold text-sm leading-none ${pOutOfStock ? "line-through text-muted-foreground" : ""}`}>₹{p.price}</span>
                           {p.mrp > p.price && (
                             <span className="mt-1 text-[10.5px] text-muted-foreground line-through leading-none">
                               ₹{p.mrp}
                             </span>
                           )}
                         </div>
-                        <button
-                          aria-label={`Add ${p.name}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            addToCart(p, 1);
-                            toast.success(`Added ${p.name} to cart`);
-                          }}
-                          className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm hover:scale-105 transition-transform"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
+                        {pOutOfStock ? (
+                          <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                            Sold
+                          </span>
+                        ) : (
+                          <button
+                            aria-label={`Add ${p.name}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              addToCart(p, 1);
+                              toast.success(`Added ${p.name} to cart`);
+                            }}
+                            className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm hover:scale-105 transition-transform"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </Link>

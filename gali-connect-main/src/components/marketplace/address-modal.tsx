@@ -71,24 +71,37 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs animate-fade-in">
-      <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-glow max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b pb-4">
-          <div className="flex items-center gap-2 font-display text-lg font-bold">
+    <div
+      className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-lg bg-card border-t sm:border border-border rounded-t-[28px] sm:rounded-3xl shadow-glow max-h-[92dvh] sm:max-h-[88vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-2 duration-300">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-5 sm:px-6 py-4 bg-card shrink-0">
+          <div className="flex items-center gap-2.5 font-display text-base sm:text-lg font-bold">
             <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary/10 text-primary">
               <MapPin className="h-4 w-4" />
             </span>
             {initialData ? "Edit Address" : "Add Delivery Address"}
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted text-muted-foreground"
+            aria-label="Close"
+            className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted text-muted-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
+        {/* Scrollable Form Body */}
+        <form
+          id="address-form"
+          className="flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 py-4 space-y-4"
+          onSubmit={handleSubmit}
+        >
           {/* Label selector */}
           <div>
             <div className="mb-1.5 text-xs font-semibold text-foreground">Address Label</div>
@@ -98,10 +111,10 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
                   key={tag}
                   type="button"
                   onClick={() => setLabel(tag)}
-                  className={`flex-1 rounded-xl border py-2 text-xs font-semibold transition-colors ${
+                  className={`flex-1 rounded-xl border py-2.5 text-xs font-bold transition-all ${
                     label === tag
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                      : "border-border bg-muted text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {tag}
@@ -112,19 +125,24 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-foreground">Full Name</div>
+              <div className="mb-1 text-xs font-semibold text-foreground">Full Name *</div>
               <input
+                required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-2xl bg-muted border h-10 px-3 text-xs outline-none"
+                placeholder="e.g. Rahul Sharma"
+                className="w-full rounded-2xl bg-muted border border-border h-11 px-3.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
             </label>
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-foreground">Phone Number *</div>
               <input
+                required
+                type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
+                placeholder="10-digit mobile number"
+                className="w-full rounded-2xl bg-muted border border-border h-11 px-3.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
             </label>
           </div>
@@ -134,9 +152,11 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
               Flat / House No. / Building *
             </div>
             <input
+              required
               value={line1}
               onChange={(e) => setLine1(e.target.value)}
-              className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
+              placeholder="e.g. Flat 302, Green Heights"
+              className="w-full rounded-2xl bg-muted border border-border h-11 px-3.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
             />
           </label>
 
@@ -147,56 +167,63 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
             <input
               value={line2}
               onChange={(e) => setLine2(e.target.value)}
-              className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
+              placeholder="e.g. Near Daily Market, Main Road"
+              className="w-full rounded-2xl bg-muted border border-border h-11 px-3.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
             />
           </label>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2.5">
             <label className="block col-span-2">
               <div className="mb-1 text-xs font-semibold text-foreground">City & Area *</div>
               <input
+                required
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
+                placeholder="e.g. Sakti"
+                className="w-full rounded-2xl bg-muted border border-border h-11 px-3.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
             </label>
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-foreground">Pincode *</div>
               <input
+                required
                 value={pincode}
                 onChange={(e) => setPincode(e.target.value)}
-                className="w-full rounded-2xl bg-muted border h-11 px-3 text-sm outline-none"
+                placeholder="e.g. 495689"
+                className="w-full rounded-2xl bg-muted border border-border h-11 px-3.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
             </label>
           </div>
 
-          <label className="flex items-center gap-2 pt-2 text-xs font-semibold text-foreground">
+          <label className="flex items-center gap-2.5 pt-2 text-xs font-semibold text-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={isDefault}
               onChange={(e) => setIsDefault(e.target.checked)}
-              className="h-4 w-4 rounded accent-primary"
+              className="h-4 w-4 rounded accent-primary cursor-pointer"
             />
             Make this my default delivery address
           </label>
-
-          <div className="flex gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-2xl border bg-muted py-2.5 text-xs font-semibold text-muted-foreground hover:bg-card"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 rounded-2xl bg-primary text-primary-foreground font-semibold text-xs py-2.5 hover:bg-primary/90 flex items-center justify-center gap-2"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Address"}
-            </button>
-          </div>
         </form>
+
+        {/* Sticky Footer CTA - Always visible & easily accessible */}
+        <div className="p-4 sm:p-5 border-t border-border bg-card/95 backdrop-blur-md sticky bottom-0 z-10 flex gap-2.5 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-2xl border border-border bg-muted py-3 text-xs font-bold text-muted-foreground hover:bg-card hover:text-foreground transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="address-form"
+            disabled={saving}
+            className="flex-[2] rounded-2xl bg-primary text-primary-foreground font-bold text-xs py-3 hover:bg-primary/90 flex items-center justify-center gap-2 shadow-md transition-all disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (initialData ? "Update Address" : "Save Address")}
+          </button>
+        </div>
       </div>
     </div>
   );
