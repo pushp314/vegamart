@@ -563,8 +563,8 @@ export default function VendorProductsPage() {
   };
 
   return (
-    <div className="w-full overflow-x-auto pb-4">
-      <div className="min-w-[1024px] space-y-6 px-1">
+    <div className="w-full pb-4">
+      <div className="space-y-6 px-1">
         {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -664,14 +664,14 @@ export default function VendorProductsPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
             {filteredProducts.map((p) => {
               const isSelected = selectedProductIds.has(p.id);
               const primaryImg = p.images?.find((img) => img.is_primary)?.url || p.images?.[0]?.url || p.image_url;
               return (
                 <div
                   key={p.id}
-                  className={`group relative flex flex-col justify-between rounded-2xl border bg-card p-3 shadow-sm hover:shadow-md transition-all ${
+                  className={`group relative flex flex-col justify-between rounded-xl border bg-card p-2 shadow-sm hover:shadow-md transition-all ${
                     isSelected ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-border"
                   }`}
                 >
@@ -689,7 +689,7 @@ export default function VendorProductsPage() {
                     </button>
 
                     {/* Image Thumbnail */}
-                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-muted/40 mb-2.5">
+                    <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted/40 mb-2">
                       {primaryImg ? (
                         <img
                           src={primaryImg}
@@ -698,20 +698,20 @@ export default function VendorProductsPage() {
                         />
                       ) : (
                         <div className="h-full w-full flex items-center justify-center text-muted-foreground">
-                          <Package className="h-8 w-8 opacity-30" />
+                          <Package className="h-6 w-6 opacity-30" />
                         </div>
                       )}
 
                       {/* Photo Count Badge */}
                       {p.images && p.images.length > 1 && (
-                        <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm">
+                        <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] font-bold px-1 py-0.5 rounded backdrop-blur-sm">
                           📷 {p.images.length} photos
                         </span>
                       )}
 
                       {/* Stock Status Badge */}
                       <span
-                        className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
                           p.is_active && (p.stock ?? 0) > 0
                             ? "bg-emerald-500/90 text-black"
                             : "bg-rose-500/90 text-white"
@@ -722,21 +722,21 @@ export default function VendorProductsPage() {
                     </div>
 
                     {/* Details */}
-                    <h4 className="font-bold text-xs line-clamp-1 group-hover:text-emerald-500 transition-colors">
+                    <h4 className="font-bold text-[11px] line-clamp-1 group-hover:text-emerald-500 transition-colors">
                       {p.name}
                     </h4>
 
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="font-black text-sm text-foreground">₹{p.price}</span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="font-black text-xs text-foreground">₹{p.price}</span>
                       {p.mrp && p.mrp > p.price && (
-                        <span className="text-[10px] text-muted-foreground line-through">
+                        <span className="text-[9px] text-muted-foreground line-through">
                           ₹{p.mrp}
                         </span>
                       )}
-                      <span className="text-[10px] text-muted-foreground">/{p.unit}</span>
+                      <span className="text-[9px] text-muted-foreground">/{p.unit}</span>
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                    <div className="flex items-center justify-between text-[9px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border/50">
                       <span>Stock: {p.stock ?? 0}</span>
                       {p.is_vegetarian !== null && (
                         <span className={p.is_vegetarian ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
@@ -747,18 +747,18 @@ export default function VendorProductsPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="grid grid-cols-2 gap-1.5 mt-3 pt-2 border-t border-border">
+                  <div className="grid grid-cols-2 gap-1 mt-2 pt-1.5 border-t border-border">
                     <button
                       onClick={() => handleOpenEdit(p)}
-                      className="flex items-center justify-center gap-1 rounded-lg border border-border bg-muted/30 py-1.5 text-[10px] sm:text-xs font-bold hover:bg-muted transition-colors"
+                      className="flex items-center justify-center gap-0.5 rounded-lg border border-border bg-muted/30 py-1 text-[9px] sm:text-[10px] font-bold hover:bg-muted transition-colors"
                     >
-                      <Edit2 className="h-3 w-3" /> Edit
+                      <Edit2 className="h-2.5 w-2.5" /> Edit
                     </button>
                     <button
                       onClick={() => setDeleteTarget(p)}
-                      className="flex items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50/50 py-1.5 text-[10px] sm:text-xs font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/20 dark:border-rose-900 transition-colors"
+                      className="flex items-center justify-center gap-0.5 rounded-lg border border-rose-200 bg-rose-50/50 py-1 text-[9px] sm:text-[10px] font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/20 dark:border-rose-900 transition-colors"
                     >
-                      <Trash2 className="h-3 w-3" /> Delete
+                      <Trash2 className="h-2.5 w-2.5" /> Delete
                     </button>
                   </div>
                 </div>
