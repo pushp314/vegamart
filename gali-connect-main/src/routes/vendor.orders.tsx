@@ -90,7 +90,7 @@ function VendorOrdersPage() {
       (o.order_number || o.id).toLowerCase().includes(searchQuery.toLowerCase()) ||
       (o.customer_name || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    const isLive = ["PENDING", "CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY"].includes(
+    const isLive = ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY"].includes(
       (o.status || "").toUpperCase()
     );
 
