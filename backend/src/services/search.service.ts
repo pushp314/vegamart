@@ -152,7 +152,6 @@ export const searchService = {
       if (vendor.latitude === null || vendor.longitude === null) continue;
       const distance = haversineDistanceKm(input.lat, input.lng, vendor.latitude, vendor.longitude);
       if (distance > radius) continue;
-      if (vendor.delivery_radius_km < distance) continue;
       covered.push({ vendor, distance_km: distance });
     }
 

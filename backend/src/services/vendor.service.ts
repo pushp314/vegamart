@@ -508,9 +508,6 @@ export const vendorService = {
         if (distance > radius) {
           continue;
         }
-        if (vendor.delivery_radius_km < distance) {
-          continue;
-        }
         const { latitude, longitude, ...rest } = vendor;
         results.push({ vendor: rest, distance_km: distance, latitude, longitude });
       }
