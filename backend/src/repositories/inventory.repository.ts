@@ -152,6 +152,17 @@ export async function reserveAvailable(
         code: "INSUFFICIENT_STOCK",
       });
     }
+
+    await db.$executeRaw`
+      UPDATE products
+      SET stock = GREATEST(0, stock - ${item.quantity})
+      WHERE id = ${item.product_id}::uuid
+    `;
+    await db.$executeRaw`
+      UPDATE products
+      SET is_available = false
+      WHERE id = ${item.product_id}::uuid AND stock <= 0
+    `;
   }
 }
 
@@ -160,6 +171,11 @@ export async function releaseReserved(productId: string, quantity: number, db: D
     UPDATE inventory_items
     SET reserved = GREATEST(0, reserved - ${quantity}), updated_at = now()
     WHERE product_id = ${productId}::uuid
+  `;
+  await db.$executeRaw`
+    UPDATE products
+    SET stock = stock + ${quantity}, is_available = true
+    WHERE id = ${productId}::uuid
   `;
 }
 
@@ -172,12 +188,8 @@ export async function consumeReserved(productId: string, quantity: number, db: D
     },
   });
   await db.product.updateMany({
-    where: { id: productId, stock: { gte: quantity } },
-    data: { stock: { decrement: quantity } },
-  });
-  await db.product.updateMany({
-    where: { id: productId, stock: { lte: 0 } },
-    data: { is_available: false },
+    where: { id: productId, total_stock: { gte: quantity } },
+    data: { total_stock: { decrement: quantity } },
   });
 }
 
