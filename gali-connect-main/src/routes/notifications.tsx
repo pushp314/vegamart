@@ -201,51 +201,90 @@ function NotificationsPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {notifications.map((n) => {
-              const Icon = n.type === "order" ? ShoppingBag : n.type === "promo" ? Tag : Sparkles;
-              return (
-                <div
-                  key={n.id}
-                  onClick={() => markSingleRead(n)}
-                  className={`rounded-3xl border p-4 transition-all cursor-pointer bg-card ${
-                    !n.is_read
-                      ? "border-primary/50 bg-emerald-50/40 ring-1 ring-primary/20 shadow-soft"
-                      : "border-border"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
+          <div className="space-y-8">
+            {notifications.filter(n => !n.is_read).length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">New</h2>
+                {notifications.filter(n => !n.is_read).map((n) => {
+                  const Icon = n.type === "order" ? ShoppingBag : n.type === "promo" ? Tag : Sparkles;
+                  return (
                     <div
-                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${
-                        n.type === "order"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : n.type === "promo"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-blue-100 text-blue-700"
-                      }`}
+                      key={n.id}
+                      onClick={() => markSingleRead(n)}
+                      className="rounded-3xl border border-primary/50 bg-emerald-50/40 ring-1 ring-primary/20 shadow-soft p-4 transition-all cursor-pointer"
                     >
-                      <Icon className="h-5 w-5" />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="font-display text-sm font-bold truncate">{n.title}</h4>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {n.time || n.created_at}
-                        </span>
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${
+                            n.type === "order"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : n.type === "promo"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </div>
+    
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="font-display text-sm font-bold truncate">{n.title}</h4>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {n.time || n.created_at}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                            {n.message}
+                          </p>
+                        </div>
+                        <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                        {n.message}
-                      </p>
                     </div>
-
-                    {!n.is_read && (
-                      <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
+            
+            {notifications.filter(n => n.is_read).length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">History</h2>
+                {notifications.filter(n => n.is_read).map((n) => {
+                  const Icon = n.type === "order" ? ShoppingBag : n.type === "promo" ? Tag : Sparkles;
+                  return (
+                    <div
+                      key={n.id}
+                      className="rounded-3xl border border-border bg-card p-4 transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${
+                            n.type === "order"
+                              ? "bg-emerald-100/50 text-emerald-700/70"
+                              : n.type === "promo"
+                                ? "bg-amber-100/50 text-amber-700/70"
+                                : "bg-blue-100/50 text-blue-700/70"
+                          }`}
+                        >
+                          <Icon className="h-5 w-5 opacity-70" />
+                        </div>
+    
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="font-display text-sm font-semibold truncate text-foreground/80">{n.title}</h4>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {n.time || n.created_at}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                            {n.message}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </main>

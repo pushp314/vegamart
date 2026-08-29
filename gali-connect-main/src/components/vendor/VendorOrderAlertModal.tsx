@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Bell,
@@ -61,6 +61,7 @@ export function VendorOrderAlertModal({
   onRejectOrder,
 }: VendorOrderAlertModalProps) {
   const navigate = useNavigate();
+  const [confirmAction, setConfirmAction] = useState<"accept" | "reject" | null>(null);
 
   if (!order) return null;
 
@@ -234,34 +235,66 @@ export function VendorOrderAlertModal({
 
         {/* Modal Footer Actions */}
         <div className="p-6 bg-muted/30 border-t border-border flex flex-col sm:flex-row items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={onDismiss}
-            className="w-full sm:w-auto h-12 px-5 rounded-2xl font-bold border-border hover:bg-muted text-foreground cursor-pointer"
-          >
-            Dismiss
-          </Button>
+          {confirmAction ? (
+            <div className="flex flex-col sm:flex-row w-full gap-3 animate-in fade-in zoom-in-95 duration-200">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmAction(null)}
+                className="w-full sm:flex-1 h-12 rounded-2xl font-bold cursor-pointer border-border hover:bg-muted"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (order) {
+                    if (confirmAction === "accept") {
+                      onAcceptAndView(order.order_id);
+                      navigate({ to: "/vendor/orders", search: { highlight: order.order_id } as any });
+                    } else if (confirmAction === "reject" && onRejectOrder) {
+                      onRejectOrder(order.order_id);
+                    }
+                  }
+                  setConfirmAction(null);
+                }}
+                className={`w-full sm:flex-1 h-12 rounded-2xl font-bold text-white shadow-lg cursor-pointer ${
+                  confirmAction === "accept" 
+                    ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/25" 
+                    : "bg-rose-600 hover:bg-rose-500 shadow-rose-600/25"
+                }`}
+              >
+                Confirm {confirmAction === "accept" ? "Accept" : "Reject"}
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={onDismiss}
+                className="w-full sm:w-auto h-12 px-5 rounded-2xl font-bold border-border hover:bg-muted text-foreground cursor-pointer"
+              >
+                Dismiss
+              </Button>
 
-          {onRejectOrder && (
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (order) onRejectOrder(order.order_id);
-              }}
-              className="w-full sm:w-auto h-12 px-5 rounded-2xl font-bold cursor-pointer transition-all hover:bg-rose-600 bg-rose-500 text-white border-transparent"
-            >
-              Reject
-            </Button>
+              {onRejectOrder && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setConfirmAction("reject")}
+                  className="w-full sm:w-auto h-12 px-5 rounded-2xl font-bold cursor-pointer transition-all hover:bg-rose-600 bg-rose-500 text-white border-transparent"
+                >
+                  Reject
+                </Button>
+              )}
+
+              <Button
+                onClick={() => setConfirmAction("accept")}
+                className="w-full sm:flex-1 h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer text-base"
+              >
+                <Sparkles className="h-5 w-5" />
+                <span>View & Accept Order</span>
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </>
           )}
-
-          <Button
-            onClick={handleViewOrder}
-            className="w-full sm:flex-1 h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer text-base"
-          >
-            <Sparkles className="h-5 w-5" />
-            <span>View & Accept Order</span>
-            <ChevronRight className="h-5 w-5" />
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

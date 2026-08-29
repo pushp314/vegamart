@@ -747,7 +747,7 @@ export const checkoutService = {
             tx
           );
 
-          await orderRepo.updateOrder(
+          const updated = await orderRepo.updateOrder(
             order.id,
             {
               discount: groupDiscount,
@@ -820,11 +820,7 @@ export const checkoutService = {
             );
           }
 
-          const updatedOrder = await orderRepo.findById(order.id);
-          if (!updatedOrder) {
-            throw new Error(`Order ${order.id} not found after creation.`);
-          }
-          serializedOrders.push(serializeOrder(updatedOrder, payment));
+          serializedOrders.push(serializeOrder(updated, payment));
         }
 
         // Atomic inventory reservation: the conditional guard aborts the whole
