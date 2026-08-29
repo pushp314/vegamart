@@ -18,6 +18,7 @@ export const refundPaymentSchema = z.object({
 export const initiateCheckoutPaymentSchema = z.object({
   address_id: z.string().uuid("address_id must be a valid UUID."),
   coupon_code: z.string().trim().min(1).max(50).optional(),
+  payment_method: z.string().optional(),
   payment_type: z.enum(["FULL", "ADVANCE"]).default("FULL").optional(),
   delivery_slot: z.string().trim().max(60).optional(),
   items: z
