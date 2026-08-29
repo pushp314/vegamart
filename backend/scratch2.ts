@@ -1,33 +1,15 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
-
 async function main() {
-  try {
-    await prisma.order.create({
-      data: {
-        order_number: "ORD-TEST-12345",
-        user_id: "00000000-0000-0000-0000-000000000000",
-        vendor_id: "00000000-0000-0000-0000-000000000000",
-        address_id: "00000000-0000-0000-0000-000000000000",
-        items_subtotal: 100,
-        delivery_fee: 10,
-        tax: 0,
-        total: 110,
-        payment_method: "RAZORPAY",
-        items: {
-          create: [{
-            product_id: "00000000-0000-0000-0000-000000000000",
-            product_name: "Test",
-            unit: "kg",
-            quantity: 1,
-            unit_price: 100,
-            total_price: 100,
-          }]
-        }
-      }
-    });
-  } catch (err: any) {
-    console.log("PRISMA ERROR:", err.message.substring(0, 500));
-  }
+  const where: any = {};
+  where.NOT = {
+    status: "PENDING",
+    payment_method: "RAZORPAY",
+    payment_status: "PENDING",
+  };
+  const allOrders = await prisma.order.findMany();
+  const withNot = await prisma.order.findMany({ where });
+  const missing = allOrders.filter(o1 => !withNot.find(o2 => o1.id === o2.id));
+  console.log(missing.map(o => ({ status: o.status, pm: o.payment_method, ps: o.payment_status })));
 }
-main();
+main().catch(console.error).finally(() => prisma.$disconnect());
