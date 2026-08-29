@@ -376,7 +376,7 @@ export function VendorOrderNotificationProvider({
     if (Array.isArray(orders) && orders.length > 0) {
       // Find any PENDING order that has not been alerted
       const pendingOrders = orders.filter(
-        (o) => ["PENDING", "CONFIRMED"].includes((o.status || "").toUpperCase())
+        (o) => ["PENDING"].includes((o.status || "").toUpperCase())
       );
 
       // On initial boot, initialize seen orders so existing orders don't blast alarms
@@ -430,15 +430,19 @@ export function VendorOrderNotificationProvider({
       dismissActiveOrder();
       
       try {
+        // Optimistically update order status to CONFIRMED
+        await api.patch(`/vendors/orders/${orderId}/status`, { status: "CONFIRMED" });
+        
         // Mark notifications as read so the badge clears when they view the order
         await api.put("/notifications/read-all");
+        queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
         queryClient.invalidateQueries({ queryKey: ["notifications"] });
         queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
         
         // Also optimistically set to 0 to feel instant
         queryClient.setQueryData(["notifications", "unread-count"], { count: 0 });
       } catch (err) {
-        console.error("Failed to mark notifications read", err);
+        console.error("Failed to accept order and mark notifications read", err);
       }
     },
     [dismissActiveOrder, queryClient]

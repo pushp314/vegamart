@@ -5,10 +5,10 @@
 
 const API_BASE_URL =
   typeof window === "undefined"
-    ? "http://127.0.0.1:8080/api/v1" // Use internal network during SSR to avoid NAT hairpinning timeouts
+    ? import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8081/api/v1"
     : import.meta.env.VITE_API_BASE_URL ||
       (typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "http://localhost:8080/api/v1"
+        ? "http://localhost:8081/api/v1"
         : "/api/v1");
 
 export const WS_BASE_URL = (() => {
@@ -218,6 +218,7 @@ class ApiClient {
     try {
       return JSON.parse(text) as ApiResponse<T>;
     } catch {
+      console.error("[API ERROR] URL:", res.url, "TEXT:", text);
       return {
         success: false,
         error: {

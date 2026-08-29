@@ -747,7 +747,7 @@ export const checkoutService = {
             tx
           );
 
-          const updated = await orderRepo.updateOrder(
+          await orderRepo.updateOrder(
             order.id,
             {
               discount: groupDiscount,
@@ -818,14 +818,13 @@ export const checkoutService = {
               },
               tx
             );
-            await orderRepo.updateOrderStatus(
-              order.id,
-              { status: "CONFIRMED", note: "Order confirmed for Cash on Delivery.", actorType: "system" },
-              tx
-            );
           }
 
-          serializedOrders.push(serializeOrder(updated, payment));
+          const updatedOrder = await orderRepo.findById(order.id);
+          if (!updatedOrder) {
+            throw new Error(`Order ${order.id} not found after creation.`);
+          }
+          serializedOrders.push(serializeOrder(updatedOrder, payment));
         }
 
         // Atomic inventory reservation: the conditional guard aborts the whole
@@ -1217,17 +1216,6 @@ export const checkoutService = {
             invoice_number: generateInvoiceNumber(orderNumber),
             otp_code: generateDeliveryOtp(),
             otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
-          },
-          tx
-        );
-
-        await orderRepo.updateOrderStatus(
-          order.id,
-          {
-            status: "CONFIRMED",
-            note: "Order confirmed via Verified Online Payment.",
-            actorType: "customer",
-            actorId: userId,
           },
           tx
         );
