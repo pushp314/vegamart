@@ -448,6 +448,29 @@ export function VendorOrderNotificationProvider({
     [dismissActiveOrder, queryClient]
   );
 
+  const handleRejectOrder = useCallback(
+    async (orderId: string) => {
+      dismissActiveOrder();
+      
+      try {
+        await api.patch(`/vendors/orders/${orderId}/status`, { 
+          status: "CANCELLED", 
+          note: "Vendor rejected the order from alert." 
+        });
+        
+        await api.put("/notifications/read-all");
+        queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+        
+        queryClient.setQueryData(["notifications", "unread-count"], { count: 0 });
+      } catch (err) {
+        console.error("Failed to reject order and mark notifications read", err);
+      }
+    },
+    [dismissActiveOrder, queryClient]
+  );
+
   return (
     <VendorOrderNotificationContext.Provider
       value={{
@@ -474,6 +497,7 @@ export function VendorOrderNotificationProvider({
           onToggleMute={muteActiveAlarm}
           onDismiss={dismissActiveOrder}
           onAcceptAndView={handleAcceptAndView}
+          onRejectOrder={handleRejectOrder}
         />
       )}
     </VendorOrderNotificationContext.Provider>

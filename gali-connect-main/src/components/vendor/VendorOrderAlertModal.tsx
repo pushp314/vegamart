@@ -47,6 +47,7 @@ interface VendorOrderAlertModalProps {
   onToggleMute?: () => void;
   onDismiss: () => void;
   onAcceptAndView: (orderId: string) => void;
+  onRejectOrder?: (orderId: string) => void;
 }
 
 export function VendorOrderAlertModal({
@@ -57,6 +58,7 @@ export function VendorOrderAlertModal({
   onToggleMute,
   onDismiss,
   onAcceptAndView,
+  onRejectOrder,
 }: VendorOrderAlertModalProps) {
   const navigate = useNavigate();
 
@@ -239,6 +241,18 @@ export function VendorOrderAlertModal({
           >
             Dismiss
           </Button>
+
+          {onRejectOrder && (
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (order) onRejectOrder(order.order_id);
+              }}
+              className="w-full sm:w-auto h-12 px-5 rounded-2xl font-bold cursor-pointer transition-all hover:bg-rose-600 bg-rose-500 text-white border-transparent"
+            >
+              Reject
+            </Button>
+          )}
 
           <Button
             onClick={handleViewOrder}
