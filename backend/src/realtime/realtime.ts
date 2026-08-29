@@ -57,7 +57,7 @@ async function canJoinVendorRoom(payload: JwtAccessPayload, vendorId: string): P
 
 async function authenticateWs(req: IncomingMessage, room: string): Promise<boolean> {
   // Public broadcast room — anyone may listen to the roaming vendor map.
-  if (room === "roaming") return true;
+  if (room === "roaming" || room.startsWith("shop:")) return true;
   // Vendor alerts and delivery order streams expose user-specific data.
   const requiresAuth = room.startsWith("vendor:") || room.startsWith("order:");
   if (!requiresAuth) return true;
@@ -179,6 +179,10 @@ function resolveRoom(segments: string[]): string | null {
   if (segments[0] === "delivery" && segments[1] === "order" && segments[3] === "stream" && segments[2]) {
     return `order:${segments[2]}`;
   }
+  // /shop/:vendor_id/stream
+  if (segments[0] === "shop" && segments[2] === "stream" && segments[1]) {
+    return `shop:${segments[1]}`;
+  }
   return null;
 }
 
@@ -221,6 +225,9 @@ export const realtime = {
   },
   publishOrderStatus(orderId: string, status: string): void {
     publishToRoom(`order:${orderId}`, "order_status_update", { status });
+  },
+  publishShopProductUpdate(vendorId: string, productId: string, data: { stock: number; is_available: boolean }): void {
+    publishToRoom(`shop:${vendorId}`, "product_stock_update", { product_id: productId, ...data });
   },
 };
 

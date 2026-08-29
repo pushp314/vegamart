@@ -906,6 +906,21 @@ export const checkoutService = {
         groupTotal
       );
       await analyticsService.recordCustomer(group.vendor_id, userId, entry.order.id);
+
+      // Publish stock updates to shop realtime
+      for (const item of group.items) {
+        prisma.product.findUnique({
+          where: { id: item.product_id },
+          select: { stock: true, is_available: true }
+        }).then(product => {
+          if (product) {
+            realtime.publishShopProductUpdate(group.vendor_id, item.product_id, {
+              stock: product.stock,
+              is_available: product.is_available
+            });
+          }
+        }).catch(() => {});
+      }
     }
 
     // For COD, the order is confirmed immediately, so notify the customer and vendor now.
@@ -1268,6 +1283,21 @@ export const checkoutService = {
       const { group, groupTotal } = computations[i]!;
       const entry = serializedOrders[i];
       if (!entry) continue;
+
+      // Publish stock updates to shop realtime
+      for (const item of group.items) {
+        prisma.product.findUnique({
+          where: { id: item.product_id },
+          select: { stock: true, is_available: true }
+        }).then(product => {
+          if (product) {
+            realtime.publishShopProductUpdate(group.vendor_id, item.product_id, {
+              stock: product.stock,
+              is_available: product.is_available
+            });
+          }
+        }).catch(() => {});
+      }
 
       await notificationService.orderStatus(
         userId,

@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { realtime } from "../realtime/realtime";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
@@ -114,8 +115,11 @@ export const inventoryService = {
 
 async function syncProductAvailability(productId: string, quantity: number): Promise<void> {
   const isAvailable = quantity > 0;
-  await updateProductRepo(productId, {
+  const product = await updateProductRepo(productId, {
     stock: quantity,
     is_available: isAvailable,
   });
+  if (product && (product as any).vendor_id) {
+    realtime.publishShopProductUpdate((product as any).vendor_id, productId, { stock: quantity, is_available: isAvailable });
+  }
 }
