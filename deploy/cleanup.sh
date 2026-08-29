@@ -12,7 +12,7 @@ require_root
 
 log_header "VegaMart Release Cleanup"
 
-keep_releases=${KEEP_RELEASES:-5}
+keep_releases=${KEEP_RELEASES:-2}
 releases_dir="/opt/vegamart/releases"
 
 if [[ ! -d "$releases_dir" ]]; then
