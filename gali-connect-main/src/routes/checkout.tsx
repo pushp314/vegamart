@@ -559,6 +559,7 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
 
     const payload = {
       address_id: selectedAddress.id,
+      payment_method: payment,
       payment_type: paymentType,
       coupon_code: appliedCoupon || undefined,
       delivery_slot: selectedOptionObj.label,
