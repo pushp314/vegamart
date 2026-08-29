@@ -34,7 +34,7 @@ export async function listByUser(
 ) {
   const where: Prisma.NotificationWhereInput = { user_id: userId };
   if (type && type !== "system" && type !== "promo") {
-    where.type = type as Prisma.NotificationWhereInput["type"];
+    where.type = type.toUpperCase() as Prisma.NotificationWhereInput["type"];
   }
 
   const [notifRows, notifTotal] = await Promise.all([

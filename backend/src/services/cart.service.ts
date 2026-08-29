@@ -71,6 +71,11 @@ export const cartService = {
       });
     }
 
+    if (product.stock <= 0) {
+      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Product is sold out.", {
+        code: "SOLD_OUT",
+      });
+    }
     if (product.stock < targetQuantity) {
       throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
         code: "INSUFFICIENT_STOCK",
@@ -78,10 +83,18 @@ export const cartService = {
     }
 
     const inventory = await findByProductId(input.product_id);
-    if (inventory && inventory.quantity - inventory.reserved < targetQuantity) {
-      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
-        code: "INSUFFICIENT_STOCK",
-      });
+    if (inventory) {
+      const available = inventory.quantity - inventory.reserved;
+      if (available <= 0) {
+        throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Product is sold out.", {
+          code: "SOLD_OUT",
+        });
+      }
+      if (available < targetQuantity) {
+        throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
+          code: "INSUFFICIENT_STOCK",
+        });
+      }
     }
 
     const updated = await cartRepo.addItem(cart.id, input.product_id, input.quantity, new Prisma.Decimal(unitPrice), selectedUnit);
@@ -106,17 +119,32 @@ export const cartService = {
     }
 
     const product = await findProductById(item.product_id);
-    if (product && product.stock < input.quantity) {
-      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
-        code: "INSUFFICIENT_STOCK",
-      });
+    if (product) {
+      if (product.stock <= 0) {
+        throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Product is sold out.", {
+          code: "SOLD_OUT",
+        });
+      }
+      if (product.stock < input.quantity) {
+        throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
+          code: "INSUFFICIENT_STOCK",
+        });
+      }
     }
 
     const inventory = await findByProductId(item.product_id);
-    if (inventory && inventory.quantity - inventory.reserved < input.quantity) {
-      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
-        code: "INSUFFICIENT_STOCK",
-      });
+    if (inventory) {
+      const available = inventory.quantity - inventory.reserved;
+      if (available <= 0) {
+        throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Product is sold out.", {
+          code: "SOLD_OUT",
+        });
+      }
+      if (available < input.quantity) {
+        throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock for this product.", {
+          code: "INSUFFICIENT_STOCK",
+        });
+      }
     }
 
     const updated = await cartRepo.setItemQuantity(cart.id, itemId, input.quantity);

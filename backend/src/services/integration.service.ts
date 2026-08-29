@@ -116,10 +116,19 @@ export const integrationService = {
     if (detail.user_id !== userId) {
       throw new ForbiddenError("You do not own this order.");
     }
+    let reorderedItems = 0;
     for (const item of detail.items) {
-      await cartService.addItem(userId, { product_id: item.product_id, quantity: item.quantity }, req);
+      try {
+        await cartService.addItem(userId, { product_id: item.product_id, quantity: item.quantity }, req);
+        reorderedItems++;
+      } catch (err: any) {
+        if (err.code === "SOLD_OUT" || err.code === "INSUFFICIENT_STOCK" || err.code === "NOT_FOUND") {
+          continue;
+        }
+        throw err;
+      }
     }
-    return { reordered_items: detail.items.length };
+    return { reordered_items: reorderedItems };
   },
 
   async requestReturn(userId: string, orderId: string, req: Request) {

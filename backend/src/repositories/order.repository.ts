@@ -365,7 +365,13 @@ export async function listOrders(
       payment_status: "PENDING",
     };
   }
-  if (filter.status) where.status = filter.status as Prisma.OrderWhereInput["status"];
+  if (filter.status) {
+    if (filter.status.includes(",")) {
+      where.status = { in: filter.status.split(",") as import("@prisma/client").OrderStatus[] };
+    } else {
+      where.status = filter.status as Prisma.OrderWhereInput["status"];
+    }
+  }
 
   const [rows, total] = await Promise.all([
     prisma.order.findMany({
