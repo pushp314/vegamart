@@ -42,6 +42,6 @@ export const notificationService = {
   },
 
   async vendor(userId: string, title: string, body?: string, data?: Prisma.InputJsonValue): Promise<void> {
-    await this.send({ user_id: userId, type: NotificationType.VENDOR, title, body, data });
+    await this.send({ user_id: userId, type: NotificationType.ORDER, title, body, data });
   },
 };

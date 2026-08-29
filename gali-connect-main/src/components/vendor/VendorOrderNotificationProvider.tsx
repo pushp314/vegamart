@@ -376,7 +376,7 @@ export function VendorOrderNotificationProvider({
     if (Array.isArray(orders) && orders.length > 0) {
       // Find any PENDING order that has not been alerted
       const pendingOrders = orders.filter(
-        (o) => (o.status || "").toUpperCase() === "PENDING"
+        (o) => ["PENDING", "CONFIRMED"].includes((o.status || "").toUpperCase())
       );
 
       // On initial boot, initialize seen orders so existing orders don't blast alarms
