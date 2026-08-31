@@ -7,7 +7,7 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import * as vendorRepo from "../repositories/vendor.repository";
 import * as productRepo from "../repositories/product.repository";
-import { existsById as categoryExists } from "../repositories/category.repository";
+import * as categoryRepo from "../repositories/category.repository";
 import { listVendorEarningsRecent } from "./earning.service";
 import { findById as findUserById, update as updateUser } from "../repositories/user.repository";
 import { findBySlug as findRoleBySlug } from "../repositories/role.repository";
@@ -1397,12 +1397,22 @@ export const vendorService = {
       unit: string;
       category_id: string;
       stock: number;
+      is_vegetarian: boolean | null;
+      tag: string | null;
+      description: string | null;
+    }
+
+    const allCategories = await categoryRepo.listAll(true);
+    const categoryMap = new Map<string, string>();
+    for (const cat of allCategories) {
+      categoryMap.set(cat.id.toLowerCase(), cat.id);
+      categoryMap.set(cat.slug.toLowerCase(), cat.id);
+      categoryMap.set(cat.name.toLowerCase().trim(), cat.id);
     }
 
     // ── Validate every row before persisting anything ──
     const validRows: BulkRow[] = [];
     const errors: string[] = [];
-    const categoryCache = new Map<string, boolean>();
 
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
@@ -1411,12 +1421,22 @@ export const vendorService = {
       const name = String(record.name ?? "").trim();
       const priceRaw = String(record.price ?? "").trim();
       const mrpRaw = String(record.mrp ?? "").trim();
-      const categoryRaw = String(record.category_id ?? "").trim();
-      const unit = String(record.unit ?? "").trim() || "kg";
+      const categoryRaw = String(record.category_id ?? record.category ?? "").trim();
+      const unit = String(record.unit ?? "").trim() || "1 pc";
       const stockRaw = String(record.stock ?? "").trim();
+      const tag = String(record.tag ?? "").trim() || null;
+      const description = String(record.description ?? "").trim() || null;
+
+      let is_vegetarian: boolean | null = null;
+      const vegRaw = String(record.is_vegetarian ?? record.veg ?? "").trim().toLowerCase();
+      if (vegRaw === "true" || vegRaw === "1" || vegRaw === "veg" || vegRaw === "yes") {
+        is_vegetarian = true;
+      } else if (vegRaw === "false" || vegRaw === "0" || vegRaw === "non-veg" || vegRaw === "no") {
+        is_vegetarian = false;
+      }
 
       // Skip fully-empty rows (trailing blank lines produced by editors).
-      if (!name && !priceRaw && !mrpRaw && !categoryRaw && !stockRaw && !unit) continue;
+      if (!name && !priceRaw && !mrpRaw && !categoryRaw && !stockRaw) continue;
 
       if (!name) {
         errors.push(`Row ${line}: "name" is required.`);
@@ -1452,18 +1472,16 @@ export const vendorService = {
       }
 
       if (!categoryRaw) {
-        errors.push(`Row ${line}: "category_id" is required.`);
+        errors.push(`Row ${line}: "category" is required.`);
         continue;
       }
-      if (!categoryCache.has(categoryRaw)) {
-        categoryCache.set(categoryRaw, await categoryExists(categoryRaw));
-      }
-      if (!categoryCache.get(categoryRaw)) {
-        errors.push(`Row ${line}: category_id "${categoryRaw}" does not exist.`);
+      const resolvedCatId = categoryMap.get(categoryRaw.toLowerCase());
+      if (!resolvedCatId) {
+        errors.push(`Row ${line}: category "${categoryRaw}" does not exist.`);
         continue;
       }
 
-      validRows.push({ name, price, mrp, unit, category_id: categoryRaw, stock });
+      validRows.push({ name, price, mrp, unit, category_id: resolvedCatId, stock, is_vegetarian, tag, description });
     }
 
     if (errors.length > 0) {
@@ -1493,9 +1511,12 @@ export const vendorService = {
             category_id: row.category_id,
             name: row.name,
             slug: row.slug,
+            description: row.description,
             price: row.price,
             mrp: row.mrp,
             unit: row.unit,
+            tag: row.tag,
+            is_vegetarian: row.is_vegetarian,
             stock: row.stock,
             total_stock: row.stock,
             is_available: row.stock > 0,

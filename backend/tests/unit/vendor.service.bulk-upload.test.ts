@@ -11,6 +11,7 @@ jest.mock("../../src/repositories/product.repository", () => ({
 
 jest.mock("../../src/repositories/category.repository", () => ({
   existsById: jest.fn(),
+  listAll: jest.fn(),
 }));
 
 jest.mock("../../src/database/prisma", () => ({
@@ -31,7 +32,7 @@ jest.mock("../../src/database/cache", () => ({
 import prisma from "../../src/database/prisma";
 import * as vendorRepo from "../../src/repositories/vendor.repository";
 import * as productRepo from "../../src/repositories/product.repository";
-import { existsById as categoryExists } from "../../src/repositories/category.repository";
+import * as categoryRepo from "../../src/repositories/category.repository";
 import { cacheService } from "../../src/database/cache";
 
 const mockedPrisma = prisma as jest.Mocked<typeof prisma>;
@@ -64,7 +65,11 @@ describe("vendorService.bulkUploadProducts", () => {
     jest.clearAllMocks();
     mockVendor();
     (productRepo.listSlugs as jest.Mock).mockResolvedValue(new Set<string>());
-    (categoryExists as jest.Mock).mockResolvedValue(true);
+    (categoryRepo.existsById as jest.Mock).mockResolvedValue(true);
+    (categoryRepo.listAll as jest.Mock).mockResolvedValue([
+      { id: "cat-1", slug: "vegetables", name: "Vegetables" },
+      { id: "cat-2", slug: "fruits", name: "Fruits" },
+    ]);
     (cacheService.invalidateNamespace as jest.Mock).mockResolvedValue(undefined);
     (mockedPrisma.$transaction as jest.Mock).mockImplementation(
       (fn: (t: unknown) => Promise<unknown>) => fn(tx)
@@ -133,7 +138,7 @@ describe("vendorService.bulkUploadProducts", () => {
   });
 
   it("rejects rows with an unknown category_id", async () => {
-    (categoryExists as jest.Mock).mockResolvedValue(false);
+    (categoryRepo.listAll as jest.Mock).mockResolvedValue([]);
 
     await expect(
       vendorService.bulkUploadProducts("u1", csv("name,price,unit,category_id", "Tomato,40,kg,nope"))

@@ -15,6 +15,7 @@ const baseSelect = {
   unit: true,
   variants: true,
   tag: true,
+  tax_rate: true,
   is_active: true,
   is_featured: true,
   is_vegetarian: true,
@@ -47,6 +48,7 @@ export type ProductRow = {
   unit: string;
   variants: any | null;
   tag: string | null;
+  tax_rate?: import("@prisma/client").Prisma.Decimal | number | null;
   is_active: boolean;
   is_featured: boolean;
   is_vegetarian: boolean | null;
@@ -286,6 +288,7 @@ export async function createProduct(data: {
   description?: string | null;
   price: number;
   mrp: number;
+  tax_rate?: number;
   unit: string;
   variants?: Array<{ unit: string; price: number; mrp?: number | null }> | null;
   tag?: string | null;
@@ -307,6 +310,7 @@ export async function createProduct(data: {
       description: data.description ?? null,
       price: data.price,
       mrp: data.mrp,
+      tax_rate: data.tax_rate ?? 0,
       unit: data.unit,
       variants: (data.variants ?? null) as Prisma.InputJsonValue | undefined,
       tag: data.tag ?? null,

@@ -53,6 +53,7 @@ type Product = {
   mrp?: number;
   tax_rate?: number;
   unit: string;
+  tag?: string | null;
   variants?: { unit: string; price: number; mrp?: number }[];
   stock?: number;
   description?: string;
@@ -90,7 +91,8 @@ export default function VendorProductsPage() {
   const [prodPrice, setProdPrice] = useState("");
   const [prodMrp, setProdMrp] = useState("");
   const [prodTaxRate, setProdTaxRate] = useState("0");
-  const [prodUnit, setProdUnit] = useState("1 kg");
+  const [prodUnit, setProdUnit] = useState("1 pc");
+  const [prodTag, setProdTag] = useState("");
   const [prodVariants, setProdVariants] = useState<{ unit: string; price: string; mrp: string }[]>([]);
   const [prodStock, setProdStock] = useState("");
   const [prodCategoryId, setProdCategoryId] = useState("");
@@ -186,7 +188,8 @@ export default function VendorProductsPage() {
     setProdPrice("");
     setProdMrp("");
     setProdTaxRate("0");
-    setProdUnit("1 kg");
+    setProdUnit("1 pc");
+    setProdTag("");
     setProdVariants([]);
     setProdStock("10");
     setProdCategoryId(categoriesList[0]?.id || "");
@@ -205,7 +208,8 @@ export default function VendorProductsPage() {
     setProdPrice(String(p.price));
     setProdMrp(p.mrp ? String(p.mrp) : "");
     setProdTaxRate(p.tax_rate != null ? String(p.tax_rate) : "0");
-    setProdUnit(p.unit || "1 kg");
+    setProdUnit(p.unit || "1 pc");
+    setProdTag(p.tag || "");
     setProdVariants(
       Array.isArray(p.variants)
         ? p.variants.map((v) => ({
@@ -287,7 +291,8 @@ export default function VendorProductsPage() {
         price: Number(prodPrice),
         mrp: prodMrp && Number(prodMrp) > 0 ? Number(prodMrp) : undefined,
         tax_rate: prodTaxRate ? Number(prodTaxRate) : 0,
-        unit: prodUnit.trim() || "1 kg",
+        unit: prodUnit.trim() || "1 pc",
+        tag: prodTag.trim() || undefined,
         variants:
           prodVariants.length > 0
             ? prodVariants
@@ -892,24 +897,42 @@ export default function VendorProductsPage() {
               </div>
 
               {/* Unit & Stock */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Unit *
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                    <span>Base Unit *</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">e.g. 1 pc, 1 pack, 1 kg</span>
                   </label>
                   <input
                     type="text"
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
-                    placeholder="1 kg"
+                    placeholder="e.g. 1 pc, 1 pack, 1 kg, 1 L"
                     required
                     className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   />
+                  {/* Quick Unit Presets */}
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {["1 pc", "1 pack", "1 kg", "500 g", "1 dozen", "1 L", "500 ml", "1 box", "1 bottle", "1 set", "1 pair"].map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setProdUnit(u)}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg border transition-all ${
+                          prodUnit === u
+                            ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                            : "bg-muted/60 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Stock *
+                    Available Stock *
                   </label>
                   <input
                     type="number"
@@ -919,6 +942,9 @@ export default function VendorProductsPage() {
                     required
                     className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   />
+                  <p className="text-[10.5px] text-muted-foreground pt-0.5">
+                    Quantity ready for sale in your store.
+                  </p>
                 </div>
               </div>
 
@@ -1068,23 +1094,40 @@ export default function VendorProductsPage() {
                 </select>
               </div>
 
-              {/* Dietary Preference */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Dietary Preference
-                </label>
-                <select
-                  value={prodIsVegetarian === null ? "" : prodIsVegetarian ? "true" : "false"}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setProdIsVegetarian(val === "" ? null : val === "true");
-                  }}
-                  className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                >
-                  <option value="">Not Applicable / Unknown</option>
-                  <option value="true">Vegetarian (Veg)</option>
-                  <option value="false">Non-Vegetarian</option>
-                </select>
+              {/* Dietary Preference & Product Tag */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Item Type / Dietary
+                  </label>
+                  <select
+                    value={prodIsVegetarian === null ? "" : prodIsVegetarian ? "true" : "false"}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProdIsVegetarian(val === "" ? null : val === "true");
+                    }}
+                    className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="">General Goods / Non-Food</option>
+                    <option value="true">🌱 Vegetarian Food / Grocery</option>
+                    <option value="false">🍗 Non-Vegetarian (Meat / Eggs)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                    <span>Badge / Tag (Optional)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">e.g. Bestseller</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={prodTag}
+                    onChange={(e) => setProdTag(e.target.value)}
+                    placeholder="e.g. Bestseller, Organic, New"
+                    maxLength={60}
+                    className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
               </div>
 
               {/* 📷 Multiple Product Images Studio */}

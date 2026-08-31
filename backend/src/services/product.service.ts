@@ -83,6 +83,7 @@ export const productService = {
       description: input.description ?? null,
       price: input.price,
       mrp: input.mrp ?? input.price,
+      tax_rate: input.tax_rate ?? 0,
       unit: input.unit.trim(),
       variants: input.variants ?? null,
       tag: input.tag ?? null,
@@ -136,6 +137,7 @@ export const productService = {
     if (input.description !== undefined) data.description = input.description || null;
     if (input.price !== undefined) data.price = input.price;
     if (input.mrp !== undefined) data.mrp = input.mrp;
+    if (input.tax_rate !== undefined) data.tax_rate = input.tax_rate;
     if (input.unit !== undefined) data.unit = input.unit.trim();
     if (input.variants !== undefined) data.variants = input.variants as unknown as Prisma.InputJsonValue;
     if (input.tag !== undefined) data.tag = input.tag || null;
