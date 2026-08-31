@@ -109,14 +109,15 @@ export const productService = {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Category does not exist.", { code: "INVALID_CATEGORY" });
     }
 
-    if (input.name && input.name.trim() !== product.name) {
-      const existingSlugs = await productRepo.listSlugs(product.vendor_id, product.id);
-      const slug = uniqueSlug(input.name.trim(), existingSlugs);
-      await productRepo.updateProduct(product.id, { name: input.name.trim(), slug });
-    }
-
     const data: Record<string, unknown> = {};
-    if (input.name !== undefined) data.name = input.name.trim();
+    if (input.name !== undefined) {
+      const trimmedName = input.name.trim();
+      data.name = trimmedName;
+      if (trimmedName !== product.name) {
+        const existingSlugs = await productRepo.listSlugs(product.vendor_id, product.id);
+        data.slug = uniqueSlug(trimmedName, existingSlugs);
+      }
+    }
     if (input.category_id !== undefined) data.category_id = input.category_id;
     if (input.subcategory_id !== undefined) data.subcategory_id = input.subcategory_id;
     if (input.description !== undefined) data.description = input.description || null;

@@ -116,7 +116,7 @@ export async function vendorCountsByCategory(): Promise<Map<string, number>> {
 
 export async function listSlugs(exceptId?: string): Promise<Set<string>> {
   const rows = await prisma.category.findMany({
-    where: { deleted_at: null, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+    where: { ...(exceptId ? { NOT: { id: exceptId } } : {}) },
     select: { slug: true },
   });
   return new Set(rows.map((r) => r.slug));

@@ -57,7 +57,12 @@ export function formatErrorMessage(
       const messages = error.details.map((d) => d.message || JSON.stringify(d)).filter(Boolean);
       if (messages.length > 0) return messages.join(" • ");
     } else if (typeof error.details === "object" && Object.keys(error.details).length > 0) {
+      // If the details only contain raw DB field metadata (e.g. { fields: "vendor_id, slug" }), prefer the human-readable error.message
+      if (Object.keys(error.details).length === 1 && "fields" in error.details && error.message) {
+        return error.message;
+      }
       const detailList = Object.entries(error.details)
+        .filter(([field]) => field !== "fields")
         .map(([field, msg]) => {
           const cleanField = field
             .replace(/^body\./, "")

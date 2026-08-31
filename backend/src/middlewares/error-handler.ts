@@ -50,10 +50,18 @@ function handlePrismaError(error: unknown): { status: number; code: string; mess
       case "P2002": {
         const target = (error.meta?.target as string[]) ?? [];
         const fields = target.join(", ");
+        let friendlyMessage = `A record with this ${fields || "value"} already exists.`;
+        if (target.includes("slug") || target.includes("vendor_id")) {
+          friendlyMessage = "A product or item with this name already exists in your store.";
+        } else if (target.includes("email")) {
+          friendlyMessage = "An account with this email address already exists.";
+        } else if (target.includes("phone")) {
+          friendlyMessage = "An account with this phone number already exists.";
+        }
         return {
           status: HttpStatus.CONFLICT,
           code: "DUPLICATE_ENTRY",
-          message: `Resource already exists${fields ? ` (${fields})` : ""}.`,
+          message: friendlyMessage,
           details: { fields },
         };
       }

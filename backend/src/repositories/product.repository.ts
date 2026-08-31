@@ -100,7 +100,6 @@ export async function listSlugs(vendorId: string, exceptId?: string): Promise<Se
   const rows = await prisma.product.findMany({
     where: {
       vendor_id: vendorId,
-      deleted_at: null,
       ...(exceptId ? { NOT: { id: exceptId } } : {}),
     },
     select: { slug: true },
