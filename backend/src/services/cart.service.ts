@@ -84,7 +84,7 @@ export const cartService = {
 
     const inventory = await findByProductId(input.product_id);
     if (inventory) {
-      const available = inventory.quantity - inventory.reserved;
+      const available = Math.max(product.stock, inventory.quantity - inventory.reserved);
       if (available <= 0) {
         throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Product is sold out.", {
           code: "SOLD_OUT",
@@ -134,7 +134,7 @@ export const cartService = {
 
     const inventory = await findByProductId(item.product_id);
     if (inventory) {
-      const available = inventory.quantity - inventory.reserved;
+      const available = Math.max(product ? product.stock : 0, inventory.quantity - inventory.reserved);
       if (available <= 0) {
         throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, "Product is sold out.", {
           code: "SOLD_OUT",

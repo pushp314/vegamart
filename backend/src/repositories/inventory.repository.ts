@@ -138,7 +138,8 @@ export async function reserveAvailable(
       SELECT gen_random_uuid(), p.id, p.stock, 0, 5, NULL, NULL, now(), now()
       FROM products p
       WHERE p.id = ${item.product_id}::uuid
-      ON CONFLICT (product_id) DO NOTHING
+      ON CONFLICT (product_id) DO UPDATE
+      SET quantity = GREATEST(inventory_items.quantity, EXCLUDED.quantity)
     `;
     const reserved = await db.$queryRaw<Array<{ id: string }>>`
       UPDATE inventory_items
@@ -148,9 +149,23 @@ export async function reserveAvailable(
       RETURNING id
     `;
     if (reserved.length === 0) {
-      throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, `Insufficient stock for "${item.name}".`, {
-        code: "INSUFFICIENT_STOCK",
-      });
+      await db.$executeRaw`
+        UPDATE inventory_items
+        SET quantity = GREATEST(inventory_items.quantity, COALESCE((SELECT stock + inventory_items.reserved FROM products WHERE id = ${item.product_id}::uuid), inventory_items.quantity))
+        WHERE product_id = ${item.product_id}::uuid
+      `;
+      const retryReserved = await db.$queryRaw<Array<{ id: string }>>`
+        UPDATE inventory_items
+        SET reserved = reserved + ${item.quantity}, updated_at = now()
+        WHERE product_id = ${item.product_id}::uuid
+          AND quantity - reserved >= ${item.quantity}
+        RETURNING id
+      `;
+      if (retryReserved.length === 0) {
+        throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, `Insufficient stock for "${item.name}".`, {
+          code: "INSUFFICIENT_STOCK",
+        });
+      }
     }
 
     await db.$executeRaw`

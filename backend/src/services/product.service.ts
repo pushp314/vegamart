@@ -5,6 +5,7 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { vendorService } from "./vendor.service";
 import * as productRepo from "../repositories/product.repository";
+import { upsertInventory } from "../repositories/inventory.repository";
 import { existsById as categoryExists } from "../repositories/category.repository";
 import { cacheService } from "../database/cache";
 import prisma from "../database/prisma";
@@ -92,6 +93,12 @@ export const productService = {
       is_available: input.stock !== undefined ? input.stock > 0 : true,
     });
 
+    await upsertInventory({
+      product_id: product.id,
+      quantity: input.stock ?? 0,
+      updated_by: userId,
+    }).catch(() => {});
+
     await cacheService.invalidateNamespace("product");
 
     await auditService.record(
@@ -137,6 +144,11 @@ export const productService = {
       }
       data.stock = nextStock;
       data.is_available = nextStock > 0;
+      await upsertInventory({
+        product_id: product.id,
+        quantity: nextStock,
+        updated_by: userId,
+      }).catch(() => {});
     }
 
     if (Object.keys(data).length > 0) {
