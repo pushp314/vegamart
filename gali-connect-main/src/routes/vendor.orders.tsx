@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X, Phone, Store, User, CreditCard, Banknote, MapPin, ExternalLink } from "lucide-react";
+import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X, Phone, Store, User, CreditCard, Banknote, MapPin, ExternalLink, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,20 @@ function VendorOrdersPage() {
   const [rejectTarget, setRejectTarget] = useState<{ orderId: string; item: any } | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState(highlight || "");
+
+  useEffect(() => {
+    if (highlight) {
+      setSearchQuery(highlight);
+      setStatusFilter("ALL");
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`order-card-${highlight}`) || document.querySelector(`[data-order-id="${highlight}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [highlight]);
 
   const playDing = () => {
     try {
@@ -328,14 +342,30 @@ function VendorOrdersPage() {
               o.payment?.amount != null ? Number(o.payment.amount) : null
             );
             const DIcon = dInfo.icon;
-            const SIcon = sInfo.icon;
-            const PIcon = pInfo.icon;
+            const isHighlighted = Boolean(
+              highlight &&
+                (o.id === highlight ||
+                  o.order_number === highlight ||
+                  o.id.toLowerCase().includes(highlight.toLowerCase()) ||
+                  o.order_number?.toLowerCase().includes(highlight.toLowerCase()))
+            );
 
             return (
               <div
                 key={o.id}
-                className="rounded-3xl border border-border bg-card p-6 shadow-xl space-y-4 hover:shadow-2xl transition-all"
+                id={`order-card-${o.id}`}
+                data-order-id={o.id}
+                className={`rounded-3xl border bg-card p-6 space-y-4 transition-all duration-300 ${
+                  isHighlighted
+                    ? "border-2 border-emerald-500 ring-4 ring-emerald-500/20 shadow-2xl scale-[1.005] bg-emerald-50/10 dark:bg-emerald-950/10"
+                    : "border-border shadow-xl hover:shadow-2xl"
+                }`}
               >
+                {isHighlighted && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-black uppercase tracking-wider w-fit shadow-sm">
+                    <Sparkles className="h-3.5 w-3.5" /> Selected Order
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 font-black text-sm uppercase">

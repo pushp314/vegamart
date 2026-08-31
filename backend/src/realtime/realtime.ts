@@ -228,6 +228,8 @@ export const realtime = {
   },
   publishShopProductUpdate(vendorId: string, productId: string, data: { stock: number; is_available: boolean }): void {
     publishToRoom(`shop:${vendorId}`, "product_stock_update", { product_id: productId, ...data });
+    publishToRoom(`vendor:${vendorId}`, "product_stock_update", { product_id: productId, ...data });
+    publishToRoom("roaming", "product_stock_update", { vendor_id: vendorId, product_id: productId, ...data });
   },
 };
 

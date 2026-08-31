@@ -321,6 +321,11 @@ export function VendorOrderNotificationProvider({
             const payload = JSON.parse(event.data);
             if (payload.type === "new_order_received" && payload.data) {
               handleIncomingOrder(payload.data as VendorIncomingOrder);
+            } else if (payload.type === "product_stock_update" && payload.data) {
+              queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
+              queryClient.invalidateQueries({ queryKey: ["vendorDashboard"] });
+              queryClient.invalidateQueries({ queryKey: ["products"] });
+              queryClient.invalidateQueries({ queryKey: ["product"] });
             } else if (payload.type === "gali_bell_alert" && payload.data) {
               toast.info(`🔔 Gali Bell Alert!`, {
                 description: `${payload.data.customer_name} rang your bell at ${payload.data.address}`,

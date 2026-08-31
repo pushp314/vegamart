@@ -5,8 +5,9 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { vendorService } from "./vendor.service";
 import * as productRepo from "../repositories/product.repository";
-import { upsertInventory } from "../repositories/inventory.repository";
+import { upsertInventory, findByProductId } from "../repositories/inventory.repository";
 import { existsById as categoryExists } from "../repositories/category.repository";
+import { realtime } from "../realtime/realtime";
 import { cacheService } from "../database/cache";
 import prisma from "../database/prisma";
 import { deleteObject, extractKeyFromUrl } from "../storage/r2.client";
@@ -101,6 +102,11 @@ export const productService = {
 
     await cacheService.invalidateNamespace("product");
 
+    realtime.publishShopProductUpdate(product.vendor_id, product.id, {
+      stock: product.stock,
+      is_available: product.is_available,
+    });
+
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.PRODUCT_CREATED, entityType: "product", entityId: product.id, newValues: { name: product.name, slug, price: product.price.toFixed(2) } },
       req
@@ -144,9 +150,11 @@ export const productService = {
       }
       data.stock = nextStock;
       data.is_available = nextStock > 0;
+      const currentInv = typeof findByProductId === "function" ? await findByProductId(product.id).catch(() => null) : null;
+      const currentReserved = currentInv?.reserved ?? 0;
       await upsertInventory({
         product_id: product.id,
-        quantity: nextStock,
+        quantity: nextStock + currentReserved,
         updated_by: userId,
       }).catch(() => {});
     }
@@ -157,6 +165,13 @@ export const productService = {
 
     const updated = await productRepo.findById(product.id);
     await cacheService.invalidateNamespace("product");
+
+    if (updated) {
+      realtime.publishShopProductUpdate(updated.vendor_id, updated.id, {
+        stock: updated.stock,
+        is_available: updated.is_available,
+      });
+    }
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.PRODUCT_UPDATED, entityType: "product", entityId: product.id, newValues: data },
       req

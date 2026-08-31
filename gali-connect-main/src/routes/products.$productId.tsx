@@ -14,8 +14,8 @@ import {
   MessageSquare,
   PlayCircle,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, WS_BASE_URL } from "@/lib/api";
 import { toast } from "sonner";
 import type { Product, Vendor } from "@/types";
 import { useCart } from "@/context/cart-context";
@@ -66,11 +66,46 @@ export const Route = createFileRoute("/products/$productId")({
 
 
 function ProductDetail() {
-  const { product } = Route.useLoaderData();
+  const { product: initialProduct } = Route.useLoaderData();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
   const { displayLocation } = useLocation();
+
+  const { data: liveProductRes } = useQuery({
+    queryKey: ["product", initialProduct.id],
+    queryFn: () => api.get<Product>(`/products/${initialProduct.id}`),
+    initialData: { success: true, data: initialProduct },
+  });
+
+  const product = liveProductRes?.data || initialProduct;
+
+  // Real-time stock subscription for this product
+  useEffect(() => {
+    if (!product.vendor_id || typeof window === "undefined") return;
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(`${WS_BASE_URL}/shop/${product.vendor_id}/stream`);
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "product_stock_update" && payload.data?.product_id === product.id) {
+            const { stock, is_available } = payload.data;
+            queryClient.setQueryData<any>(["product", product.id], (old: any) => {
+              if (!old?.data) return old;
+              return { ...old, data: { ...old.data, stock, is_available } };
+            });
+            queryClient.invalidateQueries({ queryKey: ["products"] });
+          }
+        } catch {}
+      };
+    } catch {}
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [product.vendor_id, product.id, queryClient]);
 
   useEffect(() => {
     if (isAuthenticated && product?.id) {

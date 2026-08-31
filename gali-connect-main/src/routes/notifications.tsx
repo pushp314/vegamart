@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bell, ShoppingBag, Tag, CheckCheck, Sparkles, Loader2 } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Bell, ShoppingBag, Tag, CheckCheck, Sparkles, Loader2, ChevronRight } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -55,6 +55,7 @@ interface NotificationItem {
   created_at?: string;
   is_read: boolean;
   source?: "announcement" | "notification";
+  data?: Record<string, any> | null;
 }
 
 interface BackendNotification {
@@ -66,6 +67,7 @@ interface BackendNotification {
   created_at?: string;
   is_read: boolean;
   source?: string;
+  data?: Record<string, any> | null;
 }
 
 function toNotificationType(type: string): NotificationItem["type"] {
@@ -77,7 +79,8 @@ function toNotificationType(type: string): NotificationItem["type"] {
 
 function NotificationsPage() {
   const queryClient = useQueryClient();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const { data: notifRes, isLoading } = useQuery({
     queryKey: ["notifications"],
@@ -94,6 +97,7 @@ function NotificationsPage() {
     created_at: n.created_at,
     is_read: n.is_read || isLocallyRead(n.id),
     source: n.source === "announcement" ? "announcement" : undefined,
+    data: n.data || null,
   }));
 
   const markReadMutation = useMutation<unknown, unknown, NotificationItem>({
@@ -137,6 +141,49 @@ function NotificationsPage() {
 
   const markSingleRead = (n: NotificationItem) => {
     markReadMutation.mutate(n);
+  };
+
+  const handleNotificationClick = (n: NotificationItem) => {
+    markSingleRead(n);
+    const notifData = n.data || {};
+    const orderId = notifData.order_id || (n.type === "order" ? notifData.id : undefined);
+
+    if (orderId) {
+      if (user?.role === "vendor") {
+        navigate({
+          to: "/vendor/orders",
+          search: { highlight: orderId } as any,
+        });
+        return;
+      }
+      if (user?.role === "delivery") {
+        navigate({ to: "/delivery" });
+        return;
+      }
+      if (user?.role === "admin" || user?.role === "super_admin") {
+        navigate({ to: "/admin/orders" });
+        return;
+      }
+      navigate({
+        to: "/orders/$orderId/track",
+        params: { orderId },
+      });
+      return;
+    }
+
+    if (n.type === "promo") {
+      if (user?.role === "vendor") {
+        navigate({ to: "/vendor/coupons" });
+        return;
+      }
+      navigate({ to: "/" });
+      return;
+    }
+
+    if (user?.role === "vendor") {
+      navigate({ to: "/vendor" });
+      return;
+    }
   };
 
   if (!authLoading && !isAuthenticated) {
@@ -210,8 +257,8 @@ function NotificationsPage() {
                   return (
                     <div
                       key={n.id}
-                      onClick={() => markSingleRead(n)}
-                      className="rounded-3xl border border-primary/50 bg-emerald-50/40 ring-1 ring-primary/20 shadow-soft p-4 transition-all cursor-pointer"
+                      onClick={() => handleNotificationClick(n)}
+                      className="rounded-3xl border border-primary/50 bg-emerald-50/40 ring-1 ring-primary/20 shadow-soft p-4 transition-all cursor-pointer hover:bg-emerald-50/70 hover:shadow-md"
                     >
                       <div className="flex items-start gap-3">
                         <div
@@ -237,7 +284,10 @@ function NotificationsPage() {
                             {n.message}
                           </p>
                         </div>
-                        <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                        <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                          <span className="h-2 w-2 rounded-full bg-primary" />
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
                       </div>
                     </div>
                   );
@@ -253,7 +303,8 @@ function NotificationsPage() {
                   return (
                     <div
                       key={n.id}
-                      className="rounded-3xl border border-border bg-card p-4 transition-all"
+                      onClick={() => handleNotificationClick(n)}
+                      className="rounded-3xl border border-border bg-card p-4 transition-all cursor-pointer hover:bg-muted/40"
                     >
                       <div className="flex items-start gap-3">
                         <div
@@ -279,6 +330,7 @@ function NotificationsPage() {
                             {n.message}
                           </p>
                         </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0 mt-1" />
                       </div>
                     </div>
                   );

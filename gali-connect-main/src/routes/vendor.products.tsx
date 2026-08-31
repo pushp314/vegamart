@@ -319,13 +319,6 @@ export default function VendorProductsPage() {
       const productId = editingProduct?.id || res?.data?.id;
 
       if (productId) {
-        // Sync Inventory
-        try {
-          await api.put(`/inventory/${productId}`, { quantity: Number(prodStock) || 0 });
-        } catch (e) {
-          console.warn("Inventory sync failed:", e);
-        }
-
         // 1. Delete removed images on server if editing
         if (editingProduct && deletedImageIds.length > 0) {
           for (const imgId of deletedImageIds) {

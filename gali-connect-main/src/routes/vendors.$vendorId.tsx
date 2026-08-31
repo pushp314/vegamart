@@ -17,9 +17,9 @@ import {
   AlertTriangle,
   Bike,
 } from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
-import { api, authStorage, getVendorDailyLocation, type DailyLocationData } from "@/lib/api";
+import { api, authStorage, getVendorDailyLocation, WS_BASE_URL, type DailyLocationData } from "@/lib/api";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
@@ -67,6 +67,7 @@ export const Route = createFileRoute("/vendors/$vendorId")({
 function VendorDetail() {
   const { vendor: initialVendor } = Route.useLoaderData();
   const { vendorId } = Route.useParams();
+  const queryClient = useQueryClient();
 
   const { data: liveVendorRes } = useQuery({
     queryKey: ["vendor", vendorId],
@@ -75,6 +76,36 @@ function VendorDetail() {
   });
 
   const vendor = liveVendorRes?.data || initialVendor;
+
+  // Real-time stock subscription for products in this shop
+  useEffect(() => {
+    if (!vendorId || typeof window === "undefined") return;
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(`${WS_BASE_URL}/shop/${vendorId}/stream`);
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "product_stock_update" && payload.data) {
+            const { product_id, stock, is_available } = payload.data;
+            queryClient.setQueryData<any>(["vendor", vendorId], (old: any) => {
+              if (!old?.data) return old;
+              const products = (old.data.products || []).map((p: any) =>
+                p.id === product_id ? { ...p, stock, is_available } : p
+              );
+              return { ...old, data: { ...old.data, products } };
+            });
+            queryClient.invalidateQueries({ queryKey: ["products"] });
+            queryClient.invalidateQueries({ queryKey: ["product", product_id] });
+          }
+        } catch {}
+      };
+    } catch {}
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [vendorId, queryClient]);
   const profile: any = vendor?.profile || (vendor as any) || {};
   const { addToCart } = useCart();
   const [reviewOpen, setReviewOpen] = useState(false);
