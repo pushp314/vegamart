@@ -4,6 +4,7 @@ import type { OrderStatus, PaymentStatus } from "@prisma/client";
 import prisma from "../database/prisma";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
+import * as productRepo from "../repositories/product.repository";
 import { paymentService } from "./payment.service";
 import { realtime } from "../realtime/realtime";
 import { reverseOrderEarnings } from "./earning.service";
@@ -166,20 +167,19 @@ export async function cancelOrderLifecycle(params: OrderLifecycleParams): Promis
   }
 
   // Publish stock updates to shop realtime for released items
-  prisma.orderItem.findMany({ where: { order_id: order.id } }).then(async items => {
-    for (const item of items) {
-      const product = await prisma.product.findUnique({
-        where: { id: item.product_id },
-        select: { stock: true, is_available: true }
-      });
-      if (product) {
-        realtime.publishShopProductUpdate(order.vendor_id, item.product_id, {
-          stock: product.stock,
-          is_available: product.is_available
-        });
+  if (typeof inventoryRepo?.listByOrder === "function") {
+    inventoryRepo.listByOrder(order.id).then(async (items) => {
+      for (const item of (items || [])) {
+        const product = await productRepo.findById(item.product_id).catch(() => null);
+        if (product) {
+          realtime.publishShopProductUpdate(order.vendor_id, item.product_id, {
+            stock: product.stock,
+            is_available: product.is_available,
+          });
+        }
       }
-    }
-  }).catch(() => {});
+    }).catch(() => {});
+  }
 
   const updated = await orderRepo.findById(order.id);
   return (updated ?? order) as unknown as orderRepo.OrderRow;

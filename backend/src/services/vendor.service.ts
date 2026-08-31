@@ -1502,6 +1502,20 @@ export const vendorService = {
           },
           select: { id: true },
         });
+        if (tx.inventoryItem?.upsert) {
+          await tx.inventoryItem.upsert({
+            where: { product_id: product.id },
+            create: {
+              product_id: product.id,
+              quantity: row.stock,
+              reserved: 0,
+              low_stock_threshold: 5,
+            },
+            update: {
+              quantity: row.stock,
+            },
+          });
+        }
         createdIds.push(product.id);
       }
       return createdIds;

@@ -13,6 +13,7 @@ import { realtime } from "../realtime/realtime";
 import * as cartRepo from "../repositories/cart.repository";
 import * as couponRepo from "../repositories/coupon.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
+import * as productRepo from "../repositories/product.repository";
 import * as orderRepo from "../repositories/order.repository";
 import * as paymentRepo from "../repositories/payment.repository";
 import { findById as findAddressById } from "../repositories/address.repository";
@@ -904,14 +905,11 @@ export const checkoutService = {
 
       // Publish stock updates to shop realtime
       for (const item of group.items) {
-        prisma.product.findUnique({
-          where: { id: item.product_id },
-          select: { stock: true, is_available: true }
-        }).then(product => {
+        productRepo.findById(item.product_id).then((product) => {
           if (product) {
             realtime.publishShopProductUpdate(group.vendor_id, item.product_id, {
               stock: product.stock,
-              is_available: product.is_available
+              is_available: product.is_available,
             });
           }
         }).catch(() => {});
@@ -1270,14 +1268,11 @@ export const checkoutService = {
 
       // Publish stock updates to shop realtime
       for (const item of group.items) {
-        prisma.product.findUnique({
-          where: { id: item.product_id },
-          select: { stock: true, is_available: true }
-        }).then(product => {
+        productRepo.findById(item.product_id).then((product) => {
           if (product) {
             realtime.publishShopProductUpdate(group.vendor_id, item.product_id, {
               stock: product.stock,
-              is_available: product.is_available
+              is_available: product.is_available,
             });
           }
         }).catch(() => {});

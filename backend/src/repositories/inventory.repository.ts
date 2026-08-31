@@ -195,17 +195,18 @@ export async function releaseReserved(productId: string, quantity: number, db: D
 }
 
 export async function consumeReserved(productId: string, quantity: number, db: DbClient = prisma): Promise<void> {
-  await db.inventoryItem.updateMany({
-    where: { product_id: productId, reserved: { gte: quantity } },
-    data: {
-      reserved: { decrement: quantity },
-      quantity: { decrement: quantity },
-    },
-  });
-  await db.product.updateMany({
-    where: { id: productId, total_stock: { gte: quantity } },
-    data: { total_stock: { decrement: quantity } },
-  });
+  await db.$executeRaw`
+    UPDATE inventory_items
+    SET reserved = GREATEST(0, reserved - ${quantity}),
+        quantity = GREATEST(0, quantity - ${quantity}),
+        updated_at = now()
+    WHERE product_id = ${productId}::uuid
+  `;
+  await db.$executeRaw`
+    UPDATE products
+    SET total_stock = GREATEST(0, total_stock - ${quantity})
+    WHERE id = ${productId}::uuid
+  `;
 }
 
 export async function listByOrder(orderId: string, db: DbClient = prisma): Promise<Array<{ product_id: string; quantity: number }>> {

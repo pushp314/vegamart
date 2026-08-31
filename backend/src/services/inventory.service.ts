@@ -114,12 +114,15 @@ export const inventoryService = {
 };
 
 async function syncProductAvailability(productId: string, quantity: number): Promise<void> {
-  const isAvailable = quantity > 0;
+  const inventory = await inventoryRepo.findByProductId(productId);
+  const reserved = inventory?.reserved ?? 0;
+  const availableStock = Math.max(0, quantity - reserved);
+  const isAvailable = availableStock > 0;
   const product = await updateProductRepo(productId, {
-    stock: quantity,
+    stock: availableStock,
     is_available: isAvailable,
   });
   if (product && (product as any).vendor_id) {
-    realtime.publishShopProductUpdate((product as any).vendor_id, productId, { stock: quantity, is_available: isAvailable });
+    realtime.publishShopProductUpdate((product as any).vendor_id, productId, { stock: availableStock, is_available: isAvailable });
   }
 }
