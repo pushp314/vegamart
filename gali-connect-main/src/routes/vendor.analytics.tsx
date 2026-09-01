@@ -26,7 +26,7 @@ import {
   Layers,
   Wallet,
   BarChart3,
-  Calendar,
+  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/vendor/analytics")({
@@ -41,7 +41,7 @@ function VendorAnalytics() {
   const [activeChartPeriod, setActiveChartPeriod] = useState<ChartPeriodKey>("month");
   const [chartViewMode, setChartViewMode] = useState<"revenue" | "orders">("revenue");
 
-  const { data: analyticsRes, isLoading } = useQuery({
+  const { data: analyticsRes, isLoading, error } = useQuery({
     queryKey: ["vendorAnalytics"],
     queryFn: () => api.get<any>("/vendors/me/analytics"),
   });
@@ -52,6 +52,21 @@ function VendorAnalytics() {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  // @ts-ignore
+  if (error?.response?.status === 403) {
+    return (
+      <div className="p-12 text-center flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="h-16 w-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
+          <Sparkles className="h-8 w-8" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground mb-2">Premium Feature</h2>
+        <p className="text-muted-foreground max-w-md mx-auto mb-6">
+          Advanced analytics are available exclusively to vendors on the Premium plan. Upgrade your plan to get deep insights into your store's performance.
+        </p>
       </div>
     );
   }
