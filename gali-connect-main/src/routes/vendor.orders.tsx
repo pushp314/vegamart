@@ -342,6 +342,8 @@ function VendorOrdersPage() {
               o.payment?.amount != null ? Number(o.payment.amount) : null
             );
             const DIcon = dInfo.icon;
+            const SIcon = sInfo.icon;
+            const PIcon = pInfo.icon;
             const isHighlighted = Boolean(
               highlight &&
                 (o.id === highlight ||

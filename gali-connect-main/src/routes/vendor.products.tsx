@@ -65,7 +65,7 @@ type Product = {
   images?: { id: string; url: string; is_primary?: boolean }[];
 };
 
-export default function VendorProductsPage() {
+function VendorProductsPage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
