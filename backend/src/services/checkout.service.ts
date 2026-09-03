@@ -232,6 +232,8 @@ export interface CheckoutSummary {
   currency: string;
   /** True when multi-vendor cart is consolidated under a single VegaMart delivery charge. */
   is_consolidated_delivery?: boolean;
+  platform_fee?: number;
+  additional_charges?: Array<{ id: string; name: string; amount: number; type: string }>;
 }
 
 export const checkoutService = {
@@ -499,13 +501,45 @@ export const checkoutService = {
         isVegaMartDelivery = true;
       }
     }
-
     if (isVegaMartDelivery && deliveryFee > 0) {
       totalTax += Math.round(((deliveryFee * taxRatePercent) / 100) * 100) / 100;
     }
 
+    const rawCharges = settings[SETTING_KEYS.PLATFORM_CHECKOUT_CHARGES] as string;
+    let platformFeeTotal = 0;
+    const additionalCharges: any[] = [];
+    if (rawCharges) {
+      try {
+        const parsedCharges = JSON.parse(rawCharges);
+        if (Array.isArray(parsedCharges)) {
+          for (const charge of parsedCharges) {
+            if (charge.is_active) {
+               let amount = 0;
+               if (charge.type === "percentage") {
+                  amount = (itemsSubtotal * Number(charge.amount)) / 100;
+               } else {
+                  amount = Number(charge.amount);
+               }
+               amount = Math.round(amount * 100) / 100;
+               if (amount > 0) {
+                 platformFeeTotal += amount;
+                 additionalCharges.push({
+                   id: charge.id || String(Date.now()),
+                   name: charge.name,
+                   amount: amount,
+                   type: charge.type
+                 });
+               }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore JSON parse errors
+      }
+    }
+
     const tax = Math.round(totalTax * 100) / 100;
-    const total = Math.round((itemsSubtotal + deliveryFee - discount + tax) * 100) / 100;
+    const total = Math.round((itemsSubtotal + deliveryFee - discount + tax + platformFeeTotal) * 100) / 100;
 
     return {
       groups: summaryGroups,
@@ -519,6 +553,8 @@ export const checkoutService = {
       group_discounts: groupDiscounts,
       currency: DEFAULT_CURRENCY,
       is_consolidated_delivery: isConsolidatedDelivery || undefined,
+      platform_fee: platformFeeTotal,
+      additional_charges: additionalCharges,
     };
   },
 
@@ -761,6 +797,8 @@ export const checkoutService = {
                 total_amount: summary.total,
                 delivery_fee: summary.delivery_fee,
                 tax: summary.tax,
+                platform_fee: summary.platform_fee || 0,
+                additional_charges: summary.additional_charges || [],
                 status: "PENDING",
                 payment_method: paymentMethod,
                 payment_status: "PENDING",
@@ -1231,6 +1269,8 @@ export const checkoutService = {
               total_amount: summary.total,
               delivery_fee: summary.delivery_fee,
               tax: summary.tax,
+              platform_fee: summary.platform_fee || 0,
+              additional_charges: summary.additional_charges || [],
               status: "ACCEPTED",
               payment_method: "RAZORPAY",
               payment_status: "PAID",

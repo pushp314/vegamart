@@ -22,6 +22,7 @@ export const SETTING_KEYS = {
   VENDOR_WALLET_ENABLED: "platform.vendor_wallet_enabled",
   VENDOR_PAYOUT_MODE: "platform.vendor_payout_mode",
   VENDOR_MIN_WITHDRAWAL_AMOUNT: "platform.vendor_min_withdrawal_amount",
+  PLATFORM_CHECKOUT_CHARGES: "platform.checkout_charges",
 } as const;
 
 export type SettingValue =
@@ -214,6 +215,13 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "number",
     default: 100,
     description: "Minimum balance threshold in INR required for vendor withdrawal or settlement.",
+    is_public: true,
+  },
+  [SETTING_KEYS.PLATFORM_CHECKOUT_CHARGES]: {
+    key: SETTING_KEYS.PLATFORM_CHECKOUT_CHARGES,
+    type: "string",
+    default: JSON.stringify([]),
+    description: "Configurable extra checkout charges (e.g., Rain charge, Platform fee). Format: JSON Array.",
     is_public: true,
   },
 };

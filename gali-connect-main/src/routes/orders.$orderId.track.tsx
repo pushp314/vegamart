@@ -905,9 +905,16 @@ function OrderIdTrackingPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Taxes & Platform Fee</span>
+                  <span>Taxes (GST)</span>
                   <span className="tabular-nums font-semibold">₹{(tax || 0).toFixed(2)}</span>
                 </div>
+                {order.additional_charges && order.additional_charges.length > 0 && order.additional_charges.map((charge: any, idx: number) => (
+                  <div key={idx} className="flex justify-between">
+                    <span>{charge.name}</span>
+                    <span className="tabular-nums font-semibold">₹{Number(charge.amount).toFixed(2)}</span>
+                  </div>
+                ))}
+
                 {discount > 0 && (
                   <div className="flex justify-between text-emerald-600 font-medium">
                     <span>Discount</span>

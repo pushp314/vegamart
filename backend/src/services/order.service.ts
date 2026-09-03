@@ -131,6 +131,8 @@ export const orderService = {
        total_amount: m.total_amount,
        delivery_fee: m.delivery_fee,
        tax: m.tax,
+       platform_fee: m.platform_fee,
+       additional_charges: m.additional_charges,
        payment_method: m.payment_method,
        payment_status: m.payment_status,
        created_at: m.created_at,

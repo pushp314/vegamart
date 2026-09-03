@@ -1207,6 +1207,13 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                   <span className="text-muted-foreground">Taxes & Charges (GST)</span>
                   <span className="font-semibold tabular-nums">₹{displayTax.toFixed(2)}</span>
                 </div>
+                {summary?.additional_charges && summary.additional_charges.length > 0 && summary.additional_charges.map((charge: any) => (
+                  <div key={charge.id} className="flex justify-between">
+                    <span className="text-muted-foreground">{charge.name}</span>
+                    <span className="font-semibold tabular-nums">₹{Number(charge.amount).toFixed(2)}</span>
+                  </div>
+                ))}
+
                 {discount > 0 && (
                   <div className="flex justify-between text-emerald-700 font-semibold">
                     <span>Coupon Discount</span>

@@ -285,6 +285,8 @@ export interface CreateMasterOrderInput {
   total_amount: number;
   delivery_fee: number;
   tax: number;
+  platform_fee?: number;
+  additional_charges?: any;
   payment_method: string;
 }
 
@@ -297,6 +299,8 @@ export async function createMasterOrder(input: CreateMasterOrderInput, db: DbCli
       total_amount: input.total_amount,
       delivery_fee: input.delivery_fee,
       tax: input.tax,
+      platform_fee: input.platform_fee || 0,
+      additional_charges: input.additional_charges || [],
       payment_method: input.payment_method as Prisma.MasterOrderCreateInput["payment_method"],
     }
   });
