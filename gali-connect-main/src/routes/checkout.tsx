@@ -147,6 +147,12 @@ function Checkout() {
       !!(i.product?.vendor as any)?.provides_vendor_comes_to_me
   );
 
+  // Multi-vendor consolidated delivery detection
+  const uniqueVendorIds = new Set(items.map((i) => i.product?.vendor_id || (i.product as any)?.vendorId).filter(Boolean));
+  const isMultiVendorCart = uniqueVendorIds.size > 1;
+  const isConsolidatedDelivery = summary?.is_consolidated_delivery || (isMultiVendorCart && isVegaMartFleetEnabled);
+  const consolidatedDeliveryFee = isConsolidatedDelivery ? (summary?.delivery_fee ?? adminDeliveryFee) : 0;
+
   interface CheckoutDeliveryOption {
     id: string;
     label: string;
@@ -253,7 +259,27 @@ function Checkout() {
       : []),
   ];
 
-  const effectiveOptions: CheckoutDeliveryOption[] = DELIVERY_OPTIONS.length > 0 ? DELIVERY_OPTIONS : [
+  // When multi-vendor cart with consolidated VegaMart delivery, show only delivery_partner option
+  const consolidatedOptions: CheckoutDeliveryOption[] = isConsolidatedDelivery
+    ? [{
+        id: "delivery_partner",
+        label: "VegaMart Home Delivery",
+        desc: `All stores picked up by VegaMart rider (₹${consolidatedDeliveryFee === 0 ? "Free" : consolidatedDeliveryFee})`,
+        icon: "🏍️",
+        eta: `~${platformDeliveryEta || vendorEta}`,
+        advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
+        minOrder: Number(adminMinOrder) || 0,
+        fee: consolidatedDeliveryFee,
+        onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
+        codEnabled: deliveryPartnerConfig.cod_enabled !== false,
+        fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
+        advancePaymentEnabled: Boolean(deliveryPartnerConfig.advance_payment_enabled),
+      }]
+    : DELIVERY_OPTIONS;
+
+  const effectiveOptions: CheckoutDeliveryOption[] = (isConsolidatedDelivery ? consolidatedOptions : DELIVERY_OPTIONS).length > 0
+    ? (isConsolidatedDelivery ? consolidatedOptions : DELIVERY_OPTIONS)
+    : [
     {
       id: "self_pickup",
       label: "Self Pickup",
@@ -715,13 +741,25 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="font-display text-base font-bold text-foreground truncate">
-                        {vendorName}
+                        {isConsolidatedDelivery
+                          ? `${uniqueVendorIds.size} Stores`
+                          : vendorName}
                       </h2>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
-                        {isStoreOpen ? "🟢 Open" : "🔴 Closed"}
-                      </span>
+                      {isConsolidatedDelivery ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-blue-800 bg-blue-100 dark:bg-blue-950 dark:text-blue-300 px-2 py-0.5 rounded-full border border-blue-300 dark:border-blue-800">
+                          📦 Combined Order
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                          {isStoreOpen ? "🟢 Open" : "🔴 Closed"}
+                        </span>
+                      )}
                     </div>
-                    {vendorAddress ? (
+                    {isConsolidatedDelivery ? (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {summary?.groups?.map((g: any) => g.vendor_name).join(", ") || "Multiple vendors"}
+                      </p>
+                    ) : vendorAddress ? (
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
                         {vendorAddress}
                       </p>
@@ -846,17 +884,34 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
               </div>
             </section>
 
-            {/* Delivery Options (4 Options) */}
+            {/* Delivery Options */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h2 className="font-display text-base font-bold">Delivery &amp; Pickup Options</h2>
-                  <p className="text-xs text-muted-foreground">Select how you want to receive your order</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isConsolidatedDelivery
+                      ? "VegaMart handles all store pickups for you"
+                      : "Select how you want to receive your order"}
+                  </p>
                 </div>
                 <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
                   {effectiveOptions.length} available
                 </span>
               </div>
+
+              {/* Multi-store consolidated delivery info banner */}
+              {isConsolidatedDelivery && (
+                <div className="mb-3 flex items-start gap-2.5 p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-xs text-blue-900 dark:text-blue-200 animate-in fade-in">
+                  <span className="text-lg shrink-0 mt-[-1px]">📦</span>
+                  <div>
+                    <strong>Multi-store order — Single delivery charge!</strong>
+                    <p className="mt-0.5 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
+                      Your cart has items from {uniqueVendorIds.size} different stores. A VegaMart rider will pick up from all stores and deliver everything together with just one delivery fee{consolidatedDeliveryFee === 0 ? " (Free!)" : ` of ₹${consolidatedDeliveryFee}`}.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {effectiveOptions.map((opt, i) => {

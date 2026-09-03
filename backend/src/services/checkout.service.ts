@@ -230,6 +230,8 @@ export interface CheckoutSummary {
   /** Per-vendor eligible coupon discount; used only downstream when orders are created. */
   group_discounts: Record<string, number>;
   currency: string;
+  /** True when multi-vendor cart is consolidated under a single VegaMart delivery charge. */
+  is_consolidated_delivery?: boolean;
 }
 
 export const checkoutService = {
@@ -266,6 +268,26 @@ export const checkoutService = {
       );
     }
 
+    // Detect multi-vendor + VegaMart delivery consolidation
+    const vegamartDeliveryEnabled = settings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED] !== false;
+    const isConsolidatedDelivery = groups.length > 1 && vegamartDeliveryEnabled;
+
+    // When consolidated, only VegaMart Home Delivery (delivery_partner) is allowed
+    if (isConsolidatedDelivery && input.delivery_slot) {
+      const slotCheck = input.delivery_slot.toLowerCase();
+      const isNonPartnerSlot =
+        slotCheck.includes("self") || slotCheck.includes("pickup") || slotCheck.includes("takeaway") ||
+        slotCheck.includes("shop") || slotCheck.includes("direct") ||
+        slotCheck.includes("book");
+      if (isNonPartnerSlot) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          "Your cart has items from multiple stores. Only VegaMart Home Delivery is available for multi-store orders. Please select VegaMart Home Delivery.",
+          { code: "MULTI_STORE_DELIVERY_PARTNER_ONLY" }
+        );
+      }
+    }
+
     const summaryGroups: CheckoutGroup[] = [];
     let itemsSubtotal = 0;
     let deliveryFee = 0;
@@ -290,14 +312,27 @@ export const checkoutService = {
       const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
 
       const deliveryConfigs = normalizeDeliveryConfigs((vendor as any).delivery_configs, vendor);
-      const vendorDeliveryFee = computeOptionDeliveryFee(
-        input.delivery_slot,
-        group.subtotal,
-        deliveryConfigs,
-        globalFreeDeliveryThreshold,
-        globalDeliveryFee,
-        vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null
-      );
+
+      // When consolidated, validate that each vendor supports delivery_partner
+      if (isConsolidatedDelivery && !deliveryConfigs.delivery_partner.enabled) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `${vendor.business_name} does not support VegaMart Home Delivery. Multi-store orders require all stores to support VegaMart delivery. Please remove items from this store or order separately.`,
+          { code: "VENDOR_NO_DELIVERY_PARTNER" }
+        );
+      }
+
+      // When consolidated, per-vendor delivery fee is 0; the single fee is computed below
+      const vendorDeliveryFee = isConsolidatedDelivery
+        ? 0
+        : computeOptionDeliveryFee(
+            input.delivery_slot,
+            group.subtotal,
+            deliveryConfigs,
+            globalFreeDeliveryThreshold,
+            globalDeliveryFee,
+            vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null
+          );
 
       let effectiveMinOrder = 0;
       const slotRaw = (input.delivery_slot || "").toLowerCase();
@@ -411,6 +446,19 @@ export const checkoutService = {
     }
 
     itemsSubtotal = Math.round(itemsSubtotal * 100) / 100;
+
+    // Consolidated multi-vendor delivery: compute one platform-level delivery fee
+    // based on total cart subtotal and global settings
+    if (isConsolidatedDelivery) {
+      const globalDeliveryFee = (settings[SETTING_KEYS.DELIVERY_FEE] as number) || 0;
+      const globalFreeDeliveryThreshold = (settings[SETTING_KEYS.FREE_DELIVERY_THRESHOLD] as number) || 0;
+      if (globalFreeDeliveryThreshold > 0 && itemsSubtotal >= globalFreeDeliveryThreshold) {
+        deliveryFee = 0;
+      } else {
+        deliveryFee = globalDeliveryFee;
+      }
+    }
+
     deliveryFee = Math.round(deliveryFee * 100) / 100;
 
     let discount = 0;
@@ -457,6 +505,7 @@ export const checkoutService = {
       coupon: couponInfo,
       group_discounts: groupDiscounts,
       currency: DEFAULT_CURRENCY,
+      is_consolidated_delivery: isConsolidatedDelivery || undefined,
     };
   },
 
@@ -620,7 +669,7 @@ export const checkoutService = {
 
     // Pre-compute the per-vendor totals once so the gateway, the persistence step
     // and the stored idempotent response all agree.
-    const computations = summary.groups.map((group) => {
+    const computations = summary.groups.map((group, idx) => {
       const groupSubtotal = group.items_subtotal;
       const groupDiscount = Math.round((summary.group_discounts?.[group.vendor_id] ?? 0) * 100) / 100;
       const discountRatio = groupSubtotal > 0 ? groupDiscount / groupSubtotal : 0;
@@ -631,8 +680,12 @@ export const checkoutService = {
         groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
       }
       const groupTax = Math.round(groupTaxRaw * 100) / 100;
-      const groupTotal = Math.round((groupSubtotal + group.delivery_fee - groupDiscount + groupTax) * 100) / 100;
-      return { group, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
+      // When consolidated delivery, assign the full delivery fee to first order only
+      const effectiveDeliveryFee = summary.is_consolidated_delivery
+        ? (idx === 0 ? summary.delivery_fee : 0)
+        : group.delivery_fee;
+      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax) * 100) / 100;
+      return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
     });
 
     // Read each vendor's daily order limit before the transaction. A slightly
@@ -1138,7 +1191,7 @@ export const checkoutService = {
 
     const paymentType = input.payment_type ?? "FULL";
     const groupDiscounts = summary.group_discounts;
-    const computations = summary.groups.map((group) => {
+    const computations = summary.groups.map((group, idx) => {
       const groupDiscount = groupDiscounts[group.vendor_id] ?? 0;
       const discountRatio = group.items_subtotal > 0 ? groupDiscount / group.items_subtotal : 0;
       const groupSubtotal = group.items_subtotal;
@@ -1149,8 +1202,12 @@ export const checkoutService = {
         groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
       }
       const groupTax = Math.round(groupTaxRaw * 100) / 100;
-      const groupTotal = Math.round((groupSubtotal + group.delivery_fee - groupDiscount + groupTax) * 100) / 100;
-      return { group, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
+      // When consolidated delivery, assign the full delivery fee to first order only
+      const effectiveDeliveryFee = summary.is_consolidated_delivery
+        ? (idx === 0 ? summary.delivery_fee : 0)
+        : group.delivery_fee;
+      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax) * 100) / 100;
+      return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
     });
 
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
