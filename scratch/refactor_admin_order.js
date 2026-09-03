@@ -1,4 +1,6 @@
-import type { Request } from "express";
+const fs = require('fs');
+
+const adminOrderServiceTs = `import type { Request } from "express";
 import { Prisma } from "@prisma/client";
 
 import prisma from "../database/prisma";
@@ -147,7 +149,7 @@ export const adminOrderService = {
             : null,
           vendors: vendors.length > 0 ? vendors : null,
           // Expose vendor as single to not break existing strict assumptions, or Multiple Stores
-          vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null, id: 'multiple' },
+          vendor: vendors.length === 1 ? vendors[0] : { business_name: \`\${vendors.length} Stores\`, phone: null, id: 'multiple' },
           delivery_partner: m.delivery_partner
             ? { id: m.delivery_partner.id, name: m.delivery_partner.user?.name ?? "Partner", phone: m.delivery_partner.user?.phone ?? null }
             : null,
@@ -275,7 +277,7 @@ export const adminOrderService = {
       delivered_at: firstOrder?.delivered_at,
       customer: mOrder.customer,
       vendors: vendors,
-      vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null, id: 'multiple' },
+      vendor: vendors.length === 1 ? vendors[0] : { business_name: \`\${vendors.length} Stores\`, phone: null, id: 'multiple' },
       delivery_partner: mOrder.delivery_partner,
       address: mOrder.address,
       sub_orders: subOrders, // Store-wise breakdown
@@ -373,7 +375,7 @@ export const adminOrderService = {
               data: {
                 order_id: order.id,
                 status: mappedStatus as any,
-                note: reason ?? `Admin updated master order status to ${status}.`,
+                note: reason ?? \`Admin updated master order status to \${status}.\`,
                 actor_type: "admin",
                 actor_id: adminUserId,
               }
@@ -454,7 +456,7 @@ export const adminOrderService = {
     } else {
       updated = await orderRepo.updateOrderStatus(orderId, {
         status: mappedStatus,
-        note: reason ?? `Admin updated status to ${status}.`,
+        note: reason ?? \`Admin updated status to \${status}.\`,
         actorType: "admin",
         actorId: adminUserId,
       });
@@ -545,3 +547,6 @@ export const adminOrderService = {
     };
   },
 };
+`;
+
+fs.writeFileSync('backend/src/services/admin-order.service.ts', adminOrderServiceTs);
