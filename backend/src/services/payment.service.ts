@@ -6,6 +6,7 @@ import { auditService } from "./audit.service";
 import { notificationService } from "./notification.service";
 import { realtime } from "../realtime/realtime";
 import { cacheService } from "../database/cache";
+import prisma from "../database/prisma";
 import * as paymentRepo from "../repositories/payment.repository";
 import * as orderRepo from "../repositories/order.repository";
 import * as transactionRepo from "../repositories/transaction.repository";
@@ -82,7 +83,15 @@ export const paymentService = {
       throw new NotFoundError("Payment not found.");
     }
 
-    const order = await findOrderById(payment.order_id);
+    let order: any = null;
+    let isMaster = false;
+    if (payment.master_order_id) {
+        order = await prisma.masterOrder.findUnique({ where: { id: payment.master_order_id }, include: { orders: { include: { vendor: true, items: true, customer: true } } } });
+        isMaster = true;
+    } else if (payment.order_id) {
+        order = await prisma.order.findUnique({ where: { id: payment.order_id }, include: { vendor: true, items: true, customer: true } });
+    }
+    
     if (!order) {
       throw new NotFoundError("Order not found.");
     }
@@ -103,7 +112,7 @@ export const paymentService = {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid payment signature.", { code: "INVALID_SIGNATURE" });
     }
 
-    let entity: CapturedPaymentEntity;
+    let entity: any;
     try {
       entity = await razorpayGateway.fetchPayment(input.razorpay_payment_id);
     } catch {
@@ -112,14 +121,8 @@ export const paymentService = {
       });
     }
 
-    // The expected amount is derived from the persisted payment; the frontend is
-    // never trusted for the payable amount. Signature + amount + currency + order
-    // mapping must all hold before the payment is marked paid.
     assertCapturedPayment(entity, payment);
 
-    // Atomic claim: only the first request that transitions this payment to PAID
-    // proceeds with the downstream side effects. Replayed/concurrent callbacks
-    // find `claimed === 0` and return the already-paid state idempotently.
     const claimed = await paymentRepo.claimAsPaid(payment.id, {
       razorpay_payment_id: input.razorpay_payment_id,
       razorpay_signature: input.razorpay_signature,
@@ -131,24 +134,47 @@ export const paymentService = {
     }
 
     const updatedPayment = await paymentRepo.findByRazorpayOrderId(input.razorpay_order_id) ?? payment;
-    await orderRepo.updateOrder(order.id, {
-      payment_status: "PAID",
-      payment_method: "RAZORPAY",
-    });
-    // Only a non-terminal order may be confirmed. If the order was cancelled or
-    // otherwise left the confirmation flow while payment settled, the payment is
-    // recorded as PAID but the order is never revived.
-    if (order.status === "PENDING" || order.status === "CONFIRMED") {
-      await orderRepo.updateOrderStatus(order.id, {
-        status: "CONFIRMED",
-        note: "Online Payment verified and completed successfully.",
-        actorType: "system",
-      });
+    const amountPaid = payment.amount.toNumber();
+
+    if (isMaster) {
+        await prisma.masterOrder.update({
+            where: { id: order.id },
+            data: { payment_status: "PAID", payment_method: "RAZORPAY", status: order.status === "PENDING" ? "ACCEPTED" : undefined }
+        });
+        
+        for (const subOrder of order.orders) {
+            await prisma.order.update({ where: { id: subOrder.id }, data: { payment_status: "PAID", payment_method: "RAZORPAY" } });
+            if (subOrder.status === "PENDING" || subOrder.status === "CONFIRMED") {
+                await prisma.order.update({ where: { id: subOrder.id }, data: { status: "CONFIRMED" } });
+            }
+            // notification logic for suborder
+            if (subOrder.vendor?.user_id) {
+               await realtime.publishVendorOrder(subOrder.vendor_id, {
+                 order_id: subOrder.id,
+                 order_number: subOrder.order_number,
+                 total: Number(subOrder.total),
+                 items_count: subOrder.items?.length ?? 0,
+                 customer_name: subOrder.customer?.name ?? undefined,
+                 customer_phone: subOrder.customer?.phone ?? undefined,
+                 payment_method: "RAZORPAY",
+                 items: subOrder.items?.map((it: any) => ({
+                   name: it.product_name,
+                   quantity: it.quantity,
+                   price: Number(it.total_price),
+                 })) || [],
+                 created_at: new Date().toISOString(),
+               });
+            }
+        }
+    } else {
+        await prisma.order.update({ where: { id: order.id }, data: { payment_status: "PAID", payment_method: "RAZORPAY" } });
+        if (order.status === "PENDING" || order.status === "CONFIRMED") {
+            await prisma.order.update({ where: { id: order.id }, data: { status: "CONFIRMED" } });
+        }
     }
 
-    const amountPaid = payment.amount.toNumber();
     await transactionRepo.create({
-      order_id: order.id,
+      order_id: isMaster ? order.orders[0].id : order.id,
       payment_id: payment.id,
       user_id: userId,
       type: "DEBIT",
@@ -157,53 +183,6 @@ export const paymentService = {
       reference: input.razorpay_payment_id,
       metadata: { razorpay_order_id: input.razorpay_order_id },
     });
-
-    await notificationService.orderStatus(
-      userId,
-      order.order_number,
-      "Order confirmed",
-      `Your payment of ₹${amountPaid.toFixed(2)} for order ${order.order_number} has been verified and confirmed.`,
-      { order_id: order.id }
-    );
-
-    await notificationService.payment(userId, "Payment successful", `Your payment of ₹${amountPaid.toFixed(2)} for ${order.order_number} was successful.`, {
-      order_id: order.id,
-      payment_id: payment.id,
-    });
-
-    if (order.vendor?.user_id) {
-      await notificationService.vendor(
-        order.vendor.user_id,
-        "New Paid Order Received! 🛒",
-        `Order #${order.order_number} has been paid and confirmed (₹${amountPaid.toFixed(2)}).`,
-        {
-          order_id: order.id,
-          order_number: order.order_number,
-          total: amountPaid,
-          customer_name: order.customer?.name ?? undefined,
-          payment_method: "RAZORPAY",
-        }
-      );
-
-      realtime.publishVendorOrder(order.vendor_id, {
-        order_id: order.id,
-        order_number: order.order_number,
-        total: amountPaid,
-        items_count: order.items?.length ?? 0,
-        customer_name: order.customer?.name ?? undefined,
-        customer_phone: order.customer?.phone ?? undefined,
-        payment_method: "RAZORPAY",
-        items: order.items?.map((it) => ({
-          name: it.product_name,
-          quantity: it.quantity,
-          price: Number(it.total_price),
-        })),
-        created_at: new Date().toISOString(),
-      });
-
-      // Automatically trigger vendor split payout settlement if wallet is active
-      await payoutService.settleVendorOrderEarnings(order.id, input.razorpay_payment_id).catch(() => {});
-    }
 
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "payment", entityId: payment.id, newValues: { razorpay_payment_id: input.razorpay_payment_id, order_id: order.id, amount: amountPaid } },
@@ -291,7 +270,7 @@ export const paymentService = {
     const payment = await paymentRepo.findByRazorpayOrderId(razorpayOrderId);
     if (!payment) return;
 
-    const order = await findOrderById(payment.order_id);
+    const order = payment.order_id ? await findOrderById(payment.order_id) : null;
     if (!order) return;
 
     assertCapturedPayment(entity, payment);

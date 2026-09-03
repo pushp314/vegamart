@@ -43,6 +43,7 @@ const baseSelect = {
 export type OrderRow = {
   id: string;
   order_number: string;
+  master_order_id?: string;
   user_id: string;
   vendor_id: string;
   delivery_partner_id: string | null;
@@ -273,6 +274,31 @@ export interface CreateOrderInput {
     total_price: number;
     image_url?: string | null;
   }>;
+}
+
+
+export interface CreateMasterOrderInput {
+  order_number: string;
+  user_id: string;
+  address_id: string;
+  total_amount: number;
+  delivery_fee: number;
+  tax: number;
+  payment_method: string;
+}
+
+export async function createMasterOrder(input: CreateMasterOrderInput, db: DbClient = prisma) {
+  return await db.masterOrder.create({
+    data: {
+      order_number: input.order_number,
+      user_id: input.user_id,
+      address_id: input.address_id,
+      total_amount: input.total_amount,
+      delivery_fee: input.delivery_fee,
+      tax: input.tax,
+      payment_method: input.payment_method as Prisma.MasterOrderCreateInput["payment_method"],
+    }
+  });
 }
 
 export async function createOrder(input: CreateOrderInput, db: DbClient = prisma): Promise<OrderRow> {

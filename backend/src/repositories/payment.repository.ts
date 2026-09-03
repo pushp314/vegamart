@@ -28,7 +28,8 @@ const baseSelect = {
 
 export type PaymentRow = {
   id: string;
-  order_id: string;
+  order_id?: string;
+    master_order_id?: string;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   razorpay_signature: string | null;
@@ -50,7 +51,8 @@ export type PaymentRow = {
 
 export async function createForOrder(
   data: {
-    order_id: string;
+    order_id?: string;
+    master_order_id?: string;
     amount: number;
     method: string;
     razorpay_order_id?: string | null;
@@ -60,7 +62,8 @@ export async function createForOrder(
 ): Promise<PaymentRow> {
   const row = await db.payment.create({
     data: {
-      order_id: data.order_id,
+      order_id: data.order_id ?? null,
+      master_order_id: data.master_order_id ?? null,
       amount: data.amount,
       method: data.method as Prisma.PaymentCreateInput["method"],
       razorpay_order_id: data.razorpay_order_id ?? null,
@@ -170,5 +173,13 @@ export async function incrementAttempts(id: string): Promise<void> {
   await prisma.payment.update({
     where: { id },
     data: { attempts: { increment: 1 } },
+  });
+}
+
+
+export async function findByMasterOrderId(masterOrderId: string, db: DbClient = prisma): Promise<any | null> {
+  return await db.payment.findFirst({
+    where: { master_order_id: masterOrderId, status: "PAID" },
+    select: baseSelect,
   });
 }

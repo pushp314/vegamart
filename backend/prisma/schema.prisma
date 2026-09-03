@@ -61,6 +61,17 @@ enum KycStatus {
   REJECTED      @map("rejected")
 }
 
+enum MasterOrderStatus {
+  PENDING            @map("pending")
+  ACCEPTED           @map("accepted")
+  PICKUP_IN_PROGRESS @map("pickup_in_progress")
+  OUT_FOR_DELIVERY   @map("out_for_delivery")
+  DELIVERED          @map("delivered")
+  CANCELLED          @map("cancelled")
+  REFUNDED           @map("refunded")
+  FAILED             @map("failed")
+}
+
 enum OrderStatus {
   PENDING          @map("pending")
   CONFIRMED        @map("confirmed")
@@ -212,6 +223,7 @@ model User {
   password_reset_tokens PasswordResetToken[]
   notifications         Notification[]
   orders                Order[]               @relation("CustomerOrders")
+  master_orders         MasterOrder[]         @relation("CustomerMasterOrders")
   checkout_idempotencies CheckoutIdempotency[]
   cart                  Cart?
   wishlist_items        WishlistItem[]
@@ -626,6 +638,7 @@ model DeliveryProfile {
 
   user            User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
   orders          Order[]           @relation("AssignedOrders")
+  master_orders   MasterOrder[]     @relation("AssignedMasterOrders")
   earnings        DeliveryEarning[]
   payout_requests PayoutRequest[]
 
@@ -833,14 +846,42 @@ model Address {
 
   user   User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   orders Order[]
+  master_orders MasterOrder[]
 
   @@index([user_id])
   @@index([pincode])
   @@map("addresses")
 }
 
+model MasterOrder {
+  id                    String            @id @default(uuid()) @db.Uuid
+  order_number          String            @unique @db.VarChar(40)
+  user_id               String            @db.Uuid
+  delivery_partner_id   String?           @db.Uuid
+  address_id            String            @db.Uuid
+  status                MasterOrderStatus @default(PENDING)
+  total_amount          Decimal           @db.Decimal(10, 2)
+  delivery_fee          Decimal           @default(0) @db.Decimal(10, 2)
+  tax                   Decimal           @default(0) @db.Decimal(10, 2)
+  payment_method        PaymentMethod     @default(RAZORPAY)
+  payment_status        PaymentStatus     @default(PENDING)
+  created_at            DateTime          @default(now())
+  updated_at            DateTime          @updatedAt
+
+  customer          User              @relation("CustomerMasterOrders", fields: [user_id], references: [id], onDelete: Restrict)
+  delivery_partner  DeliveryProfile?  @relation("AssignedMasterOrders", fields: [delivery_partner_id], references: [id], onDelete: SetNull)
+  address           Address           @relation(fields: [address_id], references: [id], onDelete: Restrict)
+  orders            Order[]
+  payment           Payment?
+
+  @@index([user_id])
+  @@index([delivery_partner_id])
+  @@map("master_orders")
+}
+
 model Order {
   id                    String        @id @default(uuid()) @db.Uuid
+  master_order_id       String?       @db.Uuid
   order_number          String        @unique @db.VarChar(40)
   user_id               String        @db.Uuid
   vendor_id             String        @db.Uuid
@@ -886,6 +927,7 @@ model Order {
   address           Address           @relation(fields: [address_id], references: [id], onDelete: Restrict)
   coupon            Coupon?           @relation(fields: [coupon_id], references: [id], onDelete: SetNull)
   items             OrderItem[]
+  master_order      MasterOrder?  @relation(fields: [master_order_id], references: [id], onDelete: Cascade)
   events            OrderEvent[]
   coupon_usage      CouponUsage?
   payment           Payment?
@@ -1029,7 +1071,8 @@ model CouponUsage {
 
 model Payment {
   id                  String        @id @default(uuid()) @db.Uuid
-  order_id            String        @unique @db.Uuid
+  order_id            String?       @unique @db.Uuid
+  master_order_id     String?       @unique @db.Uuid
   razorpay_order_id   String?       @unique @db.VarChar(64)
   razorpay_payment_id String?       @unique @db.VarChar(64)
   razorpay_signature  String?       @db.VarChar(255)
@@ -1048,8 +1091,9 @@ model Payment {
   created_at          DateTime      @default(now())
   updated_at          DateTime      @updatedAt
 
-  order        Order         @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+  order               Order?        @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  master_order        MasterOrder?  @relation(fields: [master_order_id], references: [id], onDelete: Cascade)
+  transactions        Transaction[]
 
   @@index([razorpay_order_id])
   @@index([status])
