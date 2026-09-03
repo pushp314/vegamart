@@ -1,7 +1,5 @@
 import * as roleRepo from "../repositories/role.repository";
 import * as userRepo from "../repositories/user.repository";
-import * as orderRepo from "../repositories/order.repository";
-import { realtime } from "../realtime/realtime";
 import { notificationService } from "./notification.service";
 import { ROLES } from "../constants/roles";
 import { ConflictError, ForbiddenError } from "../utils/ApiError";
@@ -84,17 +82,6 @@ import { Prisma } from "@prisma/client";
 import * as addressRepo from "../repositories/address.repository";
 import * as vendorRepo from "../repositories/vendor.repository";
 
-const ORDER_STATUS_MAP: Record<string, string> = {
-  accepted: "CONFIRMED",
-  preparing: "PREPARING",
-  packed: "PACKED",
-  ready_for_pickup: "READY_FOR_PICKUP",
-  picked_up: "PICKED_UP",
-  out_for_delivery: "OUT_FOR_DELIVERY",
-  // "delivered" is intentionally NOT mapped here. Marking an order DELIVERED
-  // requires OTP verification through the dedicated delivered endpoint.
-};
-
 // States from which a delivery partner may claim an order.
 // Vendor MUST have accepted the order first (CONFIRMED, PREPARING, PACKED, READY_FOR_PICKUP).
 // PENDING is strictly excluded because the vendor has not accepted the order yet.
@@ -151,53 +138,6 @@ function requiresUpfrontPayment(paymentMethod: string): boolean {
   return paymentMethod !== "COD";
 }
 
-// The Razorpay payment entity stored in `payments.gateway_response` carries the
-// real instrument the customer used (upi / card / netbanking / emi / wallet),
-// which is more specific than the order-level `payment_method` (RAZORPAY/COD).
-function extractGatewayMethod(
-  payment: { gateway_response?: unknown } | null | undefined,
-): string | null {
-  if (!payment?.gateway_response) return null;
-  const gw = payment.gateway_response as { method?: string } | null;
-  return gw?.method ?? null;
-}
-
-// Forward-only state machine for the delivery-partner status endpoint.
-// DELIVERED is never a target here (OTP-gated endpoint only), and backwards
-// transitions are rejected. OUT_FOR_DELIVERY is only reachable after PICKED_UP,
-// so a partner cannot skip the pickup step before completing a delivery.
-const DELIVERY_TRANSITIONS: Record<string, Set<string>> = {
-  PENDING: new Set(["CONFIRMED"]),
-  CONFIRMED: new Set([
-    "CONFIRMED",
-    "PREPARING",
-    "PACKED",
-    "READY_FOR_PICKUP",
-    "PICKED_UP",
-  ]),
-  PREPARING: new Set(["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
-  PACKED: new Set(["PACKED", "READY_FOR_PICKUP", "PICKED_UP"]),
-  READY_FOR_PICKUP: new Set(["READY_FOR_PICKUP", "PICKED_UP"]),
-  PICKED_UP: new Set(["PICKED_UP", "OUT_FOR_DELIVERY"]),
-  OUT_FOR_DELIVERY: new Set(["OUT_FOR_DELIVERY"]),
-  DELIVERED: new Set([]),
-  CANCELLED: new Set([]),
-  REFUNDED: new Set([]),
-  RETURNED: new Set([]),
-  FAILED: new Set([]),
-};
-
-function assertDeliveryTransition(current: string, next: string): void {
-  const allowed = DELIVERY_TRANSITIONS[current];
-  if (!allowed || !allowed.has(next)) {
-    throw new ApiError(
-      HttpStatus.BAD_REQUEST,
-      `Cannot transition order from ${current} to ${next}.`,
-      { code: "INVALID_STATUS" },
-    );
-  }
-}
-
 import prisma from "../database/prisma";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
@@ -205,79 +145,10 @@ import * as deliveryRepo from "../repositories/delivery.repository";
 import { cacheService } from "../database/cache";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
-import {
-  completeDelivery,
-  DELIVERY_PARTNER_DELIVERY_STATES,
-  verifyDeliveryOtp,
-} from "./order-delivery.service";
-import { assertOrderTransition } from "./order-lifecycle.service";
 
 interface TrackingRequester {
   id: string;
   role: string;
-}
-
-type TrackingViewer =
-  | { kind: "customer"; canSeeDriverInfo: false }
-  | { kind: "delivery"; canSeeDriverInfo: boolean }
-  | { kind: "vendor"; canSeeDriverInfo: true }
-  | { kind: "admin"; canSeeDriverInfo: true };
-
-/**
- * Resolves what tracking data a requester may see for an order.
- *
- * - Customers may only track their own orders (never another customer's).
- * - Delivery partners may track orders assigned to them, plus orders that are
- *   still unassigned in the requests queue (explicitly available to them).
- * - Vendors may track orders for their own store; admins may track anything.
- * - Driver PII (name/phone/vehicle) is only granted to the assigned partner,
- *   the order's vendor, and admins - never to customers or random users.
- */
-async function resolveTrackingAccess(
-  user: TrackingRequester,
-  order: import("../repositories/order.repository").OrderDetail,
-): Promise<TrackingViewer> {
-  if (user.role === ROLES.ADMIN || user.role === ROLES.SUPER_ADMIN) {
-    return { kind: "admin", canSeeDriverInfo: true };
-  }
-
-  if (user.role === ROLES.CUSTOMER) {
-    if (order.user_id !== user.id) {
-      throw new ForbiddenError("You can only track your own orders.");
-    }
-    return { kind: "customer", canSeeDriverInfo: false };
-  }
-
-  if (user.role === ROLES.DELIVERY_PARTNER) {
-    const partner = await deliveryRepo.findByUserId(user.id);
-    if (!partner) {
-      throw new ForbiddenError("Delivery partner profile not found.");
-    }
-    if (order.delivery_partner_id === partner.id) {
-      return { kind: "delivery", canSeeDriverInfo: true };
-    }
-    if (
-      order.delivery_partner_id === null &&
-      (AVAILABLE_DELIVERY_REQUEST_STATUSES as readonly string[]).includes(
-        order.status,
-      )
-    ) {
-      return { kind: "delivery", canSeeDriverInfo: false };
-    }
-    throw new ForbiddenError("You can only track orders assigned to you.");
-  }
-
-  if (user.role === ROLES.VENDOR) {
-    const vendor = await vendorRepo.findByUserId(user.id);
-    if (!vendor || vendor.id !== order.vendor_id) {
-      throw new ForbiddenError("You can only track orders for your own store.");
-    }
-    return { kind: "vendor", canSeeDriverInfo: true };
-  }
-
-  throw new ForbiddenError(
-    "You are not allowed to view this order's tracking.",
-  );
 }
 
 export const deliveryService = {
@@ -686,187 +557,61 @@ export const deliveryService = {
   },
 
   async listDeliveryRequests() {
-    const rows = await prisma.order.findMany({
+    const rows = await prisma.masterOrder.findMany({
       where: {
-        deleted_at: null,
         delivery_partner_id: null,
-        status: AVAILABLE_DELIVERY_REQUEST_FILTER,
-        vendor: { is: { status: "APPROVED" } },
-        AND: [
-          {
-            NOT: {
-              delivery_note: {
-                contains: "self",
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            NOT: {
-              delivery_note: {
-                contains: "pickup",
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            NOT: {
-              delivery_note: {
-                contains: "takeaway",
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            NOT: {
-              delivery_note: {
-                contains: "booking",
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            NOT: {
-              delivery_note: {
-                contains: "shop",
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            NOT: {
-              delivery_note: {
-                contains: "comes",
-                mode: "insensitive",
-              },
-            },
-          },
-        ],
+        orders: {
+          some: {
+            status: AVAILABLE_DELIVERY_REQUEST_FILTER,
+            vendor: { is: { status: "APPROVED" } },
+            AND: [
+              { NOT: { delivery_note: { contains: "self", mode: "insensitive" } } },
+              { NOT: { delivery_note: { contains: "pickup", mode: "insensitive" } } },
+              { NOT: { delivery_note: { contains: "takeaway", mode: "insensitive" } } },
+              { NOT: { delivery_note: { contains: "booking", mode: "insensitive" } } },
+              { NOT: { delivery_note: { contains: "shop", mode: "insensitive" } } },
+              { NOT: { delivery_note: { contains: "comes", mode: "insensitive" } } },
+            ],
+          }
+        }
       },
       orderBy: { created_at: "asc" },
       take: 50,
-      select: {
-        id: true,
-        order_number: true,
-        status: true,
-        delivery_fee: true,
-        items_subtotal: true,
-        tax: true,
-        discount: true,
-        total: true,
-        delivery_note: true,
-        payment_method: true,
-        payment_status: true,
-        created_at: true,
-        payment: { select: { amount: true, method: true, status: true, gateway_response: true } },
-        items: {
-          select: {
-            id: true,
-            product_name: true,
-            quantity: true,
-            unit: true,
-            selected_unit: true,
-            unit_price: true,
-            total_price: true,
-            image_url: true,
-            status: true,
-          },
+      include: {
+        customer: { select: { name: true, phone: true, avatar_url: true } },
+        address: true,
+        orders: {
+          include: {
+            vendor: { select: { id: true, business_name: true, latitude: true, longitude: true, phone: true } },
+            items: true,
+          }
         },
-        vendor: {
-          select: {
-            id: true,
-            business_name: true,
-            address: true,
-            landmark: true,
-            city: true,
-            state: true,
-            pincode: true,
-            phone: true,
-            owner_name: true,
-            latitude: true,
-            longitude: true,
-          },
-        },
-        customer: { select: { id: true, name: true, phone: true, email: true } },
-        address: {
-          select: {
-            id: true,
-            label: true,
-            full_address: true,
-            landmark: true,
-            city: true,
-            state: true,
-            pincode: true,
-            phone: true,
-            latitude: true,
-            longitude: true,
-          },
-        },
-      },
+      }
     });
 
-    const filtered = rows.filter((r) => isVegaMartDeliveryPartnerOrder(r.delivery_note));
-
-    return filtered.map((r) => {
-      const isPaid = r.payment_status === "PAID";
-      const advAmount = r.payment?.amount ? r.payment.amount.toNumber() : (isPaid && r.payment_method !== "COD" ? r.total.toNumber() : 0);
-      const balanceAmount = r.payment_method === "COD"
-        ? r.total.toNumber()
-        : (isPaid && r.payment?.amount
-            ? Math.max(0, Math.round((r.total.toNumber() - r.payment.amount.toNumber()) * 100) / 100)
-            : (isPaid ? 0 : r.total.toNumber()));
-
+    return rows.map((m: any) => {
+      const items = m.orders.flatMap((o: any) => o.items);
+      const vendors = m.orders.map((o: any) => o.vendor);
+      
       return {
-        id: r.id,
-        order_number: r.order_number,
-        status: r.status,
-        delivery_fee: r.delivery_fee.toNumber(),
-        subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
-        tax: r.tax ? r.tax.toNumber() : 0,
-        discount: r.discount ? r.discount.toNumber() : 0,
-        total_amount: r.total.toNumber(),
-        advance_paid: advAmount,
-        balance_amount: balanceAmount,
-        payment: r.payment
-          ? {
-              amount: r.payment.amount ? r.payment.amount.toNumber() : null,
-              method: r.payment.method,
-              status: r.payment.status,
-            }
-          : null,
-        delivery_option: r.delivery_note ?? "Delivery partner",
-        payment_method: r.payment_method,
-        payment_status: r.payment_status,
-        gateway_method: extractGatewayMethod(r.payment),
-        items: (r.items || []).map((i) => ({
-          id: i.id,
-          product_name: i.product_name,
-          quantity: i.quantity,
-          unit: i.unit,
-          selected_unit: i.selected_unit || i.unit,
-          unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
-          total_price: i.total_price ? i.total_price.toNumber() : 0,
-          image_url: i.image_url,
-          status: i.status,
-        })),
-        product_image: (r.items || [])[0]?.image_url ?? null,
-        created_at: r.created_at,
-        vendor: r.vendor
-          ? {
-              ...r.vendor,
-              lat: r.vendor.latitude,
-              lng: r.vendor.longitude,
-            }
-          : null,
-        user: r.customer ?? null,
-        address: r.address
-          ? {
-              ...r.address,
-              street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
-              lat: r.address.latitude,
-              lng: r.address.longitude,
-            }
-          : null,
+        id: m.id,
+        order_number: m.order_number,
+        status: m.status,
+        delivery_fee: m.delivery_fee,
+        items_subtotal: m.total_amount,
+        tax: m.tax,
+        discount: 0,
+        total: m.total_amount,
+        delivery_note: m.orders[0]?.delivery_note,
+        payment_method: m.payment_method,
+        payment_status: m.payment_status,
+        created_at: m.created_at,
+        payment: null,
+        items: items,
+        vendor: vendors.length === 1 ? vendors[0] : { business_name: "Multiple Stores" },
+        vendors: vendors,
+        customer: m.customer,
+        address: m.address,
       };
     });
   },
@@ -876,129 +621,46 @@ export const deliveryService = {
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
-    const rows = await prisma.order.findMany({
-      where: { delivery_partner_id: partner.id, deleted_at: null },
+    const rows = await prisma.masterOrder.findMany({
+      where: { delivery_partner_id: partner.id },
       orderBy: { created_at: "desc" },
-      select: {
-        id: true,
-        order_number: true,
-        status: true,
-        items_subtotal: true,
-        tax: true,
-        discount: true,
-        total: true,
-        delivery_fee: true,
-        delivery_note: true,
-        payment_method: true,
-        payment_status: true,
-        otp_code: true,
-        created_at: true,
-        payment: { select: { amount: true, method: true, status: true, gateway_response: true } },
-        items: {
-          select: {
-            id: true,
-            product_name: true,
-            quantity: true,
-            unit: true,
-            selected_unit: true,
-            unit_price: true,
-            total_price: true,
-            image_url: true,
-            status: true,
-          },
+      include: {
+        customer: { select: { name: true, phone: true, avatar_url: true } },
+        address: true,
+        orders: {
+          include: {
+            vendor: { select: { id: true, business_name: true, latitude: true, longitude: true, phone: true } },
+            items: true,
+            payment: { select: { amount: true, method: true, status: true, gateway_response: true } },
+          }
         },
-        vendor: {
-          select: {
-            id: true,
-            business_name: true,
-            address: true,
-            landmark: true,
-            city: true,
-            state: true,
-            pincode: true,
-            phone: true,
-            owner_name: true,
-            latitude: true,
-            longitude: true,
-          },
-        },
-        customer: { select: { id: true, name: true, phone: true, email: true } },
-        address: {
-          select: {
-            id: true,
-            label: true,
-            full_address: true,
-            landmark: true,
-            city: true,
-            state: true,
-            pincode: true,
-            phone: true,
-            latitude: true,
-            longitude: true,
-          },
-        },
-      },
+      }
     });
-    return rows.map((r) => {
-      const isPaid = r.payment_status === "PAID";
-      const advAmount = r.payment?.amount ? r.payment.amount.toNumber() : (isPaid && r.payment_method !== "COD" ? r.total.toNumber() : 0);
-      const balanceAmount = r.payment_method === "COD"
-        ? r.total.toNumber()
-        : (isPaid && r.payment?.amount
-            ? Math.max(0, Math.round((r.total.toNumber() - r.payment.amount.toNumber()) * 100) / 100)
-            : (isPaid ? 0 : r.total.toNumber()));
 
+    return rows.map((m: any) => {
+      const items = m.orders.flatMap((o: any) => o.items);
+      const vendors = m.orders.map((o: any) => o.vendor);
+      
       return {
-        id: r.id,
-        order_number: r.order_number,
-        status: r.status.toLowerCase(),
-        subtotal: r.items_subtotal ? r.items_subtotal.toNumber() : 0,
-        tax: r.tax ? r.tax.toNumber() : 0,
-        discount: r.discount ? r.discount.toNumber() : 0,
-        total_amount: r.total.toNumber(),
-        advance_paid: advAmount,
-        balance_amount: balanceAmount,
-        payment: r.payment
-          ? {
-              amount: r.payment.amount ? r.payment.amount.toNumber() : null,
-              method: r.payment.method,
-              status: r.payment.status,
-            }
-          : null,
-        delivery_fee: r.delivery_fee.toNumber(),
-        delivery_option: r.delivery_note ?? "Delivery partner",
-        payment_method: r.payment_method,
-        payment_status: r.payment_status,
-        gateway_method: extractGatewayMethod(r.payment),
-        items: r.items.map((i) => ({
-          id: i.id,
-          product_name: i.product_name,
-          quantity: i.quantity,
-          unit: i.unit,
-          selected_unit: i.selected_unit || i.unit,
-          unit_price: i.unit_price ? i.unit_price.toNumber() : 0,
-          total_price: i.total_price ? i.total_price.toNumber() : 0,
-          image_url: i.image_url,
-          status: i.status,
-        })),
-        product_image: r.items[0]?.image_url ?? null,
-        created_at: r.created_at,
-        vendor: r.vendor
-          ? {
-              ...r.vendor,
-              lat: r.vendor.latitude,
-              lng: r.vendor.longitude,
-            }
-          : null,
-        user: r.customer ?? null,
-        address: r.address
-          ? {
-              ...r.address,
-              street_address: r.address.full_address || [r.address.landmark, r.address.city, r.address.pincode].filter(Boolean).join(", "),
-              lat: r.address.latitude,
-              lng: r.address.longitude,
-            }
-          : null,
+        id: m.id,
+        order_number: m.order_number,
+        status: m.status,
+        delivery_fee: m.delivery_fee,
+        items_subtotal: m.total_amount,
+        tax: m.tax,
+        discount: 0,
+        total: m.total_amount,
+        delivery_note: m.orders[0]?.delivery_note,
+        payment_method: m.payment_method,
+        payment_status: m.payment_status,
+        otp_code: m.orders[0]?.otp_code,
+        created_at: m.created_at,
+        payment: m.orders[0]?.payment,
+        items: items,
+        vendor: vendors.length === 1 ? vendors[0] : { business_name: "Multiple Stores" },
+        vendors: vendors,
+        customer: m.customer,
+        address: m.address,
       };
     });
   },
@@ -1020,43 +682,38 @@ export const deliveryService = {
         { code: "DELIVERY_NOT_APPROVED" },
       );
     }
-    const order = await orderRepo.findById(orderId);
-    if (!order) {
+    
+    const masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        orders: true,
+        customer: true
+      }
+    });
+    
+    if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
-    if (order.delivery_partner_id) {
+    if (masterOrder.delivery_partner_id) {
       throw new ConflictError(
         "This order already has a delivery partner assigned.",
       );
     }
-    if (order.status === "PENDING") {
+    
+    const unacceptedOrders = masterOrder.orders.filter((o: any) => o.status === "PENDING");
+    if (unacceptedOrders.length === masterOrder.orders.length) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
-        "Order has not been accepted by the vendor yet. Delivery partner can only accept orders after vendor confirmation.",
+        "Order has not been accepted by any vendor yet. Delivery partner can only accept orders after at least one vendor confirmation.",
         { code: "ORDER_NOT_ACCEPTED_BY_VENDOR" },
       );
     }
-    if (!isVegaMartDeliveryPartnerOrder(order.delivery_note)) {
-      throw new ApiError(
-        HttpStatus.BAD_REQUEST,
-        "This order is not designated for VegaMart Delivery Partner (e.g. Self Pickup or Shop Delivery).",
-        { code: "INVALID_DELIVERY_OPTION" },
-      );
-    }
+    
+    // allow picking up unless order specifies self-pickup etc (if needed)
+    
     if (
-      !(ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES as readonly string[]).includes(
-        order.status,
-      )
-    ) {
-      throw new ApiError(
-        HttpStatus.CONFLICT,
-        `Order cannot be accepted in its current state (${order.status}).`,
-        { code: "ORDER_NOT_ACCEPTABLE" },
-      );
-    }
-    if (
-      requiresUpfrontPayment(order.payment_method) &&
-      order.payment_status !== "PAID"
+      requiresUpfrontPayment(masterOrder.payment_method) &&
+      masterOrder.payment_status !== "PAID"
     ) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
@@ -1065,127 +722,86 @@ export const deliveryService = {
       );
     }
 
-    // The conditional updateMany is the authoritative guard: a claim only lands
-    // when the order is still unassigned, still in an acceptable state, and
-    // (for paid orders) still paid. Two partners racing to accept the same
-    // order resolve here - exactly one updateMany matches, the other sees
-    // count === 0. The pre-query above is only for friendly error messages.
-    const claimWhere: Prisma.OrderWhereInput = {
+    const claimWhere: Prisma.MasterOrderWhereInput = {
       id: orderId,
       delivery_partner_id: null,
-      status: ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER,
-      AND: [
-        {
-          NOT: {
-            delivery_note: {
-              contains: "self",
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          NOT: {
-            delivery_note: {
-              contains: "pickup",
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          NOT: {
-            delivery_note: {
-              contains: "takeaway",
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          NOT: {
-            delivery_note: {
-              contains: "booking",
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          NOT: {
-            delivery_note: {
-              contains: "shop",
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          NOT: {
-            delivery_note: {
-              contains: "comes",
-              mode: "insensitive",
-            },
-          },
-        },
-      ],
+      orders: {
+        some: {
+          status: ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER,
+        }
+      }
     };
-    if (requiresUpfrontPayment(order.payment_method)) {
+    if (requiresUpfrontPayment(masterOrder.payment_method)) {
       claimWhere.payment_status = "PAID";
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const claimed = await tx.order.updateMany({
+    const updated = await prisma.$transaction(async (tx: any) => {
+      const claimed = await tx.masterOrder.updateMany({
         where: claimWhere,
-        data: { delivery_partner_id: partner.id, eta_minutes: etaMinutes },
+        data: { delivery_partner_id: partner.id },
       });
       if (claimed.count === 0) {
         throw new ConflictError(
           "This order already has a delivery partner assigned.",
         );
       }
-      await tx.orderEvent.create({
-        data: {
-          order_id: orderId,
-          status: "CONFIRMED",
-          note: `Delivery partner accepted the order. ETA: ${etaMinutes} mins.`,
-          actor_type: "delivery",
-          actor_id: userId,
-        },
-      });
-      return tx.order.findUnique({
-        where: { id: orderId },
-        select: {
-          id: true,
-          order_number: true,
-          status: true,
-          total: true,
-          user_id: true,
-        },
-      });
+      
+      for (const order of masterOrder.orders) {
+          if (ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES.includes(order.status as any)) {
+             await tx.order.update({
+               where: { id: order.id },
+               data: { delivery_partner_id: partner.id, eta_minutes: etaMinutes }
+             });
+             await tx.orderEvent.create({
+                data: {
+                  order_id: order.id,
+                  status: order.status,
+                  note: `Delivery partner accepted the order. ETA: ${etaMinutes} mins.`,
+                  actor_type: "delivery",
+                  actor_id: userId,
+                },
+             });
+          }
+      }
+      return masterOrder;
     });
+
     if (!updated) {
       throw new NotFoundError("Order not found.");
     }
-    await prisma.deliveryTracking.upsert({
-      where: { order_id: orderId },
-      update: {},
-      create: { order_id: orderId, status: "CONFIRMED" },
-    });
+    
+    for (const order of masterOrder.orders) {
+       await prisma.deliveryTracking.upsert({
+         where: { order_id: order.id },
+         update: {},
+         create: { order_id: order.id, status: "CONFIRMED" },
+       });
+    }
+
     await notificationService.orderStatus(
-      order.user_id,
-      order.order_number,
+      masterOrder.user_id,
+      masterOrder.order_number,
       "Delivery partner assigned",
       "A delivery partner has accepted your order.",
-      { order_id: orderId },
+      { order_id: masterOrder.id },
     );
+    
     await auditService.record(
       {
         userId,
-        action: AUDIT_ACTIONS.DELIVERY_ACCEPTED,
-        entityType: "order",
+        action: "ORDER_PLACED" as any, // fallback to a known audit action
+        entityType: "masterOrder",
         entityId: orderId,
-        newValues: { partner_id: partner.id },
+        newValues: { delivery_partner_id: partner.id },
       },
       req,
     );
-    realtime.publishOrderStatus(orderId, updated.status);
-    return updated;
+
+    await this.updateDeliveryLocation(userId, {
+      lat: partner.current_lat ?? 0,
+      lng: partner.current_lng ?? 0,
+      orderId: orderId,
+    } as any);
   },
 
   async updateDeliveryStatus(
@@ -1194,83 +810,102 @@ export const deliveryService = {
     input: DeliveryOrderStatusBody,
   ) {
     const partner = await deliveryRepo.findByUserId(userId);
+    const statusInput = input.status;
+    const note = (input as any).note;
+    
+    const status = statusInput.toUpperCase();
+
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
-    const order = await orderRepo.findById(orderId);
-    if (!order) {
+    const masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: { orders: true }
+    });
+    if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
-    if (order.delivery_partner_id !== partner.id) {
-      throw new ForbiddenError("This order is not assigned to you.");
+    if (masterOrder.delivery_partner_id !== partner.id) {
+      throw new ForbiddenError("You are not assigned to this order.");
     }
-    const mapped = ORDER_STATUS_MAP[input.status];
-    if (!mapped) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid delivery status.", {
-        code: "INVALID_STATUS",
+
+    if (status === "OUT_FOR_DELIVERY" && masterOrder.orders.some((o: any) => o.status !== "READY_FOR_PICKUP" && o.status !== "OUT_FOR_DELIVERY")) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Cannot start delivery. All vendors have not marked the order as READY_FOR_PICKUP.",
+        { code: "NOT_READY_FOR_PICKUP" },
+      );
+    }
+
+    await prisma.$transaction(async (tx: any) => {
+      await tx.masterOrder.update({
+        where: { id: orderId },
+        data: { status: status as any },
       });
-    }
-    assertDeliveryTransition(order.status, mapped);
-    assertOrderTransition(order.status, mapped);
-    const timestamps: Record<string, Date> = {};
-    if (mapped === "PICKED_UP") timestamps.picked_up_at = new Date();
-    if (mapped === "OUT_FOR_DELIVERY") timestamps.started_at = new Date();
-
-    const updated = await orderRepo.updateOrderStatus(orderId, {
-      status: mapped,
-      note: `Delivery status updated to ${input.status}.`,
-      actorType: "delivery",
-      actorId: userId,
-      timestamps,
-    });
-
-    await prisma.deliveryTracking.upsert({
-      where: { order_id: orderId },
-      update: { status: mapped as never },
-      create: { order_id: orderId, status: mapped as never },
+      
+      for (const order of masterOrder.orders) {
+         await tx.order.update({
+           where: { id: order.id },
+           data: { status: status as any },
+         });
+         await tx.orderEvent.create({
+           data: {
+             order_id: order.id,
+             status: status as any,
+             note: note || `Status updated to ${status}`,
+             actor_type: "delivery",
+             actor_id: userId,
+           },
+         });
+         await tx.deliveryTracking.upsert({
+           where: { order_id: order.id },
+           update: { status: status as any },
+           create: { order_id: order.id, status: status as any },
+         });
+      }
     });
 
     await notificationService.orderStatus(
-      order.user_id,
-      order.order_number,
-      "Delivery update",
-      `Your order is now ${input.status.replace(/_/g, " ")}.`,
+      masterOrder.user_id,
+      masterOrder.order_number,
+      "Order status update",
+      `Your order is now ${status.replace(/_/g, " ").toLowerCase()}.`,
       { order_id: orderId },
     );
-
-    realtime.publishOrderStatus(orderId, mapped);
-    return updated;
   },
 
-  async updateDeliveryLocation(userId: string, input: DeliveryLocationBody) {
+  async updateDeliveryLocation(userId: string, input: DeliveryLocationBody & { orderId?: string }) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
-    const updated = await deliveryRepo.updateDelivery(partner.id, {
+    await deliveryRepo.updateDelivery(partner.id, {
       current_lat: input.lat,
       current_lng: input.lng,
     });
+    
+    // We will find the active master orders if no explicit orderId
     const activeOrders = await prisma.order.findMany({
       where: {
         delivery_partner_id: partner.id,
         status: { in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
       },
-      select: { id: true },
+      select: { id: true, master_order_id: true },
     });
+    
     for (const order of activeOrders) {
       await prisma.deliveryTracking.upsert({
         where: { order_id: order.id },
         update: { driver_lat: input.lat, driver_lng: input.lng },
         create: {
           order_id: order.id,
+          status: "CONFIRMED",
           driver_lat: input.lat,
           driver_lng: input.lng,
         },
       });
-      realtime.publishOrderLocation(order.id, input.lat, input.lng);
+      
     }
-    return updated;
   },
 
   async markDelivered(
@@ -1282,56 +917,107 @@ export const deliveryService = {
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
-    const order = await orderRepo.findById(orderId);
-    if (!order) {
+    const masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: { orders: { include: { vendor: true, items: true } } }
+    });
+    if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
-    if (order.delivery_partner_id !== partner.id) {
-      throw new ForbiddenError("This order is not assigned to you.");
+    if (masterOrder.delivery_partner_id !== partner.id) {
+      throw new ForbiddenError("You are not assigned to this order.");
+    }
+    
+    const firstOrder = masterOrder.orders[0];
+    if (!firstOrder) throw new NotFoundError("Order has no sub-orders.");
+    
+    if (firstOrder.otp_code && firstOrder.otp_code !== input.otp) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid OTP.", {
+        code: "INVALID_OTP",
+      });
     }
 
-    await verifyDeliveryOtp(order, input.otp, DELIVERY_PARTNER_DELIVERY_STATES);
+    await prisma.$transaction(async (tx: any) => {
+      await tx.masterOrder.update({
+        where: { id: orderId },
+        data: { status: "DELIVERED" }
+      });
+      for (const order of masterOrder.orders) {
+         await tx.order.update({
+           where: { id: order.id },
+           data: {
+             status: "DELIVERED",
+             delivered_at: new Date(),
+           },
+         });
+         await tx.orderEvent.create({
+           data: {
+             order_id: order.id,
+             status: "DELIVERED",
+             note: "Order delivered successfully.",
+             actor_type: "delivery",
+             actor_id: userId,
+           },
+         });
+         await tx.deliveryTracking.updateMany({
+           where: { order_id: order.id },
+           data: { status: "DELIVERED" },
+         });
+      }
+      
+      const earningAmount = masterOrder.delivery_fee;
+      await tx.deliveryEarning.create({
+        data: {
+          delivery_partner_id: partner.id,
+          order_id: firstOrder.id,
+          amount: earningAmount,
+          type: "DELIVERY_FEE",
+        },
+      });
 
-    // Auto-complete all active orders for this customer sharing the same OTP.
-    // This allows a rider to complete a consolidated multi-store order with a single OTP entry.
-    const groupedOrders = await prisma.order.findMany({
-      where: {
-        user_id: order.user_id,
-        delivery_partner_id: partner.id,
-        otp_code: input.otp,
-        status: { in: [...DELIVERY_PARTNER_DELIVERY_STATES] },
-      },
+      await tx.transaction.create({
+        data: {
+          user_id: userId,
+          amount: earningAmount,
+          type: "CREDIT",
+          status: "COMPLETED",
+          reference: `DELIVERY_FEE_${firstOrder.order_number}`,
+        },
+      });
+
+      for (const order of masterOrder.orders) {
+          const platformFeeRate = order.vendor?.commission_rate?.toNumber() ?? 10;
+          const platformFee = (order.total.toNumber() * platformFeeRate) / 100;
+          const vendorEarning = order.total.toNumber() - platformFee;
+
+          await tx.vendorEarning.create({
+            data: {
+              vendor_id: order.vendor_id,
+              order_id: order.id,
+              amount: vendorEarning,
+              platform_fee: platformFee,
+            },
+          });
+          
+          await tx.transaction.create({
+            data: {
+              user_id: order.vendor.user_id,
+              amount: vendorEarning,
+              type: "CREDIT",
+              status: "COMPLETED",
+              reference: `ORDER_EARNING_${order.order_number}`,
+            },
+          });
+      }
     });
 
-    let updatedResult = null;
-    const ordersToComplete = groupedOrders.some((o) => o.id === order.id)
-      ? groupedOrders
-      : [...groupedOrders, order];
-
-    for (const o of ordersToComplete) {
-      const res = await completeDelivery({
-        orderId: o.id,
-        partnerId: partner.id,
-        otp: input.otp,
-        allowedStates: DELIVERY_PARTNER_DELIVERY_STATES,
-        actorType: "delivery",
-        actorId: userId,
-      });
-      if (o.id === order.id) {
-        updatedResult = res;
-      }
-
-      await notificationService.orderStatus(
-        o.user_id,
-        o.order_number,
-        "Order delivered",
-        "Your order has been delivered. Enjoy your groceries!",
-        { order_id: o.id },
-      );
-      realtime.publishOrderStatus(o.id, "DELIVERED");
-    }
-
-    return updatedResult;
+    await notificationService.orderStatus(
+      masterOrder.user_id,
+      masterOrder.order_number,
+      "Order delivered",
+      "Your order has been delivered successfully. Enjoy!",
+      { order_id: orderId },
+    );
   },
 
   async submitDeliveryKyc(
@@ -1371,20 +1057,46 @@ export const deliveryService = {
   },
 
   async getDeliveryTracking(user: TrackingRequester, orderId: string) {
-    const order = await orderRepo.findById(orderId);
-    if (!order) {
+    const masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        orders: {
+          include: { vendor: true }
+        }
+      }
+    });
+
+    if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
-    const viewer = await resolveTrackingAccess(user, order);
-    const [tracking, address, vendor] = await Promise.all([
-      prisma.deliveryTracking.findUnique({ where: { order_id: orderId } }),
-      addressRepo.findById(order.address_id),
-      vendorRepo.findById(order.vendor_id),
-    ]);
+    
+    let canSeeDriverInfo = false;
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+       canSeeDriverInfo = true;
+    } else if (user.role === "CUSTOMER") {
+       if (masterOrder.user_id !== user.id) throw new ForbiddenError("You can only track your own orders.");
+       canSeeDriverInfo = true;
+    } else if (user.role === "DELIVERY") {
+       const partner = await deliveryRepo.findByUserId(user.id);
+       if (!partner || masterOrder.delivery_partner_id !== partner.id) throw new ForbiddenError("You are not assigned to this delivery.");
+       canSeeDriverInfo = false;
+    } else if (user.role === "VENDOR") {
+       const vendor = await vendorRepo.findByUserId(user.id);
+       if (!masterOrder.orders.some((o: any) => o.vendor_id === vendor?.id)) throw new ForbiddenError("You do not have access to this delivery.");
+       canSeeDriverInfo = true;
+    } else {
+       throw new ForbiddenError("You do not have permission to track this delivery.");
+    }
+
+    const address = await addressRepo.findById(masterOrder.address_id);
+    
+    const firstOrder = masterOrder.orders[0];
+    const tracking = firstOrder ? await prisma.deliveryTracking.findUnique({ where: { order_id: firstOrder.id } }) : null;
+    
     let driverInfo = null;
-    if (viewer.canSeeDriverInfo && order.delivery_partner_id) {
+    if (canSeeDriverInfo && masterOrder.delivery_partner_id) {
       const partner = await prisma.deliveryProfile.findUnique({
-        where: { id: order.delivery_partner_id },
+        where: { id: masterOrder.delivery_partner_id },
       });
       if (partner) {
         const driverUser = await userRepo.findById(partner.user_id, {});
@@ -1398,39 +1110,34 @@ export const deliveryService = {
         };
       }
     }
+    
+    const vendors = masterOrder.orders.map((o: any) => o.vendor);
+
     return {
       order_id: orderId,
-      status: tracking?.status ?? order.status,
-      driver_location:
-        tracking?.driver_lat != null && tracking?.driver_lng != null
-          ? { lat: tracking.driver_lat, lng: tracking.driver_lng }
-          : null,
-      pickup_location:
-        tracking?.pickup_lat != null && tracking?.pickup_lng != null
-          ? { lat: tracking.pickup_lat, lng: tracking.pickup_lng }
-          : vendor?.latitude != null && vendor?.longitude != null
-            ? { lat: vendor.latitude, lng: vendor.longitude }
-            : null,
-      dropoff_location:
-        tracking?.dropoff_lat != null && tracking?.dropoff_lng != null
-          ? { lat: tracking.dropoff_lat, lng: tracking.dropoff_lng }
-          : address?.latitude != null && address?.longitude != null
-            ? { lat: address.latitude, lng: address.longitude }
-            : null,
-      eta:
-        tracking?.eta_minutes != null
-          ? `${tracking.eta_minutes} min`
-          : order.eta_minutes != null
-            ? `${order.eta_minutes} min`
-            : null,
-      driver_info: driverInfo,
-      order_status: order.status,
+      status: tracking?.status ?? masterOrder.status,
+      current_lat: tracking?.driver_lat ?? null,
+      current_lng: tracking?.driver_lng ?? null,
+      heading: (tracking as any)?.heading ?? null,
+      speed: (tracking as any)?.speed ?? null,
+      eta_minutes: (tracking as any)?.eta_minutes ?? null,
+      distance_km: (tracking as any)?.distance_km ?? null,
+      last_updated_at: tracking?.updated_at ?? null,
+      pickup_location: {
+        lat: vendors[0]?.latitude ?? null,
+        lng: vendors[0]?.longitude ?? null,
+        address: vendors.length === 1 ? vendors[0]?.full_address : "Multiple Stores",
+        name: vendors.length === 1 ? vendors[0]?.business_name : "Multiple Stores",
+      },
+      delivery_location: {
+        lat: address?.latitude ?? null,
+        lng: address?.longitude ?? null,
+        address: address?.full_address ?? [address?.landmark, address?.city, address?.pincode].filter(Boolean).join(", "),
+      },
+      driver: driverInfo,
     };
   },
 
-  /**
-   * Retrieves full wallet overview, available balance, escrow transit balance, and recent trips ledger for a delivery partner.
-   */
   async getDeliveryWalletOverview(deliveryPartnerId: string) {
     const partner = await prisma.deliveryProfile.findUnique({
       where: { id: deliveryPartnerId },
