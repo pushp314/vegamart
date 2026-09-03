@@ -1292,24 +1292,46 @@ export const deliveryService = {
 
     await verifyDeliveryOtp(order, input.otp, DELIVERY_PARTNER_DELIVERY_STATES);
 
-    const updated = await completeDelivery({
-      orderId: order.id,
-      partnerId: partner.id,
-      otp: input.otp,
-      allowedStates: DELIVERY_PARTNER_DELIVERY_STATES,
-      actorType: "delivery",
-      actorId: userId,
+    // Auto-complete all active orders for this customer sharing the same OTP.
+    // This allows a rider to complete a consolidated multi-store order with a single OTP entry.
+    const groupedOrders = await prisma.order.findMany({
+      where: {
+        user_id: order.user_id,
+        delivery_partner_id: partner.id,
+        otp_code: input.otp,
+        status: { in: [...DELIVERY_PARTNER_DELIVERY_STATES] },
+      },
     });
 
-    await notificationService.orderStatus(
-      order.user_id,
-      order.order_number,
-      "Order delivered",
-      "Your order has been delivered. Enjoy your groceries!",
-      { order_id: orderId },
-    );
-    realtime.publishOrderStatus(orderId, "DELIVERED");
-    return updated;
+    let updatedResult = null;
+    const ordersToComplete = groupedOrders.some((o) => o.id === order.id)
+      ? groupedOrders
+      : [...groupedOrders, order];
+
+    for (const o of ordersToComplete) {
+      const res = await completeDelivery({
+        orderId: o.id,
+        partnerId: partner.id,
+        otp: input.otp,
+        allowedStates: DELIVERY_PARTNER_DELIVERY_STATES,
+        actorType: "delivery",
+        actorId: userId,
+      });
+      if (o.id === order.id) {
+        updatedResult = res;
+      }
+
+      await notificationService.orderStatus(
+        o.user_id,
+        o.order_number,
+        "Order delivered",
+        "Your order has been delivered. Enjoy your groceries!",
+        { order_id: o.id },
+      );
+      realtime.publishOrderStatus(o.id, "DELIVERED");
+    }
+
+    return updatedResult;
   },
 
   async submitDeliveryKyc(

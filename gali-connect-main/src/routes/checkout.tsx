@@ -50,6 +50,7 @@ function Checkout() {
     subtotal,
     deliveryFee,
     tax,
+    taxRatePercent,
     discount,
     total,
     clearCart,
@@ -703,7 +704,13 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
   }
 
   const displayDeliveryFee = selectedOptionObj.fee;
-  const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + tax - discount);
+  
+  let displayTax = tax;
+  if (selectedOptionObj.id === "delivery_partner" && displayDeliveryFee > 0) {
+    displayTax = tax + (displayDeliveryFee * taxRatePercent) / 100;
+  }
+
+  const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + displayTax - discount);
   const isAdvanceSelected = paymentType === "ADVANCE" && selectedOptionObj.advancePaymentEnabled && payment !== "cod";
   const advancePct = selectedOptionObj.advancePct || 20;
   const upfrontPaymentAmount = isAdvanceSelected
@@ -1198,7 +1205,7 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Taxes & Charges (GST)</span>
-                  <span className="font-semibold tabular-nums">₹{tax.toFixed(2)}</span>
+                  <span className="font-semibold tabular-nums">₹{displayTax.toFixed(2)}</span>
                 </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-emerald-700 font-semibold">

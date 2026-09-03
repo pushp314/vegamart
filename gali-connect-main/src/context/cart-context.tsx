@@ -29,6 +29,7 @@ interface CartContextType {
   subtotal: number;
   deliveryFee: number;
   tax: number;
+  taxRatePercent: number;
   discount: number;
   total: number;
   itemCount: number;
@@ -305,6 +306,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         subtotal,
         deliveryFee,
         tax,
+        taxRatePercent,
         discount,
         total,
         itemCount,

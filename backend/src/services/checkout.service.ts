@@ -491,7 +491,20 @@ export const checkoutService = {
       totalTax += Math.round(groupTaxRaw * 100) / 100;
     }
 
-    const tax = totalTax;
+    let isVegaMartDelivery = isConsolidatedDelivery;
+    if (!isConsolidatedDelivery && input.delivery_slot) {
+      const slotRaw = input.delivery_slot.toLowerCase();
+      if (!slotRaw.includes("self") && !slotRaw.includes("pickup") && !slotRaw.includes("takeaway") &&
+          !slotRaw.includes("shop") && !slotRaw.includes("direct") && !slotRaw.includes("book")) {
+        isVegaMartDelivery = true;
+      }
+    }
+
+    if (isVegaMartDelivery && deliveryFee > 0) {
+      totalTax += Math.round(((deliveryFee * taxRatePercent) / 100) * 100) / 100;
+    }
+
+    const tax = Math.round(totalTax * 100) / 100;
     const total = Math.round((itemsSubtotal + deliveryFee - discount + tax) * 100) / 100;
 
     return {
@@ -748,6 +761,8 @@ export const checkoutService = {
           });
         }
 
+        const sharedOtp = generateDeliveryOtp();
+
         for (let i = 0; i < computations.length; i++) {
           const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
 
@@ -770,7 +785,7 @@ export const checkoutService = {
 
           const deliverySlotLabel = input.delivery_slot || deliveryInfo?.name || "Standard Delivery";
           const advanceNote = isAdvance
-            ? ` (${optConfig?.advance_percentage || 20}% Advance: ₹${amountCharged} paid online, Balance due at delivery/pickup: ₹${Math.max(0, groupTotal - amountCharged)})`
+            ? ` (${optConfig?.advance_percentage || 20}% Advance: ₹${amountCharged} paid online, Balance due on arrival: ₹${Math.max(0, groupTotal - amountCharged)})`
             : "";
 
           const order = await orderRepo.createOrder(
@@ -808,7 +823,7 @@ export const checkoutService = {
               tax: groupTax,
               total: groupTotal,
               invoice_number: generateInvoiceNumber(orderNumber),
-              otp_code: generateDeliveryOtp(),
+              otp_code: sharedOtp,
               otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
             },
             tx
