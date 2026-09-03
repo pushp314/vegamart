@@ -252,6 +252,7 @@ const detailSelect = {
 } as const;
 
 export interface CreateOrderInput {
+  master_order_id?: string;
   order_number: string;
   user_id: string;
   vendor_id: string;

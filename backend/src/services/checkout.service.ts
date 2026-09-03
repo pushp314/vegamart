@@ -713,38 +713,30 @@ export const checkoutService = {
     );
 
     // Gateway intents are created before the transaction
-    const gatewayOrders = await Promise.all(
-      computations.map((c) => {
-        let amountToCharge = c.groupTotal;
-        if (c.group.delivery_configs) {
-          const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, c.group.delivery_configs);
-          const optConfig = deliveryInfo.config;
-          if (paymentMethod === "RAZORPAY" && paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
-            const advancePct = optConfig.advance_percentage || 20;
-            amountToCharge = advancePct <= 0 || advancePct >= 100
-              ? c.groupTotal
-              : Math.max(1, Math.round(c.groupTotal * (advancePct / 100) * 100) / 100);
-          }
-        }
-        if (amountToCharge > 0 && amountToCharge < 1) {
-          amountToCharge = 1; // Razorpay minimum is 1 INR
-        }
-        
-        return paymentMethod === "RAZORPAY" && amountToCharge > 0
-          ? razorpayGateway.createOrder({
-              amountPaise: Math.round(amountToCharge * 100),
-              currency: DEFAULT_CURRENCY,
-              receipt: c.orderNumber,
-              notes: {
-                order_number: c.orderNumber,
-                user_id: userId,
-                delivery_slot: input.delivery_slot || "",
-                payment_type: paymentType,
-              },
-            })
-          : undefined;
-      })
-    );
+    let masterAmountToCharge = summary.total;
+    if (summary.groups.length === 1 && summary.groups[0]?.delivery_configs) {
+       const configs = summary.groups[0].delivery_configs;
+       if (configs) {
+         const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, configs);
+         const optConfig = deliveryInfo.config;
+         if (paymentMethod === "RAZORPAY" && paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
+           const advancePct = optConfig.advance_percentage || 20;
+           masterAmountToCharge = advancePct <= 0 || advancePct >= 100 ? summary.total : Math.max(1, Math.round(summary.total * (advancePct / 100) * 100) / 100);
+         }
+       }
+    }
+    if (masterAmountToCharge > 0 && masterAmountToCharge < 1) { masterAmountToCharge = 1; }
+
+    const masterOrderNumber = generateOrderNumber();
+    let gatewayOrder: any;
+    if (paymentMethod === "RAZORPAY" && masterAmountToCharge > 0) {
+        gatewayOrder = await razorpayGateway.createOrder({
+            amountPaise: Math.round(masterAmountToCharge * 100),
+            currency: DEFAULT_CURRENCY,
+            receipt: masterOrderNumber,
+            notes: { order_number: masterOrderNumber, user_id: userId, delivery_slot: input.delivery_slot || "", payment_type: paymentType }
+        });
+    }
 
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
 
@@ -760,6 +752,20 @@ export const checkoutService = {
             request_hash: requestHash as string,
           });
         }
+
+        const masterOrder = await tx.masterOrder.create({
+            data: {
+                order_number: masterOrderNumber,
+                user_id: userId,
+                address_id: address.id,
+                total_amount: summary.total,
+                delivery_fee: summary.delivery_fee,
+                tax: summary.tax,
+                status: "PENDING",
+                payment_method: paymentMethod,
+                payment_status: "PENDING",
+            }
+        });
 
         const sharedOtp = generateDeliveryOtp();
 
@@ -791,6 +797,7 @@ export const checkoutService = {
           const order = await orderRepo.createOrder(
             {
               order_number: orderNumber,
+              master_order_id: masterOrder.id,
               user_id: userId,
               vendor_id: group.vendor_id,
               address_id: address.id,
@@ -856,40 +863,27 @@ export const checkoutService = {
             );
           }
 
-          let payment;
-          if (paymentMethod === "RAZORPAY") {
-            if (amountCharged === 0) {
-              payment = await paymentRepo.createForOrder(
-                {
-                  order_id: order.id,
-                  amount: 0,
-                  method: "COD",
-                },
-                tx
-              );
-            } else {
-              payment = await paymentRepo.createForOrder(
-                {
-                  order_id: order.id,
-                  amount: amountCharged,
-                  method: "RAZORPAY",
-                  razorpay_order_id: gatewayOrders[i]?.id,
-                },
-                tx
-              );
-            }
-          } else {
-            payment = await paymentRepo.createForOrder(
-              {
-                order_id: order.id,
-                amount: groupTotal,
-                method: "COD",
-              },
-              tx
-            );
-          }
+          serializedOrders.push(serializeOrder(updated, {} as any));
+        }
+        
+        let payment;
+        if (paymentMethod === "RAZORPAY") {
+          payment = await paymentRepo.createForOrder({
+             master_order_id: masterOrder.id,
+             amount: masterAmountToCharge,
+             method: "RAZORPAY",
+             razorpay_order_id: gatewayOrder?.id,
+          }, tx);
+        } else {
+          payment = await paymentRepo.createForOrder({
+             master_order_id: masterOrder.id,
+             amount: summary.total,
+             method: "COD",
+          }, tx);
+        }
 
-          serializedOrders.push(serializeOrder(updated, payment));
+        for (let i = 0; i < serializedOrders.length; i++) {
+            serializedOrders[i]!.payment = payment as any;
         }
 
         // Atomic inventory reservation: the conditional guard aborts the whole
@@ -1228,26 +1222,33 @@ export const checkoutService = {
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
 
     await prisma.$transaction(async (tx) => {
+      const masterOrderNumber = generateOrderNumber();
+      const masterOrder = await tx.masterOrder.create({
+          data: {
+              order_number: masterOrderNumber,
+              user_id: userId,
+              address_id: address.id,
+              total_amount: summary.total,
+              delivery_fee: summary.delivery_fee,
+              tax: summary.tax,
+              status: "ACCEPTED",
+              payment_method: "RAZORPAY",
+              payment_status: "PAID",
+          }
+      });
+
       for (let i = 0; i < computations.length; i++) {
         const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
 
-        const deliveryInfo = group.delivery_configs
-          ? getDeliveryOptionConfig(input.delivery_slot, group.delivery_configs)
-          : null;
-        const optConfig = deliveryInfo?.config;
-        const isAdvance = paymentType === "ADVANCE" && !!optConfig?.advance_payment_enabled;
 
-        let amountCharged = groupTotal;
-        if (isAdvance && optConfig) {
-          const advancePct = optConfig.advance_percentage || 20;
-          amountCharged = advancePct <= 0 || advancePct >= 100
-            ? groupTotal
-            : Math.max(1, Math.round(groupTotal * (advancePct / 100) * 100) / 100);
-        }
+
+
+
 
         const order = await orderRepo.createOrder(
           {
             order_number: orderNumber,
+            master_order_id: masterOrder.id,
             user_id: userId,
             vendor_id: group.vendor_id,
             address_id: address.id,
@@ -1293,25 +1294,34 @@ export const checkoutService = {
           tx
         );
 
-        const paymentRecord = await paymentRepo.createForOrder(
-          {
-            order_id: order.id,
-            amount: amountCharged,
-            method: "RAZORPAY",
-            razorpay_order_id: verifiedPayment.razorpay_order_id,
-          },
-          tx
-        );
+        serializedOrders.push(serializeOrder(updated, {} as any));
+      }
 
-        await paymentRepo.claimAsPaid(
-          paymentRecord.id,
-          {
-            razorpay_payment_id: verifiedPayment.razorpay_payment_id,
-            razorpay_signature: verifiedPayment.razorpay_signature,
-          }
-        );
+      let masterAmountToCharge = summary.total;
+      if (summary.groups.length === 1 && summary.groups[0]?.delivery_configs) {
+         const configs = summary.groups[0].delivery_configs;
+         if (configs) {
+           const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, configs);
+           const optConfig = deliveryInfo.config;
+           if (paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
+             const advancePct = optConfig.advance_percentage || 20;
+             masterAmountToCharge = advancePct <= 0 || advancePct >= 100 ? summary.total : Math.max(1, Math.round(summary.total * (advancePct / 100) * 100) / 100);
+           }
+         }
+      }
+      if (masterAmountToCharge > 0 && masterAmountToCharge < 1) { masterAmountToCharge = 1; }
 
-        serializedOrders.push(serializeOrder(updated, { ...paymentRecord, status: "PAID" } as any));
+      const paymentRecord = await paymentRepo.createForOrder({
+         master_order_id: masterOrder.id,
+         amount: masterAmountToCharge,
+         method: "RAZORPAY",
+         razorpay_order_id: verifiedPayment.razorpay_order_id,
+      }, tx);
+
+      await paymentRepo.claimAsPaid(paymentRecord.id, { razorpay_payment_id: verifiedPayment.razorpay_payment_id, razorpay_signature: verifiedPayment.razorpay_signature });
+
+      for (let i = 0; i < serializedOrders.length; i++) {
+          serializedOrders[i]!.payment = { ...paymentRecord, status: "PAID" } as any;
       }
 
       const reservationItems = computations.flatMap((c) =>

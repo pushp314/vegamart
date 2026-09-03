@@ -353,7 +353,33 @@ export const orderService = {
     return order;
   },
 
-  async requestRefund(userId: string, orderId: string, reason: string, req: Request): Promise<orderRepo.OrderRow> {
+  async requestRefund(userId: string, orderId: string, reason: string, req: Request): Promise<any> {
+    const m = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: { orders: true }
+    });
+
+    if (m) {
+      if (m.user_id !== userId) throw new ForbiddenError("You are not authorized to request a refund for this order.");
+      
+      const updatedOrders = [];
+      for (const o of m.orders) {
+        if (o.status !== "DELIVERED") continue;
+        const fullOrder = await orderRepo.findById(o.id);
+        if (fullOrder) {
+            const updated = await refundOrderLifecycle({
+              order: fullOrder,
+              reason,
+              actorType: "customer",
+              actorId: userId,
+              req,
+            });
+            updatedOrders.push(updated);
+        }
+      }
+      return m;
+    }
+
     const order = await orderRepo.findById(orderId);
     if (!order) {
       throw new NotFoundError("Order not found.");
