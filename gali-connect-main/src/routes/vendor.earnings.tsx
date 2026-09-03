@@ -50,7 +50,7 @@ function VendorEarningsPage() {
   const { data: walletRes, isLoading: walletLoading } = useQuery({
     queryKey: ["vendorWallet"],
     queryFn: () => api.get<{ data: any }>("/vendors/me/wallet"),
-    enabled: !!vendor?.id && vendor?.status === "approved",
+    enabled: !!vendor?.id && vendor?.status?.toUpperCase() === "APPROVED",
   });
   const wallet = walletRes?.data?.data || walletRes?.data || {};
 
@@ -61,7 +61,7 @@ function VendorEarningsPage() {
       api.get<{ data: any }>(
         `/vendors/me/earnings${earningsMonthFilter ? `?month=${earningsMonthFilter}` : ""}`
       ),
-    enabled: !!vendor?.id && vendor?.status === "approved",
+    enabled: !!vendor?.id && vendor?.status?.toUpperCase() === "APPROVED",
   });
   const earnings = earningsRes?.data?.data || {};
 

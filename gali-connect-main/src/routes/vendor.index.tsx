@@ -73,7 +73,7 @@ function VendorOverviewPage() {
   const { data: dashboardRes } = useQuery({
     queryKey: ["vendorDashboard"],
     queryFn: () => api.get<{ data: any }>("/vendors/me/dashboard"),
-    enabled: !!vendor?.id && vendor?.status === "approved",
+    enabled: !!vendor?.id && vendor?.status?.toUpperCase() === "APPROVED",
   });
 
   const dashboard = dashboardRes?.data?.data || dashboardRes?.data;

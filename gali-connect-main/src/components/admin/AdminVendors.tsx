@@ -258,7 +258,7 @@ export function AdminVendors({
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider
                       ${
-                        status === "approved"
+                        status?.toUpperCase() === "APPROVED"
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"
                           : status === "pending"
                             ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30"
@@ -267,7 +267,7 @@ export function AdminVendors({
                               : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30"
                       }`}
                       >
-                        {status === "approved" && <CheckCircle2 className="h-3 w-3" />}
+                        {status?.toUpperCase() === "APPROVED" && <CheckCircle2 className="h-3 w-3" />}
                         {status === "rejected" && <Ban className="h-3 w-3" />}
                         {v.status || status}
                       </span>
@@ -287,7 +287,7 @@ export function AdminVendors({
                             Review KYC
                           </button>
                         )}
-                        {status === "approved" && (
+                        {status?.toUpperCase() === "APPROVED" && (
                           <>
                             <button
                               onClick={() => setQuickCommissionVendor(v)}

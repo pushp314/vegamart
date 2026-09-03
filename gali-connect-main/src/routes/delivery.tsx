@@ -224,7 +224,7 @@ function DeliveryDashboard() {
   const { data: requestsRes, refetch: refetchRequests } = useQuery({
     queryKey: ["deliveryRequests"],
     queryFn: () => api.get<any[]>("/delivery/requests"),
-    enabled: !!partner && partner.status === "approved" && isOnline,
+    enabled: !!partner && partner.status?.toUpperCase() === "APPROVED" && isOnline,
     refetchInterval: 5000,
   });
 
@@ -232,14 +232,14 @@ function DeliveryDashboard() {
   const { data: myDeliveriesRes } = useQuery({
     queryKey: ["myDeliveries"],
     queryFn: () => api.get<any[]>("/delivery/my-deliveries"),
-    enabled: !!partner && partner.status === "approved",
+    enabled: !!partner && partner.status?.toUpperCase() === "APPROVED",
   });
 
   // Fetch Delivery Stats
   const { data: statsRes } = useQuery({
     queryKey: ["deliveryStats"],
     queryFn: () => api.get<any>("/delivery/me/stats"),
-    enabled: !!partner && partner.status === "approved",
+    enabled: !!partner && partner.status?.toUpperCase() === "APPROVED",
   });
 
   const deliveryStats = statsRes?.data?.data ?? statsRes?.data ?? {};
@@ -448,7 +448,7 @@ function DeliveryDashboard() {
 
       <main className="p-4 space-y-6">
         {/* RIDER PERFORMANCE STRIP */}
-        {partner.status === "approved" && (
+        {partner.status?.toUpperCase() === "APPROVED" && (
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
               <div className="flex items-center gap-2">

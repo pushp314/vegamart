@@ -180,7 +180,7 @@ export function AdminDelivery({
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider border
                       ${
-                        status === "approved"
+                        status?.toUpperCase() === "APPROVED"
                           ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"
                           : status === "pending"
                             ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30"
@@ -189,14 +189,14 @@ export function AdminDelivery({
                               : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30"
                       }`}
                       >
-                        {status === "approved" && <CheckCircle2 className="h-3 w-3" />}
+                        {status?.toUpperCase() === "APPROVED" && <CheckCircle2 className="h-3 w-3" />}
                         {status === "rejected" && <Ban className="h-3 w-3" />}
                         {partner.status || status}
                       </span>
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-3">
-                        {(status === "approved" || status === "suspended") && (
+                        {(status?.toUpperCase() === "APPROVED" || status === "suspended") && (
                           <button
                             onClick={() => setDetailDeliveryId(partner.id)}
                             className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-sky-600 hover:bg-sky-50 hover:border-sky-200 border border-border transition-all active:scale-95"
@@ -222,7 +222,7 @@ export function AdminDelivery({
                             </button>
                           </>
                         )}
-                        {status === "approved" && (
+                        {status?.toUpperCase() === "APPROVED" && (
                           <button
                             onClick={() => onSuspend(partner.id)}
                             disabled={isSuspending}
