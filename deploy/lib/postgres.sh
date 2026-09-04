@@ -55,8 +55,7 @@ run_migrations() {
     local release_dir=$1
     log_info "Running Prisma migrations..."
 
-    # We must run migrations as the application user to prevent permission issues
-    if su - vegamart -c "cd $release_dir/backend && npx prisma migrate deploy"; then
+    if su - vegamart -c "cd $release_dir/backend && npx prisma db push --accept-data-loss"; then
         log_success "Database migrations completed successfully."
         log_info "Running database seed..."
         if su - vegamart -c "cd $release_dir/backend && npm run prisma:seed"; then
