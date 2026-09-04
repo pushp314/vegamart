@@ -553,7 +553,7 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
       const firstOrder = orders[0]?.order ?? null;
       clearCart();
       toast.success("Order placed successfully via Cash on Delivery!");
-      navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
+      navigate({ to: "/order-success", search: { orderId: res?.data?.master_order_id || "" } });
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Failed to place order");
@@ -644,7 +644,7 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                 clearCart();
                 toast.success("Payment successful! Your order has been placed.");
                 const firstOrder = verifyRes.data?.orders?.[0]?.order;
-                navigate({ to: "/order-success", search: { orderId: firstOrder?.id || "" } });
+                navigate({ to: "/order-success", search: { orderId: verifyRes?.data?.master_order_id || "" } });
                 resolve();
               } else {
                 reject(new Error(verifyRes.error?.message || "Payment verification failed on server."));
