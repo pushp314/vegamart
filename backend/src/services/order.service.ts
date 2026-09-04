@@ -97,7 +97,7 @@ export const orderService = {
   },
 
   async getOrderForUser(userId: string, orderId: string): Promise<any> {
-    const m = await prisma.masterOrder.findUnique({
+    let m = await prisma.masterOrder.findUnique({
       where: { id: orderId },
       include: {
          address: true,
@@ -111,6 +111,29 @@ export const orderService = {
          }
       }
     });
+
+    if (!m) {
+      const subOrder = await prisma.order.findUnique({
+         where: { id: orderId },
+         select: { master_order_id: true }
+      });
+      if (subOrder && subOrder.master_order_id) {
+         m = await prisma.masterOrder.findUnique({
+            where: { id: subOrder.master_order_id },
+            include: {
+               address: true,
+               orders: {
+                  include: {
+                     vendor: true,
+                     items: true,
+                     events: { orderBy: { created_at: "desc" } },
+                     transactions: true,
+                  }
+               }
+            }
+         });
+      }
+    }
 
     if (!m) {
       throw new NotFoundError("Order not found.");
