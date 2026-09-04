@@ -46,6 +46,7 @@ import { Route as AdminCategoriesRouteImport } from './routes/admin/categories'
 import { Route as AdminCmsRouteImport } from './routes/admin/cms'
 import { Route as AdminCouponsRouteImport } from './routes/admin/coupons'
 import { Route as AdminCreatePartnerRouteImport } from './routes/admin/create-partner'
+import { Route as AdminCustomerFeesRouteImport } from './routes/admin/customer-fees'
 import { Route as AdminDeliveryRouteImport } from './routes/admin/delivery'
 import { Route as AdminFaqsRouteImport } from './routes/admin/faqs'
 import { Route as AdminHowToUseRouteImport } from './routes/admin/how-to-use'
@@ -269,6 +270,11 @@ const AdminCouponsRoute = AdminCouponsRouteImport.update({
 const AdminCreatePartnerRoute = AdminCreatePartnerRouteImport.update({
   id: '/create-partner',
   path: '/create-partner',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCustomerFeesRoute = AdminCustomerFeesRouteImport.update({
+  id: '/customer-fees',
+  path: '/customer-fees',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminDeliveryRoute = AdminDeliveryRouteImport.update({
@@ -504,6 +510,7 @@ export interface FileRoutesByFullPath {
   '/admin/cms': typeof AdminCmsRoute
   '/admin/coupons': typeof AdminCouponsRoute
   '/admin/create-partner': typeof AdminCreatePartnerRoute
+  '/admin/customer-fees': typeof AdminCustomerFeesRoute
   '/admin/delivery': typeof AdminDeliveryRoute
   '/admin/faqs': typeof AdminFaqsRoute
   '/admin/how-to-use': typeof AdminHowToUseRoute
@@ -580,6 +587,7 @@ export interface FileRoutesByTo {
   '/admin/cms': typeof AdminCmsRoute
   '/admin/coupons': typeof AdminCouponsRoute
   '/admin/create-partner': typeof AdminCreatePartnerRoute
+  '/admin/customer-fees': typeof AdminCustomerFeesRoute
   '/admin/delivery': typeof AdminDeliveryRoute
   '/admin/faqs': typeof AdminFaqsRoute
   '/admin/how-to-use': typeof AdminHowToUseRoute
@@ -658,6 +666,7 @@ export interface FileRoutesById {
   '/admin/cms': typeof AdminCmsRoute
   '/admin/coupons': typeof AdminCouponsRoute
   '/admin/create-partner': typeof AdminCreatePartnerRoute
+  '/admin/customer-fees': typeof AdminCustomerFeesRoute
   '/admin/delivery': typeof AdminDeliveryRoute
   '/admin/faqs': typeof AdminFaqsRoute
   '/admin/how-to-use': typeof AdminHowToUseRoute
@@ -738,6 +747,7 @@ export interface FileRouteTypes {
     | '/admin/cms'
     | '/admin/coupons'
     | '/admin/create-partner'
+    | '/admin/customer-fees'
     | '/admin/delivery'
     | '/admin/faqs'
     | '/admin/how-to-use'
@@ -814,6 +824,7 @@ export interface FileRouteTypes {
     | '/admin/cms'
     | '/admin/coupons'
     | '/admin/create-partner'
+    | '/admin/customer-fees'
     | '/admin/delivery'
     | '/admin/faqs'
     | '/admin/how-to-use'
@@ -891,6 +902,7 @@ export interface FileRouteTypes {
     | '/admin/cms'
     | '/admin/coupons'
     | '/admin/create-partner'
+    | '/admin/customer-fees'
     | '/admin/delivery'
     | '/admin/faqs'
     | '/admin/how-to-use'
@@ -1232,6 +1244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCreatePartnerRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/customer-fees': {
+      id: '/admin/customer-fees'
+      path: '/customer-fees'
+      fullPath: '/admin/customer-fees'
+      preLoaderRoute: typeof AdminCustomerFeesRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/delivery': {
       id: '/admin/delivery'
       path: '/delivery'
@@ -1514,6 +1533,7 @@ interface AdminRouteRouteChildren {
   AdminCmsRoute: typeof AdminCmsRoute
   AdminCouponsRoute: typeof AdminCouponsRoute
   AdminCreatePartnerRoute: typeof AdminCreatePartnerRoute
+  AdminCustomerFeesRoute: typeof AdminCustomerFeesRoute
   AdminDeliveryRoute: typeof AdminDeliveryRoute
   AdminFaqsRoute: typeof AdminFaqsRoute
   AdminHowToUseRoute: typeof AdminHowToUseRoute
@@ -1539,6 +1559,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminCmsRoute: AdminCmsRoute,
   AdminCouponsRoute: AdminCouponsRoute,
   AdminCreatePartnerRoute: AdminCreatePartnerRoute,
+  AdminCustomerFeesRoute: AdminCustomerFeesRoute,
   AdminDeliveryRoute: AdminDeliveryRoute,
   AdminFaqsRoute: AdminFaqsRoute,
   AdminHowToUseRoute: AdminHowToUseRoute,

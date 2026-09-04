@@ -77,6 +77,7 @@ function AdminLayout() {
     { id: "payouts", title: "Vendor Payouts", icon: Banknote, url: "/admin/payouts" },
     { id: "refunds", title: "Refunds", icon: Banknote, url: "/admin/refunds" },
     { id: "settings", title: "Settings", icon: Settings, url: "/admin/settings" },
+    { id: "customer-fees", title: "Customer Fees", icon: Banknote, url: "/admin/customer-fees" },
     { id: "faqs", title: "FAQs", icon: HelpCircle, url: "/admin/faqs" },
     { id: "how-to-use", title: "How to Use", icon: BookOpen, url: "/admin/how-to-use" },
   ];

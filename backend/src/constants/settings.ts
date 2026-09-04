@@ -1,3 +1,5 @@
+import { DEFAULT_FEES } from "../types/fees";
+
 export const SETTING_KEYS = {
   PLATFORM_NAME: "platform.name",
   PLATFORM_CURRENCY: "platform.currency",
@@ -23,6 +25,7 @@ export const SETTING_KEYS = {
   VENDOR_PAYOUT_MODE: "platform.vendor_payout_mode",
   VENDOR_MIN_WITHDRAWAL_AMOUNT: "platform.vendor_min_withdrawal_amount",
   PLATFORM_CHECKOUT_CHARGES: "platform.checkout_charges",
+  CUSTOMER_FEES_CONFIG: "platform.customer_fees_config",
 } as const;
 
 export type SettingValue =
@@ -222,6 +225,13 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "string",
     default: JSON.stringify([]),
     description: "Configurable extra checkout charges (e.g., Rain charge, Platform fee). Format: JSON Array.",
+    is_public: true,
+  },
+  [SETTING_KEYS.CUSTOMER_FEES_CONFIG]: {
+    key: SETTING_KEYS.CUSTOMER_FEES_CONFIG,
+    type: "string",
+    default: JSON.stringify(DEFAULT_FEES),
+    description: "Comprehensive Customer Fees & Charges configuration. Format: JSON Array.",
     is_public: true,
   },
 };

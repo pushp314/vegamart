@@ -25,6 +25,7 @@ import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { haversineDistanceKm } from "../utils/geo";
 import { generateDeliveryOtp, generateInvoiceNumber, generateOrderNumber } from "../utils/order";
+import { computeCustomerFees } from "../utils/feeCalculator";
 import * as checkoutIdempotencyRepo from "../repositories/checkout-idempotency.repository";
 import * as dailyOrderCounterRepo from "../repositories/daily-order-counter.repository";
 import { membershipPlanService } from "./membership-plan.service";
@@ -506,32 +507,36 @@ export const checkoutService = {
       totalTax += Math.round(((deliveryFee * taxRatePercent) / 100) * 100) / 100;
     }
 
-    const rawCharges = settings[SETTING_KEYS.PLATFORM_CHECKOUT_CHARGES] as string;
     let platformFeeTotal = 0;
     const additionalCharges: any[] = [];
+    const rawCharges = settings[SETTING_KEYS.CUSTOMER_FEES_CONFIG] as string;
+    
     if (rawCharges) {
       try {
         const parsedCharges = JSON.parse(rawCharges);
         if (Array.isArray(parsedCharges)) {
-          for (const charge of parsedCharges) {
-            if (charge.is_active) {
-               let amount = 0;
-               if (charge.type === "percentage") {
-                  amount = (itemsSubtotal * Number(charge.amount)) / 100;
-               } else {
-                  amount = Number(charge.amount);
-               }
-               amount = Math.round(amount * 100) / 100;
-               if (amount > 0) {
-                 platformFeeTotal += amount;
-                 additionalCharges.push({
-                   id: charge.id || String(Date.now()),
-                   name: charge.name,
-                   amount: amount,
-                   type: charge.type
-                 });
-               }
-            }
+          // Compute distance if possible (approximate via user address vs vendor if single vendor, or skip for now)
+          let distanceKm = 0; // Can be enhanced later
+          
+          const feeContext = {
+            cartTotal: itemsSubtotal,
+            numberOfStores: summaryGroups.length,
+            deliveryDistanceKm: distanceKm,
+            deliverySlot: input.delivery_slot,
+            paymentMethod: (input as any).payment_method // e.g. COD or ONLINE
+          };
+
+          const feeResult = computeCustomerFees(parsedCharges, feeContext);
+          platformFeeTotal = feeResult.totalPlatformFee;
+          
+          // Map to match the existing expected structure if needed
+          for (const c of feeResult.additionalCharges) {
+            additionalCharges.push({
+              id: String(Date.now()) + Math.random().toString(36).substring(7),
+              name: c.name,
+              amount: c.amount,
+              type: c.type || "FIXED"
+            });
           }
         }
       } catch (e) {
