@@ -138,6 +138,7 @@ interface SerializedPayment {
 interface CheckoutResult {
   summary: CheckoutSummary;
   orders: Array<{ order: SerializedOrder; payment: SerializedPayment }>;
+  master_order_id?: string;
 }
 
 function startOfToday(): Date {
@@ -775,6 +776,7 @@ export const checkoutService = {
     }
 
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
+    let outMasterOrderId = "";
 
     try {
       await prisma.$transaction(async (tx) => {
@@ -804,6 +806,7 @@ export const checkoutService = {
                 payment_status: "PENDING",
             }
         });
+        outMasterOrderId = masterOrder.id;
 
         const sharedOtp = generateDeliveryOtp();
 
@@ -1080,7 +1083,7 @@ export const checkoutService = {
       req
     );
 
-    return { summary, orders: serializedOrders };
+    return { summary, orders: serializedOrders, master_order_id: outMasterOrderId };
   },
 
   async initiateOnlinePayment(
@@ -1258,6 +1261,7 @@ export const checkoutService = {
     });
 
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
+    let outMasterOrderId = "";
 
     await prisma.$transaction(async (tx) => {
       const masterOrderNumber = generateOrderNumber();
@@ -1276,13 +1280,10 @@ export const checkoutService = {
               payment_status: "PAID",
           }
       });
+      outMasterOrderId = masterOrder.id;
 
       for (let i = 0; i < computations.length; i++) {
         const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
-
-
-
-
 
 
         const order = await orderRepo.createOrder(
@@ -1458,6 +1459,6 @@ export const checkoutService = {
       req
     );
 
-    return { summary, orders: serializedOrders };
+    return { summary, orders: serializedOrders, master_order_id: outMasterOrderId };
   },
 };

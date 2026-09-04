@@ -32,7 +32,7 @@ export const orderService = {
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
     const skip = (page - 1) * perPage;
     
-    const where: any = { user_id: userId, deleted_at: null };
+    const where: any = { user_id: userId };
     if (query.status) {
       if (query.status.includes(",")) {
         where.status = { in: query.status.split(",") };
