@@ -157,9 +157,12 @@ export interface OrderDetail extends OrderRow {
     latitude?: number | null;
     longitude?: number | null;
   } | null;
+  master_order?: {
+    _count: { orders: number };
+  } | null;
 }
 
-const detailSelect = {
+export const detailSelect = {
   ...baseSelect,
   items: {
     select: {
@@ -249,6 +252,13 @@ const detailSelect = {
       latitude: true,
       longitude: true,
     },
+  },
+  master_order: {
+    select: {
+      _count: {
+        select: { orders: true }
+      }
+    }
   },
 } as const;
 

@@ -250,7 +250,7 @@ function VendorOrdersPage() {
       ) : (
         <div className="space-y-4">
           {filteredOrders.map((o: any) => {
-            const getNextStatuses = (currentStatus: string) => {
+            const getNextStatuses = (currentStatus: string, orderData: any) => {
               const statusFlow: Record<
                 string,
                 { status: string; label: string; color: string }[]
@@ -328,10 +328,19 @@ function VendorOrdersPage() {
                   },
                 ],
               };
-              return statusFlow[currentStatus?.toUpperCase()] || [];
+              
+              let available = statusFlow[currentStatus?.toUpperCase()] || [];
+              if (orderData?.master_order?._count?.orders > 1) {
+                // If it's a multi-store route, the vendor cannot handle the final delivery themselves
+                available = available.filter(
+                  (s) => s.status !== "delivered" && s.status !== "out_for_delivery"
+                );
+              }
+              
+              return available;
             };
 
-            const nextStatuses = getNextStatuses(o.status);
+            const nextStatuses = getNextStatuses(o.status, o);
             const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
             const sInfo = getOrderStatusInfo(o.status);
             const pInfo = getPaymentMethodInfo(
@@ -368,6 +377,13 @@ function VendorOrdersPage() {
                     <Sparkles className="h-3.5 w-3.5" /> Selected Order
                   </div>
                 )}
+                
+                {o.master_order?._count?.orders > 1 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-black uppercase tracking-wider w-fit shadow-sm">
+                    <MapPin className="h-3.5 w-3.5" /> Multi-Store Route
+                  </div>
+                )}
+
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 font-black text-sm uppercase">

@@ -332,6 +332,13 @@ export const orderService = {
       throw new ForbiddenError("You do not own this order.");
     }
 
+    // Restrict vendor from completing delivery for multi-store routes
+    if (["OUT_FOR_DELIVERY", "DELIVERED"].includes(input.status)) {
+      if (order.master_order?._count?.orders && order.master_order._count.orders > 1) {
+        throw new ForbiddenError("Delivery partner handles final delivery for multi-store routes.");
+      }
+    }
+
     // Reject arbitrary/backwards transitions before any side effects run.
     assertOrderTransition(order.status, input.status);
 
