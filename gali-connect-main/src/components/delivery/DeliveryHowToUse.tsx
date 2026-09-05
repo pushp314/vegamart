@@ -23,19 +23,6 @@ import {
 
 export function DeliveryHowToUse() {
   const { user, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate({ to: "/delivery" });
-      return;
-    }
-    if (user && user.role !== "delivery") {
-      navigate({ to: "/delivery" });
-    }
-  }, [user, isAuthenticated, navigate]);
-
-  if (!isAuthenticated || (user && user.role !== "delivery")) return null;
 
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-6 py-6 space-y-6">

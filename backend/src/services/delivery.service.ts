@@ -84,9 +84,8 @@ import * as addressRepo from "../repositories/address.repository";
 import * as vendorRepo from "../repositories/vendor.repository";
 
 // States from which a delivery partner may claim an order.
-// Vendor MUST have accepted the order first (CONFIRMED, PREPARING, PACKED, READY_FOR_PICKUP).
-// PENDING is strictly excluded because the vendor has not accepted the order yet.
 export const ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES = [
+  "PENDING",
   "CONFIRMED",
   "PREPARING",
   "PACKED",
@@ -99,8 +98,9 @@ export const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["stat
   };
 
 // States surfaced in the unassigned requests queue and therefore "explicitly
-// available" to any approved partner. Surfaced once vendor accepts the order (CONFIRMED).
+// available" to any approved partner.
 export const AVAILABLE_DELIVERY_REQUEST_STATUSES = [
+  "PENDING",
   "CONFIRMED",
   "PREPARING",
   "PACKED",
@@ -806,15 +806,6 @@ export const deliveryService = {
     if (masterOrder.delivery_partner_id) {
       throw new ConflictError(
         "This order already has a delivery partner assigned.",
-      );
-    }
-    
-    const unacceptedOrders = masterOrder.orders.filter((o: any) => o.status === "PENDING");
-    if (unacceptedOrders.length === masterOrder.orders.length) {
-      throw new ApiError(
-        HttpStatus.BAD_REQUEST,
-        "Order has not been accepted by any vendor yet. Delivery partner can only accept orders after at least one vendor confirmation.",
-        { code: "ORDER_NOT_ACCEPTED_BY_VENDOR" },
       );
     }
     

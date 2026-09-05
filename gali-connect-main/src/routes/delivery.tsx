@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate, Outlet, useLocation } from "@tanstack/react-router";
 import {
   Bike,
@@ -180,13 +180,14 @@ function DeliveryDashboard() {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    if (pathname.startsWith("/delivery/how-to-use")) return;
     if (user && user.role !== "delivery") {
       toast.error("Access restricted: Delivery Partner account required.");
       if (user.role === "vendor") navigate({ to: "/vendor" });
       else if (user.role === "admin" || user.role === "super_admin") navigate({ to: "/admin" });
       else navigate({ to: "/" });
     }
-  }, [user, navigate]);
+  }, [user, navigate, pathname]);
   const [activeTab, setActiveTab] = useState<
     "requests" | "active" | "earnings" | "history" | "profile" | "settings"
   >("requests");
@@ -249,9 +250,22 @@ function DeliveryDashboard() {
   const requests = rawRequests.filter(
     (r: any) =>
       isVegaMartDelivery(r.delivery_option || r.delivery_note) &&
-      r.status?.toUpperCase() !== "PENDING" &&
-      ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP"].includes(r.status?.toUpperCase())
+      !["DELIVERED", "CANCELLED", "REFUNDED"].includes(r.status?.toUpperCase())
   );
+
+  const prevRequestsCountRef = useRef(0);
+  useEffect(() => {
+    if (isOnline && requests.length > prevRequestsCountRef.current && prevRequestsCountRef.current >= 0) {
+      toast.info(`⚡ ${requests.length} Delivery Request${requests.length > 1 ? "s" : ""} Available on Radar!`, {
+        action: {
+          label: "View Radar",
+          onClick: () => setActiveTab("requests"),
+        },
+      });
+    }
+    prevRequestsCountRef.current = requests.length;
+  }, [requests.length, isOnline]);
+
   const myDeliveries = myDeliveriesRes?.data || [];
 
   const completedOrders = myDeliveries.filter((o: any) => o.status?.toUpperCase() === "DELIVERED");
@@ -521,6 +535,37 @@ function DeliveryDashboard() {
           </div>
         )}
 
+        {/* INCOMING ORDERS ALERT BANNER */}
+        {isOnline && requests.length > 0 && (
+          <div
+            onClick={() => setActiveTab("requests")}
+            className="rounded-3xl p-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-lg flex items-center justify-between gap-3 cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-white shrink-0">
+                <Radio className="h-5 w-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="font-black text-sm flex items-center gap-1.5">
+                  ⚡ {requests.length} Delivery Request{requests.length > 1 ? "s" : ""} Waiting!
+                </div>
+                <div className="text-xs text-white/90">
+                  Tap to view and claim available orders on the Radar.
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab("requests");
+              }}
+              className="px-4 py-2 rounded-xl bg-white text-emerald-800 font-black text-xs shrink-0 shadow-sm hover:bg-white/90"
+            >
+              View Radar
+            </button>
+          </div>
+        )}
+
         {/* RADAR TAB */}
         {activeTab === "requests" && (
           <div className="space-y-4">
@@ -648,40 +693,31 @@ function DeliveryDashboard() {
                           <Info className="h-4 w-4 text-emerald-600" /> View Order Details ({r.items?.length || 1} items)
                         </button>
 
-                        {r.status === "PENDING" ? (
+                        <div className="space-y-3">
+                          {(r.status === "PENDING" || r.sub_orders?.some((s: any) => s.status === "PENDING")) && (
+                            <div className="bg-amber-50 text-amber-700 text-xs py-2.5 px-3 rounded-xl border border-amber-200 flex items-start gap-2 font-bold shadow-sm">
+                              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                              <span>
+                                ⚠️ Store is currently accepting/packing items. You can claim this delivery run now and head to the pickup location.
+                              </span>
+                            </div>
+                          )}
                           <button
-                            disabled
-                            className="w-full bg-amber-100 text-amber-700 border border-amber-200 font-bold py-4 rounded-2xl text-sm flex justify-center items-center gap-2"
+                            onClick={() => {
+                              setAcceptingOrderId(r.id);
+                              setEtaValue("15");
+                              setEtaModalOpen(true);
+                            }}
+                            disabled={acceptMutation.isPending}
+                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
                           >
-                            <Hourglass className="h-5 w-5" /> Waiting for Vendor to Accept
-                          </button>
-                        ) : (
-                          <div className="space-y-3">
-                            {r.sub_orders?.some((s: any) => s.status === "PENDING") && (
-                              <div className="bg-amber-50 text-amber-700 text-xs py-2.5 px-3 rounded-xl border border-amber-200 flex items-start gap-2 font-bold shadow-sm">
-                                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                                <span>
-                                  ⚠️ {r.sub_orders.filter((s: any) => s.status === "PENDING").length} of {r.sub_orders.length} stores haven't accepted yet. Expect delays.
-                                </span>
-                              </div>
+                            {acceptMutation.isPending && acceptingOrderId === r.id ? (
+                              <Loader2 className="h-6 w-6 animate-spin" />
+                            ) : (
+                              "Accept Delivery"
                             )}
-                            <button
-                              onClick={() => {
-                                setAcceptingOrderId(r.id);
-                                setEtaValue("15");
-                                setEtaModalOpen(true);
-                              }}
-                              disabled={acceptMutation.isPending}
-                              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
-                            >
-                              {acceptMutation.isPending && acceptingOrderId === r.id ? (
-                                <Loader2 className="h-6 w-6 animate-spin" />
-                              ) : (
-                                "Accept Delivery"
-                              )}
-                            </button>
-                          </div>
-                        )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -695,14 +731,24 @@ function DeliveryDashboard() {
         {activeTab === "active" && (
           <div className="space-y-4">
             {activeOrders.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-6 border border-border">
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4 border border-border">
                   <Package className="h-8 w-8 text-muted-foreground/50" />
                 </div>
                 <h3 className="text-xl font-bold mb-2">No Active Orders</h3>
                 <p className="text-muted-foreground text-sm max-w-xs">
-                  Accept a request from the Radar to start delivering.
+                  {requests.length > 0
+                    ? `There ${requests.length === 1 ? "is 1 new delivery order" : `are ${requests.length} new delivery orders`} available on the Radar!`
+                    : "Accept a request from the Radar to start delivering."}
                 </p>
+                {requests.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab("requests")}
+                    className="mt-4 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-soft inline-flex items-center gap-2 active:scale-95 transition-transform"
+                  >
+                    <Radio className="h-4 w-4 animate-pulse" /> View & Accept {requests.length} Available Order{requests.length > 1 ? "s" : ""}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-6">
@@ -1098,9 +1144,16 @@ function DeliveryDashboard() {
         <div className="flex justify-around items-center h-20 px-4">
           <button
             onClick={() => setActiveTab("requests")}
-            className={`flex flex-col items-center gap-1.5 w-20 transition-colors ${activeTab === "requests" ? "text-emerald-600" : "text-muted-foreground"}`}
+            className={`flex flex-col items-center gap-1.5 w-20 transition-colors relative ${activeTab === "requests" ? "text-emerald-600" : "text-muted-foreground"}`}
           >
-            <Radio className={`h-6 w-6 ${activeTab === "requests" ? "animate-pulse" : ""}`} />
+            <div className="relative">
+              <Radio className={`h-6 w-6 ${activeTab === "requests" ? "animate-pulse" : ""}`} />
+              {requests.length > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 bg-emerald-600 text-white text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center border-2 border-background shadow-md animate-bounce">
+                  {requests.length}
+                </span>
+              )}
+            </div>
             <span className="text-[10px] font-bold uppercase tracking-wider">Radar</span>
           </button>
 
