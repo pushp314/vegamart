@@ -545,7 +545,7 @@ export async function getVendorStats(id: string, monthFilter?: string): Promise<
     }),
     prisma.order.aggregate({
       where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] } },
-      _sum: { total: true },
+      _sum: { total: true, delivery_fee: true },
     }),
     prisma.vendorEarning.aggregate({
       where: { vendor_id: id },
@@ -573,15 +573,15 @@ export async function getVendorStats(id: string, monthFilter?: string): Promise<
     }),
     prisma.order.aggregate({
       where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: startOfToday, lte: now } },
-      _sum: { total: true },
+      _sum: { total: true, delivery_fee: true },
     }),
     prisma.order.aggregate({
       where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: startOfWeek, lte: now } },
-      _sum: { total: true },
+      _sum: { total: true, delivery_fee: true },
     }),
     prisma.order.aggregate({
       where: { vendor_id: id, status: { notIn: ["CANCELLED", "FAILED"] }, created_at: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { total: true },
+      _sum: { total: true, delivery_fee: true },
     }),
     prisma.vendorEarning.aggregate({
       where: { vendor_id: id, created_at: { gte: startOfToday, lte: now } },
@@ -604,7 +604,7 @@ export async function getVendorStats(id: string, monthFilter?: string): Promise<
   return {
     total_orders: totalOrders,
     active_orders: activeOrders,
-    total_revenue: revenueAgg._sum.total ?? new Prisma.Decimal(0),
+    total_revenue: (revenueAgg._sum.total ?? new Prisma.Decimal(0)).minus(revenueAgg._sum.delivery_fee ?? new Prisma.Decimal(0)),
     item_revenue: itemSubtotal.minus(itemDiscount),
     total_earnings: earningsAgg._sum.amount ?? new Prisma.Decimal(0),
     gross_earnings: grossEarningsAgg._sum.amount ?? new Prisma.Decimal(0),
@@ -612,9 +612,9 @@ export async function getVendorStats(id: string, monthFilter?: string): Promise<
     pending_earnings: pendingEarnings._sum.amount ?? new Prisma.Decimal(0),
     product_count: productCount,
     out_of_stock_count: outOfStock,
-    today_revenue: todayRevenueAgg._sum.total ?? new Prisma.Decimal(0),
-    weekly_revenue: weeklyRevenueAgg._sum.total ?? new Prisma.Decimal(0),
-    monthly_revenue: monthlyRevenueAgg._sum.total ?? new Prisma.Decimal(0),
+    today_revenue: (todayRevenueAgg._sum.total ?? new Prisma.Decimal(0)).minus(todayRevenueAgg._sum.delivery_fee ?? new Prisma.Decimal(0)),
+    weekly_revenue: (weeklyRevenueAgg._sum.total ?? new Prisma.Decimal(0)).minus(weeklyRevenueAgg._sum.delivery_fee ?? new Prisma.Decimal(0)),
+    monthly_revenue: (monthlyRevenueAgg._sum.total ?? new Prisma.Decimal(0)).minus(monthlyRevenueAgg._sum.delivery_fee ?? new Prisma.Decimal(0)),
     today_earnings: todayEarnings._sum.amount ?? new Prisma.Decimal(0),
     weekly_earnings: weeklyEarnings._sum.amount ?? new Prisma.Decimal(0),
     monthly_earnings: monthlyEarnings._sum.amount ?? new Prisma.Decimal(0),

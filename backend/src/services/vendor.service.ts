@@ -984,6 +984,7 @@ export const vendorService = {
           order_number: true,
           status: true,
           total: true,
+          delivery_fee: true,
           created_at: true,
           customer: { select: { name: true } },
         },
@@ -1072,6 +1073,7 @@ export const vendorService = {
           id: true,
           created_at: true,
           total: true,
+          delivery_fee: true,
           items: { select: { quantity: true } },
         },
       }),
@@ -1139,7 +1141,7 @@ export const vendorService = {
       const label = d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
 
       const dayOrders = allYearOrders.filter((o) => o.created_at.toISOString().split("T")[0] === dayStr);
-      const rev = dayOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const rev = dayOrders.reduce((sum, o) => sum + (Number(o.total) - Number(o.delivery_fee)), 0);
       const itemsCount = dayOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
       const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
       const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
@@ -1168,7 +1170,7 @@ export const vendorService = {
       const label = `W-${w === 0 ? "Current" : w + " Ago"} (${weekStart.getDate()} ${weekStart.toLocaleDateString("en-US", { month: "short" })})`;
 
       const wOrders = allYearOrders.filter((o) => o.created_at >= weekStart && o.created_at <= weekEnd);
-      const rev = wOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const rev = wOrders.reduce((sum, o) => sum + (Number(o.total) - Number(o.delivery_fee)), 0);
       const itemsCount = wOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
       const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
       const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
@@ -1193,7 +1195,7 @@ export const vendorService = {
       const label = d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 
       const dayOrders = allYearOrders.filter((o) => o.created_at.toISOString().split("T")[0] === dayStr);
-      const rev = dayOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const rev = dayOrders.reduce((sum, o) => sum + (Number(o.total) - Number(o.delivery_fee)), 0);
       const itemsCount = dayOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
       const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
       const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
@@ -1217,7 +1219,7 @@ export const vendorService = {
       const label = mStart.toLocaleDateString("en-US", { month: "short" });
 
       const mOrders = allYearOrders.filter((o) => o.created_at >= mStart && o.created_at <= mEnd);
-      const rev = mOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const rev = mOrders.reduce((sum, o) => sum + (Number(o.total) - Number(o.delivery_fee)), 0);
       const itemsCount = mOrders.reduce((sum, o) => sum + o.items.reduce((s, it) => s + it.quantity, 0), 0);
       const comm = Math.round(rev * (commissionRate / 100) * 100) / 100;
       const net = Math.max(0, Math.round((rev - comm) * 100) / 100);
@@ -1334,7 +1336,7 @@ export const vendorService = {
         id: o.id,
         order_number: o.order_number,
         status: o.status,
-        total: Number(o.total),
+        total: Number(o.total) - Number(o.delivery_fee),
         customer_name: o.customer?.name ?? "Customer",
         created_at: o.created_at,
       })),
@@ -1691,6 +1693,7 @@ export const vendorService = {
           order_number: true,
           status: true,
           total: true,
+          delivery_fee: true,
           created_at: true,
         },
       }),
@@ -1717,7 +1720,7 @@ export const vendorService = {
         id: o.id,
         order_number: o.order_number,
         status: o.status.toLowerCase(),
-        total: o.total.toNumber(),
+        total: o.total.toNumber() - o.delivery_fee.toNumber(),
         created_at: o.created_at,
       })),
       bank_details: {

@@ -3,6 +3,7 @@ import * as userRepo from "../repositories/user.repository";
 import { notificationService } from "./notification.service";
 import { ROLES } from "../constants/roles";
 import { ConflictError, ForbiddenError } from "../utils/ApiError";
+import { completeDelivery } from "./order-delivery.service";
 import type {
   DeliveryRegisterBody,
   DeliveryApplyBody,
@@ -1045,83 +1046,41 @@ export const deliveryService = {
       });
     }
 
-    await prisma.$transaction(async (tx: any) => {
-      await tx.masterOrder.update({
-        where: { id: orderId },
-        data: { status: "DELIVERED" }
+    const activeOrders = masterOrder.orders.filter(o => o.status !== "CANCELLED" && o.status !== "FAILED");
+    
+    for (const order of activeOrders) {
+      await completeDelivery({
+        orderId: order.id,
+        otp: "",
+        skipOtp: true,
+        allowedStates: ["OUT_FOR_DELIVERY"],
+        note: "Delivered by partner.",
+        actorType: "delivery",
+        actorId: userId,
+        partnerId: partner.id,
       });
-      for (const order of masterOrder.orders) {
-         await tx.order.update({
-           where: { id: order.id },
-           data: {
-             status: "DELIVERED",
-             delivered_at: new Date(),
-           },
-         });
-         await tx.orderEvent.create({
-           data: {
-             order_id: order.id,
-             status: "DELIVERED",
-             note: "Order delivered successfully.",
-             actor_type: "delivery",
-             actor_id: userId,
-           },
-         });
-         await tx.deliveryTracking.updateMany({
-           where: { order_id: order.id },
-           data: { status: "DELIVERED" },
-         });
-      }
-      
-      const activeOrders = masterOrder.orders.filter(o => o.status !== "CANCELLED" && o.status !== "FAILED");
-      const uniqueVendors = new Set(activeOrders.map(o => o.vendor_id)).size;
-      const bonus = uniqueVendors > 1 ? (uniqueVendors - 1) * 10 : 0;
-      
-      const earningAmount = Number(masterOrder.delivery_fee) + bonus;
-      await tx.deliveryEarning.create({
+    }
+
+    await prisma.masterOrder.update({
+      where: { id: orderId },
+      data: { status: "DELIVERED" }
+    });
+
+    const uniqueVendors = new Set(activeOrders.map(o => o.vendor_id)).size;
+    const bonus = uniqueVendors > 1 ? (uniqueVendors - 1) * 10 : 0;
+    
+    const firstActive = activeOrders[0];
+    if (bonus > 0 && firstActive) {
+      await prisma.deliveryEarning.create({
         data: {
           delivery_partner_id: partner.id,
-          order_id: firstOrder.id,
-          amount: earningAmount,
-          type: "DELIVERY_FEE",
+          order_id: firstActive.id,
+          amount: bonus,
+          type: "BONUS",
+          reference_id: `earning-BONUS-${masterOrder.order_number}`,
         },
       });
-
-      await tx.transaction.create({
-        data: {
-          user_id: userId,
-          amount: earningAmount,
-          type: "CREDIT",
-          status: "COMPLETED",
-          reference: `DELIVERY_FEE_${firstOrder.order_number}`,
-        },
-      });
-
-      for (const order of masterOrder.orders) {
-          const platformFeeRate = order.vendor?.commission_rate?.toNumber() ?? 10;
-          const platformFee = (order.total.toNumber() * platformFeeRate) / 100;
-          const vendorEarning = order.total.toNumber() - platformFee;
-
-          await tx.vendorEarning.create({
-            data: {
-              vendor_id: order.vendor_id,
-              order_id: order.id,
-              amount: vendorEarning,
-              platform_fee: platformFee,
-            },
-          });
-          
-          await tx.transaction.create({
-            data: {
-              user_id: order.vendor.user_id,
-              amount: vendorEarning,
-              type: "CREDIT",
-              status: "COMPLETED",
-              reference: `ORDER_EARNING_${order.order_number}`,
-            },
-          });
-      }
-    });
+    }
 
     await notificationService.orderStatus(
       masterOrder.user_id,

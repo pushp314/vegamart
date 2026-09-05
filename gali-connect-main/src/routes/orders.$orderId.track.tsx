@@ -110,7 +110,11 @@ function OrderIdTrackingPage() {
     const subStatuses = order.orders.map((o: any) => String(o.status).toUpperCase());
     
     if (!["OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REFUNDED"].includes(String(effectiveStatus).toUpperCase())) {
-       if (subStatuses.some((s: string) => ["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"].includes(s))) {
+       if (subStatuses.every((s: string) => ["DELIVERED", "CANCELLED", "REFUNDED", "FAILED"].includes(s)) && subStatuses.some((s: string) => s === "DELIVERED")) {
+         effectiveStatus = "DELIVERED";
+       } else if (subStatuses.some((s: string) => ["OUT_FOR_DELIVERY", "DELIVERED"].includes(s))) {
+         effectiveStatus = "OUT_FOR_DELIVERY";
+       } else if (subStatuses.some((s: string) => ["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"].includes(s))) {
          effectiveStatus = "PREPARING";
        } else if (subStatuses.some((s: string) => s === "CONFIRMED")) {
          effectiveStatus = "CONFIRMED";

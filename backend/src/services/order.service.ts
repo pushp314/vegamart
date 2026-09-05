@@ -266,21 +266,19 @@ export const orderService = {
       if (m.user_id !== userId) throw new ForbiddenError("You do not own this order.");
       if (m.status === "CANCELLED") return m;
       
+      for (const order of m.orders) {
+        if (!CUSTOMER_CANCELABLE.has(order.status)) continue;
+        await cancelOrderLifecycle({
+          order: order as any,
+          reason: input.reason || "Order cancelled by customer.",
+          actorType: "customer",
+          actorId: userId,
+          req,
+        });
+      }
+      
       await prisma.$transaction(async (tx) => {
         await tx.masterOrder.update({ where: { id: m.id }, data: { status: "CANCELLED" } });
-        for (const order of m.orders) {
-            await tx.order.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
-            await tx.orderEvent.create({
-              data: {
-                order_id: order.id,
-                status: "CANCELLED",
-                note: input.reason || "Order cancelled by customer.",
-                actor_type: "customer",
-                actor_id: userId,
-              },
-            });
-            // Inventory release omitted for simplicity to prevent release undefined error
-        }
       });
       return m;
     }
