@@ -490,3 +490,25 @@ export async function listOrderEvents(orderId: string): Promise<OrderDetail["eve
     created_at: r.created_at,
   }));
 }
+import { MasterOrderStatus } from "@prisma/client";
+
+export async function findMasterOrderById(id: string, db: DbClient = prisma) {
+  return await db.masterOrder.findUnique({
+    where: { id },
+    include: {
+      orders: {
+        include: {
+          items: true,
+          vendor: true,
+        },
+      },
+    },
+  });
+}
+
+export async function updateMasterOrderStatus(id: string, status: MasterOrderStatus, db: DbClient = prisma) {
+  return await db.masterOrder.update({
+    where: { id },
+    data: { status },
+  });
+}

@@ -10,7 +10,8 @@ import prisma from "../database/prisma";
 import * as paymentRepo from "../repositories/payment.repository";
 import * as orderRepo from "../repositories/order.repository";
 import * as transactionRepo from "../repositories/transaction.repository";
-import { findById as findOrderById } from "../repositories/order.repository";
+import { findById as findOrderById, findMasterOrderById, updateMasterOrderStatus } from "../repositories/order.repository";
+import { MasterOrderStatus } from "@prisma/client";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { subscriptionPaymentService } from "./subscription-payment.service";
 import { reverseOrderEarnings } from "./earning.service";
@@ -489,36 +490,62 @@ export const paymentService = {
     return { refund_id: refund.id, amount: refundAmount, status: refund.status, payment: updatedPayment };
   },
 
-  async retryPayment(userId: string, orderId: string, _req: Request) {
-    const order = await findOrderById(orderId);
+  async resolveOrderContext(orderId: string) {
+    let order: any = await findOrderById(orderId);
+    let isMasterOrder = false;
     if (!order) {
-      throw new NotFoundError("Order not found.");
+      const masterOrder = await findMasterOrderById(orderId);
+      if (!masterOrder) {
+        throw new NotFoundError("Order not found.");
+      }
+      order = masterOrder;
+      isMasterOrder = true;
     }
-    if (order.user_id !== userId) {
+    return {
+      order,
+      isMasterOrder,
+      userIdOwner: order.user_id,
+      paymentStatus: order.payment_status,
+      orderStatus: order.status,
+      orderNumber: order.order_number,
+      orderTotal: isMasterOrder ? order.total_amount : order.total,
+    };
+  },
+
+  async retryPayment(userId: string, orderId: string, _req: Request) {
+    const { order, isMasterOrder, userIdOwner, paymentStatus, orderStatus, orderNumber, orderTotal } = await this.resolveOrderContext(orderId);
+    if (userIdOwner !== userId) {
       throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
     }
-    if (order.payment_status === "PAID") {
+    if (paymentStatus === "PAID") {
       throw new ApiError(HttpStatus.BAD_REQUEST, "This order is already paid.", { code: "ALREADY_PAID" });
     }
-    if (order.status === "CANCELLED") {
+    if (orderStatus === "CANCELLED") {
       // Re-activate order to PENDING so customer can pay
-      await orderRepo.updateOrderStatus(order.id, {
-        status: "PENDING",
-        note: "Customer retrying payment",
-        actorType: "customer",
-      });
+      if (isMasterOrder) {
+        await updateMasterOrderStatus(order.id, "PENDING" as MasterOrderStatus);
+      } else {
+        await orderRepo.updateOrderStatus(order.id, {
+          status: "PENDING",
+          note: "Customer retrying payment",
+          actorType: "customer",
+        });
+      }
     }
 
-    const existingPayment = await paymentRepo.findByOrderId(order.id);
-    const amountToCharge = Number(existingPayment?.amount && Number(existingPayment.amount) > 0 ? existingPayment.amount : order.total);
+    const existingPayment = isMasterOrder 
+      ? await paymentRepo.findByMasterOrderId(order.id)
+      : await paymentRepo.findByOrderId(order.id);
+      
+    const amountToCharge = Number(existingPayment?.amount && Number(existingPayment.amount) > 0 ? existingPayment.amount : orderTotal);
     const amountPaise = Math.max(100, Math.round(amountToCharge * 100)); // minimum 1 INR for Razorpay
 
     const gatewayOrder = await razorpayGateway.createOrder({
       amountPaise,
       currency: "INR",
-      receipt: order.order_number,
+      receipt: orderNumber,
       notes: {
-        order_number: order.order_number,
+        order_number: orderNumber,
         user_id: userId,
         retry: "true",
       },
@@ -551,31 +578,49 @@ export const paymentService = {
   },
 
   async switchToCod(userId: string, orderId: string, _req: Request) {
-    const order = await findOrderById(orderId);
-    if (!order) {
-      throw new NotFoundError("Order not found.");
-    }
-    if (order.user_id !== userId) {
+    const { order, isMasterOrder, userIdOwner, paymentStatus, orderTotal, orderNumber } = await this.resolveOrderContext(orderId);
+    if (userIdOwner !== userId) {
       throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
     }
-    if (order.payment_status === "PAID") {
+    if (paymentStatus === "PAID") {
       throw new ApiError(HttpStatus.BAD_REQUEST, "This order is already paid.", { code: "ALREADY_PAID" });
     }
 
     // Switch payment method to COD and set order status to PENDING
-    await orderRepo.updateOrder(order.id, {
-      payment_method: "COD",
-      payment_status: "PENDING",
-      status: "PENDING",
-    });
+    if (isMasterOrder) {
+      await updateMasterOrderStatus(order.id, "PENDING" as MasterOrderStatus);
+      if (order.orders) {
+        for (const sub of order.orders) {
+          await orderRepo.updateOrder(sub.id, {
+            payment_method: "COD",
+            payment_status: "PENDING",
+            status: "PENDING",
+          });
+          await orderRepo.updateOrderStatus(sub.id, {
+            status: "PENDING",
+            note: "Switched to Cash on Delivery after online payment failure/cancellation.",
+            actorType: "customer",
+          });
+        }
+      }
+    } else {
+      await orderRepo.updateOrder(order.id, {
+        payment_method: "COD",
+        payment_status: "PENDING",
+        status: "PENDING",
+      });
 
-    await orderRepo.updateOrderStatus(order.id, {
-      status: "PENDING",
-      note: "Switched to Cash on Delivery after online payment failure/cancellation.",
-      actorType: "customer",
-    });
+      await orderRepo.updateOrderStatus(order.id, {
+        status: "PENDING",
+        note: "Switched to Cash on Delivery after online payment failure/cancellation.",
+        actorType: "customer",
+      });
+    }
 
-    const existingPayment = await paymentRepo.findByOrderId(order.id);
+    const existingPayment = isMasterOrder 
+      ? await paymentRepo.findByMasterOrderId(order.id)
+      : await paymentRepo.findByOrderId(order.id);
+
     if (existingPayment) {
       await paymentRepo.updatePayment(existingPayment.id, {
         method: "COD" as never,
@@ -586,10 +631,10 @@ export const paymentService = {
     // Notify customer and vendor
     await notificationService.orderStatus(
       userId,
-      order.order_number,
+      orderNumber,
       "Switched to Cash on Delivery 💵",
-      `Your order #${order.order_number} has been switched to Cash on Delivery. Please pay ₹${Number(order.total).toFixed(2)} when your order arrives.`,
-      { order_id: order.id }
+      `Your order #${orderNumber} has been switched to Cash on Delivery. Please pay ₹${Number(orderTotal).toFixed(2)} when your order arrives.`,
+      { order_id: isMasterOrder ? (order.orders?.[0]?.id || order.id) : order.id }
     );
 
     if (order.vendor?.user_id) {
@@ -622,11 +667,8 @@ export const paymentService = {
     input: { reason?: string; error_code?: string; error_description?: string },
     _req: Request
   ) {
-    const order = await findOrderById(orderId);
-    if (!order) {
-      throw new NotFoundError("Order not found.");
-    }
-    if (order.user_id !== userId) {
+    const { order, userIdOwner } = await this.resolveOrderContext(orderId);
+    if (userIdOwner !== userId) {
       throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
     }
 
