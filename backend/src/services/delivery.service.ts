@@ -766,8 +766,16 @@ export const deliveryService = {
         created_at: m.created_at,
         payment: m.orders[0]?.payment,
         items: items,
-        vendor: vendors.length === 1 ? vendors[0] : { business_name: "Multiple Stores" },
+        vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations" },
         vendors: vendors,
+        sub_orders: m.orders.map((o: any) => ({
+           id: o.id,
+           order_number: o.order_number,
+           status: o.status,
+           vendor: o.vendor,
+           total: o.total,
+           items: o.items,
+        })),
         customer: m.customer,
         address: m.address,
       };
