@@ -214,6 +214,23 @@ export const realtime = {
   ): void {
     publishToRoom(`vendor:${vendorId}`, "gali_bell_alert", data);
   },
+  publishDeliveryAssigned(
+    vendorId: string,
+    data: {
+      order_id: string;
+      order_number: string;
+      eta_minutes: number;
+      delivery_partner: {
+        id: string;
+        name: string | null;
+        phone: string | null;
+        vehicle_type?: string | null;
+        vehicle_number?: string | null;
+      };
+    }
+  ): void {
+    publishToRoom(`vendor:${vendorId}`, "delivery_partner_assigned", data);
+  },
   publishVendorOrder(vendorId: string, data: VendorOrderEventData): void {
     publishToRoom(`vendor:${vendorId}`, "new_order_received", data);
   },

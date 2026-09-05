@@ -1,6 +1,7 @@
 import * as roleRepo from "../repositories/role.repository";
 import * as userRepo from "../repositories/user.repository";
 import { notificationService } from "./notification.service";
+import { realtime } from "../realtime/realtime";
 import { ROLES } from "../constants/roles";
 import { ConflictError, ForbiddenError } from "../utils/ApiError";
 import { completeDelivery } from "./order-delivery.service";
@@ -886,13 +887,47 @@ export const deliveryService = {
        });
     }
 
+    const partnerProfileWithUser = await prisma.deliveryProfile.findUnique({
+      where: { id: partner.id },
+      include: { user: { select: { name: true, phone: true } } }
+    });
+    const partnerName = partnerProfileWithUser?.user?.name || "Delivery Partner";
+    const partnerPhone = partnerProfileWithUser?.user?.phone || null;
+
+    // Notify Customer
     await notificationService.orderStatus(
       masterOrder.user_id,
       masterOrder.order_number,
       "Delivery partner assigned",
-      "A delivery partner has accepted your order.",
-      { order_id: masterOrder.id },
+      `Rider ${partnerName} has accepted your order and is heading for pickup (ETA: ${etaMinutes} mins).`,
+      { order_id: masterOrder.id, eta_minutes: etaMinutes },
     );
+
+    // Notify each vendor store in the order & broadcast realtime WebSocket alert
+    for (const order of masterOrder.orders) {
+      if (order.vendor_id) {
+        await notificationService.orderStatus(
+          order.vendor_id,
+          order.order_number,
+          "Delivery Partner Assigned",
+          `Rider ${partnerName} accepted order #${order.order_number}. Arriving for pickup in ~${etaMinutes} mins.`,
+          { order_id: order.id, eta_minutes: etaMinutes }
+        ).catch(() => {});
+
+        realtime.publishDeliveryAssigned(order.vendor_id, {
+          order_id: order.id,
+          order_number: order.order_number,
+          eta_minutes: etaMinutes,
+          delivery_partner: {
+            id: partner.id,
+            name: partnerName,
+            phone: partnerPhone,
+            vehicle_type: partner.vehicle_type,
+            vehicle_number: partner.vehicle_number,
+          },
+        });
+      }
+    }
     
     await auditService.record(
       {
