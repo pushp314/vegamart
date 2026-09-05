@@ -42,48 +42,74 @@ export const orderService = {
     }
 
     const rows = await prisma.masterOrder.findMany({
-        where,
-        orderBy: { created_at: "desc" },
-        skip,
-        take: perPage,
-        include: {
-           orders: {
+      where,
+      orderBy: { created_at: "desc" },
+      skip,
+      take: perPage,
+      include: {
+        orders: {
+          include: {
+            vendor: { select: { id: true, business_name: true, phone: true } },
+            items: {
               include: {
-                 vendor: { select: { id: true, business_name: true } },
-                 items: true
-              }
-           }
-        }
+                product: {
+                  select: {
+                    images: {
+                      select: { url: true },
+                      take: 1,
+                      orderBy: { sort_order: "asc" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
-    
+
     const total = await prisma.masterOrder.count({ where });
 
     const mappedRows = rows.map((m: any) => {
-       const allItems = m.orders.flatMap((o: any) => 
-         o.items.map((item: any) => ({
-           ...item,
-           status: o.status === "CANCELLED" ? "rejected" : item.status,
-         }))
-       );
-       const vendors = m.orders.map((o: any) => o.vendor);
-       const firstOrder = m.orders[0];
-       
-       return {
-          id: m.id,
-          order_number: m.order_number,
-          status: m.status,
-          total_amount: m.total_amount,
-          delivery_fee: m.delivery_fee,
-          tax: m.tax,
-          payment_method: m.payment_method,
-          payment_status: m.payment_status,
-          created_at: m.created_at,
-          items: allItems,
-          vendors: vendors,
-          total: m.total_amount,
-          vendor: vendors.length === 1 ? vendors[0] : { business_name: 'Multiple Stores' },
-          otp_code: firstOrder?.otp_code,
-       };
+      const allItems = m.orders.flatMap((o: any) =>
+        o.items.map((item: any) => ({
+          ...item,
+          image_url: item.image_url || item.product?.images?.[0]?.url || null,
+          status: o.status === "CANCELLED" ? "rejected" : item.status,
+        }))
+      );
+      const vendors = m.orders.map((o: any) => o.vendor);
+      const firstOrder = m.orders[0];
+      const activeOtp = m.orders.find((o: any) => Boolean(o.otp_code))?.otp_code || firstOrder?.otp_code;
+
+      return {
+        id: m.id,
+        order_number: m.order_number,
+        status: m.status,
+        total_amount: m.total_amount,
+        delivery_fee: m.delivery_fee,
+        tax: m.tax,
+        payment_method: m.payment_method,
+        payment_status: m.payment_status,
+        created_at: m.created_at,
+        items: allItems,
+        vendors: vendors,
+        sub_orders: m.orders.map((o: any) => ({
+          id: o.id,
+          order_number: o.order_number,
+          status: o.status,
+          total: Number(o.total),
+          vendor: o.vendor,
+          items: o.items.map((i: any) => ({
+            ...i,
+            image_url: i.image_url || i.product?.images?.[0]?.url || null,
+            status: o.status === "CANCELLED" ? "rejected" : i.status,
+          })),
+        })),
+        total: m.total_amount,
+        vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores` },
+        otp_code: activeOtp,
+      };
     });
 
     return { rows: mappedRows, total, page, perPage };
@@ -102,41 +128,55 @@ export const orderService = {
   },
 
   async getOrderForUser(userId: string, orderId: string): Promise<any> {
+    const orderInclude = {
+      address: true,
+      delivery_partner: {
+        select: {
+          id: true,
+          vehicle_type: true,
+          vehicle_number: true,
+          user: { select: { name: true, phone: true } },
+        },
+      },
+      orders: {
+        include: {
+          vendor: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  images: {
+                    select: { url: true },
+                    take: 1,
+                    orderBy: { sort_order: "asc" },
+                  },
+                },
+              },
+            },
+          },
+          events: { orderBy: { created_at: "desc" } },
+          transactions: true,
+        },
+      },
+    } as const;
+
     let m = await prisma.masterOrder.findUnique({
       where: { id: orderId },
-      include: {
-         address: true,
-         orders: {
-            include: {
-               vendor: true,
-               items: true,
-               events: { orderBy: { created_at: "desc" } },
-               transactions: true,
-            }
-         }
-      }
+      include: orderInclude,
     });
 
     if (!m) {
       const subOrder = await prisma.order.findUnique({
-         where: { id: orderId },
-         select: { master_order_id: true }
+        where: { id: orderId },
+        select: { master_order_id: true },
       });
       if (subOrder && subOrder.master_order_id) {
-         m = await prisma.masterOrder.findUnique({
-            where: { id: subOrder.master_order_id },
-            include: {
-               address: true,
-               orders: {
-                  include: {
-                     vendor: true,
-                     items: true,
-                     events: { orderBy: { created_at: "desc" } },
-                     transactions: true,
-                  }
-               }
-            }
-         });
+        m = await prisma.masterOrder.findUnique({
+          where: { id: subOrder.master_order_id },
+          include: orderInclude,
+        });
       }
     }
 
@@ -147,37 +187,60 @@ export const orderService = {
       throw new ForbiddenError("You do not own this order.");
     }
 
-    const allItems = m.orders.flatMap((o: any) => 
+    const allItems = m.orders.flatMap((o: any) =>
       o.items.map((item: any) => ({
         ...item,
+        image_url: item.image_url || item.product?.images?.[0]?.url || null,
+        vendor_id: o.vendor?.id,
+        vendor_name: o.vendor?.business_name,
+        vendor_slug: o.vendor?.slug,
+        vendor_phone: o.vendor?.phone,
         status: o.status === "CANCELLED" ? "rejected" : item.status,
       }))
     );
     const vendors = m.orders.map((o: any) => o.vendor);
     const firstOrder = m.orders[0];
     const payment = firstOrder?.transactions?.find((t: any) => t.status === "COMPLETED");
+    const activeOtp = m.orders.find((o: any) => Boolean(o.otp_code))?.otp_code || firstOrder?.otp_code;
+
+    const subOrders = m.orders.map((o: any) => ({
+      id: o.id,
+      order_number: o.order_number,
+      status: o.status,
+      total: Number(o.total),
+      vendor: o.vendor,
+      otp_code: o.otp_code,
+      delivery_note: o.delivery_note,
+      items: o.items.map((i: any) => ({
+        ...i,
+        image_url: i.image_url || i.product?.images?.[0]?.url || null,
+        status: o.status === "CANCELLED" ? "rejected" : i.status,
+      })),
+    }));
 
     return {
-       id: m.id,
-       order_number: m.order_number,
-       status: m.status,
-       total_amount: m.total_amount,
-       delivery_fee: m.delivery_fee,
-       tax: m.tax,
-       platform_fee: m.platform_fee,
-       additional_charges: m.additional_charges,
-       payment_method: m.payment_method,
-       payment_status: m.payment_status,
-       created_at: m.created_at,
-       items: allItems,
-       vendors: vendors,
-       address: m.address,
-       total: m.total_amount,
-       vendor: vendors.length === 1 ? vendors[0] : { business_name: 'Multiple Stores' },
-       otp_code: firstOrder?.otp_code,
-       payment,
-       events: firstOrder?.events || [],
-       orders: m.orders,
+      id: m.id,
+      order_number: m.order_number,
+      status: m.status,
+      total_amount: m.total_amount,
+      delivery_fee: m.delivery_fee,
+      tax: m.tax,
+      platform_fee: m.platform_fee,
+      additional_charges: m.additional_charges,
+      payment_method: m.payment_method,
+      payment_status: m.payment_status,
+      created_at: m.created_at,
+      items: allItems,
+      vendors: vendors,
+      sub_orders: subOrders,
+      address: m.address,
+      delivery_partner: m.delivery_partner,
+      total: m.total_amount,
+      vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null },
+      otp_code: activeOtp,
+      payment,
+      events: firstOrder?.events || [],
+      orders: m.orders,
     };
   },
 

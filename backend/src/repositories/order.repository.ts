@@ -310,6 +310,7 @@ export async function createMasterOrder(input: CreateMasterOrderInput, db: DbCli
 export async function createOrder(input: CreateOrderInput, db: DbClient = prisma): Promise<OrderRow> {
   const row = await db.order.create({
     data: {
+      master_order_id: input.master_order_id,
       order_number: input.order_number,
       user_id: input.user_id,
       vendor_id: input.vendor_id,

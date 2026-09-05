@@ -22,6 +22,8 @@ import {
   Hash,
   Clock,
   QrCode,
+  Copy,
+  Check,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import {
@@ -93,6 +95,13 @@ function OrderIdTrackingPage() {
   });
 
   const order = orderRes?.data?.data || orderRes?.data || null;
+  const [copiedOtp, setCopiedOtp] = useState(false);
+
+  const isMultiStore = Boolean(
+    (order?.sub_orders && order.sub_orders.length > 1) ||
+    (order?.vendors && order.vendors.length > 1) ||
+    (order?.orders && order.orders.length > 1)
+  );
 
   const statusInfo = getOrderStatusInfo(order?.status);
   const status = statusInfo.status;
@@ -420,20 +429,44 @@ function OrderIdTrackingPage() {
             )}
 
             {/* Delivery OTP Banner */}
-            {!isDelivered && order.otp_code && (
+            {!isDelivered && (order.otp_code || (order as any).delivery_otp) && (
               <div className="rounded-3xl border border-rose-500/30 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-rose-500/5 p-5 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-display font-black text-sm text-rose-600">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-600 font-extrabold text-[10px] uppercase tracking-wider border border-rose-500/25">
+                      {isMultiStore ? "Multi-Store Order OTP" : "Delivery Verification"}
+                    </span>
+                  </div>
+                  <h3 className="font-display font-black text-base text-rose-600">
                     Secure Delivery OTP
                   </h3>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-sm leading-relaxed">
-                    This is your delivery OTP. Show it to the delivery partner when they arrive —
-                    they need this 6-digit code to complete the delivery, so don't share it before
-                    you receive your order.
+                  <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
+                    {isMultiStore
+                      ? "Share this single OTP with the delivery partner when they arrive with items from all stores. Only share after receiving your items."
+                      : "Share this 6-digit OTP with your delivery partner when they arrive. Do not share before receiving your items."}
                   </p>
                 </div>
-                <div className="bg-rose-500 text-white font-black text-3xl tracking-[0.25em] px-6 py-3 rounded-2xl shadow-inner border border-rose-600">
-                  {order.otp_code}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="bg-rose-500 text-white font-black text-3xl tracking-[0.25em] px-6 py-3 rounded-2xl shadow-inner border border-rose-600 select-all">
+                    {order.otp_code || (order as any).delivery_otp}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = order.otp_code || (order as any).delivery_otp;
+                      if (code) {
+                        navigator.clipboard.writeText(code);
+                        setCopiedOtp(true);
+                        toast.success("OTP copied to clipboard!");
+                        setTimeout(() => setCopiedOtp(false), 2500);
+                      }
+                    }}
+                    className="p-3.5 rounded-2xl border border-rose-200 bg-card hover:bg-rose-50 text-rose-600 transition-colors shadow-xs"
+                    title="Copy OTP"
+                    aria-label="Copy OTP"
+                  >
+                    {copiedOtp ? <Check className="h-5 w-5 text-emerald-600" /> : <Copy className="h-5 w-5" />}
+                  </button>
                 </div>
               </div>
             )}
@@ -677,60 +710,127 @@ function OrderIdTrackingPage() {
                 </div>
 
                 {/* Vendor / Store Details Card */}
-                <div className="rounded-2xl bg-muted/40 border border-border/60 p-4 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                      <Store className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      Merchant / Store
-                    </span>
-                    {order.vendor?.phone && (
-                      <a
-                        href={`tel:${order.vendor.phone}`}
-                        className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-bold text-[11px] shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-1"
-                      >
-                        <Phone className="h-3 w-3" /> Call Store
-                      </a>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="font-bold text-foreground text-sm">
-                      {order.vendor?.business_name || "Vegamart Merchant Store"}
+                {order.sub_orders && order.sub_orders.length > 1 ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                        <Store className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        Fulfilling Stores ({order.sub_orders.length})
+                      </span>
+                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Multi-Store Delivery
+                      </span>
                     </div>
-                    {order.vendor?.phone && (
-                      <p className="text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
-                        <Phone className="h-3 w-3" /> {order.vendor.phone}
-                      </p>
-                    )}
+                    <div className="space-y-2.5">
+                      {order.sub_orders.map((sub: any, sIdx: number) => {
+                        const v = sub.vendor;
+                        const subStatus = String(sub.status || "PENDING").toUpperCase();
+                        const isSubCancelled = subStatus === "CANCELLED";
+                        const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
+                        return (
+                          <div key={sub.id || sIdx} className="rounded-2xl bg-muted/40 border border-border/60 p-3.5 space-y-2 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-bold text-foreground text-sm flex items-center gap-1.5 min-w-0">
+                                <span className="truncate">{v?.business_name || `Store #${sIdx + 1}`}</span>
+                                {isSubCancelled ? (
+                                  <span className="shrink-0 text-[10px] font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                                    Cancelled
+                                  </span>
+                                ) : isSubConfirmed ? (
+                                  <span className="shrink-0 text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
+                                  </span>
+                                ) : (
+                                  <span className="shrink-0 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                    Waiting for Acceptance
+                                  </span>
+                                )}
+                              </div>
+                              {v?.phone && (
+                                <a
+                                  href={`tel:${v.phone}`}
+                                  className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-bold text-[11px] shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-1 shrink-0"
+                                >
+                                  <Phone className="h-3 w-3" /> Call
+                                </a>
+                              )}
+                            </div>
+                            {v?.address && (
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                {v.address}
+                              </p>
+                            )}
+                            {v?.latitude && v?.longitude && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${v.latitude},${v.longitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-emerald-700 hover:underline inline-flex items-center gap-1 font-semibold"
+                              >
+                                <ExternalLink className="h-3 w-3" /> View Store on Map
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
+                ) : (
+                  <div className="rounded-2xl bg-muted/40 border border-border/60 p-4 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                        <Store className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        Merchant / Store
+                      </span>
+                      {order.vendor?.phone && (
+                        <a
+                          href={`tel:${order.vendor.phone}`}
+                          className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-bold text-[11px] shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                        >
+                          <Phone className="h-3 w-3" /> Call Store
+                        </a>
+                      )}
+                    </div>
 
-                  <div className="pt-1.5 border-t border-border/50 space-y-1 text-muted-foreground">
-                    {order.vendor?.address ? (
-                      <>
-                        <p className="font-medium text-foreground leading-relaxed">
-                          {order.vendor.address}
+                    <div>
+                      <div className="font-bold text-foreground text-sm">
+                        {order.vendor?.business_name || "Vegamart Merchant Store"}
+                      </div>
+                      {order.vendor?.phone && (
+                        <p className="text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
+                          <Phone className="h-3 w-3" /> {order.vendor.phone}
                         </p>
-                        <p className="text-[11px]">
-                          {[order.vendor.city, (order.vendor as any).state, (order.vendor as any).pincode ? `- ${(order.vendor as any).pincode}` : ""]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="italic text-[11px]">Local verified merchant</p>
-                    )}
-                    {order.vendor?.latitude && order.vendor?.longitude && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${order.vendor.latitude},${order.vendor.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 font-semibold pt-0.5"
-                      >
-                        <ExternalLink className="h-3 w-3" /> View Store on Map
-                      </a>
-                    )}
+                      )}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-border/50 space-y-1 text-muted-foreground">
+                      {order.vendor?.address ? (
+                        <>
+                          <p className="font-medium text-foreground leading-relaxed">
+                            {order.vendor.address}
+                          </p>
+                          <p className="text-[11px]">
+                            {[order.vendor.city, (order.vendor as any).state, (order.vendor as any).pincode ? `- ${(order.vendor as any).pincode}` : ""]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="italic text-[11px]">Local verified merchant</p>
+                      )}
+                      {order.vendor?.latitude && order.vendor?.longitude && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${order.vendor.latitude},${order.vendor.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 font-semibold pt-0.5"
+                        >
+                          <ExternalLink className="h-3 w-3" /> View Store on Map
+                        </a>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Assigned Delivery Partner Card (if any) */}
@@ -766,7 +866,7 @@ function OrderIdTrackingPage() {
               )}
 
               {/* Products List */}
-              <div className="space-y-2 pt-2">
+              <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
                     Items Ordered ({items.length})
@@ -803,92 +903,226 @@ function OrderIdTrackingPage() {
                   </div>
                 )}
 
-                <div className="divide-y border rounded-2xl overflow-hidden bg-background">
-                  {items.length > 0 ? (
-                    items.map((item: any, idx: number) => {
-                      const isRejected = item.status === "rejected";
-                      const itemImg = item.image_url || item.product?.images?.[0]?.url;
+                {order.sub_orders && order.sub_orders.length > 1 ? (
+                  // Multi-Store Grouped Items List
+                  <div className="space-y-4">
+                    {order.sub_orders.map((sub: any, sIdx: number) => {
+                      const v = sub.vendor;
+                      const subStatus = String(sub.status || "PENDING").toUpperCase();
+                      const isSubCancelled = subStatus === "CANCELLED";
+                      const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
+                      const subItems = sub.items || [];
                       return (
-                        <div
-                          key={idx}
-                          className={`flex items-center justify-between p-3 text-xs gap-3 ${
-                            isRejected ? "bg-rose-50/30 opacity-75" : ""
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-11 w-11 rounded-xl bg-muted border border-border overflow-hidden shrink-0 grid place-items-center">
-                              {itemImg ? (
-                                <img
-                                  src={itemImg}
-                                  alt={item.product_name || item.name}
-                                  className="h-full w-full object-cover"
-                                  onError={(e) => {
-                                    (e.currentTarget as HTMLElement).style.display = "none";
-                                  }}
-                                />
-                              ) : (
-                                <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
-                              )}
+                        <div key={sub.id || sIdx} className="rounded-2xl border border-border/80 overflow-hidden bg-background shadow-xs">
+                          {/* Store Header Banner */}
+                          <div className="px-3.5 py-2.5 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Store className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              <span className="font-bold text-xs text-foreground truncate">
+                                {v?.business_name || `Store #${sIdx + 1}`}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                ({subItems.length} {subItems.length === 1 ? "item" : "items"})
+                              </span>
                             </div>
-
-                            <div className="min-w-0 flex flex-col">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span
-                                  className={`font-bold ${
-                                    isRejected
-                                      ? "line-through text-muted-foreground"
-                                      : "text-foreground"
-                                  }`}
-                                >
-                                  {item.quantity}x {item.product_name || item.name}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isSubCancelled ? (
+                                <span className="text-[10px] font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                                  Out of Stock / Cancelled
                                 </span>
-                                {item.unit && (
-                                  <span className="text-muted-foreground text-[11px]">
-                                    ({item.unit})
-                                  </span>
-                                )}
-                              </div>
-                              {isRejected ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-0.5">
-                                  <AlertCircle className="h-3 w-3" /> Rejected & removed from bill
+                              ) : isSubConfirmed ? (
+                                <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                  {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-muted-foreground">
-                                  ₹{Number(item.unit_price || item.price || 0).toFixed(2)} each
+                                <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                  Waiting for Acceptance
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          <div className="text-right shrink-0">
-                            <span
-                              className={`font-bold tabular-nums text-sm ${
-                                isRejected
-                                  ? "line-through text-muted-foreground"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              ₹
-                              {(
-                                (item.unit_price || item.price || 0) *
-                                (item.quantity || 1)
-                              ).toFixed(2)}
+                          {/* Items for this Store */}
+                          <div className="divide-y">
+                            {subItems.map((item: any, idx: number) => {
+                              const isRejected = item.status === "rejected" || isSubCancelled;
+                              const itemImg = item.image_url || item.product?.images?.[0]?.url;
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`flex items-center justify-between p-3 text-xs gap-3 ${
+                                    isRejected ? "bg-rose-50/30 opacity-75" : ""
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-11 w-11 rounded-xl bg-muted border border-border overflow-hidden shrink-0 grid place-items-center">
+                                      {itemImg ? (
+                                        <img
+                                          src={itemImg}
+                                          alt={item.product_name || item.name}
+                                          className="h-full w-full object-cover"
+                                          onError={(e) => {
+                                            (e.currentTarget as HTMLElement).style.display = "none";
+                                          }}
+                                        />
+                                      ) : (
+                                        <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
+                                      )}
+                                    </div>
+
+                                    <div className="min-w-0 flex flex-col">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span
+                                          className={`font-bold ${
+                                            isRejected
+                                              ? "line-through text-muted-foreground"
+                                              : "text-foreground"
+                                          }`}
+                                        >
+                                          {item.quantity}x {item.product_name || item.name}
+                                        </span>
+                                        {item.unit && (
+                                          <span className="text-muted-foreground text-[11px]">
+                                            ({item.unit})
+                                          </span>
+                                        )}
+                                      </div>
+                                      {isRejected ? (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-0.5">
+                                          <AlertCircle className="h-3 w-3" /> Unavailable / Cancelled
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-muted-foreground">
+                                          ₹{Number(item.unit_price || item.price || 0).toFixed(2)} each
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <span
+                                      className={`font-bold tabular-nums text-sm ${
+                                        isRejected
+                                          ? "line-through text-muted-foreground"
+                                          : "text-foreground"
+                                      }`}
+                                    >
+                                      ₹
+                                      {(
+                                        (item.unit_price || item.price || 0) *
+                                        (item.quantity || 1)
+                                      ).toFixed(2)}
+                                    </span>
+                                    {isRejected && (
+                                      <div className="text-[10px] font-bold text-rose-600 uppercase">
+                                        Cancelled
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Store Subtotal */}
+                          <div className="px-3.5 py-2 bg-muted/20 border-t border-border/40 flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground font-medium text-[11px]">Store Total:</span>
+                            <span className="font-bold text-foreground tabular-nums">
+                              ₹{Number(sub.total || 0).toFixed(2)}
                             </span>
-                            {isRejected && (
-                              <div className="text-[10px] font-bold text-rose-600 uppercase">
-                                Rejected
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
-                    })
-                  ) : (
-                    <div className="p-3 text-center text-xs text-muted-foreground">
-                      No item details available.
-                    </div>
-                  )}
-                </div>
+                    })}
+                  </div>
+                ) : (
+                  // Single Store or Flat Items List
+                  <div className="divide-y border rounded-2xl overflow-hidden bg-background">
+                    {items.length > 0 ? (
+                      items.map((item: any, idx: number) => {
+                        const isRejected = item.status === "rejected";
+                        const itemImg = item.image_url || item.product?.images?.[0]?.url;
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between p-3 text-xs gap-3 ${
+                              isRejected ? "bg-rose-50/30 opacity-75" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="h-11 w-11 rounded-xl bg-muted border border-border overflow-hidden shrink-0 grid place-items-center">
+                                {itemImg ? (
+                                  <img
+                                    src={itemImg}
+                                    alt={item.product_name || item.name}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLElement).style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <ShoppingBag className="h-5 w-5 text-muted-foreground/50" />
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex flex-col">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className={`font-bold ${
+                                      isRejected
+                                        ? "line-through text-muted-foreground"
+                                        : "text-foreground"
+                                    }`}
+                                  >
+                                    {item.quantity}x {item.product_name || item.name}
+                                  </span>
+                                  {item.unit && (
+                                    <span className="text-muted-foreground text-[11px]">
+                                      ({item.unit})
+                                    </span>
+                                  )}
+                                </div>
+                                {isRejected ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-0.5">
+                                    <AlertCircle className="h-3 w-3" /> Rejected & removed from bill
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    ₹{Number(item.unit_price || item.price || 0).toFixed(2)} each
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span
+                                className={`font-bold tabular-nums text-sm ${
+                                  isRejected
+                                    ? "line-through text-muted-foreground"
+                                    : "text-foreground"
+                                }`}
+                              >
+                                ₹
+                                {(
+                                  (item.unit_price || item.price || 0) *
+                                  (item.quantity || 1)
+                                ).toFixed(2)}
+                              </span>
+                              {isRejected && (
+                                <div className="text-[10px] font-bold text-rose-600 uppercase">
+                                  Rejected
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-3 text-center text-xs text-muted-foreground">
+                        No item details available.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Bill Summary */}

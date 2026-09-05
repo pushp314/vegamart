@@ -193,22 +193,24 @@ function VendorMembershipUpgrade() {
     return new Promise<boolean>((resolve) => {
       const options: Record<string, unknown> = {
         key: checkout.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
-        amount: Math.round(checkout.amount * 100),
-        currency: checkout.currency || "INR",
         name: "Vegamart",
         description: `Vegamart ${confirmPlanRef?.name ?? ""} Membership`,
         subscription_id: checkout.razorpay_subscription_id,
         handler: async (response: RazorpayCheckoutResponse) => {
           try {
             await verifyMutation.mutateAsync({
-              razorpay_subscription_id: checkout.razorpay_subscription_id,
+              razorpay_subscription_id: response.razorpay_subscription_id || checkout.razorpay_subscription_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
             queryClient.invalidateQueries({ queryKey: ["vendorMembership"] });
             queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
             resolve(true);
-          } catch {
+          } catch (err) {
+            console.error("Membership verification failed:", err);
+            toast.error(
+              err instanceof Error ? err.message : "Payment verification failed. Please contact support."
+            );
             resolve(false);
           }
         },
