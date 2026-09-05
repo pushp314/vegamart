@@ -367,7 +367,30 @@ export const deliveryService = {
         },
       });
     });
-    
+
+    // Fetch vendor name for a better customer notification
+    const vendor = await prisma.vendorProfile.findUnique({
+      where: { id: subOrder.vendor_id },
+      select: { business_name: true },
+    });
+    const storeName = vendor?.business_name ?? "a store";
+    const totalStores = masterOrder.orders.length;
+    const pickedUpCount = masterOrder.orders.filter(
+      (o) => o.status === "PICKED_UP" || o.id === subOrderId
+    ).length;
+
+    // Notify customer about the pickup progress
+    await notificationService.orderStatus(
+      masterOrder.user_id,
+      masterOrder.order_number,
+      "Order picked up",
+      `Your items from ${storeName} have been picked up (${pickedUpCount}/${totalStores} stores done).`,
+      { order_id: masterOrderId, sub_order_id: subOrderId },
+    );
+
+    // Push real-time update to customer's tracking page
+    realtime.publishOrderStatus(masterOrderId, "PICKED_UP");
+
     return { success: true };
   },
 
@@ -907,10 +930,13 @@ export const deliveryService = {
     await notificationService.orderStatus(
       masterOrder.user_id,
       masterOrder.order_number,
-      "Delivery partner assigned",
-      `Rider ${partnerName} has accepted your order and is heading for pickup (ETA: ${etaMinutes} mins).`,
+      "Delivery partner assigned 🚴",
+      `${partnerName} is on the way to pick up your order! Estimated arrival: ${etaMinutes} mins.`,
       { order_id: masterOrder.id, eta_minutes: etaMinutes },
     );
+
+    // Push real-time update to customer's tracking page
+    realtime.publishOrderStatus(masterOrder.id, "PARTNER_ASSIGNED");
 
     // Notify each vendor store in the order & broadcast realtime WebSocket alert
     for (const order of masterOrder.orders) {
@@ -1017,13 +1043,49 @@ export const deliveryService = {
       }
     });
 
+    // Build a friendly, descriptive customer notification for each status
+    const statusMessages: Record<string, { title: string; body: string }> = {
+      CONFIRMED: {
+        title: "Order confirmed ✅",
+        body: `Your order #${masterOrder.order_number} has been confirmed by the vendor.`,
+      },
+      PREPARING: {
+        title: "Order being prepared 🍳",
+        body: `The vendor is preparing your order #${masterOrder.order_number}. Sit tight!`,
+      },
+      PACKED: {
+        title: "Order packed 📦",
+        body: `Your order #${masterOrder.order_number} is packed and waiting for pickup.`,
+      },
+      READY_FOR_PICKUP: {
+        title: "Ready for pickup 🏪",
+        body: `Your order #${masterOrder.order_number} is ready! The delivery partner will pick it up soon.`,
+      },
+      PICKED_UP: {
+        title: "Order picked up 🚴",
+        body: `Your items from order #${masterOrder.order_number} have been picked up!`,
+      },
+      OUT_FOR_DELIVERY: {
+        title: "Out for delivery 🛵",
+        body: `Your order #${masterOrder.order_number} is on its way to you!`,
+      },
+    };
+
+    const msg = statusMessages[status] ?? {
+      title: "Order update",
+      body: `Your order #${masterOrder.order_number} is now ${status.replace(/_/g, " ").toLowerCase()}.`,
+    };
+
     await notificationService.orderStatus(
       masterOrder.user_id,
       masterOrder.order_number,
-      "Order status update",
-      `Your order is now ${status.replace(/_/g, " ").toLowerCase()}.`,
+      msg.title,
+      msg.body,
       { order_id: orderId },
     );
+
+    // Push real-time update to customer's tracking page
+    realtime.publishOrderStatus(orderId, status);
   },
 
   async updateDeliveryLocation(userId: string, input: DeliveryLocationBody & { orderId?: string }) {
@@ -1128,10 +1190,13 @@ export const deliveryService = {
     await notificationService.orderStatus(
       masterOrder.user_id,
       masterOrder.order_number,
-      "Order delivered",
-      "Your order has been delivered successfully. Enjoy!",
+      "Order delivered 🎉",
+      `Your order #${masterOrder.order_number} has been delivered successfully. Enjoy!`,
       { order_id: orderId },
     );
+
+    // Push real-time update to customer's tracking page
+    realtime.publishOrderStatus(orderId, "DELIVERED");
   },
 
   async submitDeliveryKyc(

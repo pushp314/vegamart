@@ -406,14 +406,48 @@ export const orderService = {
       });
     }
 
-    if (input.status === "DELIVERED") {
-      await notificationService.orderStatus(order.user_id, order.order_number, "Order delivered", `Your order ${order.order_number} has been delivered. Enjoy!`, {
-        order_id: order.id,
-      });
-    } else {
-      await notificationService.orderStatus(order.user_id, order.order_number, "Order update", `Your order ${order.order_number} is now ${input.status.replace(/_/g, " ").toLowerCase()}.`, {
-        order_id: order.id,
-      });
+    // Descriptive notifications for each status transition
+    const vendorStatusMessages: Record<string, { title: string; body: string }> = {
+      CONFIRMED: {
+        title: "Order confirmed ✅",
+        body: `Your order #${order.order_number} has been confirmed by the vendor!`,
+      },
+      PREPARING: {
+        title: "Order being prepared 🍳",
+        body: `The vendor is now preparing your order #${order.order_number}.`,
+      },
+      PACKED: {
+        title: "Order packed 📦",
+        body: `Your order #${order.order_number} has been packed and is ready!`,
+      },
+      READY_FOR_PICKUP: {
+        title: "Ready for pickup 🏪",
+        body: `Your order #${order.order_number} is ready for pickup!`,
+      },
+      OUT_FOR_DELIVERY: {
+        title: "Out for delivery 🛵",
+        body: `Your order #${order.order_number} is on its way!`,
+      },
+      DELIVERED: {
+        title: "Order delivered 🎉",
+        body: `Your order #${order.order_number} has been delivered. Enjoy!`,
+      },
+    };
+
+    const statusMsg = vendorStatusMessages[input.status] ?? {
+      title: "Order update",
+      body: `Your order #${order.order_number} is now ${input.status.replace(/_/g, " ").toLowerCase()}.`,
+    };
+
+    await notificationService.orderStatus(order.user_id, order.order_number, statusMsg.title, statusMsg.body, {
+      order_id: order.id,
+    });
+
+    // Push real-time update to customer's tracking page
+    realtime.publishOrderStatus(order.id, input.status);
+    // Also push to master order if applicable
+    if (order.master_order_id) {
+      realtime.publishOrderStatus(order.master_order_id, input.status);
     }
 
     await auditService.record(
