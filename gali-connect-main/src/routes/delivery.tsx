@@ -656,21 +656,31 @@ function DeliveryDashboard() {
                             <Hourglass className="h-5 w-5" /> Waiting for Vendor to Accept
                           </button>
                         ) : (
-                          <button
-                            onClick={() => {
-                              setAcceptingOrderId(r.id);
-                              setEtaValue("15");
-                              setEtaModalOpen(true);
-                            }}
-                            disabled={acceptMutation.isPending}
-                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
-                          >
-                            {acceptMutation.isPending && acceptingOrderId === r.id ? (
-                              <Loader2 className="h-6 w-6 animate-spin" />
-                            ) : (
-                              "Accept Delivery"
+                          <div className="space-y-3">
+                            {r.sub_orders?.some((s: any) => s.status === "PENDING") && (
+                              <div className="bg-amber-50 text-amber-700 text-xs py-2.5 px-3 rounded-xl border border-amber-200 flex items-start gap-2 font-bold shadow-sm">
+                                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span>
+                                  ⚠️ {r.sub_orders.filter((s: any) => s.status === "PENDING").length} of {r.sub_orders.length} stores haven't accepted yet. Expect delays.
+                                </span>
+                              </div>
                             )}
-                          </button>
+                            <button
+                              onClick={() => {
+                                setAcceptingOrderId(r.id);
+                                setEtaValue("15");
+                                setEtaModalOpen(true);
+                              }}
+                              disabled={acceptMutation.isPending}
+                              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg flex justify-center items-center gap-2 shadow-soft active:scale-[0.98] transition-transform disabled:opacity-60"
+                            >
+                              {acceptMutation.isPending && acceptingOrderId === r.id ? (
+                                <Loader2 className="h-6 w-6 animate-spin" />
+                              ) : (
+                                "Accept Delivery"
+                              )}
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -949,6 +959,20 @@ function DeliveryDashboard() {
                         {/* Sub-orders Sequence UI */}
                         {o.sub_orders && o.sub_orders.length > 0 && o.status !== "OUT_FOR_DELIVERY" && o.status !== "DELIVERED" && (
                           <div className="flex flex-col gap-2 mt-4">
+                            {(() => {
+                              const pendingCount = o.sub_orders.filter((s: any) => s.status === "PENDING").length;
+                              if (pendingCount > 0) {
+                                return (
+                                  <div className="bg-amber-100 border border-amber-300 text-amber-900 p-3 rounded-xl text-sm font-bold flex gap-2 items-start shadow-sm mb-2">
+                                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+                                    <span>
+                                      Wait! {pendingCount} store(s) have not accepted this order yet. Contact them or pick up from the ready stores first.
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                             <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
                               Pickup Sequence ({o.sub_orders.length} Stores)
                             </div>
@@ -1198,7 +1222,22 @@ function DeliveryDashboard() {
               min={1}
               max={120}
             />
-            <div className="flex gap-2">
+            {(() => {
+              const orderToAccept = requestsRes?.data?.find((r: any) => r.id === acceptingOrderId);
+              const pendingCount = orderToAccept?.sub_orders?.filter((s: any) => s.status === "PENDING").length || 0;
+              if (pendingCount > 0) {
+                return (
+                  <div className="bg-rose-50 text-rose-700 p-3 rounded-xl border border-rose-200 text-sm font-medium my-4 flex gap-2 items-start shadow-sm">
+                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-rose-600" />
+                    <span>
+                      <strong>Notice:</strong> Some vendors are still reviewing this order. By accepting now, you secure the delivery route, but you may need to wait at their locations before the items are ready.
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            <div className="flex gap-2 mt-2">
               <Button
                 variant="outline"
                 onClick={() => {
