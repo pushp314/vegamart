@@ -691,7 +691,16 @@ export const deliveryService = {
       }
     });
 
-    return rows.map((m: any) => {
+    // ── MULTI-VENDOR ONLY ──────────────────────────────────────────────
+    // The delivery panel must only show orders that span multiple vendors.
+    // Single-vendor orders are handled directly by the vendor's own
+    // delivery mechanism and should NOT appear on the delivery partner radar.
+    const multiVendorRows = rows.filter((m: any) => {
+      const uniqueVendorIds = new Set(m.orders.map((o: any) => o.vendor_id));
+      return uniqueVendorIds.size > 1;
+    });
+
+    return multiVendorRows.map((m: any) => {
       const items = m.orders.flatMap((o: any) => o.items);
       const vendors = m.orders.map((o: any) => o.vendor);
       
@@ -711,7 +720,7 @@ export const deliveryService = {
         created_at: m.created_at,
         payment: m.orders[0]?.payment,
         items: items,
-        vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations" },
+        vendor: { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations" },
         sub_orders: m.orders.map((o: any) => ({
            id: o.id,
            order_number: o.order_number,
