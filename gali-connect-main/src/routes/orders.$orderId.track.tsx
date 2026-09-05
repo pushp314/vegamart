@@ -103,7 +103,22 @@ function OrderIdTrackingPage() {
     (order?.orders && order.orders.length > 1)
   );
 
-  const statusInfo = getOrderStatusInfo(order?.status);
+  const isMasterOrder = !!order?.orders;
+
+  let effectiveStatus = order?.status;
+  if (isMasterOrder && order?.orders?.length > 0) {
+    const subStatuses = order.orders.map((o: any) => String(o.status).toUpperCase());
+    
+    if (!["OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REFUNDED"].includes(String(effectiveStatus).toUpperCase())) {
+       if (subStatuses.some((s: string) => ["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"].includes(s))) {
+         effectiveStatus = "PREPARING";
+       } else if (subStatuses.some((s: string) => s === "CONFIRMED")) {
+         effectiveStatus = "CONFIRMED";
+       }
+    }
+  }
+
+  const statusInfo = getOrderStatusInfo(effectiveStatus);
   const status = statusInfo.status;
   const isDelivered = status === "delivered";
   const isOutForDelivery = status === "out_for_delivery";
@@ -122,7 +137,6 @@ function OrderIdTrackingPage() {
     { label: "Delivered", desc: "Enjoy your fresh produce!", done: isDelivered },
   ];
 
-  const isMasterOrder = !!order?.orders;
   const items = order?.items || (isMasterOrder ? order.orders.flatMap((o: any) => o.items || []) : []);
   const itemsSubtotal = Number(order?.items_subtotal ?? (isMasterOrder ? order.orders.reduce((sum: number, o: any) => sum + Number(o.items_subtotal || 0), 0) : 0));
   const deliveryFee = Number(order?.delivery_fee ?? 0);
@@ -545,8 +559,8 @@ function OrderIdTrackingPage() {
                     >
                       {step.done ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
                     </div>
-                    <div className="font-bold text-xs truncate">{step.label}</div>
-                    <div className="text-[10px] opacity-80 truncate">{step.desc}</div>
+                    <div className="font-bold text-xs line-clamp-2 leading-tight">{step.label}</div>
+                    <div className="text-[10px] opacity-80 line-clamp-2 leading-tight">{step.desc}</div>
                   </div>
                 ))}
               </div>

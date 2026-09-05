@@ -100,7 +100,6 @@ export const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["stat
 // States surfaced in the unassigned requests queue and therefore "explicitly
 // available" to any approved partner. Surfaced once vendor accepts the order (CONFIRMED).
 export const AVAILABLE_DELIVERY_REQUEST_STATUSES = [
-  "PENDING",
   "CONFIRMED",
   "PREPARING",
   "PACKED",
@@ -660,14 +659,19 @@ export const deliveryService = {
           some: {
             status: AVAILABLE_DELIVERY_REQUEST_FILTER,
             vendor: { is: { status: "APPROVED" } },
-            AND: [
-              { NOT: { delivery_note: { contains: "self", mode: "insensitive" } } },
-              { NOT: { delivery_note: { contains: "pickup", mode: "insensitive" } } },
-              { NOT: { delivery_note: { contains: "takeaway", mode: "insensitive" } } },
-              { NOT: { delivery_note: { contains: "booking", mode: "insensitive" } } },
-              { NOT: { delivery_note: { contains: "shop", mode: "insensitive" } } },
-              { NOT: { delivery_note: { contains: "comes", mode: "insensitive" } } },
-            ],
+            OR: [
+              { delivery_note: null },
+              {
+                AND: [
+                  { NOT: { delivery_note: { contains: "self", mode: "insensitive" } } },
+                  { NOT: { delivery_note: { contains: "pickup", mode: "insensitive" } } },
+                  { NOT: { delivery_note: { contains: "takeaway", mode: "insensitive" } } },
+                  { NOT: { delivery_note: { contains: "booking", mode: "insensitive" } } },
+                  { NOT: { delivery_note: { contains: "shop", mode: "insensitive" } } },
+                  { NOT: { delivery_note: { contains: "comes", mode: "insensitive" } } },
+                ]
+              }
+            ]
           }
         }
       },

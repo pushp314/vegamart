@@ -254,8 +254,8 @@ function DeliveryDashboard() {
   );
   const myDeliveries = myDeliveriesRes?.data || [];
 
-  const completedOrders = myDeliveries.filter((o: any) => o.status === "delivered");
-  const activeOrders = myDeliveries.filter((o: any) => o.status !== "delivered");
+  const completedOrders = myDeliveries.filter((o: any) => o.status?.toUpperCase() === "DELIVERED");
+  const activeOrders = myDeliveries.filter((o: any) => o.status?.toUpperCase() !== "DELIVERED");
 
   const totalEarnings = completedOrders.reduce(
     (sum: number, o: any) => sum + (o.delivery_fee || 0),
