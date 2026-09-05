@@ -710,7 +710,8 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
     displayTax = tax + (displayDeliveryFee * taxRatePercent) / 100;
   }
 
-  const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + displayTax - discount);
+  const additionalChargesTotal = summary?.additional_charges?.reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0;
+  const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + displayTax + additionalChargesTotal - discount);
   const isAdvanceSelected = paymentType === "ADVANCE" && selectedOptionObj.advancePaymentEnabled && payment !== "cod";
   const advancePct = selectedOptionObj.advancePct || 20;
   const upfrontPaymentAmount = isAdvanceSelected
