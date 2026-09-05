@@ -560,7 +560,8 @@ export const paymentService = {
       });
     } else {
       await paymentRepo.createForOrder({
-        order_id: order.id,
+        order_id: isMasterOrder ? undefined : order.id,
+        master_order_id: isMasterOrder ? order.id : undefined,
         amount: amountToCharge,
         method: "RAZORPAY",
         razorpay_order_id: gatewayOrder.id,
