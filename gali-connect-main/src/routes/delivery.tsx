@@ -1027,16 +1027,33 @@ function DeliveryDashboard() {
                               const isPickedUp = sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED";
                               
                               return (
-                                <div key={sub.id} className="flex flex-col gap-2 p-3 rounded-xl border border-border bg-card shadow-sm">
+                                <div key={sub.id} className="flex flex-col gap-2 p-3.5 rounded-2xl border border-border bg-card shadow-sm">
                                   <div className="flex justify-between items-center">
                                     <div className="font-bold text-sm">
                                       {idx + 1}. {sub.vendor?.business_name || "Vendor"}
                                     </div>
-                                    <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${isPickedUp ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    <div className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${isPickedUp ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                       {isPickedUp ? "Picked Up" : sub.status.replace(/_/g, " ")}
                                     </div>
                                   </div>
-                                  <div className="text-xs text-muted-foreground">{sub.items?.length || 0} items</div>
+                                  <div className="text-xs text-muted-foreground">{sub.vendor?.address}</div>
+
+                                  {/* Store Items List */}
+                                  {sub.items && sub.items.length > 0 && (
+                                    <div className="space-y-1.5 my-1.5 pt-2 border-t border-border/60">
+                                      <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                        Items to collect ({sub.items.length}):
+                                      </div>
+                                      {sub.items.map((it: any, i: number) => (
+                                        <div key={it.id || i} className="flex justify-between items-center text-xs bg-muted/30 px-2.5 py-1.5 rounded-lg">
+                                          <span className="font-semibold text-foreground truncate pr-2">
+                                            • {it.product_name} <span className="text-muted-foreground font-normal">× {it.quantity} {it.selected_unit || it.unit || ""}</span>
+                                          </span>
+                                          <span className="font-bold text-muted-foreground shrink-0">₹{it.total_price || (it.unit_price * it.quantity)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                   
                                   {!isPickedUp && (
                                     <div className="flex flex-col gap-2 mt-2">
@@ -1351,37 +1368,72 @@ function DeliveryDashboard() {
                 </div>
               </div>
 
-              {/* Vendor Pickup Details */}
-              <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
-                    <Store className="h-4 w-4" /> 1. Pickup From Store
+              {/* Pickup Details (Multi-Store or Single Store) */}
+              {detailsOrder.sub_orders && detailsOrder.sub_orders.length > 1 ? (
+                <div className="space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
+                    <Store className="h-4 w-4" /> Pickup Locations ({detailsOrder.sub_orders.length} Stores)
                   </div>
-                  {detailsOrder.vendor?.phone && (
-                    <a
-                      href={`tel:${detailsOrder.vendor.phone}`}
-                      className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full shadow-sm hover:bg-emerald-500 transition-colors"
-                    >
-                      <Phone className="h-3 w-3" /> Call Store
-                    </a>
-                  )}
+                  <div className="space-y-2.5">
+                    {detailsOrder.sub_orders.map((sub: any, sIdx: number) => (
+                      <div key={sub.id || sIdx} className="rounded-2xl bg-muted/40 border border-border p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                            Pickup {sIdx + 1} of {detailsOrder.sub_orders.length}
+                          </span>
+                          {sub.vendor?.phone && (
+                            <a
+                              href={`tel:${sub.vendor.phone}`}
+                              className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-sm hover:bg-emerald-500 transition-colors"
+                            >
+                              <Phone className="h-3 w-3" /> Call Store
+                            </a>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm text-foreground">
+                            {sub.vendor?.business_name || "Merchant Store"}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {sub.vendor?.address || "Store Address"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <div className="font-bold text-base text-foreground">
-                    {detailsOrder.vendor?.business_name || "Merchant Store"}
+              ) : (
+                <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
+                      <Store className="h-4 w-4" /> 1. Pickup From Store
+                    </div>
+                    {detailsOrder.vendor?.phone && (
+                      <a
+                        href={`tel:${detailsOrder.vendor.phone}`}
+                        className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full shadow-sm hover:bg-emerald-500 transition-colors"
+                      >
+                        <Phone className="h-3 w-3" /> Call Store
+                      </a>
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {detailsOrder.vendor?.address || "Store Address"}
-                    {detailsOrder.vendor?.city ? `, ${detailsOrder.vendor.city}` : ""}
+                  <div>
+                    <div className="font-bold text-base text-foreground">
+                      {detailsOrder.vendor?.business_name || "Merchant Store"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {detailsOrder.vendor?.address || "Store Address"}
+                      {detailsOrder.vendor?.city ? `, ${detailsOrder.vendor.city}` : ""}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Customer Dropoff Details */}
               <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-rose-600">
-                    <MapPin className="h-4 w-4" /> 2. Dropoff To Customer
+                    <MapPin className="h-4 w-4" /> Dropoff To Customer
                   </div>
                   {(detailsOrder.user?.phone || detailsOrder.address?.phone) && (
                     <a
@@ -1407,43 +1459,87 @@ function DeliveryDashboard() {
                 </div>
               </div>
 
-              {/* Items List */}
+              {/* Items List (Grouped by store for multivendor or single list) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Package className="h-4 w-4 text-primary" /> Items to Deliver ({detailsOrder.items?.length || 0})
                   </h4>
                 </div>
-                <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden">
-                  {(detailsOrder.items || []).map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="p-3.5 flex items-center gap-3">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.product_name}
-                          className="h-12 w-12 rounded-xl object-cover border border-border bg-muted shrink-0"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
-                          <Package className="h-5 w-5 text-muted-foreground" />
+
+                {detailsOrder.sub_orders && detailsOrder.sub_orders.length > 1 ? (
+                  <div className="space-y-3">
+                    {detailsOrder.sub_orders.map((sub: any, sIdx: number) => (
+                      <div key={sub.id || sIdx} className="rounded-2xl border border-border bg-card p-3.5 space-y-2.5">
+                        <div className="flex justify-between items-center pb-2 border-b border-border">
+                          <span className="text-xs font-bold text-foreground">
+                            {sIdx + 1}. {sub.vendor?.business_name || `Store ${sIdx + 1}`} ({sub.items?.length || 0} items)
+                          </span>
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm truncate text-foreground">
-                          {item.product_name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Qty: <span className="font-semibold text-foreground">{item.quantity}</span>
-                          {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
-                          {item.unit_price ? ` · ₹${item.unit_price} each` : ""}
+                        <div className="divide-y divide-border/60">
+                          {(sub.items || []).map((item: any, idx: number) => (
+                            <div key={item.id || idx} className="py-2.5 flex items-center gap-3">
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt={item.product_name}
+                                  className="h-10 w-10 rounded-xl object-cover border border-border bg-muted shrink-0"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-xs truncate text-foreground">
+                                  {item.product_name}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground">
+                                  Qty: <span className="font-semibold text-foreground">{item.quantity}</span>
+                                  {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
+                                </div>
+                              </div>
+                              <div className="text-right font-bold text-xs text-foreground shrink-0">
+                                ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <div className="text-right font-bold text-sm text-foreground shrink-0">
-                        ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden">
+                    {(detailsOrder.items || []).map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="p-3.5 flex items-center gap-3">
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.product_name}
+                            className="h-12 w-12 rounded-xl object-cover border border-border bg-muted shrink-0"
+                          />
+                        ) : (
+                          <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                            <Package className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm truncate text-foreground">
+                            {item.product_name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Qty: <span className="font-semibold text-foreground">{item.quantity}</span>
+                            {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
+                            {item.unit_price ? ` · ₹${item.unit_price} each` : ""}
+                          </div>
+                        </div>
+                        <div className="text-right font-bold text-sm text-foreground shrink-0">
+                          ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Billing Breakdown */}
