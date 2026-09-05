@@ -74,12 +74,17 @@ export async function createForOrder(
   return row as unknown as PaymentRow;
 }
 
-export async function findByOrderId(orderId: string): Promise<PaymentRow | null> {
-  const row = await prisma.payment.findUnique({
-    where: { order_id: orderId },
+export async function findByOrderId(orderId: string, masterOrderId?: string): Promise<PaymentRow | null> {
+  const row = await prisma.payment.findFirst({
+    where: { 
+      OR: [
+        { order_id: orderId },
+        ...(masterOrderId ? [{ master_order_id: masterOrderId }] : [])
+      ]
+    },
     select: baseSelect,
   });
-  return row ? (row as unknown as PaymentRow) : null;
+  return row as unknown as PaymentRow | null;
 }
 
 export async function findById(id: string): Promise<PaymentRow | null> {

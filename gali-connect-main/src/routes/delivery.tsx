@@ -296,6 +296,14 @@ function DeliveryDashboard() {
     },
   });
 
+  const reportIssueMutation = useMutation({
+    mutationFn: ({ orderId, subId }: { orderId: string; subId: string }) =>
+      api.post(`/delivery/orders/${orderId}/sub-orders/${subId}/report-issue`, {}),
+    onSuccess: (data: any) => {
+      toast.success(data.message || "Issue reported successfully!");
+    },
+  });
+
   const confirmPickupMutation = useMutation({
     mutationFn: ({ orderId, subId }: { orderId: string; subId: string }) =>
       api.post(`/delivery/orders/${orderId}/sub-orders/${subId}/confirm-pickup`, {}),
@@ -961,25 +969,37 @@ function DeliveryDashboard() {
                                   <div className="text-xs text-muted-foreground">{sub.items?.length || 0} items</div>
                                   
                                   {!isPickedUp && (
-                                    <div className="flex gap-2 mt-2">
-                                      <a
-                                        href={`tel:${sub.vendor?.phone}`}
-                                        className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center justify-center gap-1"
-                                      >
-                                        <Phone className="h-3 w-3" /> Call
-                                      </a>
+                                    <div className="flex flex-col gap-2 mt-2">
+                                      <div className="flex gap-2">
+                                        <a
+                                          href={`tel:${sub.vendor?.phone}`}
+                                          className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center justify-center gap-1"
+                                        >
+                                          <Phone className="h-3 w-3" /> Call
+                                        </a>
+                                        <button
+                                          onClick={() => notifyVendorMutation.mutate({ orderId: o.id, subId: sub.id })}
+                                          className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-indigo-100 text-indigo-700 hover:bg-indigo-200 flex items-center justify-center gap-1"
+                                        >
+                                          <Bell className="h-3 w-3" /> Notify
+                                        </button>
+                                        <button
+                                          disabled={!isReady}
+                                          onClick={() => confirmPickupMutation.mutate({ orderId: o.id, subId: sub.id })}
+                                          className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                                        >
+                                          <CheckCircle2 className="h-3 w-3" /> Picked Up
+                                        </button>
+                                      </div>
                                       <button
-                                        onClick={() => notifyVendorMutation.mutate({ orderId: o.id, subId: sub.id })}
-                                        className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-indigo-100 text-indigo-700 hover:bg-indigo-200 flex items-center justify-center gap-1"
+                                        onClick={() => {
+                                          if (window.confirm("Is the vendor unreachable or closed? Report this to Admin to get help or bypass this pickup.")) {
+                                            reportIssueMutation.mutate({ orderId: o.id, subId: sub.id });
+                                          }
+                                        }}
+                                        className="w-full py-2 text-xs rounded-lg font-bold transition-colors border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center gap-1"
                                       >
-                                        <Bell className="h-3 w-3" /> Notify
-                                      </button>
-                                      <button
-                                        disabled={!isReady}
-                                        onClick={() => confirmPickupMutation.mutate({ orderId: o.id, subId: sub.id })}
-                                        className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                                      >
-                                        <CheckCircle2 className="h-3 w-3" /> Picked Up
+                                        <AlertCircle className="h-3 w-3" /> Report Issue (Vendor Unreachable)
                                       </button>
                                     </div>
                                   )}
@@ -993,9 +1013,9 @@ function DeliveryDashboard() {
                           {o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" || o.status === "PREPARING" || o.status === "PICKED_UP" ? (
                             <button
                               onClick={() => {
-                                const allPickedUp = o.sub_orders ? o.sub_orders.every((sub: any) => sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED") : true;
+                                const allPickedUp = o.sub_orders ? o.sub_orders.every((sub: any) => sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED" || sub.status === "CANCELLED") : true;
                                 if (!allPickedUp) {
-                                  toast.error("You must confirm pickup from all stores first.");
+                                  toast.error("You must confirm pickup from all active stores first.");
                                   return;
                                 }
                                 updateStatusMutation.mutate({

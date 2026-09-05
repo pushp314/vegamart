@@ -385,7 +385,7 @@ export const paymentService = {
       throw new NotFoundError("Order not found.");
     }
 
-    const payment = await paymentRepo.findByOrderId(orderId);
+    const payment = await paymentRepo.findByOrderId(orderId, (order as any).master_order_id);
     if (!payment) {
       throw new NotFoundError("Payment not found for this order.");
     }

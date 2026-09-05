@@ -59,7 +59,12 @@ export const orderService = {
     const total = await prisma.masterOrder.count({ where });
 
     const mappedRows = rows.map((m: any) => {
-       const allItems = m.orders.flatMap((o: any) => o.items);
+       const allItems = m.orders.flatMap((o: any) => 
+         o.items.map((item: any) => ({
+           ...item,
+           status: o.status === "CANCELLED" ? "rejected" : item.status,
+         }))
+       );
        const vendors = m.orders.map((o: any) => o.vendor);
        const firstOrder = m.orders[0];
        
@@ -142,7 +147,12 @@ export const orderService = {
       throw new ForbiddenError("You do not own this order.");
     }
 
-    const allItems = m.orders.flatMap((o: any) => o.items);
+    const allItems = m.orders.flatMap((o: any) => 
+      o.items.map((item: any) => ({
+        ...item,
+        status: o.status === "CANCELLED" ? "rejected" : item.status,
+      }))
+    );
     const vendors = m.orders.map((o: any) => o.vendor);
     const firstOrder = m.orders[0];
     const payment = firstOrder?.transactions?.find((t: any) => t.status === "COMPLETED");
@@ -489,7 +499,10 @@ export const orderService = {
         const refundResult = (await paymentService.refund(
           userId,
           order.id,
-          { reason: `All items rejected by vendor: ${item.product_name}` },
+          { 
+            amount: Number(oldTotal),
+            reason: `All items rejected by vendor: ${item.product_name}` 
+          },
           req
         )) as { payment?: { status?: string } };
         finalPaymentStatus = refundResult?.payment?.status;
@@ -505,6 +518,15 @@ export const orderService = {
         cancel_reason: "All items were rejected by the vendor",
         ...(finalPaymentStatus ? { payment_status: finalPaymentStatus as never } : {}),
       });
+
+      if (order.master_order_id && oldTotal > 0) {
+        await prisma.masterOrder.update({
+          where: { id: order.master_order_id },
+          data: {
+            total_amount: { decrement: oldTotal },
+          }
+        });
+      }
 
       await prisma.orderEvent.create({
         data: {
@@ -540,8 +562,16 @@ export const orderService = {
     // multiple rejections and never exceeds the gateway's remaining balance.
     let refundAmount = 0;
     let refundedStatus: string | undefined;
-    const paidAmount = order.payment ? toNum(order.payment.amount) : 0;
-    const refundedSoFar = order.payment ? toNum(order.payment.refund_amount ?? 0) : 0;
+    const payment = await prisma.payment.findFirst({
+      where: {
+        OR: [
+          { order_id: order.id },
+          ...(order.master_order_id ? [{ master_order_id: order.master_order_id }] : [])
+        ]
+      }
+    });
+    const paidAmount = payment ? Number(payment.amount) : 0;
+    const refundedSoFar = payment ? Number(payment.refund_amount ?? 0) : 0;
     const remaining = Math.max(0, paidAmount - refundedSoFar);
     const delta = Math.max(0, oldTotal - newTotal);
     if ((order.payment_status === "PAID" || order.payment_status === "PARTIALLY_REFUNDED") && delta > 0 && oldTotal > 0 && remaining > 0) {
@@ -562,6 +592,15 @@ export const orderService = {
       total: newTotal,
       ...(refundedStatus ? { payment_status: refundedStatus as never } : {}),
     });
+
+    if (order.master_order_id && delta > 0) {
+      await prisma.masterOrder.update({
+        where: { id: order.master_order_id },
+        data: {
+          total_amount: { decrement: delta },
+        }
+      });
+    }
 
     await prisma.orderEvent.create({
       data: {

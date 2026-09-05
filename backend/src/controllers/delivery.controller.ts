@@ -162,6 +162,15 @@ export const notifyVendor = asyncHandler(async (req: Request, res: Response) => 
   return sendSuccess(res, data, { message: "Vendor notified successfully." });
 });
 
+export const reportIssue = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.reportIssue(
+    req.user!.id,
+    req.params.id as string,
+    req.params.subId as string
+  );
+  return sendSuccess(res, data, { message: "Issue reported to Admin. Please wait or proceed with other pickups." });
+});
+
 export const confirmPickup = asyncHandler(async (req: Request, res: Response) => {
   const data = await deliveryService.confirmPickup(
     req.user!.id,

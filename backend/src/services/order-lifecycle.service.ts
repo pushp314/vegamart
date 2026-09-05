@@ -92,7 +92,10 @@ async function runRefund(params: OrderLifecycleParams, reason: string | null): P
     return (await paymentService.refund(
       params.actorId ?? params.order.user_id,
       params.order.id,
-      { reason: reason ?? undefined },
+      { 
+        amount: Number(params.order.total),
+        reason: reason ?? undefined 
+      },
       params.req
     )) as RefundOutcome;
   } catch (err) {
@@ -149,6 +152,15 @@ export async function cancelOrderLifecycle(params: OrderLifecycleParams): Promis
         order: { connect: { id: order.id } },
       },
     });
+
+    if ((order as any).master_order_id && order.total && Number(order.total) > 0) {
+      await tx.masterOrder.update({
+        where: { id: (order as any).master_order_id },
+        data: {
+          total_amount: { decrement: order.total },
+        }
+      });
+    }
 
     await inventoryRepo.releaseQuantityForOrder(order.id, tx);
     return true;

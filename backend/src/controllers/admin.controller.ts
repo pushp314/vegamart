@@ -895,7 +895,17 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
     reason ?? null,
     req
   );
-  return sendSuccess(res, data);
+  return sendSuccess(res, data, { message: "Order status updated." });
+});
+
+export const bypassSubOrder = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminOrderService.bypassSubOrder(
+    req.user!.id,
+    req.params.order_id as string,
+    req.params.subId as string,
+    req
+  );
+  return sendSuccess(res, data, { message: "Sub-order bypassed successfully." });
 });
 
 

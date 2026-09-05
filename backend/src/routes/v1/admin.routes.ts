@@ -54,6 +54,7 @@ import {
   getStorageHealthMetrics,
   listPayoutRequests,
   processPayoutRequest,
+  bypassSubOrder,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -302,6 +303,7 @@ router.delete("/video-ads/:ad_id", validate({ params: videoAdIdParamsSchema }), 
 router.get("/orders", validate({ query: adminOrderQuerySchema }), listOrders);
 router.get("/orders/:order_id", validate({ params: adminOrderIdParamsSchema }), getOrder);
 router.patch("/orders/:order_id/status", validate({ params: adminOrderIdParamsSchema }), updateOrderStatus);
+router.post("/orders/:order_id/sub-orders/:subId/bypass", bypassSubOrder);
 
 // Product management
 router.get("/products", validate({ query: adminProductsQuerySchema }), listProductsAdmin);

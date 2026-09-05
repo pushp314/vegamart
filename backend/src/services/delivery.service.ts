@@ -300,6 +300,36 @@ export const deliveryService = {
     return { success: true };
   },
 
+  async reportIssue(userId: string, masterOrderId: string, subOrderId: string) {
+    const partner = await deliveryRepo.findByUserId(userId);
+    if (!partner) throw new NotFoundError("Delivery partner not found.");
+    
+    const masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: masterOrderId, delivery_partner_id: partner.id },
+      include: { orders: true }
+    });
+    if (!masterOrder) throw new NotFoundError("Order not found or not assigned to you.");
+    
+    const subOrder = masterOrder.orders.find((o) => o.id === subOrderId);
+    if (!subOrder) throw new NotFoundError("Sub-order not found.");
+    
+    // Notify Admin about the issue
+    await prisma.orderEvent.create({
+      data: {
+        order: { connect: { id: subOrder.id } },
+        status: subOrder.status as never,
+        note: `Delivery Partner reported an issue (Vendor Unreachable / Closed).`,
+        actor_type: "delivery_partner",
+        actor_id: userId,
+      },
+    });
+
+    // Notify admins (could be expanded to a dedicated admin notification channel)
+    // For now, logging an event is sufficient for the admin panel to pick it up.
+
+    return { success: true };
+  },
+
   async confirmPickup(userId: string, masterOrderId: string, subOrderId: string) {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) throw new NotFoundError("Delivery partner not found.");
@@ -903,10 +933,10 @@ export const deliveryService = {
       throw new ForbiddenError("You are not assigned to this order.");
     }
 
-    if (status === "OUT_FOR_DELIVERY" && masterOrder.orders.some((o: any) => o.status !== "PICKED_UP" && o.status !== "OUT_FOR_DELIVERY")) {
+    if (status === "OUT_FOR_DELIVERY" && masterOrder.orders.some((o: any) => o.status !== "PICKED_UP" && o.status !== "OUT_FOR_DELIVERY" && o.status !== "CANCELLED" && o.status !== "DELIVERED")) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
-        "Cannot start delivery. You must confirm pickup from all stores first.",
+        "Cannot start delivery. You must confirm pickup from all active stores first.",
         { code: "NOT_ALL_PICKED_UP" },
       );
     }
@@ -1039,7 +1069,11 @@ export const deliveryService = {
          });
       }
       
-      const earningAmount = masterOrder.delivery_fee;
+      const activeOrders = masterOrder.orders.filter(o => o.status !== "CANCELLED" && o.status !== "FAILED");
+      const uniqueVendors = new Set(activeOrders.map(o => o.vendor_id)).size;
+      const bonus = uniqueVendors > 1 ? (uniqueVendors - 1) * 10 : 0;
+      
+      const earningAmount = Number(masterOrder.delivery_fee) + bonus;
       await tx.deliveryEarning.create({
         data: {
           delivery_partner_id: partner.id,

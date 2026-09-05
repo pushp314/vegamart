@@ -4,7 +4,8 @@ import { Prisma } from "@prisma/client";
 import prisma from "../database/prisma";
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
-import { NotFoundError } from "../utils/ApiError";
+import { NotFoundError, ApiError } from "../utils/ApiError";
+import { HttpStatus } from "../utils/httpStatus";
 import { parseDateParam } from "../utils/time";
 import * as orderRepo from "../repositories/order.repository";
 import {
@@ -460,6 +461,31 @@ export const adminOrderService = {
       });
     }
 
+    return updated;
+  },
+
+  async bypassSubOrder(
+    adminUserId: string,
+    masterOrderId: string,
+    subOrderId: string,
+    req: Request
+  ) {
+    const detail = await orderRepo.findById(subOrderId);
+    if (!detail) {
+      throw new NotFoundError("Sub-order not found.");
+    }
+    if (detail.master_order_id !== masterOrderId) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Sub-order does not belong to this master order.");
+    }
+    
+    // Admin forcibly cancels it, triggering partial refund
+    const updated = await cancelOrderLifecycle({
+      order: detail,
+      reason: "Bypassed due to unresponsive/closed vendor.",
+      actorType: "admin",
+      actorId: adminUserId,
+      req,
+    });
     return updated;
   },
 

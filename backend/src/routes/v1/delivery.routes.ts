@@ -13,6 +13,7 @@ import {
   acceptDelivery,
   updateDeliveryStatus,
   notifyVendor,
+  reportIssue,
   confirmPickup,
   updateDeliveryLocation,
   markDelivered,
@@ -128,6 +129,13 @@ router.post(
   authenticate,
   requireRole(ROLES.DELIVERY_PARTNER),
   notifyVendor
+);
+
+router.post(
+  "/delivery/orders/:id/sub-orders/:subId/report-issue",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  reportIssue
 );
 
 router.post(

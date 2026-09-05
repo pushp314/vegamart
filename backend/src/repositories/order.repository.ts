@@ -7,6 +7,7 @@ type DbClient = PrismaClient | Prisma.TransactionClient;
 const baseSelect = {
   id: true,
   order_number: true,
+  master_order_id: true,
   user_id: true,
   vendor_id: true,
   delivery_partner_id: true,
