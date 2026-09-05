@@ -113,8 +113,9 @@ function OrderIdTrackingPage() {
     { label: "Delivered", desc: "Enjoy your fresh produce!", done: isDelivered },
   ];
 
-  const items = order?.items || [];
-  const itemsSubtotal = Number(order?.items_subtotal ?? 0);
+  const isMasterOrder = !!order?.orders;
+  const items = order?.items || (isMasterOrder ? order.orders.flatMap((o: any) => o.items || []) : []);
+  const itemsSubtotal = Number(order?.items_subtotal ?? (isMasterOrder ? order.orders.reduce((sum: number, o: any) => sum + Number(o.items_subtotal || 0), 0) : 0));
   const deliveryFee = Number(order?.delivery_fee ?? 0);
   const tax = Number(order?.tax ?? order?.platform_fee ?? 0);
   const discount = Number(order?.discount ?? 0);

@@ -268,7 +268,16 @@ export const checkoutService = {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
         "Multi-store checkout is disabled. Only one store per order is allowed.",
-        { code: "MULTI_STORE_NOT_ALLOWED" }
+        { code: "MULTI_STORE_DISABLED" }
+      );
+    }
+    
+    const maxStores = Number(settings[SETTING_KEYS.MAX_STORES_PER_ORDER] ?? 5);
+    if (groups.length > maxStores) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `You can only order from a maximum of ${maxStores} stores at a time.`,
+        { code: "MAX_STORES_EXCEEDED" }
       );
     }
 

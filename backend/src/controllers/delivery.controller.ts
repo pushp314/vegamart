@@ -153,6 +153,24 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
   return sendSuccess(res, data, { message: "Delivery status updated." });
 });
 
+export const notifyVendor = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.notifyVendor(
+    req.user!.id,
+    req.params.id as string,
+    req.params.subId as string
+  );
+  return sendSuccess(res, data, { message: "Vendor notified successfully." });
+});
+
+export const confirmPickup = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.confirmPickup(
+    req.user!.id,
+    req.params.id as string,
+    req.params.subId as string
+  );
+  return sendSuccess(res, data, { message: "Pickup confirmed successfully." });
+});
+
 export const updateDeliveryLocation = asyncHandler(async (req: Request, res: Response) => {
   const data = await deliveryService.updateDeliveryLocation(req.user!.id, req.body as DeliveryLocationBody);
   return sendSuccess(res, data, { message: "Location updated." });

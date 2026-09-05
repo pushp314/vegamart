@@ -43,6 +43,7 @@ interface Settings {
   "platform.deliveries_active"?: boolean;
   "platform.maintenance_mode"?: boolean;
   "platform.multi_store_checkout_enabled"?: boolean;
+  "platform.max_stores_per_order"?: number;
   "platform.logo_url"?: string;
   "platform.default_delivery_eta"?: string;
   "platform.vegamart_delivery_enabled"?: boolean;
@@ -728,6 +729,24 @@ export function AdminSettings() {
                 }
               />
             </div>
+            {settings["platform.multi_store_checkout_enabled"] && (
+              <div className="flex items-center justify-between pl-6 py-2 bg-muted/50 rounded-md">
+                <div>
+                  <Label>Maximum Store Purchase Limit</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Max number of distinct stores a customer can order from at once
+                  </p>
+                </div>
+                <Input
+                  type="number"
+                  className="w-24 text-right"
+                  value={settings["platform.max_stores_per_order"] ?? 5}
+                  onChange={(e) =>
+                    setSettings({ ...settings, "platform.max_stores_per_order": parseInt(e.target.value) || 5 })
+                  }
+                />
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <Label>Maintenance Mode</Label>

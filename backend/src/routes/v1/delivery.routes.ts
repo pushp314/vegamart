@@ -12,6 +12,8 @@ import {
   listMyDeliveries,
   acceptDelivery,
   updateDeliveryStatus,
+  notifyVendor,
+  confirmPickup,
   updateDeliveryLocation,
   markDelivered,
   submitDeliveryKyc,
@@ -120,6 +122,21 @@ router.put(
   validate({ params: orderIdAliasParamsSchema, body: deliveryOrderStatusSchema }),
   updateDeliveryStatus
 );
+
+router.post(
+  "/delivery/orders/:id/sub-orders/:subId/notify-vendor",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  notifyVendor
+);
+
+router.post(
+  "/delivery/orders/:id/sub-orders/:subId/confirm-pickup",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  confirmPickup
+);
+
 router.put("/delivery/location", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryLocationSchema }), updateDeliveryLocation);
 router.put(
   "/delivery/order/:id/delivered",

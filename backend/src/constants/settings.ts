@@ -26,6 +26,7 @@ export const SETTING_KEYS = {
   VENDOR_MIN_WITHDRAWAL_AMOUNT: "platform.vendor_min_withdrawal_amount",
   PLATFORM_CHECKOUT_CHARGES: "platform.checkout_charges",
   CUSTOMER_FEES_CONFIG: "platform.customer_fees_config",
+  MAX_STORES_PER_ORDER: "platform.max_stores_per_order",
 } as const;
 
 export type SettingValue =
@@ -232,6 +233,13 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "string",
     default: JSON.stringify(DEFAULT_FEES),
     description: "Comprehensive Customer Fees & Charges configuration. Format: JSON Array.",
+    is_public: true,
+  },
+  [SETTING_KEYS.MAX_STORES_PER_ORDER]: {
+    key: SETTING_KEYS.MAX_STORES_PER_ORDER,
+    type: "number",
+    default: 5,
+    description: "Maximum number of distinct stores a customer can purchase from in a single checkout.",
     is_public: true,
   },
 };

@@ -100,6 +100,7 @@ export const ACCEPTABLE_DELIVERY_ASSIGNMENT_FILTER: Prisma.OrderWhereInput["stat
 // States surfaced in the unassigned requests queue and therefore "explicitly
 // available" to any approved partner. Surfaced once vendor accepts the order (CONFIRMED).
 export const AVAILABLE_DELIVERY_REQUEST_STATUSES = [
+  "PENDING",
   "CONFIRMED",
   "PREPARING",
   "PACKED",
@@ -272,6 +273,71 @@ export const deliveryService = {
         updated_at: d.updated_at,
       })),
     };
+  },
+
+  async notifyVendor(userId: string, masterOrderId: string, subOrderId: string) {
+    const partner = await deliveryRepo.findByUserId(userId);
+    if (!partner) throw new NotFoundError("Delivery partner not found.");
+    
+    const masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: masterOrderId, delivery_partner_id: partner.id },
+      include: { orders: true }
+    });
+    if (!masterOrder) throw new NotFoundError("Order not found or not assigned to you.");
+    
+    const subOrder = masterOrder.orders.find((o) => o.id === subOrderId);
+    if (!subOrder) throw new NotFoundError("Sub-order not found.");
+    
+    // Notify vendor
+    await notificationService.orderStatus(
+      subOrder.vendor_id,
+      subOrder.order_number,
+      "Delivery Partner Arriving",
+      "The delivery partner is arriving soon. Please keep the order ready.",
+      { order_id: subOrder.id }
+    );
+    
+    return { success: true };
+  },
+
+  async confirmPickup(userId: string, masterOrderId: string, subOrderId: string) {
+    const partner = await deliveryRepo.findByUserId(userId);
+    if (!partner) throw new NotFoundError("Delivery partner not found.");
+    
+    const masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: masterOrderId, delivery_partner_id: partner.id },
+      include: { orders: true }
+    });
+    if (!masterOrder) throw new NotFoundError("Order not found or not assigned to you.");
+    
+    const subOrder = masterOrder.orders.find((o) => o.id === subOrderId);
+    if (!subOrder) throw new NotFoundError("Sub-order not found.");
+    
+    if (subOrder.status !== "READY_FOR_PICKUP" && subOrder.status !== "PREPARING") {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Cannot confirm pickup. Vendor status is ${subOrder.status}.`,
+        { code: "INVALID_STATUS" }
+      );
+    }
+    
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: subOrderId },
+        data: { status: "PICKED_UP" },
+      });
+      await tx.orderEvent.create({
+        data: {
+          order_id: subOrderId,
+          status: "PICKED_UP",
+          note: "Delivery partner confirmed pickup.",
+          actor_type: "delivery",
+          actor_id: userId,
+        },
+      });
+    });
+    
+    return { success: true };
   },
 
   async getMyEarnings(
@@ -837,11 +903,11 @@ export const deliveryService = {
       throw new ForbiddenError("You are not assigned to this order.");
     }
 
-    if (status === "OUT_FOR_DELIVERY" && masterOrder.orders.some((o: any) => o.status !== "READY_FOR_PICKUP" && o.status !== "OUT_FOR_DELIVERY")) {
+    if (status === "OUT_FOR_DELIVERY" && masterOrder.orders.some((o: any) => o.status !== "PICKED_UP" && o.status !== "OUT_FOR_DELIVERY")) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
-        "Cannot start delivery. All vendors have not marked the order as READY_FOR_PICKUP.",
-        { code: "NOT_READY_FOR_PICKUP" },
+        "Cannot start delivery. You must confirm pickup from all stores first.",
+        { code: "NOT_ALL_PICKED_UP" },
       );
     }
 
