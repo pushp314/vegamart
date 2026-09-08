@@ -326,11 +326,14 @@ export const orderService = {
           actorId: userId,
           req,
         });
+        realtime.publishOrderStatus(order.id, "CANCELLED");
       }
       
       await prisma.$transaction(async (tx) => {
         await tx.masterOrder.update({ where: { id: m.id }, data: { status: "CANCELLED" } });
       });
+
+      realtime.publishOrderStatus(m.id, "CANCELLED");
 
       await notificationService.orderStatus(
         userId,
@@ -338,6 +341,11 @@ export const orderService = {
         "Order cancelled",
         `Your order #${m.order_number} has been cancelled.`,
         { order_id: m.id }
+      );
+
+      await auditService.record(
+        { userId, action: AUDIT_ACTIONS.ORDER_CANCELLED, entityType: "master_order", entityId: m.id, newValues: { reason: input.reason ?? null } },
+        req
       );
 
       return m;
