@@ -1250,24 +1250,47 @@ function OrderIdTrackingPage() {
           </>
         )}
 
-        {/* Cancel Order Section */}
-        {order && !isDelivered && (status === "pending" || status === "confirmed") && (
-          <div className="rounded-3xl border bg-card p-6 shadow-soft text-center space-y-3 max-w-6xl mx-auto mt-6">
-            <h3 className="font-display font-black text-sm text-foreground">
-              Need to cancel your order?
-            </h3>
-            <p className="text-xs text-muted-foreground mx-auto max-w-sm">
-              Orders can only be cancelled before they are prepared. If you've already paid online,
-              a refund will be initiated automatically.
-            </p>
-            <button
-              onClick={() => setCancelModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 font-bold text-xs px-5 py-2 hover:bg-rose-100 transition-colors dark:bg-rose-950/20 dark:border-rose-900"
-            >
-              <PackageX className="h-4 w-4" /> Cancel Order
-            </button>
-          </div>
-        )}
+        {/* Cancel Order Section (Only allowed while PENDING and NOT accepted by store or assigned to rider) */}
+        {(() => {
+          const hasRider = Boolean(
+            order?.delivery_partner_id ||
+            order?.delivery_partner ||
+            order?.sub_orders?.some((s: any) => Boolean(s.delivery_partner_id)) ||
+            order?.orders?.some((o: any) => Boolean(o.delivery_partner_id))
+          );
+          const hasAcceptedSub = Boolean(
+            order?.sub_orders?.some((s: any) => {
+              const st = String(s.status || "").toUpperCase();
+              return st !== "PENDING" && st !== "CANCELLED";
+            }) ||
+            order?.orders?.some((o: any) => {
+              const st = String(o.status || "").toUpperCase();
+              return st !== "PENDING" && st !== "CANCELLED";
+            })
+          );
+          const isAccepted = hasRider || hasAcceptedSub || status !== "pending";
+          const canCancelOrder = Boolean(order && !isDelivered && !isAccepted && status === "pending");
+
+          if (!canCancelOrder) return null;
+
+          return (
+            <div className="rounded-3xl border bg-card p-6 shadow-soft text-center space-y-3 max-w-6xl mx-auto mt-6">
+              <h3 className="font-display font-black text-sm text-foreground">
+                Need to cancel your order?
+              </h3>
+              <p className="text-xs text-muted-foreground mx-auto max-w-sm">
+                Orders can only be cancelled while pending store acceptance. If you've already paid online,
+                a refund will be initiated automatically.
+              </p>
+              <button
+                onClick={() => setCancelModalOpen(true)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 font-bold text-xs px-5 py-2 hover:bg-rose-100 transition-colors dark:bg-rose-950/20 dark:border-rose-900"
+              >
+                <PackageX className="h-4 w-4" /> Cancel Order
+              </button>
+            </div>
+          );
+        })()}
 
         <div className="flex justify-center mt-6">
           <Link

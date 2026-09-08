@@ -24,7 +24,7 @@ export interface OrderListQuery {
   status?: string;
 }
 
-const CUSTOMER_CANCELABLE = new Set(["PENDING", "CONFIRMED"]);
+const CUSTOMER_CANCELABLE = new Set(["PENDING"]);
 
 export const orderService = {
   async listMyOrders(userId: string, query: OrderListQuery) {
@@ -47,6 +47,9 @@ export const orderService = {
       skip,
       take: perPage,
       include: {
+        delivery_partner: {
+          select: { id: true, user: { select: { name: true, phone: true } } },
+        },
         orders: {
           include: {
             vendor: { select: { id: true, business_name: true, phone: true } },
@@ -92,12 +95,15 @@ export const orderService = {
         payment_method: m.payment_method,
         payment_status: m.payment_status,
         created_at: m.created_at,
+        delivery_partner_id: m.delivery_partner_id,
+        delivery_partner: m.delivery_partner,
         items: allItems,
         vendors: vendors,
         sub_orders: m.orders.map((o: any) => ({
           id: o.id,
           order_number: o.order_number,
           status: o.status,
+          delivery_partner_id: o.delivery_partner_id,
           total: Number(o.total),
           vendor: o.vendor,
           items: o.items.map((i: any) => ({
@@ -207,6 +213,7 @@ export const orderService = {
       id: o.id,
       order_number: o.order_number,
       status: o.status,
+      delivery_partner_id: o.delivery_partner_id,
       total: Number(o.total),
       vendor: o.vendor,
       otp_code: o.otp_code,
@@ -230,6 +237,7 @@ export const orderService = {
       payment_method: m.payment_method,
       payment_status: m.payment_status,
       created_at: m.created_at,
+      delivery_partner_id: m.delivery_partner_id,
       items: allItems,
       vendors: vendors,
       sub_orders: subOrders,
@@ -257,17 +265,60 @@ export const orderService = {
   },
 
   async cancelOrder(userId: string, orderId: string, input: { reason?: string }, req: Request): Promise<any> {
-    const m = await prisma.masterOrder.findUnique({
+    let m = await prisma.masterOrder.findUnique({
       where: { id: orderId },
       include: { orders: true }
     });
 
+    if (!m) {
+      const child = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { master_order_id: true },
+      });
+      if (child?.master_order_id) {
+        m = await prisma.masterOrder.findUnique({
+          where: { id: child.master_order_id },
+          include: { orders: true },
+        });
+      }
+    }
+
     if (m) {
       if (m.user_id !== userId) throw new ForbiddenError("You do not own this order.");
       if (m.status === "CANCELLED") return m;
+
+      // Cannot cancel once a delivery partner has been assigned
+      if (m.delivery_partner_id) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          "Order cannot be cancelled after a delivery partner has been assigned.",
+          { code: "ORDER_ALREADY_ACCEPTED" }
+        );
+      }
+
+      // Cannot cancel if master order status has moved past PENDING
+      if (m.status !== "PENDING") {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `Order cannot be cancelled after it has been accepted (current status: ${m.status}).`,
+          { code: "ORDER_ALREADY_ACCEPTED" }
+        );
+      }
+
+      // Cannot cancel if any vendor has already accepted/confirmed the order
+      const acceptedSub = m.orders.find(
+        (o) => o.status !== "PENDING" && o.status !== "CANCELLED"
+      );
+      if (acceptedSub) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `Order cannot be cancelled because it has already been accepted by store (${acceptedSub.status.toLowerCase()}).`,
+          { code: "ORDER_ALREADY_ACCEPTED" }
+        );
+      }
       
       for (const order of m.orders) {
-        if (!CUSTOMER_CANCELABLE.has(order.status)) continue;
+        if (order.status === "CANCELLED") continue;
         await cancelOrderLifecycle({
           order: order as any,
           reason: input.reason || "Order cancelled by customer.",
@@ -280,6 +331,15 @@ export const orderService = {
       await prisma.$transaction(async (tx) => {
         await tx.masterOrder.update({ where: { id: m.id }, data: { status: "CANCELLED" } });
       });
+
+      await notificationService.orderStatus(
+        userId,
+        m.order_number,
+        "Order cancelled",
+        `Your order #${m.order_number} has been cancelled.`,
+        { order_id: m.id }
+      );
+
       return m;
     }
 
@@ -293,10 +353,19 @@ export const orderService = {
     if (order.status === "CANCELLED") {
       return order as unknown as orderRepo.OrderRow;
     }
+    if (order.delivery_partner_id) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Order cannot be cancelled after a delivery partner has been assigned.",
+        { code: "ORDER_ALREADY_ACCEPTED" }
+      );
+    }
     if (!CUSTOMER_CANCELABLE.has(order.status)) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, `Order cannot be cancelled in its current status (${order.status}).`, {
-        code: "NOT_CANCELLABLE",
-      });
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Order cannot be cancelled after it has been accepted (current status: ${order.status}).`,
+        { code: "ORDER_ALREADY_ACCEPTED" }
+      );
     }
 
     // Refund-first lifecycle: a failed refund leaves the order in its prior

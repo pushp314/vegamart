@@ -213,7 +213,20 @@ function OrdersList() {
               {orders.map((o: any) => {
                 const isExpanded = expandedTracking === o.id;
                 const statusLower = String(o.status || "pending").toLowerCase();
-                const canCancel = ["pending", "confirmed"].includes(statusLower);
+                const isAccepted = Boolean(
+                  o.delivery_partner_id ||
+                  o.delivery_partner ||
+                  statusLower !== "pending" ||
+                  (o.sub_orders && o.sub_orders.some((s: any) => {
+                    const sStatus = String(s.status || "").toUpperCase();
+                    return Boolean(s.delivery_partner_id) || (sStatus !== "PENDING" && sStatus !== "CANCELLED");
+                  })) ||
+                  (o.orders && o.orders.some((s: any) => {
+                    const sStatus = String(s.status || "").toUpperCase();
+                    return Boolean(s.delivery_partner_id) || (sStatus !== "PENDING" && sStatus !== "CANCELLED");
+                  }))
+                );
+                const canCancel = statusLower === "pending" && !isAccepted;
                 const canRefund = statusLower === "delivered";
                 const handleReorder = () => {
                   const products: any[] = (o.items || []).map((item: any) => ({

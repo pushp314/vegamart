@@ -126,6 +126,24 @@ export async function cancelOrderLifecycle(params: OrderLifecycleParams): Promis
   if (order.status === "CANCELLED") {
     return order as unknown as orderRepo.OrderRow;
   }
+
+  if (params.actorType === "customer") {
+    if (order.delivery_partner_id) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Order cannot be cancelled after a delivery partner has been assigned.",
+        { code: "ORDER_ALREADY_ACCEPTED" }
+      );
+    }
+    if (order.status !== "PENDING") {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Order cannot be cancelled after it has been accepted (current status: ${order.status}).`,
+        { code: "ORDER_ALREADY_ACCEPTED" }
+      );
+    }
+  }
+
   assertOrderTransition(order.status, "CANCELLED");
 
   const refundOutcome = await runRefund(params, params.reason ?? null);
