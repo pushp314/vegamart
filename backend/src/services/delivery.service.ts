@@ -1214,7 +1214,10 @@ export const deliveryService = {
           driver_lng: input.lng,
         },
       });
-      
+      realtime.publishOrderLocation(order.id, input.lat, input.lng);
+      if (order.master_order_id) {
+        realtime.publishOrderLocation(order.master_order_id, input.lat, input.lng);
+      }
     }
   },
 
@@ -1490,7 +1493,7 @@ export const deliveryService = {
   },
 
   async getDeliveryTracking(user: TrackingRequester, orderId: string) {
-    const masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = await prisma.masterOrder.findUnique({
       where: { id: orderId },
       include: {
         orders: {
@@ -1498,6 +1501,16 @@ export const deliveryService = {
         }
       }
     });
+
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { master_order: { include: { orders: { include: { vendor: true } } } } },
+      });
+      if (child?.master_order) {
+        masterOrder = child.master_order;
+      }
+    }
 
     if (!masterOrder) {
       throw new NotFoundError("Order not found.");
@@ -1527,11 +1540,12 @@ export const deliveryService = {
     const tracking = firstOrder ? await prisma.deliveryTracking.findUnique({ where: { order_id: firstOrder.id } }) : null;
     
     let driverInfo = null;
-    if (canSeeDriverInfo && masterOrder.delivery_partner_id) {
-      const partner = await prisma.deliveryProfile.findUnique({
+    let partner = null;
+    if (masterOrder.delivery_partner_id) {
+      partner = await prisma.deliveryProfile.findUnique({
         where: { id: masterOrder.delivery_partner_id },
       });
-      if (partner) {
+      if (partner && canSeeDriverInfo) {
         const driverUser = await userRepo.findById(partner.user_id, {});
         driverInfo = {
           name: driverUser?.name ?? "Delivery Partner",
@@ -1544,13 +1558,25 @@ export const deliveryService = {
       }
     }
     
-    const vendors = masterOrder.orders.map((o: any) => o.vendor);
+    const vendors = masterOrder.orders.map((o: any) => o.vendor).filter(Boolean);
+    const pickupLocations = vendors.map((v: any) => ({
+      id: v.id,
+      name: v.business_name,
+      address: v.full_address || v.address,
+      lat: v.latitude,
+      lng: v.longitude,
+      phone: v.phone,
+    }));
+
+    const currentLat = tracking?.driver_lat ?? partner?.current_lat ?? null;
+    const currentLng = tracking?.driver_lng ?? partner?.current_lng ?? null;
 
     return {
       order_id: orderId,
+      master_order_id: masterOrder.id,
       status: tracking?.status ?? masterOrder.status,
-      current_lat: tracking?.driver_lat ?? null,
-      current_lng: tracking?.driver_lng ?? null,
+      current_lat: currentLat,
+      current_lng: currentLng,
       heading: (tracking as any)?.heading ?? null,
       speed: (tracking as any)?.speed ?? null,
       eta_minutes: (tracking as any)?.eta_minutes ?? null,
@@ -1560,8 +1586,9 @@ export const deliveryService = {
         lat: vendors[0]?.latitude ?? null,
         lng: vendors[0]?.longitude ?? null,
         address: vendors.length === 1 ? vendors[0]?.full_address : "Multiple Stores",
-        name: vendors.length === 1 ? vendors[0]?.business_name : "Multiple Stores",
+        name: vendors.length === 1 ? vendors[0]?.business_name : `${vendors.length} Stores`,
       },
+      pickup_locations: pickupLocations,
       delivery_location: {
         lat: address?.latitude ?? null,
         lng: address?.longitude ?? null,

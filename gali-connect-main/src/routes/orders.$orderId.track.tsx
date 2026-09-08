@@ -33,9 +33,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, WS_BASE_URL, ACCESS_TOKEN_KEY } from "@/lib/api";
+import { OrderLiveTrackingMap } from "@/components/orders/OrderLiveTrackingMap";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
 import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
@@ -127,6 +128,153 @@ function OrderIdTrackingPage() {
   const isOutForDelivery = status === "out_for_delivery";
   const isPreparing = status === "preparing" || status === "packed" || status === "ready_for_pickup";
   const isConfirmed = status === "confirmed" || isPreparing || isOutForDelivery || isDelivered;
+
+  // Live GPS tracking query
+  const {
+    data: trackingRes,
+    refetch: refetchTracking,
+    isFetching: isFetchingTracking,
+  } = useQuery({
+    queryKey: ["orderTracking", orderId],
+    queryFn: () => api.get<{ data: any }>(`/delivery/order/${orderId}/tracking`),
+    enabled: !!order && (isOutForDelivery || status === "picked_up" || status === "preparing" || status === "confirmed"),
+    refetchInterval: isOutForDelivery ? 8000 : false,
+  });
+
+  const trackingData = trackingRes?.data?.data || trackingRes?.data || null;
+
+  // Real-time live coordinates state (updated via WebSocket stream or polling)
+  const [liveDriverLocation, setLiveDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Sync initial or polled coordinates into state
+  useEffect(() => {
+    if (trackingData?.current_lat && trackingData?.current_lng) {
+      setLiveDriverLocation({
+        lat: Number(trackingData.current_lat),
+        lng: Number(trackingData.current_lng),
+      });
+    }
+  }, [trackingData?.current_lat, trackingData?.current_lng]);
+
+  // WebSocket connection to /delivery/order/:order_id/stream
+  useEffect(() => {
+    if (typeof window === "undefined" || !orderId || isDelivered) return;
+    const token = typeof localStorage !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY) : null;
+    if (!token) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+    let cancelled = false;
+
+    const connect = () => {
+      if (cancelled) return;
+      try {
+        const wsUrl = `${WS_BASE_URL}/delivery/order/${orderId}/stream?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "location_update" && msg.data?.lat && msg.data?.lng) {
+              setLiveDriverLocation({
+                lat: Number(msg.data.lat),
+                lng: Number(msg.data.lng),
+              });
+            } else if (msg.type === "order_status_update") {
+              queryClient.invalidateQueries({ queryKey: ["orderDetail", orderId] });
+              queryClient.invalidateQueries({ queryKey: ["orderTracking", orderId] });
+            }
+          } catch {
+            // Ignore malformed WS payloads
+          }
+        };
+
+        ws.onclose = () => {
+          if (!cancelled) {
+            reconnectTimeout = setTimeout(connect, 6000);
+          }
+        };
+
+        ws.onerror = () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          }
+        };
+      } catch {
+        if (!cancelled) {
+          reconnectTimeout = setTimeout(connect, 6000);
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+    };
+  }, [orderId, isDelivered, queryClient]);
+
+  const pickupLocations = useMemo(() => {
+    if (trackingData?.pickup_locations && trackingData.pickup_locations.length > 0) {
+      return trackingData.pickup_locations
+        .filter((p: any) => p && p.lat && p.lng)
+        .map((p: any) => ({
+          lat: Number(p.lat),
+          lng: Number(p.lng),
+          name: p.name,
+          address: p.address,
+          phone: p.phone,
+        }));
+    }
+    const vList = order?.vendors || (order?.vendor ? [order.vendor] : []);
+    return vList
+      .filter((v: any) => v && (v.latitude || v.lat) && (v.longitude || v.lng))
+      .map((v: any) => ({
+        lat: Number(v.latitude || v.lat),
+        lng: Number(v.longitude || v.lng),
+        name: v.business_name || v.name,
+        address: v.full_address || v.address,
+        phone: v.phone,
+      }));
+  }, [trackingData?.pickup_locations, order?.vendors, order?.vendor]);
+
+  const deliveryLocation = useMemo(() => {
+    if (trackingData?.delivery_location?.lat && trackingData?.delivery_location?.lng) {
+      return {
+        lat: Number(trackingData.delivery_location.lat),
+        lng: Number(trackingData.delivery_location.lng),
+        address: trackingData.delivery_location.address,
+      };
+    }
+    const addr = order?.address;
+    if (addr && addr.latitude && addr.longitude) {
+      return {
+        lat: Number(addr.latitude),
+        lng: Number(addr.longitude),
+        address: addr.full_address || [addr.landmark, addr.city, addr.pincode].filter(Boolean).join(", "),
+      };
+    }
+    return null;
+  }, [trackingData?.delivery_location, order?.address]);
+
+  const driverInfo = useMemo(() => {
+    const d = trackingData?.driver || trackingData?.driver_info || order?.delivery_partner;
+    if (!d) return null;
+    return {
+      name: d.name || d.user?.name || "Delivery Partner",
+      phone: d.phone || d.user?.phone || null,
+      rating: Number(d.rating ?? 5.0),
+      review_count: Number(d.review_count ?? 0),
+      vehicle_type: d.vehicle_type || "Delivery Vehicle",
+      vehicle_number: d.vehicle_number || null,
+    };
+  }, [trackingData?.driver, trackingData?.driver_info, order?.delivery_partner]);
 
   const steps = [
     { label: "Order Booked", desc: "Booking received & sent to merchant", done: !!order },
@@ -481,56 +629,19 @@ function OrderIdTrackingPage() {
               </div>
             )}
 
-            {/* Live Tracking Map Placeholder */}
-            {isOutForDelivery && (
-              <div className="rounded-3xl border bg-card overflow-hidden shadow-soft">
-                <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-sm font-bold text-emerald-900">
-                      Live GPS Tracking Active
-                    </span>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-700">
-                    {order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time ? `~ ${order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time}` : "Arriving soon"}
-                  </span>
-                </div>
-                <div className="relative h-64 bg-muted w-full flex items-center justify-center overflow-hidden">
-                  <div
-                    className="absolute inset-0 opacity-20"
-                    style={{
-                      backgroundImage: "radial-gradient(#94a3b8 1px, transparent 1px)",
-                      backgroundSize: "20px 20px",
-                    }}
-                  ></div>
-
-                  <div className="relative z-10 flex flex-col items-center gap-4">
-                    <div className="flex items-center justify-between w-48 relative">
-                      <div className="flex flex-col items-center z-10">
-                        <div className="h-10 w-10 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/40 animate-bounce">
-                          🛒
-                        </div>
-                      </div>
-
-                      <div className="absolute top-5 left-8 right-8 h-1 bg-emerald-500/30 overflow-hidden rounded-full">
-                        <div className="h-full bg-emerald-500 w-1/2 rounded-full animate-pulse" />
-                      </div>
-
-                      <div className="flex flex-col items-center z-10">
-                        <div className="h-10 w-10 bg-card border-2 border-primary rounded-full flex items-center justify-center text-primary shadow-lg">
-                          <MapPin className="h-5 w-5" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-card/90 backdrop-blur-sm border px-4 py-2 rounded-full text-xs font-bold shadow-sm">
-                      Connecting to vendor's live radar...
-                    </div>
-                  </div>
-                </div>
-              </div>
+            {/* Live GPS Tracking Map */}
+            {(isOutForDelivery || status === "picked_up" || (effectiveStatus === "PICKUP_IN_PROGRESS" && !!liveDriverLocation)) && (
+              <OrderLiveTrackingMap
+                driverLocation={liveDriverLocation}
+                pickupLocations={pickupLocations}
+                deliveryLocation={deliveryLocation}
+                driverInfo={driverInfo}
+                status={status}
+                etaMinutes={trackingData?.eta_minutes}
+                lastUpdatedAt={trackingData?.last_updated_at}
+                onRefresh={() => refetchTracking()}
+                isRefreshing={isFetchingTracking}
+              />
             )}
 
             {/* Status Timeline */}

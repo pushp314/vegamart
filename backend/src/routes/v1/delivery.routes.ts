@@ -177,5 +177,6 @@ router.post(
 );
 router.post("/delivery/me/kyc", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryKycSchema }), submitDeliveryKyc);
 router.get("/delivery/order/:id/tracking", authenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
+router.get("/delivery/orders/:id/tracking", authenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
 
 export default router;

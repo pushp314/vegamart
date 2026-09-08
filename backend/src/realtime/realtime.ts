@@ -28,22 +28,40 @@ async function canJoinOrderRoom(payload: JwtAccessPayload, orderId: string): Pro
     where: { id: orderId },
     select: { user_id: true, delivery_partner_id: true },
   });
-  if (!order) return false;
-  if (order.user_id === payload.sub) return true;
-  if (payload.role === "delivery" && order.delivery_partner_id) {
-    const partner = await prisma.deliveryProfile.findFirst({
-      where: { user_id: payload.sub },
-      select: { id: true },
-    });
-    if (partner && order.delivery_partner_id === partner.id) return true;
+  if (order) {
+    if (order.user_id === payload.sub) return true;
+    if (payload.role === "delivery" && order.delivery_partner_id) {
+      const partner = await prisma.deliveryProfile.findFirst({
+        where: { user_id: payload.sub },
+        select: { id: true },
+      });
+      if (partner && order.delivery_partner_id === partner.id) return true;
+    }
+    if (payload.role === "vendor") {
+      const item = await prisma.orderItem.findFirst({
+        where: { order_id: orderId, product: { vendor: { user_id: payload.sub } } },
+        select: { id: true },
+      });
+      if (item) return true;
+    }
+    return false;
   }
-  if (payload.role === "vendor") {
-    const item = await prisma.orderItem.findFirst({
-      where: { order_id: orderId, product: { vendor: { user_id: payload.sub } } },
-      select: { id: true },
-    });
-    if (item) return true;
+
+  const masterOrder = await prisma.masterOrder.findUnique({
+    where: { id: orderId },
+    select: { user_id: true, delivery_partner_id: true },
+  });
+  if (masterOrder) {
+    if (masterOrder.user_id === payload.sub) return true;
+    if (payload.role === "delivery" && masterOrder.delivery_partner_id) {
+      const partner = await prisma.deliveryProfile.findFirst({
+        where: { user_id: payload.sub },
+        select: { id: true },
+      });
+      if (partner && masterOrder.delivery_partner_id === partner.id) return true;
+    }
   }
+
   return false;
 }
 
