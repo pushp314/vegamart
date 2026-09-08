@@ -4,7 +4,7 @@ import { notificationService } from "./notification.service";
 import { realtime } from "../realtime/realtime";
 import { ROLES } from "../constants/roles";
 import { ConflictError, ForbiddenError } from "../utils/ApiError";
-import { completeDelivery } from "./order-delivery.service";
+import { completeDelivery, verifyDeliveryOtp, DELIVERY_PARTNER_DELIVERY_STATES } from "./order-delivery.service";
 import type {
   DeliveryRegisterBody,
   DeliveryApplyBody,
@@ -789,7 +789,6 @@ export const deliveryService = {
         delivery_note: m.orders[0]?.delivery_note,
         payment_method: m.payment_method,
         payment_status: m.payment_status,
-        otp_code: m.orders[0]?.otp_code,
         created_at: m.created_at,
         payment: m.orders[0]?.payment,
         items: items,
@@ -866,7 +865,6 @@ export const deliveryService = {
         delivery_note: m.orders[0]?.delivery_note,
         payment_method: m.payment_method,
         payment_status: m.payment_status,
-        otp_code: m.orders[0]?.otp_code,
         created_at: m.created_at,
         payment: m.orders[0]?.payment,
         items: items,
@@ -1115,7 +1113,7 @@ export const deliveryService = {
 
     await prisma.$transaction(async (tx: any) => {
       await tx.masterOrder.update({
-        where: { id: orderId },
+        where: { id: masterOrder.id },
         data: { status: status as any },
       });
       
@@ -1252,20 +1250,32 @@ export const deliveryService = {
     const firstOrder = masterOrder.orders[0];
     if (!firstOrder) throw new NotFoundError("Order has no sub-orders.");
     
-    if (firstOrder.otp_code && firstOrder.otp_code !== input.otp) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid OTP.", {
-        code: "INVALID_OTP",
-      });
-    }
+    // Find the sub-order that contains the shared customer delivery OTP
+    const orderWithOtp = masterOrder.orders.find((o: any) => Boolean(o.otp_code)) || firstOrder;
+
+    // Validate OTP with timing-safe comparison, attempt rate-limiting, and expiry
+    await verifyDeliveryOtp(
+      {
+        id: orderWithOtp.id,
+        status: (orderWithOtp.status === "OUT_FOR_DELIVERY" || orderWithOtp.status === "PICKED_UP")
+          ? orderWithOtp.status
+          : (masterOrder.status as string),
+        otp_code: orderWithOtp.otp_code,
+        otp_expires_at: orderWithOtp.otp_expires_at,
+        otp_attempts: orderWithOtp.otp_attempts,
+      },
+      input.otp,
+      DELIVERY_PARTNER_DELIVERY_STATES
+    );
 
     const activeOrders = masterOrder.orders.filter(o => o.status !== "CANCELLED" && o.status !== "FAILED");
     
     for (const order of activeOrders) {
       await completeDelivery({
         orderId: order.id,
-        otp: "",
+        otp: input.otp,
         skipOtp: true,
-        allowedStates: ["OUT_FOR_DELIVERY"],
+        allowedStates: DELIVERY_PARTNER_DELIVERY_STATES,
         note: "Delivered by partner.",
         actorType: "delivery",
         actorId: userId,
@@ -1274,7 +1284,7 @@ export const deliveryService = {
     }
 
     await prisma.masterOrder.update({
-      where: { id: orderId },
+      where: { id: masterOrder.id },
       data: {
         status: "DELIVERED",
         payment_status: "PAID",
@@ -1284,12 +1294,12 @@ export const deliveryService = {
     for (const order of activeOrders) {
       await prisma.order.update({
         where: { id: order.id },
-        data: { payment_status: "PAID" },
+        data: { payment_status: "PAID", otp_code: null },
       });
     }
 
     await prisma.payment.updateMany({
-      where: { master_order_id: orderId, status: "PENDING" },
+      where: { master_order_id: masterOrder.id, status: "PENDING" },
       data: { status: "PAID" },
     });
 
@@ -1314,11 +1324,14 @@ export const deliveryService = {
       masterOrder.order_number,
       "Order delivered 🎉",
       `Your order #${masterOrder.order_number} has been delivered successfully. Enjoy!`,
-      { order_id: orderId },
+      { order_id: masterOrder.id },
     );
 
     // Push real-time update to customer's tracking page
-    realtime.publishOrderStatus(orderId, "DELIVERED");
+    realtime.publishOrderStatus(masterOrder.id, "DELIVERED");
+    if (orderId !== masterOrder.id) {
+      realtime.publishOrderStatus(orderId, "DELIVERED");
+    }
 
     return {
       ...masterOrder,

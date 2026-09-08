@@ -2039,7 +2039,7 @@ function DeliveryDashboard() {
               <div className="rounded-2xl bg-muted/60 border border-border p-3.5 flex items-start gap-2.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Doorstep Verification:</strong> Ask the customer for the 4-digit Delivery OTP upon handing over the package to mark this order as completed.
+                  <strong>Doorstep Verification:</strong> Ask the customer for the 6-digit Delivery OTP upon handing over the package to mark this order as completed.
                 </span>
               </div>
 
