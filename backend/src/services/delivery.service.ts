@@ -280,10 +280,19 @@ export const deliveryService = {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) throw new NotFoundError("Delivery partner not found.");
     
-    const masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = await prisma.masterOrder.findUnique({
       where: { id: masterOrderId, delivery_partner_id: partner.id },
       include: { orders: true }
     });
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: masterOrderId },
+        include: { master_order: { include: { orders: true } } },
+      });
+      if (child?.master_order && child.master_order.delivery_partner_id === partner.id) {
+        masterOrder = child.master_order;
+      }
+    }
     if (!masterOrder) throw new NotFoundError("Order not found or not assigned to you.");
     
     const subOrder = masterOrder.orders.find((o) => o.id === subOrderId);
@@ -305,10 +314,19 @@ export const deliveryService = {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) throw new NotFoundError("Delivery partner not found.");
     
-    const masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = await prisma.masterOrder.findUnique({
       where: { id: masterOrderId, delivery_partner_id: partner.id },
       include: { orders: true }
     });
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: masterOrderId },
+        include: { master_order: { include: { orders: true } } },
+      });
+      if (child?.master_order && child.master_order.delivery_partner_id === partner.id) {
+        masterOrder = child.master_order;
+      }
+    }
     if (!masterOrder) throw new NotFoundError("Order not found or not assigned to you.");
     
     const subOrder = masterOrder.orders.find((o) => o.id === subOrderId);
@@ -325,9 +343,6 @@ export const deliveryService = {
       },
     });
 
-    // Notify admins (could be expanded to a dedicated admin notification channel)
-    // For now, logging an event is sufficient for the admin panel to pick it up.
-
     return { success: true };
   },
 
@@ -335,19 +350,29 @@ export const deliveryService = {
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) throw new NotFoundError("Delivery partner not found.");
     
-    const masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = await prisma.masterOrder.findUnique({
       where: { id: masterOrderId, delivery_partner_id: partner.id },
       include: { orders: true }
     });
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: masterOrderId },
+        include: { master_order: { include: { orders: true } } },
+      });
+      if (child?.master_order && child.master_order.delivery_partner_id === partner.id) {
+        masterOrder = child.master_order;
+      }
+    }
     if (!masterOrder) throw new NotFoundError("Order not found or not assigned to you.");
     
     const subOrder = masterOrder.orders.find((o) => o.id === subOrderId);
     if (!subOrder) throw new NotFoundError("Sub-order not found.");
     
-    if (subOrder.status !== "READY_FOR_PICKUP" && subOrder.status !== "PREPARING") {
+    const acceptablePickupStatuses = ["READY_FOR_PICKUP", "PREPARING", "PACKED", "CONFIRMED", "ACCEPTED"];
+    if (!acceptablePickupStatuses.includes(subOrder.status)) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
-        `Cannot confirm pickup. Vendor status is ${subOrder.status}.`,
+        `Cannot confirm pickup. Current status is ${subOrder.status}.`,
         { code: "INVALID_STATUS" }
       );
     }
@@ -379,17 +404,24 @@ export const deliveryService = {
       (o) => o.status === "PICKED_UP" || o.id === subOrderId
     ).length;
 
+    if (masterOrder.status === "PENDING" || masterOrder.status === "ACCEPTED") {
+      await prisma.masterOrder.update({
+        where: { id: masterOrder.id },
+        data: { status: "PICKUP_IN_PROGRESS" },
+      });
+    }
+
     // Notify customer about the pickup progress
     await notificationService.orderStatus(
       masterOrder.user_id,
       masterOrder.order_number,
       "Order picked up",
       `Your items from ${storeName} have been picked up (${pickedUpCount}/${totalStores} stores done).`,
-      { order_id: masterOrderId, sub_order_id: subOrderId },
+      { order_id: masterOrder.id, sub_order_id: subOrderId },
     );
 
     // Push real-time update to customer's tracking page
-    realtime.publishOrderStatus(masterOrderId, "PICKED_UP");
+    realtime.publishOrderStatus(masterOrder.id, "PICKED_UP");
 
     return { success: true };
   },
@@ -874,13 +906,29 @@ export const deliveryService = {
       );
     }
     
-    const masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = await prisma.masterOrder.findUnique({
       where: { id: orderId },
       include: {
         orders: true,
         customer: true
       }
     });
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          master_order: {
+            include: {
+              orders: true,
+              customer: true,
+            }
+          }
+        }
+      });
+      if (child?.master_order) {
+        masterOrder = child.master_order;
+      }
+    }
     
     if (!masterOrder) {
       throw new NotFoundError("Order not found.");
@@ -1037,10 +1085,19 @@ export const deliveryService = {
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
-    const masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = await prisma.masterOrder.findUnique({
       where: { id: orderId },
       include: { orders: true }
     });
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { master_order: { include: { orders: true } } },
+      });
+      if (child?.master_order) {
+        masterOrder = child.master_order;
+      }
+    }
     if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
@@ -1172,10 +1229,19 @@ export const deliveryService = {
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
-    const masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = await prisma.masterOrder.findUnique({
       where: { id: orderId },
       include: { orders: { include: { vendor: true, items: true } } }
     });
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { master_order: { include: { orders: { include: { vendor: true, items: true } } } } },
+      });
+      if (child?.master_order) {
+        masterOrder = child.master_order;
+      }
+    }
     if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
@@ -1253,6 +1319,12 @@ export const deliveryService = {
 
     // Push real-time update to customer's tracking page
     realtime.publishOrderStatus(orderId, "DELIVERED");
+
+    return {
+      ...masterOrder,
+      status: "DELIVERED",
+      payment_status: "PAID",
+    };
   },
 
   async confirmCashPayment(userId: string, orderId: string, req: Request) {
@@ -1483,6 +1555,7 @@ export const deliveryService = {
         address: address?.full_address ?? [address?.landmark, address?.city, address?.pincode].filter(Boolean).join(", "),
       },
       driver: driverInfo,
+      driver_info: driverInfo,
     };
   },
 

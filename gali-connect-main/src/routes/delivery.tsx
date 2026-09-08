@@ -216,6 +216,7 @@ function DeliveryDashboard() {
     "requests" | "active" | "earnings" | "history" | "profile" | "settings"
   >("requests");
   const [isOnline, setIsOnline] = useState(false);
+  const [riderCoords, setRiderCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // OTP Modal
   const [otpModalOpen, setOtpModalOpen] = useState(false);
@@ -464,6 +465,41 @@ function DeliveryDashboard() {
       },
     });
   };
+
+  // Real-time GPS location broadcasting to backend (/delivery/location)
+  useEffect(() => {
+    if (!isOnline || typeof window === "undefined" || !("geolocation" in navigator)) return;
+
+    let lastSent = 0;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setRiderCoords({ lat, lng });
+
+        const now = Date.now();
+        // Throttle updates to at most once every 12 seconds to preserve battery & bandwidth
+        if (now - lastSent >= 12000) {
+          lastSent = now;
+          api.put("/delivery/location", { lat, lng }).catch(() => {
+            // Background location update is best-effort
+          });
+        }
+      },
+      (err) => {
+        console.warn("Rider GPS watch warning:", err.message);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 10000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isOnline]);
 
   // Child routes like the "How to Use" guide are rendered full-screen by the parent.
   // Declared after all hooks so hook order stays stable across renders.
@@ -1184,41 +1220,43 @@ function DeliveryDashboard() {
                           </button>
                           <button
                             onClick={() => {
-                              // Vendor Location
-                              const vLat = o.vendor?.lat || 0;
-                              const vLng = o.vendor?.lng || 0;
-                              // Customer Location
-                              const cLat = o.address?.lat || 0;
-                              const cLng = o.address?.lng || 0;
+                              // Store Pickup Location
+                              const vLat = Number(o.vendor?.latitude ?? o.vendor?.lat ?? 0);
+                              const vLng = Number(o.vendor?.longitude ?? o.vendor?.lng ?? 0);
+                              // Customer Dropoff Location
+                              const cLat = Number(o.address?.latitude ?? o.address?.lat ?? 0);
+                              const cLng = Number(o.address?.longitude ?? o.address?.lng ?? 0);
 
-                              // Delivery Partner Location (Using dummy current location for now, or could use navigator.geolocation)
-                              // We will just show Vendor to Customer if Out for Delivery, or Rider to Vendor if not picked up.
-                              if (o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP") {
+                              // Live Rider Location
+                              const rLat = riderCoords?.lat || Number(partner.current_lat || vLat - 0.01);
+                              const rLng = riderCoords?.lng || Number(partner.current_lng || vLng - 0.01);
+
+                              if (o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" || o.status === "PREPARING") {
                                 setMapData({
-                                  title: "Route to Pickup",
+                                  title: "Route to Store Pickup",
                                   startLocation: {
-                                    lat: partner.current_lat || vLat - 0.01,
-                                    lng: partner.current_lng || vLng - 0.01,
-                                    label: "Your Location",
+                                    lat: rLat,
+                                    lng: rLng,
+                                    label: "Your Live Location",
                                   },
                                   endLocation: {
                                     lat: vLat,
                                     lng: vLng,
-                                    label: o.vendor?.business_name || "Vendor",
+                                    label: o.vendor?.business_name || "Vendor Store",
                                   },
                                 });
                               } else {
                                 setMapData({
-                                  title: "Route to Dropoff",
+                                  title: "Route to Customer Dropoff",
                                   startLocation: {
-                                    lat: vLat,
-                                    lng: vLng,
-                                    label: o.vendor?.business_name || "Vendor",
+                                    lat: rLat,
+                                    lng: rLng,
+                                    label: "Your Live Location",
                                   },
                                   endLocation: {
                                     lat: cLat,
                                     lng: cLng,
-                                    label: o.user?.name || "Customer",
+                                    label: o.user?.name || o.customer?.name || "Customer",
                                   },
                                 });
                               }
@@ -1252,7 +1290,7 @@ function DeliveryDashboard() {
                               Pickup Sequence ({o.sub_orders.length} Stores)
                             </div>
                             {o.sub_orders.map((sub: any, idx: number) => {
-                              const isReady = sub.status === "READY_FOR_PICKUP" || sub.status === "PREPARING";
+                              const isReady = ["READY_FOR_PICKUP", "PREPARING", "PACKED", "CONFIRMED", "ACCEPTED"].includes(String(sub.status || "").toUpperCase());
                               const isPickedUp = sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED";
                               
                               return (

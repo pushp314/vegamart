@@ -28,7 +28,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import { api, authStorage, API_BASE_URL, ACCESS_TOKEN_KEY } from "@/lib/api";
 import { toast } from "sonner";
 
 export function DeliveryWalletTab() {
@@ -236,8 +236,36 @@ export function DeliveryWalletTab() {
     },
   });
 
-  const handleExportCsv = () => {
-    window.open("/api/v1/delivery/me/wallet/statement/export", "_blank");
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+
+  const handleExportCsv = async () => {
+    setIsExportingCsv(true);
+    try {
+      const token = authStorage.getAccessToken() || localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem("token") || "";
+      const url = `${API_BASE_URL}/delivery/me/wallet/statement/export`;
+      const res = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        throw new Error("Failed to export statement. Server responded with error.");
+      }
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `vegamart-delivery-statement-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success("Wallet statement downloaded successfully! 📄");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to download wallet statement.");
+    } finally {
+      setIsExportingCsv(false);
+    }
   };
 
   const setPresetAmount = (percent: number) => {
@@ -372,12 +400,17 @@ export function DeliveryWalletTab() {
             </Button>
             <Button
               onClick={handleExportCsv}
+              disabled={isExportingCsv}
               variant="outline"
               size="sm"
               className="rounded-xl text-xs font-bold gap-1"
             >
-              <Download className="h-3.5 w-3.5" />
-              Statement CSV
+              {isExportingCsv ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              {isExportingCsv ? "Exporting..." : "Statement CSV"}
             </Button>
           </div>
         </div>

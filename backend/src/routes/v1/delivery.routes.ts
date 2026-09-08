@@ -154,6 +154,13 @@ router.put(
   validate({ params: orderIdAliasParamsSchema, body: deliveredOtpSchema }),
   markDelivered
 );
+router.put(
+  "/delivery/orders/:id/delivered",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  validate({ params: orderIdAliasParamsSchema, body: deliveredOtpSchema }),
+  markDelivered
+);
 router.post(
   "/delivery/orders/:id/confirm-cash",
   authenticate,

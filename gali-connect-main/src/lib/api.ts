@@ -3,7 +3,7 @@
  * Features automatic JWT Bearer token header injection and fallback error handling.
  */
 
-const API_BASE_URL =
+export const API_BASE_URL =
   typeof window === "undefined"
     ? import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8081/api/v1"
     : import.meta.env.VITE_API_BASE_URL ||
