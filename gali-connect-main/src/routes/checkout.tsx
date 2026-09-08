@@ -240,7 +240,7 @@ function Checkout() {
           },
         ]
       : []),
-    ...(deliveryPartnerConfig.enabled && hasActiveDeliveryPartners
+    ...(isVegaMartFleetEnabled && deliveryPartnerConfig.enabled !== false
       ? [
           {
             id: "delivery_partner",

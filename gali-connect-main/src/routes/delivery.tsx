@@ -143,6 +143,16 @@ function deliveryOptionBadge(o: any): { label: string; icon: any; cls: string } 
   };
 }
 
+function getGoogleMapsUrl(lat?: number | null, lng?: number | null, query?: string | null): string {
+  if (lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  }
+  if (query && query.trim()) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;
+  }
+  return "#";
+}
+
 function OrderThumb({ order }: { order: any }) {
   return order.product_image ? (
     <img
@@ -167,6 +177,20 @@ function OrderItemsLine({ order }: { order: any }) {
       ) : null}
     </div>
   );
+}
+
+function loadRazorpay(): Promise<any> {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && (window as any).Razorpay) {
+      resolve((window as any).Razorpay);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve((window as any).Razorpay);
+    script.onerror = () => resolve(null);
+    document.body.appendChild(script);
+  });
 }
 
 export const Route = createFileRoute("/delivery")({
@@ -211,6 +235,7 @@ function DeliveryDashboard() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsOrder, setDetailsOrder] = useState<any | null>(null);
   const [upiQrModalOrder, setUpiQrModalOrder] = useState<any | null>(null);
+  const [isCollectingUpi, setIsCollectingUpi] = useState(false);
 
   // Fetch Delivery Profile
   const { data: profileRes, isLoading: partnerLoading } = useQuery({
@@ -326,6 +351,90 @@ function DeliveryDashboard() {
       toast.success("Pickup confirmed!");
     },
   });
+
+  // Confirm Cash Payment Collected Mutation
+  const confirmCashMutation = useMutation({
+    mutationFn: (orderId: string) =>
+      api.post(`/delivery/orders/${orderId}/confirm-cash`, {}),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
+      setUpiQrModalOrder(null);
+      toast.success(res?.message || "Cash payment confirmed successfully! 💵");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to confirm cash payment.");
+    },
+  });
+
+  const handleConfirmCashPayment = (order: any) => {
+    if (!order?.id) return;
+    const amount = Number(order.total_amount || order.total || 0);
+    const confirmed = window.confirm(
+      `Confirm cash payment received: ₹${amount.toFixed(2)} for Order #${order.order_number || order.id.substring(0, 8)}?\n\nThis will mark the order payment status as PAID.`
+    );
+    if (!confirmed) return;
+    confirmCashMutation.mutate(order.id);
+  };
+
+  const handleCollectUpiPayment = async (orderToCollect: any) => {
+    if (!orderToCollect?.id) return;
+    setIsCollectingUpi(true);
+    try {
+      const RazorpayCtor = await loadRazorpay();
+      if (!RazorpayCtor) {
+        throw new Error("Razorpay SDK failed to load. Please check your internet connection.");
+      }
+      const res = await api.post<any>(`/payments/${orderToCollect.id}/retry`, {});
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || "Failed to initialize UPI payment gateway.");
+      }
+      const retryData = res.data;
+      const amount = Number(retryData.amount || orderToCollect.total_amount || orderToCollect.total || 0);
+
+      const options = {
+        key: retryData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+        amount: Math.round(amount * 100),
+        currency: retryData.currency || "INR",
+        name: "Vegamart",
+        description: `Order #${retryData.order_number || orderToCollect.order_number || orderToCollect.id}`,
+        order_id: retryData.razorpay_order_id,
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await api.post<any>("/payments/verify", {
+              razorpay_order_id: retryData.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            if (verifyRes?.success) {
+              toast.success("Payment collected and verified via UPI! 🎉");
+              setUpiQrModalOrder(null);
+              queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+              queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
+            } else {
+              toast.error(verifyRes?.error?.message || "Payment verification failed. Please check with customer.");
+            }
+          } catch {
+            toast.error("Payment verification failed. Please try again.");
+          }
+        },
+        prefill: {
+          name: orderToCollect.customer?.name || "Customer",
+          email: orderToCollect.customer?.email || "",
+          contact: orderToCollect.customer?.phone || "9999999999",
+        },
+        theme: {
+          color: "#10b981",
+        },
+      };
+      const paymentObject = new RazorpayCtor(options);
+      paymentObject.open();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to launch UPI payment.");
+    } finally {
+      setIsCollectingUpi(false);
+    }
+  };
 
   // Availability toggle — persisted to backend
   const availabilityMutation = useMutation({
@@ -652,30 +761,44 @@ function DeliveryDashboard() {
                       <div className="space-y-4 mb-6">
                         <div className="flex gap-4">
                           <div className="mt-1">
-                            <Store className="h-5 w-5 text-muted-foreground" />
+                            <Store className="h-5 w-5 text-emerald-600 shrink-0" />
                           </div>
                           <div>
-                            <div className="text-xs text-muted-foreground font-bold uppercase mb-1">
-                              Pickup From
+                            <div className="text-xs text-muted-foreground font-bold uppercase mb-1 flex items-center gap-2">
+                              <span>Pickup From</span>
+                              {r.vendor?.category && (
+                                <span className="text-[9.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {r.vendor.category}
+                                </span>
+                              )}
                             </div>
-                            <div className="font-bold text-lg">
-                              {r.vendor?.business_name || "Vendor"}
+                            <div className="font-bold text-base text-foreground">
+                              {r.vendor?.business_name || "Merchant Store"}
                             </div>
-                            <div className="text-sm text-muted-foreground">{r.vendor?.address}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {r.vendor?.address || "Store Address"}
+                              {r.vendor?.landmark ? ` · Landmark: ${r.vendor.landmark}` : ""}
+                              {r.vendor?.city ? `, ${r.vendor.city}` : ""}
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex gap-4">
                           <div className="mt-1">
-                            <MapPin className="h-5 w-5 text-rose-600" />
+                            <MapPin className="h-5 w-5 text-rose-600 shrink-0" />
                           </div>
                           <div>
                             <div className="text-xs text-muted-foreground font-bold uppercase mb-1">
                               Dropoff At
                             </div>
-                            <div className="font-bold text-lg">{r.user?.name || "Customer"}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {r.address?.street_address}
+                            <div className="font-bold text-base text-foreground">
+                              {r.user?.name || r.customer?.name || "Customer"}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {r.address?.full_address || r.address?.street_address || r.address?.line1 || "Customer Address"}
+                              {r.address?.landmark ? ` · Landmark: ${r.address.landmark}` : ""}
+                              {r.address?.city ? `, ${r.address.city}` : ""}
+                              {r.address?.pincode ? ` (${r.address.pincode})` : ""}
                             </div>
                           </div>
                         </div>
@@ -841,25 +964,30 @@ function DeliveryDashboard() {
                                         {sIcon} {sText}
                                       </div>
                                     </div>
-                                    <div className="text-xs text-muted-foreground mt-1 mb-3">{sub.vendor?.address}</div>
-                                    <div className="flex gap-2">
+                                    <div className="text-xs text-muted-foreground mt-1 mb-2">
+                                      {sub.vendor?.address || "Store Address"}
+                                      {sub.vendor?.landmark ? ` · Landmark: ${sub.vendor.landmark}` : ""}
+                                      {sub.vendor?.city ? `, ${sub.vendor.city}` : ""}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
                                       {sub.vendor?.phone && (
                                         <a
                                           href={`tel:${sub.vendor.phone}`}
-                                          className="flex-1 text-center py-2 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition-colors flex items-center justify-center gap-1"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="flex-1 min-w-[100px] text-center py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                                         >
-                                          <Phone className="h-3.5 w-3.5" /> Call Vendor
+                                          <Phone className="h-3.5 w-3.5" /> Call Store
                                         </a>
                                       )}
-                                      <button
-                                        onClick={(e) => {
-                                           e.stopPropagation();
-                                           toast.success(`Vendor confirmed for ${sub.vendor?.business_name}`);
-                                        }}
-                                        className="flex-1 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 font-bold text-xs transition-colors flex items-center justify-center gap-1 shadow-soft"
+                                      <a
+                                        href={getGoogleMapsUrl(sub.vendor?.latitude, sub.vendor?.longitude, `${sub.vendor?.business_name || ""} ${sub.vendor?.address || ""} ${sub.vendor?.city || ""}`)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex-1 min-w-[100px] text-center py-2 rounded-xl bg-card hover:bg-muted text-foreground border border-border font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                                       >
-                                        <CheckCircle2 className="h-3.5 w-3.5" /> Confirm
-                                      </button>
+                                        <Navigation className="h-3.5 w-3.5 text-emerald-600" /> Directions
+                                      </a>
                                     </div>
                                   </div>
                                 </div>
@@ -868,75 +996,176 @@ function DeliveryDashboard() {
                           ) : (
                             <div className="flex items-start gap-4 z-10 relative">
                               <div className="bg-card p-1 mt-1">
-                                <Store className="h-4 w-4 text-emerald-600" />
+                                <Store className="h-4 w-4 text-emerald-600 shrink-0" />
                               </div>
-                              <div>
-                                <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">
-                                  Pickup
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                                  <div className="text-[10px] text-emerald-600 font-bold uppercase">
+                                    Pickup From Store
+                                  </div>
+                                  {o.vendor?.category && (
+                                    <span className="text-[9.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      {o.vendor.category}
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="font-bold">{o.vendor?.business_name}</div>
-                                <div className="text-xs text-muted-foreground">{o.vendor?.address}</div>
+                                <div className="font-bold text-base text-foreground">{o.vendor?.business_name}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">
+                                  {o.vendor?.address || "Store Address"}
+                                  {o.vendor?.landmark ? ` · Landmark: ${o.vendor.landmark}` : ""}
+                                  {o.vendor?.city ? `, ${o.vendor.city}` : ""}
+                                </div>
+                                {o.vendor?.owner_name && (
+                                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                                    Contact: <span className="font-semibold text-foreground">{o.vendor.owner_name}</span>
+                                  </div>
+                                )}
+                                <div className="flex flex-wrap gap-2 mt-2.5">
+                                  {o.vendor?.phone && (
+                                    <a
+                                      href={`tel:${o.vendor.phone}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors"
+                                    >
+                                      <Phone className="h-3 w-3" /> Call Store
+                                    </a>
+                                  )}
+                                  <a
+                                    href={getGoogleMapsUrl(o.vendor?.latitude, o.vendor?.longitude, `${o.vendor?.business_name || ""} ${o.vendor?.address || ""} ${o.vendor?.city || ""}`)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold bg-card hover:bg-muted text-foreground border border-border px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
+                                  >
+                                    <Navigation className="h-3 w-3 text-emerald-600" /> Directions
+                                  </a>
+                                </div>
                               </div>
                             </div>
                           )}
-                        </div>
 
-                        <div className="flex items-start gap-4">
-                          <div className="z-10 bg-card p-1">
-                            <MapPin className="h-4 w-4 text-rose-600" />
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-rose-600 font-bold uppercase mb-1">
-                              Dropoff
+                          {/* Dropoff To Customer */}
+                          <div className="flex items-start gap-4 z-10 relative">
+                            <div className="bg-card p-1 mt-1">
+                              <MapPin className="h-4 w-4 text-rose-600 shrink-0" />
                             </div>
-                            <div className="font-bold">{o.user?.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {o.address?.street_address}
-                            </div>
-                            {(() => {
-                              const isPaid = String(o.payment_status || "").toUpperCase() === "PAID";
-                              const advAmount = Number(o.advance_paid ?? o.payment?.amount ?? 0);
-                              const totAmount = Number(o.total_amount || 0);
-                              const isPartialAdvance = !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
-                              const balAmount = isPartialAdvance ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100) : (isCod ? totAmount : 0);
-
-                              if (isCod) {
-                                return (
-                                  <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
-                                    <div className="font-black text-sm text-amber-600">
-                                      Collect Cash/UPI: ₹{totAmount.toFixed(2)}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setUpiQrModalOrder(o);
-                                      }}
-                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors"
-                                    >
-                                      <QrCode className="h-3 w-3" /> Show UPI QR
-                                    </button>
-                                  </div>
-                                );
-                              }
-                              if (isPartialAdvance) {
-                                return (
-                                  <div className="mt-2 space-y-0.5">
-                                    <div className="font-black text-sm text-amber-600">
-                                      Collect Balance: ₹{balAmount.toFixed(2)}
-                                    </div>
-                                    <div className="text-[11px] text-teal-700 font-bold">
-                                      (Advance ₹{advAmount.toFixed(2)} paid online)
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return (
-                                <div className="mt-2 font-black text-sm text-emerald-600">
-                                  Paid online in full: ₹{totAmount.toFixed(2)}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                                <div className="text-[10px] text-rose-600 font-bold uppercase">
+                                  Dropoff To Customer
                                 </div>
-                              );
-                            })()}
+                                {o.address?.label && (
+                                  <span className="text-[9.5px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                                    {o.address.label}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="font-bold text-base text-foreground">{o.user?.name || o.customer?.name || "Customer"}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {o.address?.full_address || o.address?.street_address || o.address?.line1 || "Customer Address"}
+                                {o.address?.landmark ? ` · Landmark: ${o.address.landmark}` : ""}
+                                {o.address?.city ? `, ${o.address.city}` : ""}
+                                {o.address?.pincode ? ` (${o.address.pincode})` : ""}
+                              </div>
+                              {o.delivery_note && (
+                                <div className="mt-1.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded-xl p-2 flex items-start gap-1.5">
+                                  <Info className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                  <span><strong>Delivery Note:</strong> {o.delivery_note}</span>
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-2.5">
+                                {(o.user?.phone || o.customer?.phone || o.address?.phone) && (
+                                  <a
+                                    href={`tel:${o.user?.phone || o.customer?.phone || o.address?.phone}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition-colors"
+                                  >
+                                    <Phone className="h-3 w-3" /> Call Customer
+                                  </a>
+                                )}
+                                <a
+                                  href={getGoogleMapsUrl(o.address?.latitude, o.address?.longitude, `${o.address?.full_address || o.address?.street_address || ""} ${o.address?.city || ""}`)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold bg-card hover:bg-muted text-foreground border border-border px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
+                                >
+                                  <Navigation className="h-3 w-3 text-rose-600" /> Navigate
+                                </a>
+                              </div>
+
+                              {(() => {
+                                const isPaid = String(o.payment_status || "").toUpperCase() === "PAID";
+                                const advAmount = Number(o.advance_paid ?? o.payment?.amount ?? 0);
+                                const totAmount = Number(o.total_amount || 0);
+                                const isPartialAdvance = !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
+                                const balAmount = isPartialAdvance ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100) : (isCod ? totAmount : 0);
+
+                                if (isPaid && !isPartialAdvance) {
+                                  return (
+                                    <div className="mt-2 flex items-center gap-1.5 font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                      <span>
+                                        Payment Received: ₹{totAmount.toFixed(2)}{" "}
+                                        <span className="text-[10px] text-muted-foreground font-normal">
+                                          ({isCod ? "Cash Handover Confirmed" : "Paid Online"})
+                                        </span>
+                                      </span>
+                                    </div>
+                                  );
+                                }
+
+                                if (isCod) {
+                                  return (
+                                    <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+                                      <div className="font-black text-sm text-amber-600">
+                                        Collect Cash/UPI: ₹{totAmount.toFixed(2)}
+                                      </div>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleConfirmCashPayment(o);
+                                          }}
+                                          disabled={confirmCashMutation.isPending}
+                                          className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:text-amber-300 px-2.5 py-1 rounded-lg transition-colors border border-amber-300/40"
+                                        >
+                                          <Banknote className="h-3 w-3" /> Confirm Cash
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setUpiQrModalOrder(o);
+                                          }}
+                                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors border border-emerald-300/40"
+                                        >
+                                          <QrCode className="h-3 w-3" /> Show UPI QR
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                if (isPartialAdvance) {
+                                  return (
+                                    <div className="mt-2 space-y-0.5">
+                                      <div className="font-black text-sm text-amber-600">
+                                        Collect Balance: ₹{balAmount.toFixed(2)}
+                                      </div>
+                                      <div className="text-[11px] text-teal-700 font-bold">
+                                        (Advance ₹{advAmount.toFixed(2)} paid online)
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="mt-2 font-black text-sm text-emerald-600">
+                                    Paid online in full: ₹{totAmount.toFixed(2)}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1371,95 +1600,248 @@ function DeliveryDashboard() {
               {/* Pickup Details (Multi-Store or Single Store) */}
               {detailsOrder.sub_orders && detailsOrder.sub_orders.length > 1 ? (
                 <div className="space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
-                    <Store className="h-4 w-4" /> Pickup Locations ({detailsOrder.sub_orders.length} Stores)
+                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Store className="h-4 w-4" /> Store Pickups ({detailsOrder.sub_orders.length} Locations)
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-semibold lowercase">
+                      pick up in sequence
+                    </span>
                   </div>
-                  <div className="space-y-2.5">
-                    {detailsOrder.sub_orders.map((sub: any, sIdx: number) => (
-                      <div key={sub.id || sIdx} className="rounded-2xl bg-muted/40 border border-border p-3.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
-                            Pickup {sIdx + 1} of {detailsOrder.sub_orders.length}
-                          </span>
-                          {sub.vendor?.phone && (
-                            <a
-                              href={`tel:${sub.vendor.phone}`}
-                              className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-sm hover:bg-emerald-500 transition-colors"
-                            >
-                              <Phone className="h-3 w-3" /> Call Store
-                            </a>
+                  <div className="space-y-3">
+                    {detailsOrder.sub_orders.map((sub: any, sIdx: number) => {
+                      const v = sub.vendor || {};
+                      const storeAddressStr = `${v.business_name || ""} ${v.address || ""} ${v.landmark || ""} ${v.city || ""}`;
+                      return (
+                        <div key={sub.id || sIdx} className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                Stop #{sIdx + 1}
+                              </span>
+                              {v.category && (
+                                <span className="text-[10px] font-semibold text-muted-foreground bg-card border border-border px-2 py-0.5 rounded-full">
+                                  {v.category}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {v.phone && (
+                                <a
+                                  href={`tel:${v.phone}`}
+                                  className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-2.5 py-1 rounded-xl shadow-xs hover:bg-emerald-500 transition-colors"
+                                >
+                                  <Phone className="h-3 w-3" /> Call Store
+                                </a>
+                              )}
+                              <a
+                                href={getGoogleMapsUrl(v.latitude, v.longitude, storeAddressStr)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-bold bg-card hover:bg-muted text-foreground border border-border px-2.5 py-1 rounded-xl transition-colors shadow-2xs"
+                              >
+                                <Navigation className="h-3 w-3 text-emerald-600" /> Directions
+                              </a>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="font-bold text-base text-foreground">
+                              {v.business_name || "Merchant Store"}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                              {v.address || "Store Address"}
+                              {v.city ? `, ${v.city}` : ""}
+                              {v.pincode ? ` - ${v.pincode}` : ""}
+                            </div>
+                            {v.landmark && (
+                              <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md">
+                                <MapPin className="h-3 w-3 text-emerald-600 shrink-0" /> Landmark: {v.landmark}
+                              </div>
+                            )}
+                            {v.owner_name && (
+                              <div className="text-[11px] text-muted-foreground mt-1">
+                                Store Contact Person: <span className="font-semibold text-foreground">{v.owner_name}</span>
+                              </div>
+                            )}
+                            {v.business_hours && (
+                              <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Hours: {v.business_hours}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Items to collect from this store */}
+                          {sub.items && sub.items.length > 0 && (
+                            <div className="pt-2 border-t border-border/80">
+                              <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                                Items to Pick Up from this Store ({sub.items.length}):
+                              </div>
+                              <div className="space-y-1 bg-card rounded-xl p-2.5 border border-border/60">
+                                {sub.items.map((it: any, itIdx: number) => (
+                                  <div key={it.id || itIdx} className="flex justify-between items-center text-xs">
+                                    <div className="truncate min-w-0 pr-2">
+                                      <span className="font-semibold text-foreground">{it.product_name}</span>
+                                      <span className="text-muted-foreground text-[11px]">
+                                        {" "}× {it.quantity} {it.selected_unit || it.unit || ""}
+                                      </span>
+                                    </div>
+                                    <span className="font-bold shrink-0">
+                                      ₹{it.total_price || (it.unit_price ? it.unit_price * it.quantity : 0)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
-                        <div>
-                          <div className="font-bold text-sm text-foreground">
-                            {sub.vendor?.business_name || "Merchant Store"}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {sub.vendor?.address || "Store Address"}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
                 <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
-                      <Store className="h-4 w-4" /> 1. Pickup From Store
-                    </div>
-                    {detailsOrder.vendor?.phone && (
-                      <a
-                        href={`tel:${detailsOrder.vendor.phone}`}
-                        className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full shadow-sm hover:bg-emerald-500 transition-colors"
-                      >
-                        <Phone className="h-3 w-3" /> Call Store
-                      </a>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-bold text-base text-foreground">
-                      {detailsOrder.vendor?.business_name || "Merchant Store"}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {detailsOrder.vendor?.address || "Store Address"}
-                      {detailsOrder.vendor?.city ? `, ${detailsOrder.vendor.city}` : ""}
-                    </div>
-                  </div>
+                  {(() => {
+                    const v = detailsOrder.vendor || {};
+                    const storeAddressStr = `${v.business_name || ""} ${v.address || ""} ${v.landmark || ""} ${v.city || ""}`;
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-600">
+                              <Store className="h-4 w-4" /> Store Pickup Details
+                            </div>
+                            {v.category && (
+                              <span className="text-[10px] font-semibold text-muted-foreground bg-card border border-border px-2 py-0.5 rounded-full">
+                                {v.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {v.phone && (
+                              <a
+                                href={`tel:${v.phone}`}
+                                className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-xl shadow-xs hover:bg-emerald-500 transition-colors"
+                              >
+                                <Phone className="h-3 w-3" /> Call Store
+                              </a>
+                            )}
+                            <a
+                              href={getGoogleMapsUrl(v.latitude, v.longitude, storeAddressStr)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-bold bg-card hover:bg-muted text-foreground border border-border px-3 py-1 rounded-xl transition-colors shadow-2xs"
+                            >
+                              <Navigation className="h-3 w-3 text-emerald-600" /> Directions
+                            </a>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-base text-foreground">
+                            {v.business_name || "Merchant Store"}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                            {v.address || "Store Address"}
+                            {v.city ? `, ${v.city}` : ""}
+                            {v.pincode ? ` - ${v.pincode}` : ""}
+                          </div>
+                          {v.landmark && (
+                            <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md">
+                              <MapPin className="h-3 w-3 text-emerald-600 shrink-0" /> Landmark: {v.landmark}
+                            </div>
+                          )}
+                          {v.owner_name && (
+                            <div className="text-[11px] text-muted-foreground mt-1">
+                              Contact Person: <span className="font-semibold text-foreground">{v.owner_name}</span>
+                            </div>
+                          )}
+                          {v.business_hours && (
+                            <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> Hours: {v.business_hours}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
               {/* Customer Dropoff Details */}
               <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-rose-600">
-                    <MapPin className="h-4 w-4" /> Dropoff To Customer
-                  </div>
-                  {(detailsOrder.user?.phone || detailsOrder.address?.phone) && (
-                    <a
-                      href={`tel:${detailsOrder.user?.phone || detailsOrder.address?.phone}`}
-                      className="inline-flex items-center gap-1 text-xs font-bold bg-rose-600 text-white px-3 py-1 rounded-full shadow-sm hover:bg-rose-500 transition-colors"
-                    >
-                      <Phone className="h-3 w-3" /> Call Customer
-                    </a>
-                  )}
-                </div>
-                <div>
-                  <div className="font-bold text-base text-foreground">
-                    {detailsOrder.user?.name || "Customer"}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {detailsOrder.address?.street_address || detailsOrder.address?.full_address || "Customer Address"}
-                  </div>
-                  {(detailsOrder.user?.phone || detailsOrder.address?.phone) && (
-                    <div className="text-xs font-medium text-foreground mt-1">
-                      📱 Phone: {detailsOrder.user?.phone || detailsOrder.address?.phone}
-                    </div>
-                  )}
-                </div>
+                {(() => {
+                  const custPhone = detailsOrder.user?.phone || detailsOrder.customer?.phone || detailsOrder.address?.phone;
+                  const custName = detailsOrder.user?.name || detailsOrder.customer?.name || "Customer";
+                  const fullCustAddress = `${detailsOrder.address?.full_address || detailsOrder.address?.street_address || detailsOrder.address?.line1 || ""} ${detailsOrder.address?.landmark ? `Landmark: ${detailsOrder.address.landmark}` : ""} ${detailsOrder.address?.city || ""}`;
+                  return (
+                    <>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-rose-600">
+                            <MapPin className="h-4 w-4" /> Customer Dropoff Details
+                          </div>
+                          {detailsOrder.address?.label && (
+                            <span className="text-[9.5px] font-bold uppercase px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                              {detailsOrder.address.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {custPhone && (
+                            <a
+                              href={`tel:${custPhone}`}
+                              className="inline-flex items-center gap-1 text-xs font-bold bg-rose-600 text-white px-3 py-1 rounded-xl shadow-xs hover:bg-rose-500 transition-colors"
+                            >
+                              <Phone className="h-3 w-3" /> Call Customer
+                            </a>
+                          )}
+                          <a
+                            href={getGoogleMapsUrl(detailsOrder.address?.latitude, detailsOrder.address?.longitude, fullCustAddress)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-bold bg-card hover:bg-muted text-foreground border border-border px-3 py-1 rounded-xl transition-colors shadow-2xs"
+                          >
+                            <Navigation className="h-3 w-3 text-rose-600" /> Navigate
+                          </a>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="font-bold text-base text-foreground">
+                          {custName}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {detailsOrder.address?.full_address || detailsOrder.address?.street_address || detailsOrder.address?.line1 || "Customer Address"}
+                          {detailsOrder.address?.city ? `, ${detailsOrder.address.city}` : ""}
+                          {detailsOrder.address?.pincode ? ` (${detailsOrder.address.pincode})` : ""}
+                        </div>
+                        {detailsOrder.address?.landmark && (
+                          <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 px-2 py-0.5 rounded-md">
+                            <MapPin className="h-3 w-3 text-rose-600 shrink-0" /> Landmark: {detailsOrder.address.landmark}
+                          </div>
+                        )}
+                        {custPhone && (
+                          <div className="text-xs font-medium text-foreground mt-1">
+                            📱 Phone: <span className="font-mono font-bold">{custPhone}</span>
+                          </div>
+                        )}
+                        {(detailsOrder.delivery_note || detailsOrder.orders?.[0]?.delivery_note) && (
+                          <div className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 rounded-xl p-2.5 flex items-start gap-2">
+                            <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="block text-[11px] uppercase tracking-wider text-amber-800 dark:text-amber-300">Customer Delivery Instructions:</strong>
+                              <span className="mt-0.5 block">{detailsOrder.delivery_note || detailsOrder.orders?.[0]?.delivery_note}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
-              {/* Items List (Grouped by store for multivendor or single list) */}
+              {/* Items List (All items) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -1467,80 +1849,125 @@ function DeliveryDashboard() {
                   </h4>
                 </div>
 
-                {detailsOrder.sub_orders && detailsOrder.sub_orders.length > 1 ? (
-                  <div className="space-y-3">
-                    {detailsOrder.sub_orders.map((sub: any, sIdx: number) => (
-                      <div key={sub.id || sIdx} className="rounded-2xl border border-border bg-card p-3.5 space-y-2.5">
-                        <div className="flex justify-between items-center pb-2 border-b border-border">
-                          <span className="text-xs font-bold text-foreground">
-                            {sIdx + 1}. {sub.vendor?.business_name || `Store ${sIdx + 1}`} ({sub.items?.length || 0} items)
-                          </span>
+                <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden">
+                  {(detailsOrder.items || []).map((item: any, idx: number) => (
+                    <div key={item.id || idx} className="p-3.5 flex items-center gap-3">
+                      {item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt={item.product_name}
+                          className="h-12 w-12 rounded-xl object-cover border border-border bg-muted shrink-0"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                          <Package className="h-5 w-5 text-muted-foreground" />
                         </div>
-                        <div className="divide-y divide-border/60">
-                          {(sub.items || []).map((item: any, idx: number) => (
-                            <div key={item.id || idx} className="py-2.5 flex items-center gap-3">
-                              {item.image_url ? (
-                                <img
-                                  src={item.image_url}
-                                  alt={item.product_name}
-                                  className="h-10 w-10 rounded-xl object-cover border border-border bg-muted shrink-0"
-                                />
-                              ) : (
-                                <div className="h-10 w-10 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
-                                  <Package className="h-4 w-4 text-muted-foreground" />
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <div className="font-bold text-xs truncate text-foreground">
-                                  {item.product_name}
-                                </div>
-                                <div className="text-[11px] text-muted-foreground">
-                                  Qty: <span className="font-semibold text-foreground">{item.quantity}</span>
-                                  {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
-                                </div>
-                              </div>
-                              <div className="text-right font-bold text-xs text-foreground shrink-0">
-                                ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
-                              </div>
-                            </div>
-                          ))}
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate text-foreground">
+                          {item.product_name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Quantity: <span className="font-semibold text-foreground">{item.quantity}</span>
+                          {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
+                          {item.unit_price ? ` · ₹${item.unit_price} each` : ""}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden">
-                    {(detailsOrder.items || []).map((item: any, idx: number) => (
-                      <div key={item.id || idx} className="p-3.5 flex items-center gap-3">
-                        {item.image_url ? (
-                          <img
-                            src={item.image_url}
-                            alt={item.product_name}
-                            className="h-12 w-12 rounded-xl object-cover border border-border bg-muted shrink-0"
-                          />
-                        ) : (
-                          <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
-                            <Package className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-sm truncate text-foreground">
-                            {item.product_name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Qty: <span className="font-semibold text-foreground">{item.quantity}</span>
-                            {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
-                            {item.unit_price ? ` · ₹${item.unit_price} each` : ""}
-                          </div>
-                        </div>
-                        <div className="text-right font-bold text-sm text-foreground shrink-0">
-                          ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
-                        </div>
+                      <div className="text-right font-bold text-sm text-foreground shrink-0">
+                        ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Doorstep Payment Collection & Status Box */}
+              {(() => {
+                const isModalCod = String(detailsOrder.payment_method || "").toUpperCase() === "COD";
+                const isModalPaid = String(detailsOrder.payment_status || "").toUpperCase() === "PAID";
+                const modalAdv = Number(detailsOrder.advance_paid ?? detailsOrder.payment?.amount ?? 0);
+                const modalTot = Number(detailsOrder.total_amount || 0);
+                const modalIsPartial = !isModalCod && isModalPaid && modalAdv > 0 && modalAdv < modalTot;
+                const modalBal = modalIsPartial ? Math.max(0, Math.round((modalTot - modalAdv) * 100) / 100) : (isModalCod ? modalTot : 0);
+
+                if (isModalPaid && !modalIsPartial) {
+                  return (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/40 p-4 space-y-1 text-emerald-950 dark:text-emerald-200">
+                      <div className="flex items-center gap-2 font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span>Order Payment Completed: ₹{modalTot.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {isModalCod ? "Cash payment was collected and confirmed." : "Order is fully prepaid online. Do not collect any money from the customer."}
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (isModalCod) {
+                  return (
+                    <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/50 p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">
+                            Cash On Delivery (Unpaid)
+                          </div>
+                          <div className="text-2xl font-black text-amber-600 mt-0.5 tabular-nums">
+                            Collect: ₹{modalTot.toFixed(2)}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900 border border-amber-300 uppercase">
+                          Collect at Doorstep
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          type="button"
+                          onClick={() => handleConfirmCashPayment(detailsOrder)}
+                          disabled={confirmCashMutation.isPending}
+                          className="flex-1 h-11 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs gap-1.5 shadow-sm"
+                        >
+                          <Banknote className="h-4 w-4" /> Confirm Cash Collected
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setDetailsModalOpen(false);
+                            setUpiQrModalOrder(detailsOrder);
+                          }}
+                          className="flex-1 h-11 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs gap-1.5 shadow-2xs"
+                        >
+                          <QrCode className="h-4 w-4 text-emerald-600" /> Open UPI QR Code
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (modalIsPartial) {
+                  return (
+                    <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/50 p-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                            Partial Advance Paid
+                          </div>
+                          <div className="text-xl font-black text-amber-600 tabular-nums">
+                            Collect Balance: ₹{modalBal.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="text-right text-xs text-teal-700 font-bold">
+                          ₹{modalAdv.toFixed(2)} prepaid online
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
 
               {/* Billing Breakdown */}
               <div className="rounded-2xl border border-border bg-card p-4 space-y-2 text-xs">
@@ -1549,7 +1976,7 @@ function DeliveryDashboard() {
                   <span>₹{detailsOrder.subtotal || Math.max(0, detailsOrder.total_amount - (detailsOrder.delivery_fee || 0))}</span>
                 </div>
                 <div className="flex justify-between text-emerald-600 font-bold">
-                  <span>Your Delivery Earning</span>
+                  <span className="flex items-center gap-1"><Bike className="h-3.5 w-3.5" /> Your Delivery Earning</span>
                   <span>+₹{detailsOrder.delivery_fee}</span>
                 </div>
                 {detailsOrder.discount > 0 && (
@@ -1568,40 +1995,14 @@ function DeliveryDashboard() {
                   <span>Total Order Amount</span>
                   <span>₹{detailsOrder.total_amount}</span>
                 </div>
-                <div className="pt-2 flex items-center justify-between">
-                  <span className="font-bold text-[11px] text-muted-foreground">Payment Mode:</span>
-                  {(() => {
-                    const isModalCod = String(detailsOrder.payment_method || "").toUpperCase() === "COD";
-                    const isModalPaid = String(detailsOrder.payment_status || "").toUpperCase() === "PAID";
-                    const modalAdv = Number(detailsOrder.advance_paid ?? detailsOrder.payment?.amount ?? 0);
-                    const modalTot = Number(detailsOrder.total_amount || 0);
-                    const modalIsPartial = !isModalCod && isModalPaid && modalAdv > 0 && modalAdv < modalTot;
-                    const modalBal = modalIsPartial ? Math.max(0, Math.round((modalTot - modalAdv) * 100) / 100) : (isModalCod ? modalTot : 0);
+              </div>
 
-                    if (isModalCod) {
-                      return (
-                        <span className="inline-flex items-center gap-1 font-extrabold px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-300">
-                          💵 Collect Cash/UPI: ₹{modalTot.toFixed(2)}
-                        </span>
-                      );
-                    }
-                    if (modalIsPartial) {
-                      return (
-                        <div className="text-right">
-                          <span className="inline-flex items-center gap-1 font-black px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-300">
-                            💵 Collect Balance: ₹{modalBal.toFixed(2)}
-                          </span>
-                          <p className="text-[10px] font-bold text-teal-700 mt-0.5">Advance Paid: ₹{modalAdv.toFixed(2)}</p>
-                        </div>
-                      );
-                    }
-                    return (
-                      <span className="inline-flex items-center gap-1 font-extrabold px-2.5 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        ✅ Fully Paid Online (Do Not Collect Cash)
-                      </span>
-                    );
-                  })()}
-                </div>
+              {/* Verification OTP Note */}
+              <div className="rounded-2xl bg-muted/60 border border-border p-3.5 flex items-start gap-2.5 text-xs text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Doorstep Verification:</strong> Ask the customer for the 4-digit Delivery OTP upon handing over the package to mark this order as completed.
+                </span>
               </div>
 
               {/* Close Button */}
@@ -1635,27 +2036,20 @@ function DeliveryDashboard() {
       <Dialog open={!!upiQrModalOrder} onOpenChange={(open) => !open && setUpiQrModalOrder(null)}>
         <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-center text-lg font-bold">Customer UPI Scan & Pay</DialogTitle>
+            <DialogTitle className="text-center text-lg font-bold flex items-center justify-center gap-2">
+              <Smartphone className="h-5 w-5 text-emerald-600" />
+              Collect UPI / QR Payment
+            </DialogTitle>
             <DialogDescription className="text-center text-xs text-muted-foreground">
-              Show this QR code to the customer to collect payment digitally via Google Pay, PhonePe, Paytm, or BHIM.
+              Collect digital payment from customer at doorstep via Google Pay, PhonePe, Paytm, or any UPI app.
             </DialogDescription>
           </DialogHeader>
 
           {upiQrModalOrder && (
-            <>
-              <div className="p-4 bg-white rounded-2xl border shadow-inner inline-block mx-auto">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                    `upi://pay?pa=vegamart@icici&pn=Vegamart&am=${Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2)}&tn=Order_${upiQrModalOrder.order_number || upiQrModalOrder.id}&cu=INR`
-                  )}`}
-                  alt="UPI QR Code"
-                  className="h-48 w-48 object-contain mx-auto"
-                />
-              </div>
-
-              <div className="space-y-1">
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1">
                 <div className="text-xs text-muted-foreground font-semibold">Amount to Collect</div>
-                <div className="text-2xl font-black text-emerald-600 tabular-nums">
+                <div className="text-3xl font-black text-emerald-600 tabular-nums">
                   ₹{Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2)}
                 </div>
                 <div className="text-[11px] text-muted-foreground font-mono">
@@ -1663,19 +2057,60 @@ function DeliveryDashboard() {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="space-y-2 pt-1">
+                <Button
+                  className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md gap-2"
+                  onClick={() => handleCollectUpiPayment(upiQrModalOrder)}
+                  disabled={isCollectingUpi || confirmCashMutation.isPending}
+                >
+                  {isCollectingUpi ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <QrCode className="h-4 w-4" />
+                  )}
+                  {isCollectingUpi ? "Opening UPI Gateway..." : "Open Live UPI QR Code"}
+                </Button>
+
                 <Button
                   variant="outline"
-                  className="w-full h-11 rounded-2xl font-bold"
+                  className="w-full h-12 rounded-2xl border-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-bold text-sm shadow-xs gap-2"
+                  onClick={() => handleConfirmCashPayment(upiQrModalOrder)}
+                  disabled={isCollectingUpi || confirmCashMutation.isPending}
+                >
+                  {confirmCashMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Banknote className="h-4 w-4 text-amber-600" />
+                  )}
+                  Confirm Cash Payment Received (₹{Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2)})
+                </Button>
+
+                <p className="text-[11px] text-muted-foreground leading-relaxed px-2">
+                  Customer can scan your live UPI QR code to pay digitally, or pay in cash and you confirm receipt above.
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-muted/60 p-2.5 text-left text-[11px] text-muted-foreground flex items-start gap-2 border">
+                <Info className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  Customer can also tap <strong>Pay Online (UPI / QR / Card)</strong> directly on their own phone in Live Order Tracking.
+                </span>
+              </div>
+
+              <div className="pt-1">
+                <Button
+                  variant="outline"
+                  className="w-full h-10 rounded-xl font-bold text-xs"
                   onClick={() => {
                     setUpiQrModalOrder(null);
                     refetchRequests();
+                    queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
                   }}
                 >
-                  Close / Refresh
+                  Close / Refresh Status
                 </Button>
               </div>
-            </>
+            </div>
           )}
         </DialogContent>
       </Dialog>

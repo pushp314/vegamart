@@ -184,7 +184,8 @@ export async function incrementAttempts(id: string): Promise<void> {
 
 export async function findByMasterOrderId(masterOrderId: string, db: DbClient = prisma): Promise<any | null> {
   return await db.payment.findFirst({
-    where: { master_order_id: masterOrderId, status: "PAID" },
+    where: { master_order_id: masterOrderId },
+    orderBy: { created_at: "desc" },
     select: baseSelect,
   });
 }

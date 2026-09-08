@@ -190,6 +190,11 @@ export const markDelivered = asyncHandler(async (req: Request, res: Response) =>
   return sendSuccess(res, data, { message: "Order marked as delivered." });
 });
 
+export const confirmCashPayment = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.confirmCashPayment(req.user!.id, req.params.id as string, req);
+  return sendSuccess(res, data, { message: "Cash payment confirmed successfully." });
+});
+
 export const submitDeliveryKyc = asyncHandler(async (req: Request, res: Response) => {
   const data = await deliveryService.submitDeliveryKyc(req.user!.id, req.body as DeliveryKycBody, req);
   return sendCreated(res, data, "Documents submitted.");

@@ -17,6 +17,7 @@ import {
   confirmPickup,
   updateDeliveryLocation,
   markDelivered,
+  confirmCashPayment,
   submitDeliveryKyc,
   getDeliveryTracking,
   getDeliveryWallet,
@@ -152,6 +153,20 @@ router.put(
   requireRole(ROLES.DELIVERY_PARTNER),
   validate({ params: orderIdAliasParamsSchema, body: deliveredOtpSchema }),
   markDelivered
+);
+router.post(
+  "/delivery/orders/:id/confirm-cash",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  validate({ params: orderIdAliasParamsSchema }),
+  confirmCashPayment
+);
+router.post(
+  "/delivery/order/:id/confirm-cash",
+  authenticate,
+  requireRole(ROLES.DELIVERY_PARTNER),
+  validate({ params: orderIdAliasParamsSchema }),
+  confirmCashPayment
 );
 router.post("/delivery/me/kyc", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryKycSchema }), submitDeliveryKyc);
 router.get("/delivery/order/:id/tracking", authenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);

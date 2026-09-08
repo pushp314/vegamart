@@ -96,7 +96,12 @@ export const paymentService = {
     if (!order) {
       throw new NotFoundError("Order not found.");
     }
-    if (order.user_id !== userId) {
+    const isOwner = order.user_id === userId;
+    const isAssignedDelivery = req.user?.role === "delivery" && (
+      (isMaster && order.delivery_partner_id && order.delivery_partner_id === req.user?.delivery_id) ||
+      (!isMaster && order.delivery_partner_id && order.delivery_partner_id === req.user?.delivery_id)
+    );
+    if (!isOwner && !isAssignedDelivery) {
       throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
     }
 
@@ -493,7 +498,13 @@ export const paymentService = {
   async resolveOrderContext(orderId: string) {
     let order: any = await findOrderById(orderId);
     let isMasterOrder = false;
-    if (!order) {
+    if (order && order.master_order_id) {
+      const masterOrder = await findMasterOrderById(order.master_order_id);
+      if (masterOrder) {
+        order = masterOrder;
+        isMasterOrder = true;
+      }
+    } else if (!order) {
       const masterOrder = await findMasterOrderById(orderId);
       if (!masterOrder) {
         throw new NotFoundError("Order not found.");
@@ -514,7 +525,12 @@ export const paymentService = {
 
   async retryPayment(userId: string, orderId: string, _req: Request) {
     const { order, isMasterOrder, userIdOwner, paymentStatus, orderStatus, orderNumber, orderTotal } = await this.resolveOrderContext(orderId);
-    if (userIdOwner !== userId) {
+    const isOwner = userIdOwner === userId;
+    const isAssignedDelivery = _req.user?.role === "delivery" && (
+      (isMasterOrder && order.delivery_partner_id && order.delivery_partner_id === _req.user?.delivery_id) ||
+      (!isMasterOrder && order.delivery_partner_id && order.delivery_partner_id === _req.user?.delivery_id)
+    );
+    if (!isOwner && !isAssignedDelivery) {
       throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
     }
     if (paymentStatus === "PAID") {

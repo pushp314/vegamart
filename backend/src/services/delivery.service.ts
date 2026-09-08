@@ -703,27 +703,45 @@ export const deliveryService = {
       orderBy: { created_at: "asc" },
       take: 50,
       include: {
-        customer: { select: { name: true, phone: true, avatar_url: true } },
+        customer: { select: { id: true, name: true, phone: true, avatar_url: true } },
         address: true,
         orders: {
           include: {
-            vendor: { select: { id: true, business_name: true, latitude: true, longitude: true, phone: true } },
+            vendor: {
+              select: {
+                id: true,
+                business_name: true,
+                owner_name: true,
+                phone: true,
+                address: true,
+                landmark: true,
+                city: true,
+                state: true,
+                pincode: true,
+                latitude: true,
+                longitude: true,
+                category: true,
+                logo_url: true,
+                business_hours: true,
+                is_open: true,
+              },
+            },
             items: true,
           }
         },
       }
     });
 
-    // ── MULTI-VENDOR ONLY ──────────────────────────────────────────────
-    // The delivery panel must only show orders that span multiple vendors.
-    // Single-vendor orders are handled directly by the vendor's own
-    // delivery mechanism and should NOT appear on the delivery partner radar.
-    const multiVendorRows = rows.filter((m: any) => {
+    // ── MULTI-VENDOR OR VEGAMART DELIVERY ────────────────────────────
+    // Show orders that span multiple vendors OR single-vendor orders where
+    // customer chose VegaMart Delivery fleet.
+    const eligibleRows = rows.filter((m: any) => {
       const uniqueVendorIds = new Set(m.orders.map((o: any) => o.vendor_id));
-      return uniqueVendorIds.size > 1;
+      if (uniqueVendorIds.size > 1) return true;
+      return m.orders.some((o: any) => isVegaMartDeliveryPartnerOrder(o.delivery_note));
     });
 
-    return multiVendorRows.map((m: any) => {
+    return eligibleRows.map((m: any) => {
       const items = m.orders.flatMap((o: any) => o.items);
       const vendors = m.orders.map((o: any) => o.vendor);
       
@@ -743,16 +761,19 @@ export const deliveryService = {
         created_at: m.created_at,
         payment: m.orders[0]?.payment,
         items: items,
-        vendor: { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations" },
+        vendor: vendors.length === 1 && vendors[0] ? vendors[0] : { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations", phone: vendors.find((v: any) => v?.phone)?.phone || null },
+        vendors: vendors,
         sub_orders: m.orders.map((o: any) => ({
            id: o.id,
            order_number: o.order_number,
            status: o.status,
            vendor: o.vendor,
            total: o.total,
+           delivery_note: o.delivery_note,
            items: o.items,
         })),
         customer: m.customer,
+        user: m.customer,
         address: m.address,
       };
     });
@@ -767,11 +788,29 @@ export const deliveryService = {
       where: { delivery_partner_id: partner.id },
       orderBy: { created_at: "desc" },
       include: {
-        customer: { select: { name: true, phone: true, avatar_url: true } },
+        customer: { select: { id: true, name: true, phone: true, avatar_url: true } },
         address: true,
         orders: {
           include: {
-            vendor: { select: { id: true, business_name: true, latitude: true, longitude: true, phone: true } },
+            vendor: {
+              select: {
+                id: true,
+                business_name: true,
+                owner_name: true,
+                phone: true,
+                address: true,
+                landmark: true,
+                city: true,
+                state: true,
+                pincode: true,
+                latitude: true,
+                longitude: true,
+                category: true,
+                logo_url: true,
+                business_hours: true,
+                is_open: true,
+              },
+            },
             items: true,
             payment: { select: { amount: true, method: true, status: true, gateway_response: true } },
           }
@@ -799,7 +838,7 @@ export const deliveryService = {
         created_at: m.created_at,
         payment: m.orders[0]?.payment,
         items: items,
-        vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations" },
+        vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations", phone: vendors.find((v: any) => v?.phone)?.phone || null },
         vendors: vendors,
         sub_orders: m.orders.map((o: any) => ({
            id: o.id,
@@ -807,9 +846,11 @@ export const deliveryService = {
            status: o.status,
            vendor: o.vendor,
            total: o.total,
+           delivery_note: o.delivery_note,
            items: o.items,
         })),
         customer: m.customer,
+        user: m.customer,
         address: m.address,
       };
     });
@@ -1168,7 +1209,22 @@ export const deliveryService = {
 
     await prisma.masterOrder.update({
       where: { id: orderId },
-      data: { status: "DELIVERED" }
+      data: {
+        status: "DELIVERED",
+        payment_status: "PAID",
+      },
+    });
+
+    for (const order of activeOrders) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { payment_status: "PAID" },
+      });
+    }
+
+    await prisma.payment.updateMany({
+      where: { master_order_id: orderId, status: "PENDING" },
+      data: { status: "PAID" },
     });
 
     const uniqueVendors = new Set(activeOrders.map(o => o.vendor_id)).size;
@@ -1197,6 +1253,119 @@ export const deliveryService = {
 
     // Push real-time update to customer's tracking page
     realtime.publishOrderStatus(orderId, "DELIVERED");
+  },
+
+  async confirmCashPayment(userId: string, orderId: string, req: Request) {
+    const partner = await deliveryRepo.findByUserId(userId);
+    if (!partner) {
+      throw new NotFoundError("Delivery partner profile not found.");
+    }
+    let masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: { orders: { include: { vendor: true } } }
+    });
+    if (!masterOrder) {
+      const subOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { master_order_id: true }
+      });
+      if (subOrder?.master_order_id) {
+        masterOrder = await prisma.masterOrder.findUnique({
+          where: { id: subOrder.master_order_id },
+          include: { orders: { include: { vendor: true } } }
+        });
+      }
+    }
+    if (!masterOrder) {
+      throw new NotFoundError("Order not found.");
+    }
+    if (masterOrder.delivery_partner_id !== partner.id) {
+      throw new ForbiddenError("You are not assigned to this order.");
+    }
+    if (masterOrder.payment_status === "PAID") {
+      return { success: true, message: "Order is already paid.", order_id: masterOrder.id };
+    }
+
+    const activeOrders = masterOrder.orders.filter((o: any) => o.status !== "CANCELLED" && o.status !== "FAILED");
+
+    await prisma.$transaction(async (tx: any) => {
+      await tx.masterOrder.update({
+        where: { id: masterOrder.id },
+        data: {
+          payment_status: "PAID",
+          payment_method: "COD",
+        },
+      });
+
+      for (const order of activeOrders) {
+        await tx.order.update({
+          where: { id: order.id },
+          data: {
+            payment_status: "PAID",
+            payment_method: "COD",
+          },
+        });
+      }
+
+      await tx.payment.updateMany({
+        where: { master_order_id: masterOrder.id, status: "PENDING" },
+        data: {
+          status: "PAID",
+          method: "COD",
+        },
+      });
+
+      const firstOrder = activeOrders[0];
+      const existingPayment = await tx.payment.findFirst({
+        where: { master_order_id: masterOrder.id },
+        orderBy: { created_at: "desc" },
+      });
+
+      if (firstOrder && existingPayment) {
+        await tx.transaction.create({
+          data: {
+            order_id: firstOrder.id,
+            payment_id: existingPayment.id,
+            user_id: masterOrder.user_id,
+            type: "DEBIT",
+            amount: masterOrder.total_amount,
+            status: "success",
+            reference: `CASH_COLLECTED_${partner.id}`,
+            metadata: {
+              collected_by_partner_id: partner.id,
+              collected_at: new Date().toISOString(),
+              method: "COD",
+            },
+          },
+        });
+      }
+    });
+
+    await auditService.record(
+      {
+        userId,
+        actorType: "delivery",
+        action: AUDIT_ACTIONS.PAYMENT_VERIFIED,
+        entityType: "order",
+        entityId: masterOrder.id,
+        newValues: { payment_method: "COD", payment_status: "PAID", collected_by: partner.id },
+      },
+      req
+    );
+
+    await notificationService.orderStatus(
+      masterOrder.user_id,
+      masterOrder.order_number,
+      "Cash Payment Confirmed 💵",
+      `Cash payment of ₹${Number(masterOrder.total_amount).toFixed(2)} received by your delivery partner.`,
+      { order_id: masterOrder.id },
+    );
+
+    return {
+      success: true,
+      message: "Cash payment confirmed successfully!",
+      order_id: masterOrder.id,
+    };
   },
 
   async submitDeliveryKyc(
