@@ -852,15 +852,19 @@ export const deliveryService = {
     return rows.map((m: any) => {
       const items = m.orders.flatMap((o: any) => o.items);
       const vendors = m.orders.map((o: any) => o.vendor);
+      const itemsSubtotal = m.orders.reduce((sum: number, o: any) => sum + Number(o.items_subtotal ?? 0), 0);
+      const itemDiscount = m.orders.reduce((sum: number, o: any) => sum + Number(o.discount ?? 0), 0);
+      const itemTax = m.orders.reduce((sum: number, o: any) => sum + Number(o.tax ?? 0), 0);
       
       return {
         id: m.id,
         order_number: m.order_number,
         status: m.status,
         delivery_fee: m.delivery_fee,
-        items_subtotal: m.total_amount,
-        tax: m.tax,
-        discount: 0,
+        items_subtotal: itemsSubtotal,
+        tax: Number(m.tax ?? itemTax ?? 0),
+        discount: itemDiscount,
+        platform_fee: m.platform_fee,
         total: m.total_amount,
         delivery_note: m.orders[0]?.delivery_note,
         payment_method: m.payment_method,
@@ -875,6 +879,10 @@ export const deliveryService = {
            order_number: o.order_number,
            status: o.status,
            vendor: o.vendor,
+           items_subtotal: Number(o.items_subtotal ?? 0),
+           delivery_fee: Number(o.delivery_fee ?? 0),
+           discount: Number(o.discount ?? 0),
+           tax: Number(o.tax ?? 0),
            total: o.total,
            delivery_note: o.delivery_note,
            items: o.items,

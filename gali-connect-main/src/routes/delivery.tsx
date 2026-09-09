@@ -971,6 +971,35 @@ function DeliveryDashboard() {
                           </span>
                         </div>
 
+                        {(() => {
+                          const subTot = o.sub_orders?.reduce((s: number, so: any) => s + Number(so.items_subtotal ?? 0), 0) || 0;
+                          const itemsSub = Number(o.items_subtotal ?? 0) || subTot;
+                          const fee = Number(o.delivery_fee ?? 0);
+                          const taxC = Number(o.tax ?? 0);
+                          const disc = Number(o.discount ?? 0);
+                          const total = Number(o.total_amount || o.total || 0) || Math.max(0, itemsSub + fee + taxC - disc);
+                          return (
+                            <div className="rounded-xl bg-muted/40 border border-border px-3 py-2 grid grid-cols-4 gap-2 text-center text-[11px]">
+                              <div>
+                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">Items</div>
+                                <div className="font-bold text-foreground">₹{itemsSub.toFixed(2)}</div>
+                              </div>
+                              <div>
+                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">Delivery</div>
+                                <div className="font-bold text-emerald-700">₹{fee.toFixed(2)}</div>
+                              </div>
+                              <div>
+                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">Tax</div>
+                                <div className="font-bold text-foreground">₹{taxC.toFixed(2)}</div>
+                              </div>
+                              <div>
+                                <div className="text-emerald-700 font-semibold uppercase tracking-wider text-[9px]">Total</div>
+                                <div className="font-black text-emerald-700">₹{total.toFixed(2)}</div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         <div className="relative space-y-4">
                           <div className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-border" />
                           {o.sub_orders && o.sub_orders.length > 0 ? (
@@ -1140,7 +1169,7 @@ function DeliveryDashboard() {
                               {(() => {
                                 const isPaid = String(o.payment_status || "").toUpperCase() === "PAID";
                                 const advAmount = Number(o.advance_paid ?? o.payment?.amount ?? 0);
-                                const totAmount = Number(o.total_amount || 0);
+                                const totAmount = Number(o.total_amount || o.total || o.payment?.amount || 0);
                                 const isPartialAdvance = !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
                                 const balAmount = isPartialAdvance ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100) : (isCod ? totAmount : 0);
 
@@ -1420,12 +1449,36 @@ function DeliveryDashboard() {
                               </button>
                             </>
                           ) : (
-                            <button
-                              disabled
-                              className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-muted text-muted-foreground"
-                            >
-                              Out for Delivery
-                            </button>
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedOrderId(o.id);
+                                  setOtpValue("");
+                                  setOtpModalOpen(true);
+                                }}
+                                className="flex-1 py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                              >
+                                <ShieldCheck className="h-4 w-4" /> Enter OTP & Deliver
+                              </button>
+                              {(["PENDING", "PACKED"].includes(String(o.status).toUpperCase())) && (
+                                <button
+                                  onClick={() => {
+                                    const allPickedUp = o.sub_orders ? o.sub_orders.every((sub: any) => sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED" || sub.status === "CANCELLED") : true;
+                                    if (!allPickedUp) {
+                                      toast.error("You must confirm pickup from all active stores first.");
+                                      return;
+                                    }
+                                    updateStatusMutation.mutate({
+                                      orderId: o.id,
+                                      status: "out_for_delivery",
+                                    });
+                                  }}
+                                  className="py-3 px-4 rounded-xl font-bold text-sm transition-colors bg-purple-600 text-white hover:bg-purple-500"
+                                >
+                                  Start Delivery
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -1958,8 +2011,8 @@ function DeliveryDashboard() {
               {(() => {
                 const isModalCod = String(detailsOrder.payment_method || "").toUpperCase() === "COD";
                 const isModalPaid = String(detailsOrder.payment_status || "").toUpperCase() === "PAID";
-                const modalAdv = Number(detailsOrder.advance_paid ?? detailsOrder.payment?.amount ?? 0);
-                const modalTot = Number(detailsOrder.total_amount || 0);
+                const modalAdv = Number(detailsOrder.advance_paid ?? detailsOrder.payment?.amount ?? detailsOrder.advance ?? 0);
+                const modalTot = Number(detailsOrder.total_amount || detailsOrder.total || 0);
                 const modalIsPartial = !isModalCod && isModalPaid && modalAdv > 0 && modalAdv < modalTot;
                 const modalBal = modalIsPartial ? Math.max(0, Math.round((modalTot - modalAdv) * 100) / 100) : (isModalCod ? modalTot : 0);
 
@@ -2044,29 +2097,96 @@ function DeliveryDashboard() {
 
               {/* Billing Breakdown */}
               <div className="rounded-2xl border border-border bg-card p-4 space-y-2 text-xs">
-                <div className="flex justify-between text-muted-foreground font-medium">
-                  <span>Items Subtotal</span>
-                  <span>₹{detailsOrder.subtotal || Math.max(0, detailsOrder.total_amount - (detailsOrder.delivery_fee || 0))}</span>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
+                  <Receipt className="h-3.5 w-3.5" /> Charges Breakdown
                 </div>
-                <div className="flex justify-between text-emerald-600 font-bold">
+
+                {(() => {
+                  const subItems = detailsOrder.sub_orders || [];
+                  const itemsSubtotal = Number(detailsOrder.items_subtotal ?? detailsOrder.subtotal ?? 0) || subItems.reduce((s: number, so: any) => s + Number(so.items_subtotal ?? 0), 0);
+                  const discount = Number(detailsOrder.discount ?? 0) || subItems.reduce((s: number, so: any) => s + Number(so.discount ?? 0), 0);
+                  const deliveryFee = Number(detailsOrder.delivery_fee ?? 0);
+                  const tax = Number(detailsOrder.tax ?? 0) || subItems.reduce((s: number, so: any) => s + Number(so.tax ?? 0), 0);
+                  const platformFee = Number(detailsOrder.platform_fee ?? 0);
+                  const grandTotal = Number(detailsOrder.total_amount ?? detailsOrder.total ?? 0);
+
+                  return (
+                    <>
+                      <div className="flex justify-between text-muted-foreground font-medium">
+                        <span>Items Subtotal</span>
+                        <span className="font-bold text-foreground">₹{itemsSubtotal.toFixed(2)}</span>
+                      </div>
+                      {discount > 0 && (
+                        <div className="flex justify-between text-primary font-medium">
+                          <span>Discount</span>
+                          <span>-₹{discount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-muted-foreground font-medium">
+                        <span>Delivery Charge</span>
+                        <span className="font-bold text-foreground">₹{deliveryFee.toFixed(2)}</span>
+                      </div>
+                      {tax > 0 && (
+                        <div className="flex justify-between text-muted-foreground font-medium">
+                          <span>Taxes</span>
+                          <span className="font-bold text-foreground">₹{tax.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {platformFee > 0 && (
+                        <div className="flex justify-between text-muted-foreground font-medium">
+                          <span>Platform Fee</span>
+                          <span className="font-bold text-foreground">₹{platformFee.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="border-t border-border pt-2 flex justify-between font-black text-sm text-foreground">
+                        <span>Total Order Amount</span>
+                        <span>₹{(grandTotal || (itemsSubtotal + deliveryFee + tax + platformFee - discount)).toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {detailsOrder.sub_orders && detailsOrder.sub_orders.length > 1 && (
+                  <div className="pt-2 border-t border-border space-y-1.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Per Store Charges
+                    </div>
+                    {detailsOrder.sub_orders.map((so: any, soIdx: number) => (
+                      <div key={so.id || soIdx} className="bg-muted/40 border border-border rounded-lg p-2 space-y-1">
+                        <div className="flex justify-between font-bold text-foreground">
+                          <span className="truncate pr-2">{so.vendor?.business_name || `Store ${soIdx + 1}`}</span>
+                          <span className="shrink-0">₹{Number(so.total ?? 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground text-[11px]">
+                          <span>Items</span>
+                          <span>₹{Number(so.items_subtotal ?? 0).toFixed(2)}</span>
+                        </div>
+                        {Number(so.discount ?? 0) > 0 && (
+                          <div className="flex justify-between text-muted-foreground text-[11px]">
+                            <span>Discount</span>
+                            <span>-₹{Number(so.discount ?? 0).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {Number(so.delivery_fee ?? 0) > 0 && (
+                          <div className="flex justify-between text-muted-foreground text-[11px]">
+                            <span>Delivery</span>
+                            <span>₹{Number(so.delivery_fee ?? 0).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {Number(so.tax ?? 0) > 0 && (
+                          <div className="flex justify-between text-muted-foreground text-[11px]">
+                            <span>Tax</span>
+                            <span>₹{Number(so.tax ?? 0).toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-1 flex justify-between text-emerald-600 font-black text-[13px]">
                   <span className="flex items-center gap-1"><Bike className="h-3.5 w-3.5" /> Your Delivery Earning</span>
-                  <span>+₹{detailsOrder.delivery_fee}</span>
-                </div>
-                {detailsOrder.discount > 0 && (
-                  <div className="flex justify-between text-primary font-medium">
-                    <span>Discount</span>
-                    <span>-₹{detailsOrder.discount}</span>
-                  </div>
-                )}
-                {detailsOrder.tax > 0 && (
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Taxes</span>
-                    <span>₹{detailsOrder.tax}</span>
-                  </div>
-                )}
-                <div className="border-t border-border pt-2 flex justify-between font-black text-sm text-foreground">
-                  <span>Total Order Amount</span>
-                  <span>₹{detailsOrder.total_amount}</span>
+                  <span>+₹{Number(detailsOrder.delivery_fee ?? 0).toFixed(2)}</span>
                 </div>
               </div>
 
