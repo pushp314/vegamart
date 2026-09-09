@@ -1379,41 +1379,53 @@ function DeliveryDashboard() {
                         )}
 
                         <div className="flex gap-2 mt-4">
-                          {o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" || o.status === "PREPARING" || o.status === "PICKED_UP" ? (
+                          {o.status === "OUT_FOR_DELIVERY" ? (
                             <button
                               onClick={() => {
-                                const allPickedUp = o.sub_orders ? o.sub_orders.every((sub: any) => sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED" || sub.status === "CANCELLED") : true;
-                                if (!allPickedUp) {
-                                  toast.error("You must confirm pickup from all active stores first.");
-                                  return;
-                                }
-                                updateStatusMutation.mutate({
-                                  orderId: o.id,
-                                  status: "out_for_delivery",
-                                });
+                                setSelectedOrderId(o.id);
+                                setOtpValue("");
+                                setOtpModalOpen(true);
                               }}
-                              className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-purple-600 text-white hover:bg-purple-500"
+                              className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
                             >
-                              Start Customer Delivery
+                              <CheckCircle2 className="h-4 w-4" /> Enter OTP & Deliver
                             </button>
-                          ) : o.status === "OUT_FOR_DELIVERY" ? (
-                             <button
-                               onClick={() => {
-                                 setSelectedOrderId(o.id);
-                                 setOtpValue("");
-                                 setOtpModalOpen(true);
-                               }}
-                               className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
-                             >
-                               <CheckCircle2 className="h-4 w-4" /> Mark Delivered
-                             </button>
+                          ) : o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" || o.status === "PREPARING" || o.status === "PICKED_UP" ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  const allPickedUp = o.sub_orders ? o.sub_orders.every((sub: any) => sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED" || sub.status === "CANCELLED") : true;
+                                  if (!allPickedUp) {
+                                    toast.error("You must confirm pickup from all active stores first.");
+                                    return;
+                                  }
+                                  updateStatusMutation.mutate({
+                                    orderId: o.id,
+                                    status: "out_for_delivery",
+                                  });
+                                }}
+                                className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-purple-600 text-white hover:bg-purple-500"
+                              >
+                                Start Delivery
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedOrderId(o.id);
+                                  setOtpValue("");
+                                  setOtpModalOpen(true);
+                                }}
+                                className="py-3 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                              >
+                                <ShieldCheck className="h-4 w-4" /> Enter OTP
+                              </button>
+                            </>
                           ) : (
-                             <button
-                               disabled
-                               className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-muted text-muted-foreground"
-                             >
-                               Out for Delivery
-                             </button>
+                            <button
+                              disabled
+                              className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-muted text-muted-foreground"
+                            >
+                              Out for Delivery
+                            </button>
                           )}
                         </div>
                       </div>
