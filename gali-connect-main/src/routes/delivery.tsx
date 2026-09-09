@@ -221,6 +221,7 @@ function DeliveryDashboard() {
   // OTP Modal
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [otpValue, setOtpValue] = useState("");
   const [isDelivering, setIsDelivering] = useState(false);
 
@@ -605,7 +606,7 @@ function DeliveryDashboard() {
 
   // ACTIVE RIDER DASHBOARD
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-emerald-500/20 pb-24">
+    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-emerald-500/20 pb-[calc(96px+env(safe-area-inset-bottom))]">
       {/* Top Status Bar */}
       <div className="flex items-center justify-between px-6 py-4 bg-card/90 backdrop-blur-md sticky top-0 z-40 border-b border-border">
         <button
@@ -1412,6 +1413,7 @@ function DeliveryDashboard() {
                             <button
                               onClick={() => {
                                 setSelectedOrderId(o.id);
+                                setSelectedOrder(o);
                                 setOtpValue("");
                                 setOtpModalOpen(true);
                               }}
@@ -1564,7 +1566,14 @@ function DeliveryDashboard() {
       </div>
 
       {/* OTP MODAL */}
-      <Dialog open={otpModalOpen} onOpenChange={setOtpModalOpen}>
+      <Dialog open={otpModalOpen} onOpenChange={(open) => {
+        setOtpModalOpen(open);
+        if (!open) {
+          setSelectedOrderId(null);
+          setSelectedOrder(null);
+          setOtpValue("");
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Enter Delivery OTP</DialogTitle>
@@ -1573,6 +1582,19 @@ function DeliveryDashboard() {
             <p className="text-sm text-muted-foreground">
               Ask the customer for the 6-digit OTP to confirm delivery.
             </p>
+
+            {selectedOrder && selectedOrder.status !== "OUT_FOR_DELIVERY" && (
+              <div className="rounded-xl p-3 text-xs flex items-start gap-2 border bg-amber-50 border-amber-200 text-amber-800">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                <div>
+                  <strong>Order status: {String(selectedOrder.status || "").replace(/_/g, " ")}</strong>
+                  <div className="mt-0.5">
+                    Delivery can only be confirmed once the order is <strong>Out for Delivery</strong>. If you have picked up all items, tap "Start Delivery" first.
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Input
               type="text"
               placeholder="Enter 6-digit OTP"
@@ -1587,6 +1609,7 @@ function DeliveryDashboard() {
                 onClick={() => {
                   setOtpModalOpen(false);
                   setSelectedOrderId(null);
+                  setSelectedOrder(null);
                   setOtpValue("");
                 }}
                 className="flex-1"
@@ -1604,6 +1627,7 @@ function DeliveryDashboard() {
                         queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
                         setOtpModalOpen(false);
                         setSelectedOrderId(null);
+                        setSelectedOrder(null);
                         setOtpValue("");
                       })
                       .catch((err) => toast.error(err?.message || "Failed to mark delivered"))
