@@ -358,11 +358,17 @@ function DeliveryDashboard() {
   const confirmCashMutation = useMutation({
     mutationFn: (orderId: string) =>
       api.post(`/delivery/orders/${orderId}/confirm-cash`, {}),
-    onSuccess: (res: any) => {
+    onSuccess: (res: any, orderId: string) => {
       queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
       queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
       setUpiQrModalOrder(null);
-      toast.success(res?.message || "Cash payment confirmed successfully! 💵");
+      toast.success(res?.message || "Cash payment confirmed successfully!");
+      const order = myDeliveries.find((o: any) => o.id === orderId);
+      if (order && order.status !== "OUT_FOR_DELIVERY") {
+        setTimeout(() => {
+          toast.info("Next step: Tap 'Start Customer Delivery' to begin delivery, then use OTP to confirm handover.", { duration: 6000 });
+        }, 1500);
+      }
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to confirm cash payment.");
@@ -1154,33 +1160,41 @@ function DeliveryDashboard() {
 
                                 if (isCod) {
                                   return (
-                                    <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
-                                      <div className="font-black text-sm text-amber-600">
-                                        Collect Cash/UPI: ₹{totAmount.toFixed(2)}
+                                    <div className="mt-2 space-y-2">
+                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="font-black text-sm text-amber-600">
+                                          Collect Cash/UPI: ₹{totAmount.toFixed(2)}
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleConfirmCashPayment(o);
+                                            }}
+                                            disabled={confirmCashMutation.isPending}
+                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:text-amber-300 px-2.5 py-1 rounded-lg transition-colors border border-amber-300/40"
+                                          >
+                                            <Banknote className="h-3 w-3" /> Confirm Cash
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setUpiQrModalOrder(o);
+                                            }}
+                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors border border-emerald-300/40"
+                                          >
+                                            <QrCode className="h-3 w-3" /> Show UPI QR
+                                          </button>
+                                        </div>
                                       </div>
-                                      <div className="flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleConfirmCashPayment(o);
-                                          }}
-                                          disabled={confirmCashMutation.isPending}
-                                          className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:text-amber-300 px-2.5 py-1 rounded-lg transition-colors border border-amber-300/40"
-                                        >
-                                          <Banknote className="h-3 w-3" /> Confirm Cash
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setUpiQrModalOrder(o);
-                                          }}
-                                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors border border-emerald-300/40"
-                                        >
-                                          <QrCode className="h-3 w-3" /> Show UPI QR
-                                        </button>
-                                      </div>
+                                      {o.status !== "OUT_FOR_DELIVERY" && (
+                                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                          <Info className="h-3 w-3" />
+                                          Collect payment, then tap "Start Customer Delivery" → use OTP at doorstep.
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 }

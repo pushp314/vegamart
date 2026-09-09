@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import { GUEST_USER_ID } from "../constants";
 import { verifyAccessToken } from "../services/token.service";
 import { findActiveById as findActiveSessionById } from "../repositories/session.repository";
+import { findById as findUserById } from "../repositories/user.repository";
 import { UnauthorizedError } from "../utils/ApiError";
 
 function extractBearerToken(req: Request): string | null {
@@ -15,6 +16,23 @@ function extractBearerToken(req: Request): string | null {
     return null;
   }
   return token.trim();
+}
+
+async function hydrateProfileId(user: { id: string; role: string; vendor_id?: string | null; delivery_id?: string | null }): Promise<void> {
+  if (user.role !== "delivery" && user.role !== "vendor") return;
+  if (user.vendor_id || user.delivery_id) return;
+  try {
+    const dbUser = await findUserById(user.id, {
+      vendor: user.role === "vendor",
+      delivery: user.role === "delivery",
+    });
+    if (dbUser) {
+      user.vendor_id = (dbUser as any).vendor_profile?.id ?? null;
+      user.delivery_id = (dbUser as any).delivery_profile?.id ?? null;
+    }
+  } catch {
+    // Non-critical — downstream services that need these IDs will re-check
+  }
 }
 
 function buildGuestUser(): Express.Request["user"] {
@@ -69,6 +87,8 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       session_id: claims.session_id ?? null,
     };
 
+    await hydrateProfileId(req.user);
+
     next();
   } catch (error) {
     next(error);
@@ -114,6 +134,7 @@ export async function optionalAuthenticate(req: Request, _res: Response, next: N
       is_verified: false,
       session_id: claims.session_id ?? null,
     };
+    await hydrateProfileId(req.user);
     next();
   } catch {
     next();
