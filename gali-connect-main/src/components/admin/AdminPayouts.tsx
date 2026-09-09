@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -57,7 +58,7 @@ interface VendorPayoutItem {
 
 export function AdminPayouts() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"balances" | "requests">("balances");
+  const [activeTab, setActiveTab] = useState<"balances" | "requests" | "cash_settlements">("balances");
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"ALL" | "READY" | "MISSING_BANK">("ALL");
   const [selectedVendor, setSelectedVendor] = useState<VendorPayoutItem | null>(null);
@@ -72,6 +73,13 @@ export function AdminPayouts() {
   const [isProcessRequestModalOpen, setIsProcessRequestModalOpen] = useState(false);
   const [requestAction, setRequestAction] = useState<"APPROVE" | "REJECT">("APPROVE");
   const [adminNotes, setAdminNotes] = useState("");
+
+  // Cash Settlements processing state
+  const [settlementFilter, setSettlementFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED">("ALL");
+  const [selectedSettlement, setSelectedSettlement] = useState<any | null>(null);
+  const [isProcessSettlementModalOpen, setIsProcessSettlementModalOpen] = useState(false);
+  const [settlementAction, setSettlementAction] = useState<"APPROVE" | "REJECT">("APPROVE");
+  const [settlementAdminNotes, setSettlementAdminNotes] = useState("");
 
   // Fetch summary
   const {
@@ -106,6 +114,47 @@ export function AdminPayouts() {
     queryFn: () => api.get<any>("/admin/payouts/requests"),
   });
   const payoutRequests: any[] = requestsRes?.data?.data || requestsRes?.data || [];
+
+  // Fetch rider cash settlements queue
+  const {
+    data: settlementsRes,
+    isLoading: isSettlementsLoading,
+    refetch: refetchSettlements,
+  } = useQuery({
+    queryKey: ["adminCashSettlements", settlementFilter],
+    queryFn: () =>
+      api.get<any>(
+        `/admin/payouts/cash-settlements${settlementFilter !== "ALL" ? `?status=${settlementFilter}` : ""}`
+      ),
+  });
+  const settlementsData = settlementsRes?.data?.data || settlementsRes?.data || {};
+  const settlements: any[] = settlementsData?.records || (Array.isArray(settlementsData) ? settlementsData : []);
+  const settlementsSummary = settlementsData?.summary || {
+    pending_amount: 0,
+    pending_count: 0,
+    approved_amount: 0,
+    approved_count: 0,
+  };
+
+  const reviewSettlementMutation = useMutation({
+    mutationFn: ({ id, action, admin_notes }: { id: string; action: string; admin_notes?: string }) =>
+      api.post(`/admin/payouts/cash-settlements/${id}/review`, { action, admin_notes }),
+    onSuccess: () => {
+      toast.success(
+        settlementAction === "APPROVE"
+          ? "Cash settlement approved! Rider cash-in-hand balance reduced."
+          : "Cash settlement rejected."
+      );
+      setIsProcessSettlementModalOpen(false);
+      setSelectedSettlement(null);
+      setSettlementAdminNotes("");
+      queryClient.invalidateQueries({ queryKey: ["adminCashSettlements"] });
+      queryClient.invalidateQueries({ queryKey: ["adminDeliveryList"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || "Failed to process cash settlement.");
+    },
+  });
 
   // Single disburse mutation
   const disburseMutation = useMutation({
@@ -378,6 +427,23 @@ export function AdminPayouts() {
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => setActiveTab("cash_settlements")}
+          className={`px-4 py-2.5 text-xs font-bold rounded-2xl transition-all flex items-center gap-2 ${
+            activeTab === "cash_settlements"
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          }`}
+        >
+          <Banknote className="h-4 w-4" />
+          Rider Cash Drops / Settlements ({settlements.length})
+          {settlementsSummary.pending_count > 0 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-extrabold animate-pulse">
+              {settlementsSummary.pending_count} Pending
+            </span>
+          )}
+        </button>
       </div>
 
       {activeTab === "balances" ? (
@@ -522,7 +588,7 @@ export function AdminPayouts() {
             </div>
           )}
         </div>
-      ) : (
+      ) : activeTab === "requests" ? (
         /* On-Demand Withdrawal Requests Queue */
         <div className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
@@ -655,7 +721,345 @@ export function AdminPayouts() {
             </div>
           )}
         </div>
+      ) : (
+        /* Tab 3: Rider Cash Settlements Review Queue */
+        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-6">
+          {/* Header & Metrics */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-display font-bold text-lg text-foreground">
+                Rider Cash-in-Hand Settlement Verifications
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Review and approve cash deposits remitted by delivery partners to lower their cash-in-hand balance.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant={settlementFilter === "ALL" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSettlementFilter("ALL")}
+                className="rounded-xl text-xs h-8"
+              >
+                All
+              </Button>
+              <Button
+                variant={settlementFilter === "PENDING" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSettlementFilter("PENDING")}
+                className="rounded-xl text-xs h-8 text-amber-600 dark:text-amber-400"
+              >
+                Pending ({settlementsSummary.pending_count})
+              </Button>
+              <Button
+                variant={settlementFilter === "APPROVED" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSettlementFilter("APPROVED")}
+                className="rounded-xl text-xs h-8 text-emerald-600 dark:text-emerald-400"
+              >
+                Approved ({settlementsSummary.approved_count})
+              </Button>
+              <Button
+                variant={settlementFilter === "REJECTED" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSettlementFilter("REJECTED")}
+                className="rounded-xl text-xs h-8 text-rose-600 dark:text-rose-400"
+              >
+                Rejected
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchSettlements()}
+                className="rounded-xl h-8 w-8 p-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSettlementsLoading ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Metrics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                  Pending Verification
+                </span>
+                <div className="font-display font-black text-2xl text-foreground mt-1 font-mono">
+                  ₹{settlementsSummary.pending_amount.toLocaleString("en-IN")}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Across {settlementsSummary.pending_count} pending deposit requests
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-amber-500/15 text-amber-600 grid place-items-center">
+                <Clock className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Total Approved Remittances
+                </span>
+                <div className="font-display font-black text-2xl text-foreground mt-1 font-mono">
+                  ₹{settlementsSummary.approved_amount.toLocaleString("en-IN")}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {settlementsSummary.approved_count} successful cash deposits cleared
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/15 text-emerald-600 grid place-items-center">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          {isSettlementsLoading ? (
+            <div className="py-12 flex flex-col items-center justify-center text-muted-foreground gap-2">
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+              <p className="text-xs">Loading cash settlement records...</p>
+            </div>
+          ) : settlements.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-xs italic">
+              No cash settlements match the selected filter.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border">
+                  <tr>
+                    <th className="py-3.5 px-4">Date &amp; Time</th>
+                    <th className="py-3.5 px-4">Delivery Partner</th>
+                    <th className="py-3.5 px-4">Deposit Amount</th>
+                    <th className="py-3.5 px-4">Mode</th>
+                    <th className="py-3.5 px-4">UTR / Ref No</th>
+                    <th className="py-3.5 px-4">Rider Notes</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {settlements.map((item: any) => (
+                    <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="font-semibold text-foreground">
+                          {new Date(item.created_at).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          {new Date(item.created_at).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-foreground">
+                          {item.delivery_partner?.user?.name || "Delivery Partner"}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {item.delivery_partner?.user?.phone || item.delivery_partner?.vehicle_number || "—"}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <div className="font-mono font-black text-sm text-foreground">
+                          ₹{Number(item.amount).toFixed(2)}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-secondary text-secondary-foreground border border-border">
+                          {item.mode.replace(/_/g, " ")}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-[11px] text-foreground">
+                        {item.reference_id || <span className="text-muted-foreground italic">None</span>}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-[11px] max-w-[200px] truncate text-muted-foreground">
+                        {item.notes || "—"}
+                        {item.admin_notes && (
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                            Admin: {item.admin_notes}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase ${
+                            item.status === "APPROVED"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                              : item.status === "REJECTED"
+                              ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/20"
+                              : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20 animate-pulse"
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        {item.status === "PENDING" ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedSettlement(item);
+                                setSettlementAction("APPROVE");
+                                setSettlementAdminNotes("");
+                                setIsProcessSettlementModalOpen(true);
+                              }}
+                              className="rounded-xl font-bold text-xs h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedSettlement(item);
+                                setSettlementAction("REJECT");
+                                setSettlementAdminNotes("");
+                                setIsProcessSettlementModalOpen(true);
+                              }}
+                              className="rounded-xl font-bold text-xs h-8 px-3 border-rose-200 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground italic">
+                            Reviewed {item.reviewed_at ? new Date(item.reviewed_at).toLocaleDateString("en-IN") : ""}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
+
+      {/* Process Cash Settlement Modal */}
+      <Dialog open={isProcessSettlementModalOpen} onOpenChange={setIsProcessSettlementModalOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-display text-xl font-bold">
+              {settlementAction === "APPROVE" ? (
+                <>
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                  Approve Cash Settlement
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="h-6 w-6 text-rose-600" />
+                  Reject Cash Settlement
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {settlementAction === "APPROVE"
+                ? "Approving this deposit will immediately reduce the rider's cash-in-hand balance."
+                : "Enter the reason for rejecting this cash remittance."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSettlement && (
+            <div className="space-y-4 py-2">
+              <div className="p-4 rounded-2xl bg-muted/60 border border-border text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Delivery Partner:</span>
+                  <strong className="text-foreground">
+                    {selectedSettlement.delivery_partner?.user?.name || "Rider"}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Deposit Amount:</span>
+                  <strong className="text-foreground font-mono text-sm">
+                    ₹{Number(selectedSettlement.amount).toFixed(2)}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Payment Mode:</span>
+                  <span className="font-semibold uppercase">{selectedSettlement.mode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Reference / UTR:</span>
+                  <span className="font-mono text-foreground">
+                    {selectedSettlement.reference_id || "None provided"}
+                  </span>
+                </div>
+                {selectedSettlement.notes && (
+                  <div className="pt-1 border-t border-border/60 text-muted-foreground italic">
+                    Note: &quot;{selectedSettlement.notes}&quot;
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">
+                  {settlementAction === "APPROVE" ? "Admin Approval Note (Optional)" : "Rejection Reason (Required)"}
+                </Label>
+                <Input
+                  placeholder={
+                    settlementAction === "APPROVE"
+                      ? "e.g. Bank credit confirmed on 8th Sep"
+                      : "e.g. UTR not reflected in Vegamart bank account"
+                  }
+                  value={settlementAdminNotes}
+                  onChange={(e) => setSettlementAdminNotes(e.target.value)}
+                  className="rounded-xl text-xs"
+                />
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsProcessSettlementModalOpen(false)}
+                  className="rounded-xl text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={
+                    reviewSettlementMutation.isPending ||
+                    (settlementAction === "REJECT" && !settlementAdminNotes.trim())
+                  }
+                  onClick={() => {
+                    reviewSettlementMutation.mutate({
+                      id: selectedSettlement.id,
+                      action: settlementAction,
+                      admin_notes: settlementAdminNotes.trim() || undefined,
+                    });
+                  }}
+                  className={`rounded-xl font-bold text-xs ${
+                    settlementAction === "APPROVE"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : "bg-rose-600 hover:bg-rose-700 text-white"
+                  }`}
+                >
+                  {reviewSettlementMutation.isPending && (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  )}
+                  {settlementAction === "APPROVE" ? "Confirm & Clear Cash" : "Confirm Rejection"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Process On-Demand Withdrawal Request Modal */}
       <Dialog open={isProcessRequestModalOpen} onOpenChange={setIsProcessRequestModalOpen}>

@@ -185,6 +185,12 @@ enum PayoutRequestStatus {
   FAILED     @map("failed")
 }
 
+enum CashSettlementStatus {
+  PENDING  @map("pending")
+  APPROVED @map("approved")
+  REJECTED @map("rejected")
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Identity & Access
 // ──────────────────────────────────────────────────────────────────────────────
@@ -632,15 +638,17 @@ model DeliveryProfile {
   bank_name                String?            @db.VarChar(100)
   upi_id                   String?            @db.VarChar(100)
   payout_enabled           Boolean            @default(true)
-  created_at          DateTime           @default(now())
-  updated_at          DateTime           @updatedAt
-  deleted_at          DateTime?
+  max_cash_in_hand         Decimal            @default(3000) @db.Decimal(10, 2)
+  created_at               DateTime           @default(now())
+  updated_at               DateTime           @updatedAt
+  deleted_at               DateTime?
 
-  user            User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  orders          Order[]           @relation("AssignedOrders")
-  master_orders   MasterOrder[]     @relation("AssignedMasterOrders")
-  earnings        DeliveryEarning[]
-  payout_requests PayoutRequest[]
+  user             User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  orders           Order[]                  @relation("AssignedOrders")
+  master_orders    MasterOrder[]            @relation("AssignedMasterOrders")
+  earnings         DeliveryEarning[]
+  payout_requests  PayoutRequest[]
+  cash_settlements DeliveryCashSettlement[]
 
   @@index([user_id])
   @@index([status])
@@ -1199,6 +1207,29 @@ model PayoutRequest {
   @@index([status])
   @@index([created_at])
   @@map("payout_requests")
+}
+
+model DeliveryCashSettlement {
+  id                  String               @id @default(uuid()) @db.Uuid
+  delivery_partner_id String               @db.Uuid
+  amount              Decimal              @db.Decimal(10, 2)
+  mode                String               @default("UPI") @db.VarChar(50) // "UPI" | "BANK_TRANSFER" | "HUB_CASH_DROP"
+  reference_id        String?              @db.VarChar(120)
+  proof_url           String?              @db.VarChar(500)
+  notes               String?              @db.VarChar(500)
+  status              CashSettlementStatus @default(PENDING)
+  admin_notes         String?              @db.VarChar(500)
+  reviewed_by         String?              @db.Uuid
+  reviewed_at         DateTime?
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @updatedAt
+
+  delivery_partner DeliveryProfile @relation(fields: [delivery_partner_id], references: [id], onDelete: Cascade)
+
+  @@index([delivery_partner_id, status])
+  @@index([status])
+  @@index([created_at])
+  @@map("delivery_cash_settlements")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

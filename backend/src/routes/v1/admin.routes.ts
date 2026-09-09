@@ -54,6 +54,9 @@ import {
   getStorageHealthMetrics,
   listPayoutRequests,
   processPayoutRequest,
+  listCashSettlements,
+  reviewCashSettlement,
+  updateDeliveryCashLimit,
   bypassSubOrder,
 } from "../../controllers/admin.controller";
 import {
@@ -103,6 +106,10 @@ import {
   videoAdIdParamsSchema,
   videoAdQuerySchema,
 } from "../../validators/video-ad.validators";
+import {
+  cashSettlementReviewSchema,
+  updateDeliveryCashLimitSchema,
+} from "../../validators/integration.validators";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
@@ -207,6 +214,10 @@ router.post("/payouts/disburse/:vendor_id", validate({ params: vendorIdParamsSch
 router.post("/payouts/disburse-all", disburseAllPendingPayouts);
 router.get("/payouts/export-csv", exportPayoutsCsv);
 
+// Delivery Cash-in-Hand Settlements
+router.get("/payouts/cash-settlements", listCashSettlements);
+router.post("/payouts/cash-settlements/:id/review", validate({ body: cashSettlementReviewSchema }), reviewCashSettlement);
+
 // Customer Disputes & Refunds Hub
 router.get("/disputes", getDisputesQueue);
 
@@ -232,6 +243,11 @@ router.post(
   "/delivery-partners/:delivery_id/restore",
   validate({ params: deliveryIdParamsSchema }),
   restoreDeliveryPartner
+);
+router.patch(
+  "/delivery-partners/:delivery_id/cash-limit",
+  validate({ params: deliveryIdParamsSchema, body: updateDeliveryCashLimitSchema }),
+  updateDeliveryCashLimit
 );
 
 // Reports (rate-limited)

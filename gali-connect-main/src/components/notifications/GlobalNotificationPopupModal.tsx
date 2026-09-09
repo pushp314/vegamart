@@ -14,6 +14,7 @@ import {
   Clock,
   CheckCheck,
   Check,
+  X,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -70,9 +71,27 @@ export function GlobalNotificationPopupModal({
 
   if (!notification) return null;
 
+  // Safely parse data if stored as JSON string
+  let notifData: any = {};
+  if (notification.data) {
+    if (typeof notification.data === "string") {
+      try {
+        notifData = JSON.parse(notification.data);
+      } catch {
+        notifData = {};
+      }
+    } else if (typeof notification.data === "object") {
+      notifData = notification.data;
+    }
+  }
+
   const notifType = (notification.type || "").toLowerCase();
-  const notifData = notification.data || {};
-  const orderId = notifData.order_id || (notifType.includes("order") ? notifData.id : undefined);
+  const orderId =
+    notifData.order_id ||
+    notifData.orderId ||
+    notifData.order_number ||
+    notifData.orderNumber ||
+    (notifType.includes("order") ? notifData.id : undefined);
 
   // Role details config
   const getRoleBadge = () => {
@@ -121,13 +140,35 @@ export function GlobalNotificationPopupModal({
       onAction(notification);
       return;
     }
+
+    const targetOrderId = orderId;
+    const isVendorOrderAlert =
+      userRole === "vendor" &&
+      (Boolean(targetOrderId) ||
+        notifType.includes("order") ||
+        (notification.title || "").toLowerCase().includes("order") ||
+        (notification.message || "").toLowerCase().includes("order"));
+
+    // Dismiss the notification from queue
     onDismiss();
 
-    if (orderId) {
-      if (userRole === "vendor") {
-        navigate({ to: "/vendor/orders", search: { highlight: orderId } as any });
-        return;
+    if (isVendorOrderAlert) {
+      try {
+        if (targetOrderId) {
+          navigate({ to: "/vendor/orders", search: { highlight: targetOrderId } as any });
+        } else {
+          navigate({ to: "/vendor/orders" as any });
+        }
+      } catch {
+        const dest = targetOrderId
+          ? `/vendor/orders?highlight=${encodeURIComponent(targetOrderId)}`
+          : "/vendor/orders";
+        window.location.href = dest;
       }
+      return;
+    }
+
+    if (targetOrderId) {
       if (userRole === "delivery") {
         navigate({ to: "/delivery" });
         return;
@@ -136,7 +177,7 @@ export function GlobalNotificationPopupModal({
         navigate({ to: "/admin/orders" });
         return;
       }
-      navigate({ to: "/orders/$orderId/track", params: { orderId } });
+      navigate({ to: "/orders/$orderId/track", params: { orderId: targetOrderId } });
       return;
     }
 
@@ -146,34 +187,41 @@ export function GlobalNotificationPopupModal({
       return navigate({ to: "/notifications" });
     }
 
-    if (userRole === "vendor") return navigate({ to: "/vendor" });
+    if (userRole === "vendor") return navigate({ to: "/vendor/orders" as any });
     if (userRole === "delivery") return navigate({ to: "/delivery" });
     navigate({ to: "/notifications" });
   };
 
   const getActionLabel = () => {
+    const isVendorOrderAlert =
+      userRole === "vendor" &&
+      (Boolean(orderId) ||
+        notifType.includes("order") ||
+        (notification.title || "").toLowerCase().includes("order") ||
+        (notification.message || "").toLowerCase().includes("order"));
+
+    if (isVendorOrderAlert) return "Visit Order Details";
+
     if (orderId) {
-      if (userRole === "vendor") return "View Order Details";
       if (userRole === "delivery") return "View Delivery Task";
       return "Track Order";
     }
     if (notifType.includes("promo")) return "Explore Offers";
-    if (userRole === "vendor") return "Open Vendor Hub";
+    if (userRole === "vendor") return "Visit Order Details";
     if (userRole === "delivery") return "Open Delivery Hub";
     return "View Notification";
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onDismiss()}>
-      {/* [&>button]:hidden hides the default close button to prevent overlapping with our custom layout */}
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden border border-border shadow-2xl bg-background rounded-2xl animate-in zoom-in-95 duration-200 [&>button]:hidden gap-0">
+      <DialogContent className="sm:max-w-md p-0 overflow-hidden border border-border shadow-2xl bg-background rounded-2xl animate-in zoom-in-95 duration-200 gap-0">
         <div className="p-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex gap-4">
+            <div className="flex gap-4 min-w-0 flex-1">
               <div className={`mt-1 flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full ${roleConfig.bg} ${roleConfig.color} border ${roleConfig.border}`}>
                 <Icon className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-[10px] font-bold uppercase tracking-wider ${roleConfig.color}`}>
                     {roleConfig.label}
@@ -196,15 +244,26 @@ export function GlobalNotificationPopupModal({
                 <p className="text-sm text-muted-foreground leading-relaxed mt-1">
                   {notification.message || "You have a new update from Vegamart."}
                 </p>
-                {orderId && (
+                {(orderId || notifData.order_number) && (
                   <div className="mt-2">
                     <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium text-foreground bg-muted px-2 py-1 rounded-md">
-                      Order #{notifData.order_number || orderId.slice(0, 8)}
+                      Order #{notifData.order_number || String(orderId).slice(0, 8)}
                     </span>
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Cut / Close (X) button */}
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors shrink-0 -mt-1 -mr-1 cursor-pointer"
+              aria-label="Close alert"
+              title="Cut / Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -234,18 +293,18 @@ export function GlobalNotificationPopupModal({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-             <Button
-                type="button"
-                variant="outline"
-                onClick={onDismiss}
-                className="flex-1 sm:flex-none text-xs rounded-lg font-medium h-9"
-              >
-                Dismiss
-              </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onDismiss}
+              className="flex-1 sm:flex-none text-xs rounded-lg font-medium h-9 cursor-pointer"
+            >
+              Dismiss
+            </Button>
             <Button
               type="button"
               onClick={handlePrimaryAction}
-              className="flex-1 sm:flex-none h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm transition-all flex items-center justify-center gap-1.5 text-xs"
+              className="flex-1 sm:flex-none h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
             >
               <span>{getActionLabel()}</span>
               <ChevronRight className="h-3.5 w-3.5" />

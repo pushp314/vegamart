@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Loader2,
   FileBarChart,
+  Banknote,
 } from "lucide-react";
 import { useState } from "react";
 import { CreateDeliveryBoyModal } from "./CreateDeliveryBoyModal";
@@ -145,12 +146,14 @@ export function AdminDelivery({
                 <th className="px-8 py-4">Rider</th>
                 <th className="px-8 py-4">Vehicle</th>
                 <th className="px-8 py-4">Status</th>
+                <th className="px-8 py-4">Cash in Hand</th>
                 <th className="px-8 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
               {deliveryList.map((partner) => {
                 const status = (partner.status || "").toLowerCase();
+                const cash = partner.cash_in_hand;
                 return (
                   <tr key={partner.id} className="hover:bg-muted/50 transition-colors group">
                     <td className="px-8 py-5">
@@ -193,6 +196,41 @@ export function AdminDelivery({
                         {status === "rejected" && <Ban className="h-3 w-3" />}
                         {partner.status || status}
                       </span>
+                    </td>
+                    <td className="px-8 py-5">
+                      {cash ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-mono font-bold ${
+                                cash.is_blocked
+                                  ? "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/20"
+                                  : cash.current > (cash.max_limit * 0.75)
+                                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                                  : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                              }`}
+                            >
+                              <Banknote className="h-3 w-3" />
+                              ₹{cash.current.toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              / ₹{cash.max_limit.toFixed(2)}
+                            </span>
+                          </div>
+                          {cash.is_blocked && (
+                            <span className="text-[10px] font-bold text-rose-600 block">
+                              COD Blocked
+                            </span>
+                          )}
+                          {cash.pending_settlement > 0 && (
+                            <span className="text-[10px] text-amber-600 block">
+                              ₹{cash.pending_settlement.toFixed(2)} deposit pending
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-3">

@@ -39,15 +39,16 @@ function VendorOrdersPage() {
     if (highlight) {
       setSearchQuery(highlight);
       setStatusFilter("ALL");
+      queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
       const timer = setTimeout(() => {
         const el = document.getElementById(`order-card-${highlight}`) || document.querySelector(`[data-order-id="${highlight}"]`);
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
         }
-      }, 250);
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [highlight]);
+  }, [highlight, queryClient]);
 
   const playDing = () => {
     try {
@@ -100,9 +101,14 @@ function VendorOrdersPage() {
 
   // Filter orders
   const filteredOrders = vendorOrders.filter((o: any) => {
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      (o.order_number || o.id).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (o.customer_name || "").toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      (o.order_number && o.order_number.toLowerCase().includes(q)) ||
+      (o.id && o.id.toLowerCase().includes(q)) ||
+      (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
+      (o.user?.name && o.user.name.toLowerCase().includes(q)) ||
+      (o.customer?.name && o.customer.name.toLowerCase().includes(q));
 
     const isLive = ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY"].includes(
       (o.status || "").toUpperCase()

@@ -950,6 +950,26 @@ export const deliveryService = {
       );
     }
 
+    // Cash-In-Hand limit enforcement for COD orders
+    if (masterOrder.payment_method === "COD") {
+      const cashSummary = await this.getCashInHandSummary(partner.id);
+      const orderAmount = Number(masterOrder.total_amount ?? 0);
+      if (cashSummary.current_cash_in_hand + orderAmount > cashSummary.max_cash_in_hand) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          `Cannot accept COD order. Your current unremitted cash-in-hand (₹${cashSummary.current_cash_in_hand.toFixed(2)}) plus this order (₹${orderAmount.toFixed(2)}) exceeds your cash limit (₹${cashSummary.max_cash_in_hand.toFixed(2)}). Please deposit collected cash to accept more COD orders.`,
+          {
+            code: "CASH_LIMIT_EXCEEDED",
+            details: {
+              current_cash_in_hand: String(cashSummary.current_cash_in_hand),
+              max_cash_in_hand: String(cashSummary.max_cash_in_hand),
+              order_amount: String(orderAmount),
+            },
+          }
+        );
+      }
+    }
+
     const claimWhere: Prisma.MasterOrderWhereInput = {
       id: orderId,
       delivery_partner_id: null,
@@ -1710,6 +1730,7 @@ export const deliveryService = {
         reference_id: e.reference_id,
         created_at: e.created_at,
       })),
+      cash_in_hand: await this.getCashInHandSummary(deliveryPartnerId),
     };
   },
 
@@ -1866,5 +1887,287 @@ export const deliveryService = {
     ]);
 
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  },
+
+  /**
+   * Cash-in-hand ledger summary for delivery partners collecting COD.
+   */
+  async getCashInHandSummary(deliveryPartnerId: string) {
+    const db = prisma as any;
+    const partner = await db.deliveryProfile.findUnique({
+      where: { id: deliveryPartnerId },
+      select: { id: true, max_cash_in_hand: true },
+    });
+    if (!partner) throw new NotFoundError("Delivery partner profile not found.");
+
+    // 1. Total COD collected by this partner
+    const codMasterOrders = await prisma.masterOrder.aggregate({
+      where: {
+        delivery_partner_id: deliveryPartnerId,
+        payment_method: "COD",
+        payment_status: "PAID",
+        status: { notIn: ["CANCELLED", "FAILED"] },
+      },
+      _sum: { total_amount: true },
+      _count: { id: true },
+    });
+
+    const codChildOrders = await prisma.order.aggregate({
+      where: {
+        delivery_partner_id: deliveryPartnerId,
+        master_order_id: null,
+        payment_method: "COD",
+        payment_status: "PAID",
+        status: { notIn: ["CANCELLED", "FAILED"] },
+      },
+      _sum: { total: true },
+      _count: { id: true },
+    });
+
+    const totalCodCollected =
+      Number(codMasterOrders._sum.total_amount ?? 0) +
+      Number(codChildOrders._sum.total ?? 0);
+
+    // 2. Approved cash settlements (remitted back to platform)
+    const approvedSettlements = await db.deliveryCashSettlement.aggregate({
+      where: {
+        delivery_partner_id: deliveryPartnerId,
+        status: "APPROVED",
+      },
+      _sum: { amount: true },
+    });
+    const totalCashSettled = Number(approvedSettlements._sum.amount ?? 0);
+
+    // 3. Pending cash settlements (under review)
+    const pendingSettlements = await db.deliveryCashSettlement.aggregate({
+      where: {
+        delivery_partner_id: deliveryPartnerId,
+        status: "PENDING",
+      },
+      _sum: { amount: true },
+    });
+    const totalPendingSettlement = Number(pendingSettlements._sum.amount ?? 0);
+
+    const currentCashInHand = Math.max(0, Math.round((totalCodCollected - totalCashSettled) * 100) / 100);
+    const maxLimit = Number(partner.max_cash_in_hand ?? 3000);
+    const remainingLimit = Math.max(0, Math.round((maxLimit - currentCashInHand) * 100) / 100);
+    const isBlockedForCod = currentCashInHand >= maxLimit;
+
+    return {
+      current_cash_in_hand: currentCashInHand,
+      max_cash_in_hand: maxLimit,
+      remaining_limit: remainingLimit,
+      is_blocked_for_cod: isBlockedForCod,
+      total_cod_collected: totalCodCollected,
+      total_cash_settled: totalCashSettled,
+      total_pending_settlement: totalPendingSettlement,
+      cod_orders_delivered_count: (codMasterOrders._count.id ?? 0) + (codChildOrders._count.id ?? 0),
+    };
+  },
+
+  /**
+   * Submits a cash deposit / settlement request from a rider.
+   */
+  async submitCashSettlement(
+    deliveryPartnerId: string,
+    input: {
+      amount: number;
+      mode: "UPI" | "BANK_TRANSFER" | "HUB_CASH_DROP";
+      reference_id?: string;
+      proof_url?: string;
+      notes?: string;
+    }
+  ) {
+    const db = prisma as any;
+    if (input.amount <= 0) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Settlement amount must be greater than 0");
+    }
+
+    const cashSummary = await this.getCashInHandSummary(deliveryPartnerId);
+    if (input.amount > cashSummary.current_cash_in_hand) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Settlement amount (₹${input.amount.toFixed(2)}) cannot exceed current cash-in-hand balance (₹${cashSummary.current_cash_in_hand.toFixed(2)})`
+      );
+    }
+
+    const settlement = await db.deliveryCashSettlement.create({
+      data: {
+        delivery_partner_id: deliveryPartnerId,
+        amount: new Prisma.Decimal(input.amount),
+        mode: input.mode,
+        reference_id: input.reference_id?.trim() || null,
+        proof_url: input.proof_url?.trim() || null,
+        notes: input.notes?.trim() || null,
+        status: "PENDING",
+      },
+    });
+
+    return settlement;
+  },
+
+  /**
+   * Rider's own cash settlements list.
+   */
+  async listMyCashSettlements(deliveryPartnerId: string) {
+    const db = prisma as any;
+    return db.deliveryCashSettlement.findMany({
+      where: { delivery_partner_id: deliveryPartnerId },
+      orderBy: { created_at: "desc" },
+      take: 50,
+    });
+  },
+
+  /**
+   * Admin cash settlements review queue.
+   */
+  async listAdminCashSettlements(query: {
+    status?: "PENDING" | "APPROVED" | "REJECTED";
+    partner_id?: string;
+    page?: number;
+    per_page?: number;
+  }) {
+    const db = prisma as any;
+    const page = Math.max(1, Number(query.page || 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page || 25)));
+    const skip = (page - 1) * perPage;
+
+    const where: any = {};
+    if (query.status) where.status = query.status;
+    if (query.partner_id) where.delivery_partner_id = query.partner_id;
+
+    const [records, total, pendingAgg, approvedAgg] = await Promise.all([
+      db.deliveryCashSettlement.findMany({
+        where,
+        include: {
+          delivery_partner: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { created_at: "desc" },
+        skip,
+        take: perPage,
+      }),
+      db.deliveryCashSettlement.count({ where }),
+      db.deliveryCashSettlement.aggregate({
+        where: { status: "PENDING" },
+        _sum: { amount: true },
+        _count: { id: true },
+      }),
+      db.deliveryCashSettlement.aggregate({
+        where: { status: "APPROVED" },
+        _sum: { amount: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    return {
+      records: records.map((r: any) => ({
+        id: r.id,
+        delivery_partner_id: r.delivery_partner_id,
+        amount: Number(r.amount),
+        mode: r.mode,
+        reference_id: r.reference_id,
+        proof_url: r.proof_url,
+        notes: r.notes,
+        status: r.status,
+        admin_notes: r.admin_notes,
+        reviewed_by: r.reviewed_by,
+        reviewed_at: r.reviewed_at,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        delivery_partner: {
+          id: r.delivery_partner.id,
+          vehicle_type: r.delivery_partner.vehicle_type,
+          vehicle_number: r.delivery_partner.vehicle_number,
+          user: r.delivery_partner.user,
+        },
+      })),
+      pagination: {
+        page,
+        per_page: perPage,
+        total,
+        total_pages: Math.ceil(total / perPage),
+      },
+      summary: {
+        pending_amount: Number(pendingAgg._sum.amount ?? 0),
+        pending_count: pendingAgg._count.id ?? 0,
+        approved_amount: Number(approvedAgg._sum.amount ?? 0),
+        approved_count: approvedAgg._count.id ?? 0,
+      },
+    };
+  },
+
+  /**
+   * Admin approves or rejects a rider cash deposit.
+   */
+  async reviewCashSettlement(
+    settlementId: string,
+    adminUserId: string,
+    input: { action: "APPROVE" | "REJECT"; admin_notes?: string }
+  ) {
+    const db = prisma as any;
+    const settlement = await db.deliveryCashSettlement.findUnique({
+      where: { id: settlementId },
+      include: {
+        delivery_partner: {
+          include: { user: true },
+        },
+      },
+    });
+
+    if (!settlement) {
+      throw new NotFoundError("Cash settlement record not found");
+    }
+
+    if (settlement.status !== "PENDING") {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Cannot review settlement with status '${settlement.status}'. Only PENDING settlements can be reviewed.`
+      );
+    }
+
+    const updatedStatus = input.action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+    const updated = await db.deliveryCashSettlement.update({
+      where: { id: settlementId },
+      data: {
+        status: updatedStatus,
+        admin_notes: input.admin_notes?.trim() || null,
+        reviewed_by: adminUserId,
+        reviewed_at: new Date(),
+      },
+    });
+
+    // Notify delivery partner
+    if (settlement.delivery_partner?.user?.id) {
+      const isApproved = updatedStatus === "APPROVED";
+      try {
+        await prisma.notification.create({
+          data: {
+            user_id: settlement.delivery_partner.user.id,
+            type: "SYSTEM",
+            title: isApproved ? "Cash Settlement Approved ✅" : "Cash Settlement Rejected ❌",
+            body: isApproved
+              ? `Your cash deposit of ₹${Number(settlement.amount).toFixed(2)} has been approved. Your unremitted cash-in-hand balance has been reduced.`
+              : `Your cash deposit of ₹${Number(settlement.amount).toFixed(2)} was rejected. Reason: ${input.admin_notes || "Please check with management."}`,
+            data: { settlement_id: settlement.id, amount: Number(settlement.amount), status: updatedStatus },
+          },
+        });
+      } catch {
+        // Notification failure is non-fatal
+      }
+    }
+
+    return updated;
   },
 };

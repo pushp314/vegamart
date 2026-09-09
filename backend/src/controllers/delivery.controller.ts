@@ -255,3 +255,24 @@ export const verifyDeliveryBank = asyncHandler(async (req: Request, res: Respons
   });
   return sendSuccess(res, result);
 });
+
+export const getCashInHand = asyncHandler(async (req: Request, res: Response) => {
+  const profile = await deliveryService.getDeliveryMe(req.user!.id);
+  if (!profile) throw new Error("Delivery profile not found");
+  const summary = await deliveryService.getCashInHandSummary(profile.id);
+  return sendSuccess(res, summary);
+});
+
+export const submitCashSettlement = asyncHandler(async (req: Request, res: Response) => {
+  const profile = await deliveryService.getDeliveryMe(req.user!.id);
+  if (!profile) throw new Error("Delivery profile not found");
+  const settlement = await deliveryService.submitCashSettlement(profile.id, req.body);
+  return sendCreated(res, settlement, "Cash settlement submitted for admin verification.");
+});
+
+export const listMyCashSettlements = asyncHandler(async (req: Request, res: Response) => {
+  const profile = await deliveryService.getDeliveryMe(req.user!.id);
+  if (!profile) throw new Error("Delivery profile not found");
+  const list = await deliveryService.listMyCashSettlements(profile.id);
+  return sendSuccess(res, list);
+});

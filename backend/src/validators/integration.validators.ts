@@ -177,3 +177,26 @@ export const recentlyViewedSchema = z.object({
 }).strict();
 
 export type RecentlyViewedBody = z.infer<typeof recentlyViewedSchema>;
+
+export const cashSettlementSubmitSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be greater than 0"),
+  mode: z.enum(["UPI", "BANK_TRANSFER", "HUB_CASH_DROP"]),
+  reference_id: z.string().trim().max(120).optional(),
+  proof_url: z.string().trim().max(500).optional(),
+  notes: z.string().trim().max(500).optional(),
+}).strict();
+
+export type CashSettlementSubmitBody = z.infer<typeof cashSettlementSubmitSchema>;
+
+export const cashSettlementReviewSchema = z.object({
+  action: z.enum(["APPROVE", "REJECT"]),
+  admin_notes: z.string().trim().max(500).optional(),
+}).strict();
+
+export type CashSettlementReviewBody = z.infer<typeof cashSettlementReviewSchema>;
+
+export const updateDeliveryCashLimitSchema = z.object({
+  max_cash_in_hand: z.coerce.number().min(0, "Limit cannot be negative"),
+}).strict();
+
+export type UpdateDeliveryCashLimitBody = z.infer<typeof updateDeliveryCashLimitSchema>;

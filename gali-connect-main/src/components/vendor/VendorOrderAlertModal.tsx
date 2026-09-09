@@ -112,17 +112,29 @@ export function VendorOrderAlertModal({
               </div>
             </div>
 
-            {onToggleMute && (
+            <div className="flex items-center gap-2">
+              {onToggleMute && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onToggleMute}
+                  className="h-10 w-10 rounded-full bg-white/15 hover:bg-white/25 text-white border border-white/20 transition-all cursor-pointer"
+                  title={isMuted ? "Unmute Alarm" : "Mute Alarm"}
+                >
+                  {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={onToggleMute}
+                onClick={onDismiss}
                 className="h-10 w-10 rounded-full bg-white/15 hover:bg-white/25 text-white border border-white/20 transition-all cursor-pointer"
-                title={isMuted ? "Unmute Alarm" : "Mute Alarm"}
+                title="Cut / Close"
+                aria-label="Close alert"
               >
-                {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                <X className="h-5 w-5" />
               </Button>
-            )}
+            </div>
           </div>
         </div>
 

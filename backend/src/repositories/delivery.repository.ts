@@ -19,6 +19,7 @@ const baseSelect = {
   rating: true,
   review_count: true,
   rejection_reason: true,
+  max_cash_in_hand: true,
   created_at: true,
   updated_at: true,
 } as const;
@@ -31,6 +32,7 @@ export type DeliveryPartnerRow = {
   license_number: string;
   base_delivery_fee: import("@prisma/client").Prisma.Decimal;
   fee_per_km: import("@prisma/client").Prisma.Decimal;
+  max_cash_in_hand?: import("@prisma/client").Prisma.Decimal;
   status: import("@prisma/client").DeliveryStatus;
   is_verified: boolean;
   is_available: boolean;

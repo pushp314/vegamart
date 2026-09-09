@@ -4,6 +4,7 @@ import {
   Wallet,
   Landmark,
   ArrowUpRight,
+  ArrowDownLeft,
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -17,6 +18,10 @@ import {
   Receipt,
   FileText,
   AlertTriangle,
+  Banknote,
+  QrCode,
+  Copy,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +62,13 @@ export function DeliveryWalletTab() {
   const [isVerifyingUpi, setIsVerifyingUpi] = useState(false);
   const [verifiedUpiInfo, setVerifiedUpiInfo] = useState<any>(null);
 
+  // Cash-in-hand deposit states
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositMode, setDepositMode] = useState<"UPI" | "BANK_TRANSFER" | "HUB_CASH_DROP">("UPI");
+  const [depositRefId, setDepositRefId] = useState("");
+  const [depositNotes, setDepositNotes] = useState("");
+
   // 1. Fetch Rider Wallet Overview
   const { data: walletRes, isLoading, refetch } = useQuery({
     queryKey: ["deliveryWallet"],
@@ -71,6 +83,48 @@ export function DeliveryWalletTab() {
   const lifetimeSettled = wallet?.lifetime_settled ?? 0;
   const deficitBalance = wallet?.deficit_balance ?? 0;
   const bankConfigured = wallet?.bank_configured ?? false;
+
+  // Cash-in-hand metrics
+  const cashInHand = wallet?.cash_in_hand;
+  const currentCash = Number(cashInHand?.current_cash_in_hand ?? 0);
+  const maxCashLimit = Number(cashInHand?.max_cash_in_hand ?? 3000);
+  const remainingCashLimit = Number(cashInHand?.remaining_limit ?? Math.max(0, maxCashLimit - currentCash));
+  const isBlockedForCod = Boolean(cashInHand?.is_blocked_for_cod ?? (currentCash >= maxCashLimit));
+  const pendingDepositAmount = Number(cashInHand?.total_pending_settlement ?? 0);
+  const totalCodCollected = Number(cashInHand?.total_cod_collected ?? 0);
+  const totalCashSettled = Number(cashInHand?.total_cash_settled ?? 0);
+  const codDeliveredCount = Number(cashInHand?.cod_orders_delivered_count ?? 0);
+  const cashPercent = Math.min(100, Math.max(0, Math.round((currentCash / (maxCashLimit || 1)) * 100)));
+
+  // Cash Settlements Query
+  const { data: settlementsRes } = useQuery({
+    queryKey: ["deliveryCashSettlements"],
+    queryFn: () => api.get<any>("/delivery/me/cash-settlements"),
+    refetchInterval: 30000,
+  });
+  const settlements = Array.isArray(settlementsRes?.data) ? settlementsRes.data : [];
+
+  // Cash Deposit Mutation
+  const depositMutation = useMutation({
+    mutationFn: (data: {
+      amount: number;
+      mode: "UPI" | "BANK_TRANSFER" | "HUB_CASH_DROP";
+      reference_id?: string;
+      notes?: string;
+    }) => api.post("/delivery/me/cash-settlements", data),
+    onSuccess: () => {
+      toast.success("Cash deposit submitted! Vegamart admin will review and approve it shortly.");
+      setIsDepositModalOpen(false);
+      setDepositAmount("");
+      setDepositRefId("");
+      setDepositNotes("");
+      queryClient.invalidateQueries({ queryKey: ["deliveryWallet"] });
+      queryClient.invalidateQueries({ queryKey: ["deliveryCashSettlements"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || "Failed to submit cash settlement.");
+    },
+  });
 
   // Initialize Bank form when modal opens
   const handleOpenBankModal = () => {
@@ -298,6 +352,127 @@ export function DeliveryWalletTab() {
         </div>
       )}
 
+      {/* ──────────────── CASH IN HAND & COD SETTLEMENT CARD ──────────────── */}
+      <div className={`rounded-3xl p-6 border shadow-soft relative overflow-hidden transition-all duration-300 ${
+        isBlockedForCod
+          ? "bg-rose-500/10 border-rose-500/30 text-foreground"
+          : cashPercent > 75
+          ? "bg-amber-500/10 border-amber-500/30 text-foreground"
+          : "bg-card border-border"
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className={`h-8 w-8 rounded-xl grid place-items-center ${
+                isBlockedForCod
+                  ? "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                  : cashPercent > 75
+                  ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                  : "bg-emerald-500/10 text-emerald-600"
+              }`}>
+                <Banknote className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Cash-in-Hand (COD Collected)
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                isBlockedForCod
+                  ? "bg-rose-500 text-white"
+                  : cashPercent > 75
+                  ? "bg-amber-500 text-black"
+                  : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+              }`}>
+                {isBlockedForCod ? "COD Blocked" : cashPercent > 75 ? "Near Limit" : "COD Active"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="font-display font-black text-3xl font-mono text-foreground">
+                ₹{currentCash.toFixed(2)}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                / ₹{maxCashLimit.toFixed(2)} max allowed
+              </span>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">
+              {isBlockedForCod ? (
+                <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                  ⚠️ Limit exceeded! Deposit collected cash to unlock new COD delivery orders. (Online orders remain unaffected).
+                </span>
+              ) : (
+                <span>
+                  Remaining limit: <strong className="text-foreground">₹{remainingCashLimit.toFixed(2)}</strong> before COD pauses.
+                </span>
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {pendingDepositAmount > 0 && (
+              <div className="px-3 py-2 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                <div>
+                  <div className="font-bold font-mono">₹{pendingDepositAmount.toFixed(2)}</div>
+                  <div className="text-[10px] text-muted-foreground">Deposit awaiting review</div>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                setDepositAmount(String(currentCash > 0 ? currentCash : ""));
+                setIsDepositModalOpen(true);
+              }}
+              disabled={currentCash <= 0 && pendingDepositAmount <= 0}
+              className={`rounded-2xl h-11 px-5 text-xs font-bold shadow-md transition-all active:scale-95 ${
+                isBlockedForCod
+                  ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+              }`}
+            >
+              <ArrowDownLeft className="h-4 w-4 mr-1.5" />
+              Deposit Cash / Settle
+            </Button>
+          </div>
+        </div>
+
+        {/* Visual Progress Bar */}
+        <div className="mt-4 pt-4 border-t border-border/60">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1.5">
+            <span>Limit Utilization</span>
+            <span className="font-mono font-bold text-foreground">{cashPercent}% Used</span>
+          </div>
+          <div className="h-2.5 w-full bg-secondary/80 rounded-full overflow-hidden p-0.5">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                isBlockedForCod
+                  ? "bg-rose-500"
+                  : cashPercent > 75
+                  ? "bg-amber-500"
+                  : "bg-emerald-500"
+              }`}
+              style={{ width: `${cashPercent}%` }}
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 text-[11px]">
+            <div>
+              <span className="text-muted-foreground block text-[10px]">Lifetime COD Collected</span>
+              <span className="font-bold font-mono text-foreground">₹{totalCodCollected.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block text-[10px]">Lifetime Cash Settled</span>
+              <span className="font-bold font-mono text-foreground">₹{totalCashSettled.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block text-[10px]">COD Orders Delivered</span>
+              <span className="font-bold font-mono text-foreground">{codDeliveredCount} trips</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: Available Balance */}
@@ -448,6 +623,79 @@ export function DeliveryWalletTab() {
                     <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
                       UTR: {w.utr_reference}
                     </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Cash Deposit & Remittance History */}
+      <div className="rounded-3xl border border-border bg-card p-5 shadow-soft space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-sm text-foreground">Cash Settlement &amp; Deposit History</h3>
+            <p className="text-[11px] text-muted-foreground">Proof of remittances submitted to Vegamart</p>
+          </div>
+          <span className="text-xs text-muted-foreground">{settlements.length} records</span>
+        </div>
+
+        {settlements.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic py-4 text-center">No cash deposits submitted yet.</p>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {settlements.map((s: any) => (
+              <div key={s.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-foreground font-mono">₹{Number(s.amount).toFixed(2)}</span>
+                    <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                      {s.mode.replace("_", " ")}
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        s.status === "APPROVED"
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                          : s.status === "REJECTED"
+                          ? "bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20"
+                          : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20"
+                      }`}
+                    >
+                      {s.status}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Submitted on {new Date(s.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                    {s.reference_id && <span className="font-mono ml-1">• Ref/UTR: {s.reference_id}</span>}
+                  </div>
+                  {s.notes && (
+                    <div className="text-[11px] text-muted-foreground italic">
+                      Note: &quot;{s.notes}&quot;
+                    </div>
+                  )}
+                  {s.admin_notes && (
+                    <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                      Admin: &quot;{s.admin_notes}&quot;
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-right sm:text-right text-[11px] text-muted-foreground">
+                  {s.status === "APPROVED" && s.reviewed_at && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                      Approved on {new Date(s.reviewed_at).toLocaleDateString("en-IN")}
+                    </span>
+                  )}
+                  {s.status === "REJECTED" && (
+                    <span className="text-rose-600 dark:text-rose-400 font-medium">
+                      Rejected
+                    </span>
+                  )}
+                  {s.status === "PENDING" && (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      Awaiting verification
+                    </span>
                   )}
                 </div>
               </div>
@@ -795,10 +1043,271 @@ export function DeliveryWalletTab() {
                 {saveBankMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 Save Bank &amp; UPI
               </Button>
+              </div>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+          </DialogContent>
+        </Dialog>
+
+        {/* ──────────────── MODAL 3: DEPOSIT CASH / SETTLE ──────────────── */}
+        <Dialog open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen}>
+          <DialogContent className="sm:max-w-lg rounded-3xl border-border bg-card p-6 max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-emerald-500/10 text-emerald-600 grid place-items-center">
+                  <Banknote className="h-5 w-5" />
+                </div>
+                <div>
+                  <DialogTitle className="font-bold text-base">Deposit Cash to Vegamart</DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Remit collected COD money to maintain your cash limit and keep taking COD orders.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-3">
+              {/* Cash in Hand Banner */}
+              <div className="p-3.5 rounded-2xl bg-secondary/60 border border-border flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Unremitted Cash</span>
+                  <span className="font-display font-black text-xl font-mono text-foreground">
+                    ₹{currentCash.toFixed(2)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Limit</span>
+                  <span className="font-semibold text-muted-foreground">₹{maxCashLimit.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Deposit Mode Selector */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Payment Mode</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDepositMode("UPI")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all ${
+                      depositMode === "UPI"
+                        ? "bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300"
+                        : "border-border hover:bg-secondary/40 text-muted-foreground"
+                    }`}
+                  >
+                    UPI QR / VPA
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositMode("BANK_TRANSFER")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all ${
+                      depositMode === "BANK_TRANSFER"
+                        ? "bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300"
+                        : "border-border hover:bg-secondary/40 text-muted-foreground"
+                    }`}
+                  >
+                    Bank IMPS / NEFT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositMode("HUB_CASH_DROP")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all ${
+                      depositMode === "HUB_CASH_DROP"
+                        ? "bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300"
+                        : "border-border hover:bg-secondary/40 text-muted-foreground"
+                    }`}
+                  >
+                    Hub Cash Drop
+                  </button>
+                </div>
+              </div>
+
+              {/* Company Beneficiary Details Card */}
+              <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-xs space-y-2">
+                <div className="font-bold text-emerald-800 dark:text-emerald-300 text-[11px] flex items-center justify-between">
+                  <span>Vegamart Official Deposit Account</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">Instant Verification</span>
+                </div>
+
+                {depositMode === "UPI" && (
+                  <div className="flex items-center justify-between bg-card p-2 rounded-xl border border-border/80">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Vegamart Settlement UPI ID</span>
+                      <span className="font-mono font-bold text-xs text-foreground">vegamart.settle@okhdfcbank</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText("vegamart.settle@okhdfcbank");
+                        toast.success("UPI ID copied to clipboard!");
+                      }}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+                    </Button>
+                  </div>
+                )}
+
+                {depositMode === "BANK_TRANSFER" && (
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border border-border/80 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Beneficiary Name:</span>
+                      <strong className="text-foreground">Vegamart Logistics Private Limited</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Account Number:</span>
+                      <strong className="font-mono text-foreground">50200098765432</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">IFSC Code:</span>
+                      <strong className="font-mono text-foreground">HDFC0001234</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Bank &amp; Branch:</span>
+                      <span className="text-foreground">HDFC Bank, Indiranagar Branch</span>
+                    </div>
+                  </div>
+                )}
+
+                {depositMode === "HUB_CASH_DROP" && (
+                  <div className="bg-card p-2.5 rounded-xl border border-border/80 text-[11px] text-muted-foreground leading-relaxed">
+                    Hand over physical cash to your nearest Vegamart Hub Supervisor. Request the printed cash receipt number and enter it below.
+                  </div>
+                )}
+              </div>
+
+              {/* Amount Input & Preset Chips */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Deposit Amount (₹)</Label>
+                  <span className="text-[10px] text-muted-foreground">
+                    Max: ₹{currentCash.toFixed(2)}
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
+                  <Input
+                    type="number"
+                    min="1"
+                    max={currentCash || 100000}
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder="Enter deposit amount"
+                    className="pl-7 rounded-xl font-mono text-base font-bold"
+                  />
+                </div>
+
+                {currentCash > 0 && (
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDepositAmount(String(currentCash))}
+                      className="text-[10px] font-bold h-7 rounded-lg px-2"
+                    >
+                      Full Cash (₹{currentCash})
+                    </Button>
+                    {currentCash >= 1000 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDepositAmount(String(Math.min(currentCash, 1000)))}
+                        className="text-[10px] font-bold h-7 rounded-lg px-2"
+                      >
+                        ₹1,000
+                      </Button>
+                    )}
+                    {currentCash >= 2000 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDepositAmount(String(Math.min(currentCash, 2000)))}
+                        className="text-[10px] font-bold h-7 rounded-lg px-2"
+                      >
+                        ₹2,000
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* UTR / Reference ID */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">
+                  {depositMode === "HUB_CASH_DROP" ? "Hub Receipt Number / Manager Name" : "12-digit UTR / Bank Reference No"}
+                </Label>
+                <Input
+                  type="text"
+                  value={depositRefId}
+                  onChange={(e) => setDepositRefId(e.target.value)}
+                  placeholder={
+                    depositMode === "HUB_CASH_DROP"
+                      ? "e.g. HUB-BLR-04 / Manoj"
+                      : "e.g. 423589123456"
+                  }
+                  className="rounded-xl font-mono text-xs"
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Notes / Remarks (Optional)</Label>
+                <Input
+                  type="text"
+                  value={depositNotes}
+                  onChange={(e) => setDepositNotes(e.target.value)}
+                  placeholder="e.g. Paid via Google Pay / Evening batch"
+                  className="rounded-xl text-xs"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDepositModalOpen(false)}
+                  className="rounded-xl text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={
+                    depositMutation.isPending ||
+                    !depositAmount ||
+                    Number(depositAmount) <= 0 ||
+                    Number(depositAmount) > currentCash
+                  }
+                  onClick={() => {
+                    const parsedAmount = Number(depositAmount);
+                    if (!parsedAmount || parsedAmount <= 0) {
+                      toast.error("Please enter a valid amount.");
+                      return;
+                    }
+                    if (parsedAmount > currentCash) {
+                      toast.error(`Deposit cannot exceed current cash-in-hand (₹${currentCash.toFixed(2)}).`);
+                      return;
+                    }
+                    depositMutation.mutate({
+                      amount: parsedAmount,
+                      mode: depositMode,
+                      reference_id: depositRefId.trim() || undefined,
+                      notes: depositNotes.trim() || undefined,
+                    });
+                  }}
+                  className="rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-black px-4"
+                >
+                  {depositMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+                  Submit Deposit for Approval
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }

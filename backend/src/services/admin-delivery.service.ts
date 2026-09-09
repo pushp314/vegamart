@@ -11,6 +11,7 @@ import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { hashPassword } from "../utils/password";
 import type { CreateDeliveryPartnerBody } from "../validators/admin.validators";
+import { Prisma } from "@prisma/client";
 
 export const adminDeliveryService = {
   async create(adminUserId: string, input: CreateDeliveryPartnerBody, req: Request) {
@@ -141,11 +142,80 @@ export const adminDeliveryService = {
       (page - 1) * perPage,
       perPage
     );
-    const serialized = rows.map((p) => ({
-      ...p,
-      status: p.status.toLowerCase(),
-      availability_status: p.availability_status.toLowerCase(),
-    }));
+    const partnerIds = rows.map((p) => p.id);
+    let codMap = new Map<string, number>();
+    let approvedMap = new Map<string, number>();
+    let pendingMap = new Map<string, number>();
+
+    if (partnerIds.length > 0) {
+      const [codOrdersByPartner, approvedSettlementsByPartner, pendingSettlementsByPartner] = await Promise.all([
+        prisma.masterOrder.groupBy({
+          by: ["delivery_partner_id"],
+          where: {
+            delivery_partner_id: { in: partnerIds },
+            payment_method: "COD",
+            payment_status: "PAID",
+            status: { notIn: ["CANCELLED", "FAILED"] },
+          },
+          _sum: { total_amount: true },
+        }),
+        (prisma as any).deliveryCashSettlement.groupBy({
+          by: ["delivery_partner_id"],
+          where: {
+            delivery_partner_id: { in: partnerIds },
+            status: "APPROVED",
+          },
+          _sum: { amount: true },
+        }),
+        (prisma as any).deliveryCashSettlement.groupBy({
+          by: ["delivery_partner_id"],
+          where: {
+            delivery_partner_id: { in: partnerIds },
+            status: "PENDING",
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      codMap = new Map(
+        codOrdersByPartner
+          .filter((c) => Boolean(c.delivery_partner_id))
+          .map((c) => [c.delivery_partner_id!, Number(c._sum.total_amount ?? 0)])
+      );
+      approvedMap = new Map(
+        approvedSettlementsByPartner
+          .filter((a: any) => Boolean(a.delivery_partner_id))
+          .map((a: any) => [a.delivery_partner_id!, Number(a._sum?.amount ?? 0)])
+      );
+      pendingMap = new Map(
+        pendingSettlementsByPartner
+          .filter((p: any) => Boolean(p.delivery_partner_id))
+          .map((p: any) => [p.delivery_partner_id!, Number(p._sum?.amount ?? 0)])
+      );
+    }
+
+    const serialized = rows.map((p) => {
+      const codCollected = codMap.get(p.id) || 0;
+      const settled = approvedMap.get(p.id) || 0;
+      const currentCash = Math.max(0, Math.round((codCollected - settled) * 100) / 100);
+      const maxLimit = Number((p as any).max_cash_in_hand ?? 3000);
+      const pendingDeposit = pendingMap.get(p.id) || 0;
+
+      return {
+        ...p,
+        status: p.status.toLowerCase(),
+        availability_status: p.availability_status.toLowerCase(),
+        cash_in_hand: {
+          current: currentCash,
+          max_limit: maxLimit,
+          remaining: Math.max(0, Math.round((maxLimit - currentCash) * 100) / 100),
+          is_blocked: currentCash >= maxLimit,
+          pending_settlement: pendingDeposit,
+          total_cod_collected: codCollected,
+          total_settled: settled,
+        },
+      };
+    });
     return { rows: serialized, total, page, perPage };
   },
 
@@ -210,6 +280,27 @@ export const adminDeliveryService = {
     });
     await auditService.record(
       { userId: adminUserId, action: AUDIT_ACTIONS.DELIVERY_RESTORED, entityType: "delivery_partner", entityId: id },
+      req
+    );
+    return updated;
+  },
+
+  async updateCashLimit(adminUserId: string, id: string, maxCashInHand: number, req: Request) {
+    const partner = await deliveryRepo.findById(id);
+    if (!partner) {
+      throw new ApiError(HttpStatus.NOT_FOUND, "Delivery partner not found.", { code: "NOT_FOUND" });
+    }
+    const updated = await deliveryRepo.updateDelivery(id, {
+      max_cash_in_hand: new Prisma.Decimal(maxCashInHand),
+    } as any);
+    await auditService.record(
+      {
+        userId: adminUserId,
+        action: "DELIVERY_CASH_LIMIT_UPDATED",
+        entityType: "delivery_partner",
+        entityId: id,
+        newValues: { max_cash_in_hand: maxCashInHand },
+      },
       req
     );
     return updated;

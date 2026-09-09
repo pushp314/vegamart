@@ -26,6 +26,9 @@ import {
   exportDeliveryWalletStatement,
   verifyDeliveryUpi,
   verifyDeliveryBank,
+  getCashInHand,
+  submitCashSettlement,
+  listMyCashSettlements,
 } from "../../controllers/delivery.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
@@ -41,6 +44,7 @@ import {
   deliveredOtpSchema,
   deliveryKycSchema,
   orderIdAliasParamsSchema,
+  cashSettlementSubmitSchema,
 } from "../../validators/integration.validators";
 
 const router = Router();
@@ -86,6 +90,11 @@ router.put("/delivery/me/bank-details", authenticate, requireRole(ROLES.DELIVERY
 router.post("/delivery/me/verify-upi", authenticate, requireRole(ROLES.DELIVERY_PARTNER), verifyDeliveryUpi);
 router.post("/delivery/me/verify-bank", authenticate, requireRole(ROLES.DELIVERY_PARTNER), verifyDeliveryBank);
 router.get("/delivery/me/wallet/statement/export", authenticate, requireRole(ROLES.DELIVERY_PARTNER), exportDeliveryWalletStatement);
+
+// Cash-In-Hand & Settlements
+router.get("/delivery/me/cash-in-hand", authenticate, requireRole(ROLES.DELIVERY_PARTNER), getCashInHand);
+router.post("/delivery/me/cash-settlements", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: cashSettlementSubmitSchema }), submitCashSettlement);
+router.get("/delivery/me/cash-settlements", authenticate, requireRole(ROLES.DELIVERY_PARTNER), listMyCashSettlements);
 
 router.put(
   "/delivery/orders/:id/accept",

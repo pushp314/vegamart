@@ -19,6 +19,7 @@ export const ORDER_EXPIRY_MINUTES = 15;
 
 export const OTP_LENGTH = 6;
 export const OTP_TTL_MINUTES = 10;
+export const DELIVERY_OTP_TTL_MINUTES = 24 * 60; // 24 hours for customer doorstep delivery verification
 export const OTP_MAX_ATTEMPTS = 5;
 
 export const PASSWORD_MIN_LENGTH = 8;

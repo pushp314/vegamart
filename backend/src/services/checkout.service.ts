@@ -4,7 +4,7 @@ import prisma from "../database/prisma";
 import { env } from "../config";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
-import { DEFAULT_CURRENCY, OTP_TTL_MINUTES, TAX_RATE_PERCENT } from "../constants";
+import { DEFAULT_CURRENCY, DELIVERY_OTP_TTL_MINUTES, TAX_RATE_PERCENT } from "../constants";
 import { auditService } from "./audit.service";
 import { cartService } from "./cart.service";
 import { couponService } from "./coupon.service";
@@ -886,7 +886,7 @@ export const checkoutService = {
               total: groupTotal,
               invoice_number: generateInvoiceNumber(orderNumber),
               otp_code: sharedOtp,
-              otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+              otp_expires_at: new Date(Date.now() + DELIVERY_OTP_TTL_MINUTES * 60 * 1000),
             },
             tx
           );
@@ -1295,10 +1295,10 @@ export const checkoutService = {
           }
       });
       outMasterOrderId = masterOrder.id;
+      const sharedOtp = generateDeliveryOtp();
 
       for (let i = 0; i < computations.length; i++) {
         const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
-
 
         const order = await orderRepo.createOrder(
           {
@@ -1336,8 +1336,8 @@ export const checkoutService = {
             tax: groupTax,
             total: groupTotal,
             invoice_number: generateInvoiceNumber(orderNumber),
-            otp_code: generateDeliveryOtp(),
-            otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+            otp_code: sharedOtp,
+            otp_expires_at: new Date(Date.now() + DELIVERY_OTP_TTL_MINUTES * 60 * 1000),
           },
           tx
         );

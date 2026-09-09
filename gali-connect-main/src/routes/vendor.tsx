@@ -76,10 +76,10 @@ function VendorDashboard() {
 
   useEffect(() => {
     const vType = vendor?.profile?.vendor_type || vendor?.vendor_type;
-    if (vendor && vType === "roaming") {
+    if (vendor && vType === "roaming" && location.pathname === "/vendor/roaming") {
       navigate({ to: "/vendor" });
     }
-  }, [vendor, navigate]);
+  }, [vendor, navigate, location.pathname]);
 
   const { data: kycRes } = useQuery({
     queryKey: ["vendorKYC"],

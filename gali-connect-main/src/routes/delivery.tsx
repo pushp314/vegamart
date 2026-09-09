@@ -222,6 +222,7 @@ function DeliveryDashboard() {
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [otpValue, setOtpValue] = useState("");
+  const [isDelivering, setIsDelivering] = useState(false);
 
   // ETA Modal
   const [etaModalOpen, setEtaModalOpen] = useState(false);
@@ -1516,6 +1517,7 @@ function DeliveryDashboard() {
               <Button
                 onClick={() => {
                   if (otpValue.length === 6 && selectedOrderId) {
+                    setIsDelivering(true);
                     api
                       .put(`/delivery/order/${selectedOrderId}/delivered`, { otp: otpValue })
                       .then(() => {
@@ -1525,15 +1527,22 @@ function DeliveryDashboard() {
                         setSelectedOrderId(null);
                         setOtpValue("");
                       })
-                      .catch((err) => toast.error(err?.message || "Failed to mark delivered"));
+                      .catch((err) => toast.error(err?.message || "Failed to mark delivered"))
+                      .finally(() => setIsDelivering(false));
                   } else {
                     toast.error("Please enter a valid 6-digit OTP");
                   }
                 }}
-                disabled={otpValue.length !== 6}
+                disabled={otpValue.length !== 6 || isDelivering}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-500"
               >
-                Confirm Delivery
+                {isDelivering ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Verifying...
+                  </span>
+                ) : (
+                  "Confirm Delivery"
+                )}
               </Button>
             </div>
           </div>

@@ -12,6 +12,7 @@ import { productService } from "../services/product.service";
 import { membershipPlanService } from "../services/membership-plan.service";
 import { maintenanceService } from "../services/maintenance.service";
 import { payoutService } from "../services/payout.service";
+import { deliveryService } from "../services/delivery.service";
 import { getStorageMetrics } from "../storage/r2.client";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
@@ -1095,6 +1096,30 @@ export const processPayoutRequest = asyncHandler(async (req: Request, res: Respo
     req.body as never
   );
   return sendSuccess(res, data);
+});
+
+export const listCashSettlements = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.listAdminCashSettlements(req.query as never);
+  return sendSuccess(res, data);
+});
+
+export const reviewCashSettlement = asyncHandler(async (req: Request, res: Response) => {
+  const data = await deliveryService.reviewCashSettlement(
+    req.params.id as string,
+    req.user!.id,
+    req.body as never
+  );
+  return sendSuccess(res, data, { message: `Settlement successfully ${req.body.action.toLowerCase()}ed.` });
+});
+
+export const updateDeliveryCashLimit = asyncHandler(async (req: Request, res: Response) => {
+  const data = await adminDeliveryService.updateCashLimit(
+    req.user!.id,
+    req.params.delivery_id as string,
+    Number(req.body.max_cash_in_hand),
+    req
+  );
+  return sendSuccess(res, data, { message: "Delivery partner cash limit updated successfully." });
 });
 
 
