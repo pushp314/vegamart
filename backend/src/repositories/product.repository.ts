@@ -359,9 +359,9 @@ export async function listProductsForHomepage(
     return { rows: [], total: 0 };
   }
 
-  // Fetch products per vendor using a round-robin approach to ensure diversity
-  // We'll fetch up to productsPerVendor per vendor, then merge and sort
-  const allProducts: ProductRow[] = [];
+  // Fetch products per vendor using a round-robin approach to ensure diversity across all vendors
+  const vendorProductLists: ProductRow[][] = [];
+  let totalCount = 0;
 
   for (const vendor of vendors) {
     const vendorProducts = await prisma.product.findMany({
@@ -379,28 +379,30 @@ export async function listProductsForHomepage(
       ],
       take: productsPerVendor,
     });
-    allProducts.push(...vendorProducts.map(mapRow));
+    if (vendorProducts.length > 0) {
+      vendorProductLists.push(vendorProducts.map(mapRow));
+      totalCount += vendorProducts.length;
+    }
   }
 
-  // Sort: sponsored vendors first, then by featured, rating, recency
-  allProducts.sort((a, b) => {
-    const aSponsored = a.vendor?.is_sponsored ? 1 : 0;
-    const bSponsored = b.vendor?.is_sponsored ? 1 : 0;
-    if (aSponsored !== bSponsored) return bSponsored - aSponsored;
-    
-    const aFeatured = a.is_featured ? 1 : 0;
-    const bFeatured = b.is_featured ? 1 : 0;
-    if (aFeatured !== bFeatured) return bFeatured - aFeatured;
-    
-    if (a.rating !== b.rating) return b.rating - a.rating;
-    
-    return b.created_at.getTime() - a.created_at.getTime();
-  });
+  // Interleave products round-robin across vendors so every store gets fair representation
+  const interleavedProducts: ProductRow[] = [];
+  let maxProducts = 0;
+  for (const list of vendorProductLists) {
+    if (list.length > maxProducts) maxProducts = list.length;
+  }
 
-  const total = allProducts.length;
-  const rows = allProducts.slice(0, perPage);
+  for (let i = 0; i < maxProducts; i++) {
+    for (const list of vendorProductLists) {
+      if (i < list.length && list[i]) {
+        interleavedProducts.push(list[i]!);
+      }
+    }
+  }
 
-  return { rows, total };
+  const rows = interleavedProducts.slice(0, perPage);
+
+  return { rows, total: totalCount };
 }
 
 export async function createProduct(data: {

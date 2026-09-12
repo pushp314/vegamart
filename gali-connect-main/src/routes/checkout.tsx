@@ -75,7 +75,7 @@ function Checkout() {
     queryFn: () => api.get<any>("/settings/public"),
   });
   const publicSettings = publicSettingsRes?.data || {};
-  const isVegaMartFleetEnabled = publicSettings?.["platform.vegamart_delivery_enabled"] === true;
+  const isVegaMartFleetEnabled = publicSettings?.["platform.vegamart_delivery_enabled"] !== false;
   const hasActiveDeliveryPartners =
     !!publicSettings.has_active_delivery_partners && isVegaMartFleetEnabled;
   const platformDeliveryEta = publicSettings?.["platform.default_delivery_eta"] || "20-30 mins";

@@ -125,6 +125,7 @@ export function AdminSettings() {
     mutationFn: (data: Partial<Settings>) => api.patch("/admin/settings", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+      queryClient.invalidateQueries({ queryKey: ["publicSettings"] });
       toast.success("Settings updated");
     },
     onError: () => toast.error("Failed to update settings"),
@@ -320,7 +321,7 @@ export function AdminSettings() {
                 </p>
               </div>
               <Switch
-                checked={settings["platform.vegamart_delivery_enabled"] === true}
+                checked={settings["platform.vegamart_delivery_enabled"] !== false}
                 onCheckedChange={(checked) =>
                   setSettings({
                     ...settings,

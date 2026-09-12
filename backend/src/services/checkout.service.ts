@@ -17,7 +17,7 @@ import * as productRepo from "../repositories/product.repository";
 import * as orderRepo from "../repositories/order.repository";
 import * as paymentRepo from "../repositories/payment.repository";
 import { findById as findAddressById } from "../repositories/address.repository";
-import { settingsService, countEligibleDeliveryPartners } from "./settings.service";
+import { settingsService, countEligibleDeliveryPartners, isBooleanSettingEnabled } from "./settings.service";
 import { SETTING_KEYS } from "../constants/settings";
 import { findById as findVendorById } from "../repositories/vendor.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
@@ -282,7 +282,7 @@ export const checkoutService = {
     }
 
     // Detect multi-vendor + VegaMart delivery consolidation
-    const vegamartDeliveryEnabled = settings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED] === true;
+    const vegamartDeliveryEnabled = isBooleanSettingEnabled(settings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED], true);
     
     // Check if there are eligible delivery partners
     const eligiblePartnerCount = await countEligibleDeliveryPartners(prisma);
@@ -645,8 +645,11 @@ export const checkoutService = {
 
     // Validate delivery partner availability for VegaMart delivery
     if (isVegaMartDelivery) {
+      const allSettings = await settingsService.getAllSettings();
+      const vegamartDeliveryEnabled = isBooleanSettingEnabled(allSettings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED], true);
+      const deliveriesActive = isBooleanSettingEnabled(allSettings[SETTING_KEYS.DELIVERIES_ACTIVE], true);
       const eligiblePartnerCount = await countEligibleDeliveryPartners(prisma);
-      if (eligiblePartnerCount === 0) {
+      if (!vegamartDeliveryEnabled || !deliveriesActive || eligiblePartnerCount === 0) {
         throw new ApiError(
           HttpStatus.BAD_REQUEST,
           "No VegaMart delivery partners are currently available. Please choose Self Pickup or Shop Direct Delivery.",

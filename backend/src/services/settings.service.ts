@@ -8,11 +8,17 @@ import { DEFAULT_SETTINGS, SETTING_KEYS, type SettingValue } from "../constants/
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
+function isBooleanSettingEnabled(value: unknown, defaultValue = true): boolean {
+  if (value === false || value === "false" || value === 0 || value === "0") return false;
+  if (value === true || value === "true" || value === 1 || value === "1") return true;
+  return defaultValue;
+}
+
 function coerceStoredValue(value: unknown, type: string): SettingValue {
   if (type === "boolean") {
     if (typeof value === "boolean") return value;
-    if (value === "true") return true;
-    if (value === "false") return false;
+    if (value === "true" || value === "1" || value === 1) return true;
+    if (value === "false" || value === "0" || value === 0) return false;
     return null;
   }
   if (type === "number") {
@@ -29,13 +35,21 @@ function valueToJson(value: SettingValue): string | number | boolean | null {
   return String(value);
 }
 
-async function countEligibleDeliveryPartners(prisma: any): Promise<number> {
-  return prisma.deliveryProfile.count({
+async function countEligibleDeliveryPartners(prismaClient: any): Promise<number> {
+  if (!prismaClient) {
+    prismaClient = (await import("../database/prisma")).default;
+  }
+  return prismaClient.deliveryProfile.count({
     where: {
       status: "APPROVED",
       is_verified: true,
+      is_available: true,
       availability_status: "ONLINE",
       deleted_at: null,
+      user: {
+        status: "ACTIVE",
+        deleted_at: null,
+      },
     },
   });
 }
@@ -50,16 +64,22 @@ export const settingsService = {
         merged[key] = def.default;
       }
       for (const row of stored) {
-        merged[row.key] = coerceStoredValue(row.value, row.type);
+        const coerced = coerceStoredValue(row.value, row.type);
+        if (coerced !== null) {
+          merged[row.key] = coerced;
+        }
       }
       return merged;
     });
 
-    // Check if any delivery partners are currently online, approved, and verified
+    // Check if any delivery partners are currently online, approved, and verified and platform delivery settings enabled
     let hasActiveDeliveryPartners = false;
     try {
       const prisma = (await import("../database/prisma")).default;
-      hasActiveDeliveryPartners = (await countEligibleDeliveryPartners(prisma)) > 0;
+      const vegamartDeliveryEnabled = isBooleanSettingEnabled(cached[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED], true);
+      const deliveriesActive = isBooleanSettingEnabled(cached[SETTING_KEYS.DELIVERIES_ACTIVE], true);
+      const eligibleCount = await countEligibleDeliveryPartners(prisma);
+      hasActiveDeliveryPartners = vegamartDeliveryEnabled && deliveriesActive && eligibleCount > 0;
     } catch {
       hasActiveDeliveryPartners = false;
     }
@@ -78,7 +98,10 @@ export const settingsService = {
         merged[key] = def.default;
       }
       for (const row of stored) {
-        merged[row.key] = coerceStoredValue(row.value, row.type);
+        const coerced = coerceStoredValue(row.value, row.type);
+        if (coerced !== null) {
+          merged[row.key] = coerced;
+        }
       }
       return merged;
     });
@@ -131,4 +154,4 @@ export const settingsService = {
   },
 };
 
-export { SETTING_KEYS, countEligibleDeliveryPartners };
+export { SETTING_KEYS, countEligibleDeliveryPartners, isBooleanSettingEnabled };

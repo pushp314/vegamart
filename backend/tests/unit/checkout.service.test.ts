@@ -51,12 +51,18 @@ jest.mock("../../src/services/membership-plan.service", () => ({
   },
 }));
 
-jest.mock("../../src/database/prisma", () => ({
-  __esModule: true,
-  default: {
-    $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback({})),
-  },
-}));
+jest.mock("../../src/database/prisma", () => {
+  const mockTx = {
+    masterOrder: { create: jest.fn().mockResolvedValue({ id: "mo-1" }) },
+  };
+  return {
+    __esModule: true,
+    default: {
+      $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(mockTx)),
+      deliveryProfile: { count: jest.fn().mockResolvedValue(1) },
+    },
+  };
+});
 
 jest.mock("../../src/services/settings.service", () => ({
   settingsService: {
@@ -67,6 +73,7 @@ jest.mock("../../src/services/settings.service", () => ({
       "platform.multi_store_checkout_enabled": true,
     }),
   },
+  countEligibleDeliveryPartners: jest.fn().mockResolvedValue(1),
 }));
 
 jest.mock("../../src/repositories/cart.repository", () => ({
