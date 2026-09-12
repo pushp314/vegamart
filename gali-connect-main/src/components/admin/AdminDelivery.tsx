@@ -16,6 +16,8 @@ import { CreateDeliveryBoyModal } from "./CreateDeliveryBoyModal";
 import { DeliveryBoyDetailModal } from "./DeliveryBoyDetailModal";
 import { AdminPaginationBar, type PaginationMeta } from "./AdminPaginationBar";
 
+import { Switch } from "@/components/ui/switch";
+
 interface AdminDeliveryProps {
   deliveryList: any[];
   pagination?: PaginationMeta;
@@ -32,6 +34,9 @@ interface AdminDeliveryProps {
   isSuspending: boolean;
   isRestoring: boolean;
   onRefresh: () => void;
+  isFleetEnabled?: boolean;
+  onToggleFleet?: (enabled: boolean) => void;
+  isTogglingFleet?: boolean;
 }
 
 export function AdminDelivery({
@@ -50,6 +55,9 @@ export function AdminDelivery({
   isSuspending,
   isRestoring,
   onRefresh,
+  isFleetEnabled = true,
+  onToggleFleet,
+  isTogglingFleet = false,
 }: AdminDeliveryProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [detailDeliveryId, setDetailDeliveryId] = useState<string | null>(null);
@@ -78,6 +86,53 @@ export function AdminDelivery({
         >
           <UserPlus className="h-4 w-4" /> Create Delivery Boy
         </button>
+      </div>
+
+      {/* VegaMart Delivery Fleet Master Switch Banner */}
+      <div
+        onClick={() => !isTogglingFleet && onToggleFleet?.(!isFleetEnabled)}
+        className={`rounded-3xl border p-5 flex items-center justify-between shadow-soft cursor-pointer transition-all hover:scale-[1.003] active:scale-[0.997] select-none ${
+          isFleetEnabled
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-100 hover:bg-emerald-500/15"
+            : "bg-rose-500/10 border-rose-500/30 text-rose-950 dark:text-rose-100 hover:bg-rose-500/15"
+        }`}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className={`p-3.5 rounded-2xl transition-colors ${
+              isFleetEnabled ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+            }`}
+          >
+            <Bike className="h-7 w-7" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 font-display text-lg font-bold">
+              <span>VegaMart Delivery Partner Service</span>
+              <span
+                className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase transition-colors ${
+                  isFleetEnabled
+                    ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                    : "bg-rose-500/20 text-rose-700 dark:text-rose-300"
+                }`}
+              >
+                {isFleetEnabled ? "ACTIVE (ON)" : "DISABLED (OFF)"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isFleetEnabled
+                ? "VegaMart delivery partner fleet is enabled across all stores for order pickup and customer delivery. (Click banner to toggle)"
+                : "VegaMart rider fleet is turned OFF. Customer orders will default to Store Pickup mode. (Click banner to toggle)"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+          {isTogglingFleet && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+          <Switch
+            checked={isFleetEnabled}
+            onCheckedChange={(checked) => onToggleFleet?.(checked)}
+            disabled={isTogglingFleet}
+          />
+        </div>
       </div>
 
       {/* Stats Summary */}

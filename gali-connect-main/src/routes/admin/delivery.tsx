@@ -89,6 +89,37 @@ function AdminDeliveryPage() {
     onError: () => toast.error("Failed to restore delivery partner"),
   });
 
+  const { data: settingsRes } = useQuery({
+    queryKey: ["adminSettings"],
+    queryFn: () => api.get<any>("/admin/settings"),
+  });
+
+  const settingsData = settingsRes?.data?.data ?? settingsRes?.data ?? {};
+  const serverFleetEnabled = settingsData["platform.vegamart_delivery_enabled"] !== false;
+  const [optimisticFleet, setOptimisticFleet] = useState<boolean | null>(null);
+  const isFleetEnabled = optimisticFleet !== null ? optimisticFleet : serverFleetEnabled;
+
+  const toggleFleetMutation = useMutation({
+    mutationFn: (enabled: boolean) => {
+      setOptimisticFleet(enabled);
+      return api.patch("/admin/settings", { "platform.vegamart_delivery_enabled": enabled });
+    },
+    onSuccess: (_, enabled) => {
+      setOptimisticFleet(null);
+      queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+      queryClient.invalidateQueries({ queryKey: ["publicSettings"] });
+      toast.success(
+        enabled
+          ? "VegaMart Delivery Partner Fleet ENABLED 🎉"
+          : "VegaMart Delivery Partner Fleet DISABLED 🛑",
+      );
+    },
+    onError: () => {
+      setOptimisticFleet(null);
+      toast.error("Failed to update VegaMart delivery fleet setting");
+    },
+  });
+
   return (
     <AdminDelivery
       deliveryList={deliveryList}
@@ -106,6 +137,9 @@ function AdminDeliveryPage() {
       isSuspending={suspendDeliveryMutation.isPending}
       isRestoring={restoreDeliveryMutation.isPending}
       onRefresh={() => queryClient.invalidateQueries({ queryKey: ["adminDelivery"] })}
+      isFleetEnabled={isFleetEnabled}
+      onToggleFleet={(enabled) => toggleFleetMutation.mutate(enabled)}
+      isTogglingFleet={toggleFleetMutation.isPending}
     />
   );
 }

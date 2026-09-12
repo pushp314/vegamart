@@ -322,12 +322,15 @@ export function AdminSettings() {
               </div>
               <Switch
                 checked={settings["platform.vegamart_delivery_enabled"] !== false}
-                onCheckedChange={(checked) =>
+                onCheckedChange={(checked) => {
                   setSettings({
                     ...settings,
                     "platform.vegamart_delivery_enabled": checked,
-                  })
-                }
+                  });
+                  updateSettingsMutation.mutate({
+                    "platform.vegamart_delivery_enabled": checked,
+                  });
+                }}
               />
             </div>
 
