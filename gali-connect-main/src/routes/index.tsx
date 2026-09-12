@@ -855,12 +855,19 @@ function ShopWiseProducts() {
   type ShopProduct = Product & { vendor?: StoreVendor };
   const { data: res, isLoading } = useQuery({
     queryKey: ["products", "shopwise"],
-    queryFn: () => api.get<ShopProduct[]>("/products/homepage?per_page=200&products_per_vendor=10&vendor_is_open=false"),
+    queryFn: () => api.get<ShopProduct[]>("/products/homepage?per_page=100&products_per_vendor=10&vendor_is_open=false"),
     staleTime: 5 * 60 * 1000,
   });
 
   const groups = useMemo(() => {
-    const products = res?.data || [];
+    const rawData: any = res?.data;
+    const products: ShopProduct[] = Array.isArray(rawData)
+      ? rawData
+      : Array.isArray(rawData?.rows)
+        ? rawData.rows
+        : Array.isArray(rawData?.data)
+          ? rawData.data
+          : [];
     const map = new Map<string, { vendor: StoreVendor; products: ShopProduct[] }>();
     for (const p of products) {
       const vid = p.vendor_id || p.vendor?.id;
@@ -1142,7 +1149,17 @@ function SponsoredVendors() {
     queryFn: () => api.get<any[]>("/vendors"),
   });
 
-  const sponsoredList = (res?.data || []).filter((v) => v.is_sponsored === true);
+  const rawData: any = res?.data;
+  const rawList: any[] = Array.isArray(rawData)
+    ? rawData
+    : Array.isArray(rawData?.data)
+      ? rawData.data
+      : Array.isArray(rawData?.vendors)
+        ? rawData.vendors
+        : Array.isArray(res)
+          ? (res as any)
+          : [];
+  const sponsoredList = rawList.filter((v: any) => v.is_sponsored === true);
 
   if (isLoading || sponsoredList.length === 0) return null;
 
