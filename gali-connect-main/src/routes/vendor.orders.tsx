@@ -782,9 +782,6 @@ function VendorOrdersPage() {
                                   status: ns.status,
                                 });
                               }
-                            } else if (ns.status === "delivered") {
-                              setOtpTarget(o);
-                              setOtpInput("");
                             } else {
                               updateOrderStatusMutation.mutate({
                                 orderId: o.id,

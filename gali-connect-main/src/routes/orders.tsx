@@ -130,6 +130,14 @@ function OrdersList() {
     enabled: !!user && !isGuest,
   });
 
+  const { data: publicSettingsRes } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<Record<string, any>>("/settings/public"),
+    staleTime: 60_000,
+  });
+  const publicSettings: Record<string, any> = (publicSettingsRes?.data as any)?.data ?? (publicSettingsRes?.data as any) ?? {};
+  const isVegaMartFleetEnabled = publicSettings["platform.vegamart_delivery_enabled"] !== false;
+
   const allOrders = res?.data || [];
   const orders =
     role === "vendor"
@@ -344,17 +352,16 @@ function OrdersList() {
                       </div>
                     )}
 
-                    {o.otp_code && (
+                    {isVegaMartFleetEnabled && (o.otp_code || (o as any).delivery_otp) && o.status !== "DELIVERED" && o.status !== "CANCELLED" && (
                       <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-3">
                         <div className="min-w-0">
                           <div className="text-[11px] font-bold text-rose-700">Delivery OTP</div>
                           <div className="text-[11px] text-muted-foreground leading-snug">
-                            Share this code with the delivery partner to receive your order.
-                            Delivery cannot be completed without it.
+                            Share this 6-digit code with your delivery partner to receive your order.
                           </div>
                         </div>
                         <div className="shrink-0 bg-rose-600 text-white font-black text-xl tracking-[0.2em] px-4 py-2 rounded-xl shadow-sm">
-                          {o.otp_code}
+                          {o.otp_code || (o as any).delivery_otp}
                         </div>
                       </div>
                     )}

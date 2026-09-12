@@ -14,7 +14,7 @@ import {
 } from "./order-lifecycle.service";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
-import { completeDelivery, VENDOR_DELIVERY_STATES, verifyDeliveryOtp } from "./order-delivery.service";
+import { completeDelivery, VENDOR_DELIVERY_STATES } from "./order-delivery.service";
 import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -454,7 +454,6 @@ export const orderService = {
         timestamps.started_at = new Date();
         break;
       case "DELIVERED":
-        await verifyDeliveryOtp(order, input.otp_code ?? "", VENDOR_DELIVERY_STATES);
         timestamps.delivered_at = new Date();
         break;
       default:
@@ -468,8 +467,9 @@ export const orderService = {
       updated = await completeDelivery({
         orderId: order.id,
         otp: input.otp_code ?? "",
+        skipOtp: true,
         allowedStates: VENDOR_DELIVERY_STATES,
-        note: input.note ?? "Order delivered.",
+        note: input.note ?? "Order delivered by vendor.",
         actorType: "vendor",
         actorId: userId,
       });

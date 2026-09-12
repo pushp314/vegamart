@@ -94,6 +94,14 @@ function OrderIdTrackingPage() {
     enabled: !!user && !isGuest,
   });
 
+  const { data: publicSettingsRes } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<Record<string, any>>("/settings/public"),
+    staleTime: 60_000,
+  });
+  const publicSettings: Record<string, any> = (publicSettingsRes?.data as any)?.data ?? (publicSettingsRes?.data as any) ?? {};
+  const isVegaMartFleetEnabled = publicSettings["platform.vegamart_delivery_enabled"] !== false;
+
   const order = orderRes?.data?.data || orderRes?.data || null;
   const [copiedOtp, setCopiedOtp] = useState(false);
 
@@ -587,7 +595,7 @@ function OrderIdTrackingPage() {
             )}
 
             {/* Delivery OTP Banner */}
-            {!isDelivered && (order.otp_code || (order as any).delivery_otp) && (
+            {!isDelivered && isVegaMartFleetEnabled && (order.otp_code || (order as any).delivery_otp) && (
               <div className="rounded-3xl border border-rose-500/30 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-rose-500/5 p-5 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
