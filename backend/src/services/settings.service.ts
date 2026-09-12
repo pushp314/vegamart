@@ -5,6 +5,7 @@ import { auditService } from "./audit.service";
 import * as settingsRepo from "../repositories/settings.repository";
 import { cacheService } from "../database/cache";
 import { DEFAULT_SETTINGS, SETTING_KEYS, type SettingValue } from "../constants/settings";
+
 import { ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -116,14 +117,22 @@ export const settingsService = {
     const oldValues: Record<string, unknown> = {};
     const newValues: Record<string, unknown> = {};
 
-    for (const [key, value] of Object.entries(patch)) {
+    for (const [key, rawValue] of Object.entries(patch)) {
       const definition = DEFAULT_SETTINGS[key];
       if (!definition) {
-        throw new ApiError(HttpStatus.BAD_REQUEST, `Unknown setting key: ${key}`, { code: "UNKNOWN_SETTING" });
+        // Safely ignore computed or unknown setting keys (e.g. has_active_delivery_partners)
+        continue;
       }
+      const value = coerceStoredValue(rawValue, definition.type);
       oldValues[key] = (await settingsRepo.getByKey(key))?.value ?? definition.default;
       newValues[key] = value;
       updates.push({ key, value });
+    }
+
+    if (updates.length === 0) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "No valid setting keys provided.", {
+        code: "UNKNOWN_SETTING",
+      });
     }
 
     for (const update of updates) {

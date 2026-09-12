@@ -188,6 +188,7 @@ export const settingsUpdateSchema = z
     "platform.customer_fees_config": z.string().trim().optional(),
     "platform.max_stores_per_order": z.coerce.number().int().min(1).max(50).optional(),
   })
+  .passthrough()
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one setting must be provided.",
   });

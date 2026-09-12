@@ -156,7 +156,27 @@ export function AdminSettings() {
   };
 
   const handleSave = () => {
-    updateSettingsMutation.mutate(settings);
+    const payload: Record<string, any> = {};
+    for (const [key, val] of Object.entries(settings)) {
+      if (
+        key.startsWith("platform.") ||
+        key.startsWith("support.") ||
+        key.startsWith("notifications.")
+      ) {
+        if (typeof val === "number" || typeof val === "boolean") {
+          payload[key] = val;
+        } else if (typeof val === "string") {
+          if (!isNaN(Number(val)) && val.trim() !== "") {
+            payload[key] = Number(val);
+          } else {
+            payload[key] = val;
+          }
+        } else {
+          payload[key] = val;
+        }
+      }
+    }
+    updateSettingsMutation.mutate(payload);
   };
 
   const updateCredentialsMutation = useMutation({
@@ -468,6 +488,19 @@ export function AdminSettings() {
                   })
                 }
               />
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={updateSettingsMutation.isPending}
+                className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl"
+              >
+                {updateSettingsMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Delivery & Tax Settings
+              </Button>
             </div>
           </CardContent>
         </Card>
