@@ -67,6 +67,9 @@ export const listProductsQuerySchema = z.object({
   sort: z
     .enum(["relevance", "price_asc", "price_desc", "rating", "newest", "popularity"])
     .optional(),
+  // Homepage-specific parameters
+  products_per_vendor: z.coerce.number().int().min(1).max(20).optional(),
+  vendor_is_open: z.enum(["true", "false"]).optional(),
 }).strict();
 
 export const vendorProductsQuerySchema = z.object({
