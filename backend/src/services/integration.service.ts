@@ -379,11 +379,19 @@ export const integrationService = {
   },
 
   async listFeaturedProducts() {
-    const { rows } = await productRepo.listProducts(
+    let { rows } = await productRepo.listProducts(
       { isAvailable: true, isFeatured: true, sort: "featured" },
       0,
       10
     );
+    if (rows.length === 0) {
+      const fallback = await productRepo.listProducts(
+        { isAvailable: true, sort: "rating" },
+        0,
+        10
+      );
+      rows = fallback.rows;
+    }
     return rows;
   },
 

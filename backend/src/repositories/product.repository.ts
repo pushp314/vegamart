@@ -345,7 +345,7 @@ export async function listProductsForHomepage(
     vendorWhere.is_open = true;
   }
 
-  const vendors = await prisma.vendorProfile.findMany({
+  let vendors = await prisma.vendorProfile.findMany({
     where: vendorWhere,
     select: {
       id: true,
@@ -354,6 +354,19 @@ export async function listProductsForHomepage(
     },
     orderBy: [{ is_sponsored: "desc" }, { business_name: "asc" }],
   });
+
+  if (vendors.length === 0 && vendorIsOpen) {
+    delete vendorWhere.is_open;
+    vendors = await prisma.vendorProfile.findMany({
+      where: vendorWhere,
+      select: {
+        id: true,
+        is_sponsored: true,
+        business_name: true,
+      },
+      orderBy: [{ is_sponsored: "desc" }, { business_name: "asc" }],
+    });
+  }
 
   if (vendors.length === 0) {
     return { rows: [], total: 0 };
