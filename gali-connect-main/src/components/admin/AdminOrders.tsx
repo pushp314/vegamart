@@ -27,9 +27,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Eye, Loader2, ShoppingBag, MapPin, User, Store, Phone, Bike, CreditCard, Banknote, ShieldCheck, ExternalLink } from "lucide-react";
+import {
+  Search,
+  Eye,
+  Loader2,
+  ShoppingBag,
+  MapPin,
+  User,
+  Store,
+  Phone,
+  Bike,
+  CreditCard,
+  Banknote,
+  ShieldCheck,
+  ExternalLink,
+} from "lucide-react";
 import { format } from "date-fns";
-import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
+import {
+  getDeliveryOptionInfo,
+  getPaymentMethodInfo,
+  getOrderStatusInfo,
+} from "@/lib/order-helpers";
 
 interface Order {
   id: string;
@@ -47,7 +65,21 @@ interface Order {
   created_at: string;
   customer: { id: string; name: string; email: string; phone?: string | null } | null;
   vendors?: any[];
-  sub_orders?: any[];
+  sub_orders?: Array<{
+    order_number: string;
+    status: string;
+    vendor: any;
+    total: number;
+    commission: number;
+    vendorEarnings: number;
+    delivery_partner?: {
+      id: string;
+      vehicle_type: string;
+      vehicle_number: string;
+      user: { name: string; phone: string | null } | null;
+    } | null;
+    items: any[];
+  }> | null;
   vendor: {
     id: string;
     business_name: string;
@@ -63,6 +95,8 @@ interface Order {
     id: string;
     name: string;
     phone?: string | null;
+    vehicle_type?: string;
+    vehicle_number?: string;
   } | null;
   payment?: {
     id?: string;
@@ -190,6 +224,7 @@ export function AdminOrders() {
                   <TableHead>Order #</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Vendor</TableHead>
+                  <TableHead>Delivery Partner</TableHead>
                   <TableHead>Delivery Mode</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Total</TableHead>
@@ -207,13 +242,15 @@ export function AdminOrders() {
                   </TableRow>
                 ) : (
                   orders.map((order) => {
-                    const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || (order as any).delivery_slot);
+                    const dInfo = getDeliveryOptionInfo(
+                      order.delivery_note || order.delivery_option || (order as any).delivery_slot,
+                    );
                     const pInfo = getPaymentMethodInfo(
                       order.payment_method,
                       order.payment_status,
                       order.total,
                       dInfo.id === "self_pickup",
-                      order.payment?.amount != null ? Number(order.payment.amount) : null
+                      order.payment?.amount != null ? Number(order.payment.amount) : null,
                     );
                     const DIcon = dInfo.icon;
                     const PIcon = pInfo.icon;
@@ -224,23 +261,31 @@ export function AdminOrders() {
                         className="cursor-pointer hover:bg-muted/50 transition-colors"
                         onClick={() => setSelectedOrder(order)}
                       >
-                        <TableCell className="font-mono text-sm font-bold">{order.order_number}</TableCell>
+                        <TableCell className="font-mono text-sm font-bold">
+                          {order.order_number}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-semibold text-foreground">{order.customer?.name ?? "N/A"}</span>
+                            <span className="font-semibold text-foreground">
+                              {order.customer?.name ?? "N/A"}
+                            </span>
                             {order.customer?.phone ? (
                               <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 font-medium">
                                 <Phone className="h-3 w-3 text-emerald-600 shrink-0" />
                                 {order.customer.phone}
                               </span>
                             ) : order.customer?.email ? (
-                              <span className="text-xs text-muted-foreground truncate max-w-[140px]">{order.customer.email}</span>
+                              <span className="text-xs text-muted-foreground truncate max-w-[140px]">
+                                {order.customer.email}
+                              </span>
                             ) : null}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-semibold text-foreground">{order.vendor?.business_name ?? "N/A"}</span>
+                            <span className="font-semibold text-foreground">
+                              {order.vendor?.business_name ?? "N/A"}
+                            </span>
                             {order.vendor?.phone ? (
                               <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 font-medium">
                                 <Phone className="h-3 w-3 text-emerald-600 shrink-0" />
@@ -250,7 +295,34 @@ export function AdminOrders() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${dInfo.colorClass}`}>
+                          {order.delivery_partner ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium text-foreground">
+                                {order.delivery_partner.name}
+                              </span>
+                              {order.delivery_partner.phone && (
+                                <span className="text-xs text-emerald-700 flex items-center gap-1 font-medium">
+                                  <Phone className="h-3 w-3 text-emerald-600 shrink-0" />
+                                  {order.delivery_partner.phone}
+                                </span>
+                              )}
+                              {order.delivery_partner.vehicle_type && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {order.delivery_partner.vehicle_type}{" "}
+                                  {order.delivery_partner.vehicle_number
+                                    ? `(${order.delivery_partner.vehicle_number})`
+                                    : ""}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${dInfo.colorClass}`}
+                          >
                             <DIcon className="h-3.5 w-3.5" />
                             {dInfo.shortLabel}
                           </span>
@@ -269,7 +341,11 @@ export function AdminOrders() {
                                     >
                                       <div className="h-4 w-4 rounded bg-muted overflow-hidden shrink-0 grid place-items-center">
                                         {itemImg ? (
-                                          <img src={itemImg} alt="" className="h-full w-full object-cover" />
+                                          <img
+                                            src={itemImg}
+                                            alt=""
+                                            className="h-full w-full object-cover"
+                                          />
                                         ) : (
                                           <ShoppingBag className="h-3 w-3 text-muted-foreground/60" />
                                         )}
@@ -289,19 +365,27 @@ export function AdminOrders() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="font-semibold text-foreground">₹{order.total.toFixed(2)}</TableCell>
+                        <TableCell className="font-semibold text-foreground">
+                          ₹{order.total.toFixed(2)}
+                        </TableCell>
                         <TableCell>
-                          <Badge className={`${getOrderStatusInfo(order.status).badgeBg} font-bold text-xs whitespace-nowrap`}>
+                          <Badge
+                            className={`${getOrderStatusInfo(order.status).badgeBg} font-bold text-xs whitespace-nowrap`}
+                          >
                             {getOrderStatusInfo(order.status).label}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold border w-fit ${pInfo.colorClass}`}>
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold border w-fit ${pInfo.colorClass}`}
+                            >
                               <PIcon className="h-3.5 w-3.5" />
                               {pInfo.shortLabel}
                             </span>
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold w-fit ${pInfo.statusColorClass}`}>
+                            <span
+                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold w-fit ${pInfo.statusColorClass}`}
+                            >
                               {pInfo.statusText}
                             </span>
                             {pInfo.isPartialAdvance && (
@@ -358,14 +442,19 @@ export function AdminOrders() {
               <DialogTitle className="text-xl font-bold flex items-center gap-2">
                 Order #{detail?.order_number || detail?.id.slice(0, 8)}
                 {detail && (
-                  <Badge className={`${getOrderStatusInfo(detail.status).badgeBg} font-bold text-xs`}>
+                  <Badge
+                    className={`${getOrderStatusInfo(detail.status).badgeBg} font-bold text-xs`}
+                  >
                     {getOrderStatusInfo(detail.status).label}
                   </Badge>
                 )}
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
-              {detail?.created_at ? `Placed on ${format(new Date(detail.created_at), "PPP p")} | ` : ""}ID: {detail?.id}
+              {detail?.created_at
+                ? `Placed on ${format(new Date(detail.created_at), "PPP p")} | `
+                : ""}
+              ID: {detail?.id}
             </DialogDescription>
           </DialogHeader>
 
@@ -374,14 +463,17 @@ export function AdminOrders() {
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : (
-            detail && (() => {
-              const modalDInfo = getDeliveryOptionInfo(detail.delivery_note || detail.delivery_option || (detail as any).delivery_slot);
+            detail &&
+            (() => {
+              const modalDInfo = getDeliveryOptionInfo(
+                detail.delivery_note || detail.delivery_option || (detail as any).delivery_slot,
+              );
               const modalPInfo = getPaymentMethodInfo(
                 detail.payment_method,
                 detail.payment_status,
                 detail.total,
                 modalDInfo.id === "self_pickup",
-                detail.payment?.amount != null ? Number(detail.payment.amount) : null
+                detail.payment?.amount != null ? Number(detail.payment.amount) : null,
               );
               const modalSInfo = getOrderStatusInfo(detail.status);
               const ModalDIcon = modalDInfo.icon;
@@ -390,9 +482,34 @@ export function AdminOrders() {
 
               const modalSteps = [
                 { key: "pending", label: "Order Booked", done: true },
-                { key: "confirmed", label: "Confirmed", done: ["confirmed", "preparing", "packed", "ready_for_pickup", "out_for_delivery", "delivered"].includes(modalSInfo.status) },
-                { key: "preparing", label: "Preparing", done: ["preparing", "packed", "ready_for_pickup", "out_for_delivery", "delivered"].includes(modalSInfo.status) },
-                { key: "out_for_delivery", label: "Out for Delivery", done: ["out_for_delivery", "delivered"].includes(modalSInfo.status) },
+                {
+                  key: "confirmed",
+                  label: "Confirmed",
+                  done: [
+                    "confirmed",
+                    "preparing",
+                    "packed",
+                    "ready_for_pickup",
+                    "out_for_delivery",
+                    "delivered",
+                  ].includes(modalSInfo.status),
+                },
+                {
+                  key: "preparing",
+                  label: "Preparing",
+                  done: [
+                    "preparing",
+                    "packed",
+                    "ready_for_pickup",
+                    "out_for_delivery",
+                    "delivered",
+                  ].includes(modalSInfo.status),
+                },
+                {
+                  key: "out_for_delivery",
+                  label: "Out for Delivery",
+                  done: ["out_for_delivery", "delivered"].includes(modalSInfo.status),
+                },
                 { key: "delivered", label: "Delivered", done: modalSInfo.status === "delivered" },
               ];
 
@@ -404,12 +521,13 @@ export function AdminOrders() {
                       <div className="flex items-center gap-2">
                         <ModalSIcon className="h-4 w-4 text-emerald-600" />
                         <span className="text-xs font-bold text-foreground">
-                          Current Stage: <strong className="text-emerald-700 dark:text-emerald-400">{modalSInfo.label}</strong>
+                          Current Stage:{" "}
+                          <strong className="text-emerald-700 dark:text-emerald-400">
+                            {modalSInfo.label}
+                          </strong>
                         </span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground">
-                        {modalSInfo.desc}
-                      </span>
+                      <span className="text-[11px] text-muted-foreground">{modalSInfo.desc}</span>
                     </div>
 
                     <div className="grid grid-cols-5 gap-2 pt-1">
@@ -423,7 +541,9 @@ export function AdminOrders() {
                           }`}
                         >
                           <div className="flex items-center justify-center gap-1">
-                            <span className={`h-1.5 w-1.5 rounded-full ${st.done ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${st.done ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+                            />
                             <span className="truncate">{st.label}</span>
                           </div>
                         </div>
@@ -439,7 +559,9 @@ export function AdminOrders() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                           Chosen Delivery Option
                         </span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${modalDInfo.colorClass}`}>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${modalDInfo.colorClass}`}
+                        >
                           <ModalDIcon className="h-3.5 w-3.5" />
                           {modalDInfo.shortLabel}
                         </span>
@@ -451,7 +573,15 @@ export function AdminOrders() {
                       {detail.delivery_partner && (
                         <div className="pt-2 border-t text-xs text-muted-foreground flex items-center gap-1.5">
                           <Bike className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>Assigned Partner: <strong className="text-foreground">{detail.delivery_partner.name}</strong> {detail.delivery_partner.phone ? `(${detail.delivery_partner.phone})` : ""}</span>
+                          <span>
+                            Assigned Partner:{" "}
+                            <strong className="text-foreground">
+                              {detail.delivery_partner.name}
+                            </strong>{" "}
+                            {detail.delivery_partner.phone
+                              ? `(${detail.delivery_partner.phone})`
+                              : ""}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -462,7 +592,9 @@ export function AdminOrders() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                           Payment Method
                         </span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${modalPInfo.colorClass}`}>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${modalPInfo.colorClass}`}
+                        >
                           <ModalPIcon className="h-3.5 w-3.5" />
                           {modalPInfo.shortLabel}
                         </span>
@@ -474,7 +606,9 @@ export function AdminOrders() {
                             {modalPInfo.statusText}
                           </Badge>
                         </h4>
-                        <p className="text-xs text-muted-foreground mt-0.5">{modalPInfo.instruction}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {modalPInfo.instruction}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -487,7 +621,9 @@ export function AdminOrders() {
                       </div>
                       <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
                         <div>
-                          <p className="font-bold text-foreground text-sm">{detail.customer?.name || "N/A"}</p>
+                          <p className="font-bold text-foreground text-sm">
+                            {detail.customer?.name || "N/A"}
+                          </p>
                           {detail.customer?.phone ? (
                             <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1.5 w-fit font-medium mt-1">
                               <Phone className="h-3 w-3" />
@@ -496,7 +632,9 @@ export function AdminOrders() {
                           ) : (
                             <p className="text-xs text-muted-foreground italic">No mobile number</p>
                           )}
-                          <p className="text-xs text-muted-foreground mt-0.5">{detail.customer?.email}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {detail.customer?.email}
+                          </p>
                         </div>
 
                         {detail.address ? (
@@ -522,22 +660,32 @@ export function AdminOrders() {
                             </p>
                             {detail.address.landmark && (
                               <p className="text-muted-foreground">
-                                <strong className="text-foreground">Landmark:</strong> {detail.address.landmark}
+                                <strong className="text-foreground">Landmark:</strong>{" "}
+                                {detail.address.landmark}
                               </p>
                             )}
                             <p className="text-muted-foreground">
-                              {[detail.address.city, detail.address.state, detail.address.pincode ? `- ${detail.address.pincode}` : "", detail.address.country || "India"]
+                              {[
+                                detail.address.city,
+                                detail.address.state,
+                                detail.address.pincode ? `- ${detail.address.pincode}` : "",
+                                detail.address.country || "India",
+                              ]
                                 .filter(Boolean)
                                 .join(", ")}
                             </p>
-                            {detail.address.phone && detail.address.phone !== detail.customer?.phone && (
-                              <p className="text-muted-foreground">
-                                <strong className="text-foreground">Address Phone:</strong> {detail.address.phone}
-                              </p>
-                            )}
+                            {detail.address.phone &&
+                              detail.address.phone !== detail.customer?.phone && (
+                                <p className="text-muted-foreground">
+                                  <strong className="text-foreground">Address Phone:</strong>{" "}
+                                  {detail.address.phone}
+                                </p>
+                              )}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic border-t pt-2">No address recorded</p>
+                          <p className="text-xs text-muted-foreground italic border-t pt-2">
+                            No address recorded
+                          </p>
                         )}
                       </div>
                     </div>
@@ -549,24 +697,62 @@ export function AdminOrders() {
                       <div className="rounded-xl border border-border bg-muted/20 space-y-3 p-4">
                         {detail.sub_orders && detail.sub_orders.length > 0 ? (
                           detail.sub_orders.map((sub: any, idx: number) => (
-                            <div key={idx} className="bg-card rounded-lg border border-border p-3 space-y-2">
+                            <div
+                              key={idx}
+                              className="bg-card rounded-lg border border-border p-3 space-y-2"
+                            >
                               <div className="flex justify-between items-center">
                                 <p className="font-bold text-foreground text-sm flex items-center gap-2">
                                   <Store className="h-3.5 w-3.5 text-emerald-600" />
                                   {sub.vendor?.business_name || "N/A"}
                                 </p>
-                                <Badge className={`${getOrderStatusInfo(sub.status).badgeBg} font-bold text-[10px]`}>
+                                <Badge
+                                  className={`${getOrderStatusInfo(sub.status).badgeBg} font-bold text-[10px]`}
+                                >
                                   {getOrderStatusInfo(sub.status).label}
                                 </Badge>
                               </div>
                               <div className="flex justify-between text-xs text-muted-foreground border-t pt-2 mt-2">
-                                <span>Sub-order Total: <strong className="text-foreground">₹{sub.total.toFixed(2)}</strong></span>
-                                <span className="text-rose-600">Comm: <strong>₹{sub.commission.toFixed(2)}</strong></span>
-                                <span className="text-emerald-600">Payout: <strong>₹{sub.vendorEarnings.toFixed(2)}</strong></span>
+                                <span>
+                                  Sub-order Total:{" "}
+                                  <strong className="text-foreground">
+                                    ₹{sub.total.toFixed(2)}
+                                  </strong>
+                                </span>
+                                <span className="text-rose-600">
+                                  Comm: <strong>₹{sub.commission.toFixed(2)}</strong>
+                                </span>
+                                <span className="text-emerald-600">
+                                  Payout: <strong>₹{sub.vendorEarnings.toFixed(2)}</strong>
+                                </span>
                               </div>
                               <div className="flex gap-4 text-xs text-muted-foreground mt-1">
                                 {sub.vendor?.phone && (
-                                  <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {sub.vendor.phone}</span>
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3" /> {sub.vendor.phone}
+                                  </span>
+                                )}
+                                {sub.delivery_partner && (
+                                  <>
+                                    <span className="flex items-center gap-1">
+                                      <Bike className="h-3 w-3 text-emerald-600" />{" "}
+                                      {sub.delivery_partner.user?.name || "Partner"}
+                                    </span>
+                                    {sub.delivery_partner.user?.phone && (
+                                      <span className="flex items-center gap-1">
+                                        <Phone className="h-3 w-3 text-emerald-600" />{" "}
+                                        {sub.delivery_partner.user.phone}
+                                      </span>
+                                    )}
+                                    {sub.delivery_partner.vehicle_type && (
+                                      <span>
+                                        {sub.delivery_partner.vehicle_type}{" "}
+                                        {sub.delivery_partner.vehicle_number
+                                          ? `(${sub.delivery_partner.vehicle_number})`
+                                          : ""}
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -574,8 +760,10 @@ export function AdminOrders() {
                         ) : (
                           // Fallback for older orders without sub_orders populated
                           <div className="text-sm text-muted-foreground">
-                             <p className="font-bold text-foreground text-sm">{detail.vendor?.business_name || "N/A"}</p>
-                             <p>{detail.vendor?.address}</p>
+                            <p className="font-bold text-foreground text-sm">
+                              {detail.vendor?.business_name || "N/A"}
+                            </p>
+                            <p>{detail.vendor?.address}</p>
                           </div>
                         )}
                       </div>
@@ -652,12 +840,16 @@ export function AdminOrders() {
                       <div className="bg-muted/30 p-4 border-t border-border space-y-1.5 text-sm">
                         <div className="flex justify-between text-muted-foreground">
                           <span>Accepted Items Subtotal</span>
-                          <span className="tabular-nums">₹{Number(detail.items_subtotal || 0).toFixed(2)}</span>
+                          <span className="tabular-nums">
+                            ₹{Number(detail.items_subtotal || 0).toFixed(2)}
+                          </span>
                         </div>
                         {Number(detail.delivery_fee) > 0 && (
                           <div className="flex justify-between text-muted-foreground">
                             <span>Delivery Fee</span>
-                            <span className="tabular-nums">+ ₹{Number(detail.delivery_fee).toFixed(2)}</span>
+                            <span className="tabular-nums">
+                              + ₹{Number(detail.delivery_fee).toFixed(2)}
+                            </span>
                           </div>
                         )}
                         {Number(detail.tax) > 0 && (
@@ -669,22 +861,32 @@ export function AdminOrders() {
                         {Number(detail.discount) > 0 && (
                           <div className="flex justify-between text-emerald-600 font-medium">
                             <span>Discount</span>
-                            <span className="tabular-nums">- ₹{Number(detail.discount).toFixed(2)}</span>
+                            <span className="tabular-nums">
+                              - ₹{Number(detail.discount).toFixed(2)}
+                            </span>
                           </div>
                         )}
                         <div className="flex justify-between items-center font-bold text-base pt-2 border-t border-border/50">
                           <span>Total Order Amount</span>
-                          <span className="text-foreground font-black text-lg">₹{Number(detail.total || 0).toFixed(2)}</span>
+                          <span className="text-foreground font-black text-lg">
+                            ₹{Number(detail.total || 0).toFixed(2)}
+                          </span>
                         </div>
                         {modalPInfo.isPartialAdvance && (
                           <div className="space-y-1.5 pt-1">
                             <div className="flex justify-between text-xs font-bold text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                              <span>Advance Paid Online ({detail.payment?.method || "UPI/Card"})</span>
-                              <span className="tabular-nums font-black">- ₹{modalPInfo.advancePaid.toFixed(2)}</span>
+                              <span>
+                                Advance Paid Online ({detail.payment?.method || "UPI/Card"})
+                              </span>
+                              <span className="tabular-nums font-black">
+                                - ₹{modalPInfo.advancePaid.toFixed(2)}
+                              </span>
                             </div>
                             <div className="flex justify-between text-xs font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
                               <span>Balance to Collect at Store</span>
-                              <span className="tabular-nums font-black text-sm text-amber-700">₹{modalPInfo.balanceAmount.toFixed(2)}</span>
+                              <span className="tabular-nums font-black text-sm text-amber-700">
+                                ₹{modalPInfo.balanceAmount.toFixed(2)}
+                              </span>
                             </div>
                             <div className="text-[11px] text-center font-bold text-emerald-800 bg-emerald-100/60 py-1 rounded-md border border-emerald-200">
                               {modalPInfo.summaryText}

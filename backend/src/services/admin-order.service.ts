@@ -194,6 +194,14 @@ export const adminOrderService = {
         orders: {
           include: {
             vendor: true,
+            delivery_partner: {
+              select: {
+                id: true,
+                vehicle_type: true,
+                vehicle_number: true,
+                user: { select: { name: true, phone: true } },
+              },
+            },
             items: {
               include: {
                 product: {
@@ -240,6 +248,16 @@ export const adminOrderService = {
         total: o.total.toNumber(),
         commission,
         vendorEarnings,
+        delivery_partner: o.delivery_partner
+          ? {
+              id: o.delivery_partner.id,
+              vehicle_type: o.delivery_partner.vehicle_type,
+              vehicle_number: o.delivery_partner.vehicle_number,
+              user: o.delivery_partner.user
+                ? { name: o.delivery_partner.user.name, phone: o.delivery_partner.user.phone }
+                : null,
+            }
+          : null,
         items: o.items.map(i => ({
           id: i.id,
           quantity: i.quantity,
