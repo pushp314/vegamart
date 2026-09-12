@@ -323,6 +323,84 @@ export async function listByVendorIds(
   return { rows: rows.map(mapRow), total };
 }
 
+export async function listProductsForHomepage(
+  options: {
+    perPage?: number;
+    productsPerVendor?: number;
+    vendorIsOpen?: boolean;
+  } = {}
+): Promise<{ rows: ProductRow[]; total: number }> {
+  const perPage = options.perPage ?? 100;
+  const productsPerVendor = options.productsPerVendor ?? 10;
+  const vendorIsOpen = options.vendorIsOpen ?? false;
+
+  // First, get all eligible vendors with their sponsored status
+  const vendorWhere: Prisma.VendorProfileWhereInput = {
+    status: "APPROVED",
+    deleted_at: null,
+  };
+  if (vendorIsOpen) {
+    vendorWhere.is_open = true;
+  }
+
+  const vendors = await prisma.vendorProfile.findMany({
+    where: vendorWhere,
+    select: {
+      id: true,
+      is_sponsored: true,
+      business_name: true,
+    },
+    orderBy: [{ is_sponsored: "desc" }, { business_name: "asc" }],
+  });
+
+  if (vendors.length === 0) {
+    return { rows: [], total: 0 };
+  }
+
+  // Fetch products per vendor using a round-robin approach to ensure diversity
+  // We'll fetch up to productsPerVendor per vendor, then merge and sort
+  const allProducts: ProductRow[] = [];
+
+  for (const vendor of vendors) {
+    const vendorProducts = await prisma.product.findMany({
+      where: {
+        vendor_id: vendor.id,
+        deleted_at: null,
+        is_active: true,
+        is_available: true,
+      },
+      select: baseSelect,
+      orderBy: [
+        { is_featured: "desc" },
+        { rating: "desc" },
+        { created_at: "desc" },
+      ],
+      take: productsPerVendor,
+    });
+    allProducts.push(...vendorProducts.map(mapRow));
+  }
+
+  // Sort: sponsored vendors first, then by featured, rating, recency
+  allProducts.sort((a, b) => {
+    const aSponsored = a.vendor?.is_sponsored ? 1 : 0;
+    const bSponsored = b.vendor?.is_sponsored ? 1 : 0;
+    if (aSponsored !== bSponsored) return bSponsored - aSponsored;
+    
+    const aFeatured = a.is_featured ? 1 : 0;
+    const bFeatured = b.is_featured ? 1 : 0;
+    if (aFeatured !== bFeatured) return bFeatured - aFeatured;
+    
+    if (a.rating !== b.rating) return b.rating - a.rating;
+    
+    return b.created_at.getTime() - a.created_at.getTime();
+  });
+
+  const total = allProducts.length;
+  const rows = allProducts.slice(0, perPage);
+
+  return { rows, total };
+}
+
 export async function createProduct(data: {
   vendor_id: string;
   category_id: string;

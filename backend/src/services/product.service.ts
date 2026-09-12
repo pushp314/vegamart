@@ -298,7 +298,7 @@ export const productService = {
     );
   },
 
-  async list(query: {
+async list(query: {
     page?: number;
     per_page?: number;
     q?: string;
@@ -349,7 +349,7 @@ export const productService = {
                 : undefined,
         },
         (page - 1) * perPage,
-        perPage,
+        perPage
       );
 
     if (!cacheable) {
@@ -372,6 +372,24 @@ export const productService = {
         page,
         perPage,
       }));
+  },
+
+  async listForHomepage(query: {
+    per_page?: number;
+    products_per_vendor?: number;
+    vendor_is_open?: string;
+  }) {
+    const perPage = Math.min(200, Math.max(1, query.per_page ?? 100));
+    const productsPerVendor = Math.min(20, Math.max(1, query.products_per_vendor ?? 10));
+    const vendorIsOpen = query.vendor_is_open === "true" ? true : query.vendor_is_open === "false" ? false : undefined;
+
+    const { rows, total } = await productRepo.listProductsForHomepage({
+      perPage,
+      productsPerVendor,
+      vendorIsOpen,
+    });
+
+    return { rows, total };
   },
 
   async listAdmin(query: {

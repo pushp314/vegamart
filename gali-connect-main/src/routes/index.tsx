@@ -855,7 +855,7 @@ function ShopWiseProducts() {
   type ShopProduct = Product & { vendor?: StoreVendor };
   const { data: res, isLoading } = useQuery({
     queryKey: ["products", "shopwise"],
-    queryFn: () => api.get<ShopProduct[]>("/products?per_page=100&vendor_is_open=false"),
+    queryFn: () => api.get<ShopProduct[]>("/products/homepage?per_page=200&products_per_vendor=10&vendor_is_open=false"),
     staleTime: 5 * 60 * 1000,
   });
 

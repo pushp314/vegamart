@@ -8,6 +8,7 @@ import {
   getProduct,
   listMyProducts,
   listProducts,
+  listProductsForHomepage,
   removeProductImage,
   setPrimaryProductImage,
   updateProduct,
@@ -33,6 +34,7 @@ import {
 const router = Router();
 
 router.get("/products/gallery", authenticate, getGalleryImages);
+router.get("/products/homepage", validate({ query: listProductsQuerySchema }), listProductsForHomepage);
 router.get("/products", validate({ query: listProductsQuerySchema }), listProducts);
 router.get("/products/me", authenticate, validate({ query: vendorProductsQuerySchema }), listMyProducts);
 router.get("/products/:product_id", validate({ params: productIdParamsSchema }), getProduct);

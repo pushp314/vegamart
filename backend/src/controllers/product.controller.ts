@@ -95,6 +95,41 @@ export const listProducts = asyncHandler(
 
 /**
  * @swagger
+ * /products/homepage:
+ *   get:
+ *     summary: Get products for homepage with vendor diversity
+ *     tags: [Products]
+ *     parameters:
+ *       - in: query
+ *         name: per_page
+ *         schema: { type: integer, maximum: 200 }
+ *       - in: query
+ *         name: products_per_vendor
+ *         schema: { type: integer, maximum: 20 }
+ *       - in: query
+ *         name: vendor_is_open
+ *         schema: { type: string, enum: ["true", "false"] }
+ *     responses:
+ *       200:
+ *         description: Products with vendor diversity for homepage.
+ */
+export const listProductsForHomepage = asyncHandler(
+  async (req: Request, res: Response) => {
+    const query = req.query as Record<string, string | undefined>;
+    const result = await productService.listForHomepage({
+      per_page: query.per_page ? Number(query.per_page) : undefined,
+      products_per_vendor: query.products_per_vendor ? Number(query.products_per_vendor) : undefined,
+      vendor_is_open: query.vendor_is_open,
+    });
+    const perPage = result.rows.length;
+    return sendSuccess(res, result.rows, {
+      pagination: { page: 1, per_page: perPage, total: result.total, total_pages: 1, has_next: false, has_prev: false },
+    });
+  },
+);
+
+/**
+ * @swagger
  * /products/{product_id}:
  *   get:
  *     summary: Get a product by id
