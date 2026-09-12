@@ -51,8 +51,6 @@ export const Route = createFileRoute("/vendor/orders")({
 function VendorOrdersPage() {
   const { highlight } = useSearch({ from: "/vendor/orders" });
   const queryClient = useQueryClient();
-  const [otpTarget, setOtpTarget] = useState<any | null>(null);
-  const [otpInput, setOtpInput] = useState("");
   const [rejectTarget, setRejectTarget] = useState<{ orderId: string; item: any } | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState(highlight || "");
@@ -161,11 +159,9 @@ function VendorOrdersPage() {
     mutationFn: ({
       orderId,
       status,
-      otpCode,
     }: {
       orderId: string;
       status: string;
-      otpCode?: string;
     }) => {
       const VENDOR_ORDER_STATUS_MAP: Record<string, string> = {
         accepted: "CONFIRMED",
@@ -177,15 +173,11 @@ function VendorOrdersPage() {
       };
       return api.patch(`/vendors/orders/${orderId}/status`, {
         status: VENDOR_ORDER_STATUS_MAP[status] || status,
-        otp_code: otpCode,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
-      setOtpTarget(null);
-      setOtpInput("");
       toast.success("Order status updated successfully");
-      setOtpTarget(null);
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to update order status");
@@ -813,57 +805,7 @@ function VendorOrdersPage() {
         </div>
       )}
 
-      {/* OTP Dialog */}
-      {/* Delivery OTP Dialog */}
-      <Dialog open={!!otpTarget} onOpenChange={(open) => !open && setOtpTarget(null)}>
-        <DialogContent className="rounded-3xl border-border max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-display text-center text-emerald-600">
-              Verify Customer Delivery OTP
-            </DialogTitle>
-            <DialogDescription className="text-xs text-center">
-              Ask the customer for the 6-digit verification PIN displayed on their live order screen
-              to complete order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-3">
-            <input
-              type="text"
-              maxLength={6}
-              value={otpInput}
-              onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))}
-              placeholder="000000"
-              className="w-full text-center text-4xl tracking-widest rounded-2xl border border-border bg-muted/50 px-4 py-5 font-display font-black focus:bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            />
-            <p className="text-[11px] text-muted-foreground text-center">
-              💡 If delivery partner is unavailable or customer is collecting directly, you can
-              complete the order immediately with this OTP.
-            </p>
-            <button
-              onClick={() => {
-                if (otpInput.length !== 6) {
-                  toast.error("Please enter a valid 6-digit OTP");
-                  return;
-                }
-                updateOrderStatusMutation.mutate({
-                  orderId: otpTarget.id,
-                  status: "delivered",
-                  otpCode: otpInput,
-                });
-              }}
-              disabled={updateOrderStatusMutation.isPending || otpInput.length !== 6}
-              className="w-full rounded-2xl bg-emerald-500 text-black px-4 py-3.5 text-xs font-bold shadow-lg disabled:opacity-50 inline-flex items-center justify-center gap-2"
-            >
-              {updateOrderStatusMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4" />
-              )}
-              Verify OTP & Complete Delivery
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Reject Item Confirmation Dialog */}
       <Dialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
