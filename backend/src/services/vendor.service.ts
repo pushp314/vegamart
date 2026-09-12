@@ -488,7 +488,7 @@ export const vendorService = {
     radiusKm: number,
     options: { category?: string; isOpen?: boolean; page?: number; perPage?: number } = {}
   ): Promise<{ vendors: NearbyVendor[]; total: number; page: number; perPage: number }> {
-    const radius = radiusKm || 5;
+    const radius = radiusKm || 10;
     const page = Math.max(1, options.page ?? 1);
     const perPage = Math.min(100, Math.max(1, options.perPage ?? 20));
     const bounds = boundingBox(lat, lng, radius);

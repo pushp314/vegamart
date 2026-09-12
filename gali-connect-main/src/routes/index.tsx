@@ -1216,12 +1216,24 @@ function SponsoredVendors() {
 function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
   const { data: res, isLoading } = useQuery({
     queryKey: ["vendors", "live", defaultAddress?.latitude, defaultAddress?.longitude],
-    queryFn: () => {
-      let url = "/vendors";
+    queryFn: async () => {
       if (defaultAddress?.latitude && defaultAddress?.longitude) {
-        url = `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}`;
+        const nearbyRes = await api.get<any[]>(
+          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10`
+        );
+        const rawData: any = nearbyRes?.data;
+        const items = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.data)
+            ? rawData.data
+            : Array.isArray(rawData?.vendors)
+              ? rawData.vendors
+              : [];
+        if (items.length > 0) {
+          return nearbyRes;
+        }
       }
-      return api.get<any[]>(url);
+      return api.get<any[]>("/vendors");
     },
   });
 
@@ -1403,12 +1415,24 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
 function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
   const { data: res, isLoading } = useQuery({
     queryKey: ["vendors", "shops", defaultAddress?.latitude, defaultAddress?.longitude],
-    queryFn: () => {
-      let url = "/vendors";
+    queryFn: async () => {
       if (defaultAddress?.latitude && defaultAddress?.longitude) {
-        url = `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}`;
+        const nearbyRes = await api.get<any[]>(
+          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10`
+        );
+        const rawData: any = nearbyRes?.data;
+        const items = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.data)
+            ? rawData.data
+            : Array.isArray(rawData?.vendors)
+              ? rawData.vendors
+              : [];
+        if (items.length > 0) {
+          return nearbyRes;
+        }
       }
-      return api.get<any[]>(url);
+      return api.get<any[]>("/vendors");
     },
   });
 
