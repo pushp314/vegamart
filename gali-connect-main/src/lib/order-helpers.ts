@@ -99,7 +99,12 @@ export function getOrderStatusInfo(status?: string | null): OrderStatusInfo {
     };
   }
 
-  if (s === "picked_up" || s === "out_for_delivery") {
+  if (
+    s === "picked_up" ||
+    s === "out_for_delivery" ||
+    s === "pickup_in_progress" ||
+    s === "arrived"
+  ) {
     return {
       status: "out_for_delivery",
       label: "Out for Delivery",

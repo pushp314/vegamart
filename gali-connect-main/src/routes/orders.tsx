@@ -58,12 +58,17 @@ function Orders() {
 
 const ACTIVE_STATUSES = [
   "pending",
+  "booked",
   "confirmed",
+  "accepted",
   "preparing",
+  "processing",
   "packed",
   "ready_for_pickup",
+  "pickup_in_progress",
   "picked_up",
   "out_for_delivery",
+  "arrived",
 ];
 
 const PAST_STATUSES = ["delivered", "cancelled", "refunded", "returned", "failed"];
