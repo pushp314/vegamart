@@ -1,4 +1,4 @@
-Ah, you got a `400 (Bad Request)` on `/payments/verify`!
+xAh, you got a `400 (Bad Request)` on `/payments/verify`!
 
 I've found exactly why that happened.
 

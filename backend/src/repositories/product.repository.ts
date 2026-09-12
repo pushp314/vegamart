@@ -166,7 +166,9 @@ export async function listProducts(
       status: "APPROVED",
       deleted_at: null,
     };
-    if (filter.vendorIsOpen !== false) {
+    // Only apply is_open filter when NOT querying for a specific vendor
+    // When vendorId is provided, we want to show all products for that vendor regardless of open status
+    if (!filter.vendorId && filter.vendorIsOpen !== false) {
       vendorFilter.is_open = true;
     }
     where.vendor = vendorFilter;
