@@ -3,7 +3,25 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bike, Check, Loader2, Search, Filter, ShoppingBag, Clock, CheckCircle2, X, Phone, Store, User, CreditCard, Banknote, MapPin, ExternalLink, Sparkles } from "lucide-react";
+import {
+  Bike,
+  Check,
+  Loader2,
+  Search,
+  Filter,
+  ShoppingBag,
+  Clock,
+  CheckCircle2,
+  X,
+  Phone,
+  Store,
+  User,
+  CreditCard,
+  Banknote,
+  MapPin,
+  ExternalLink,
+  Sparkles,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +29,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
+import {
+  getDeliveryOptionInfo,
+  getPaymentMethodInfo,
+  getOrderStatusInfo,
+} from "@/lib/order-helpers";
 
 type VendorOrdersSearch = {
   highlight?: string;
@@ -41,7 +63,9 @@ function VendorOrdersPage() {
       setStatusFilter("ALL");
       queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
       const timer = setTimeout(() => {
-        const el = document.getElementById(`order-card-${highlight}`) || document.querySelector(`[data-order-id="${highlight}"]`);
+        const el =
+          document.getElementById(`order-card-${highlight}`) ||
+          document.querySelector(`[data-order-id="${highlight}"]`);
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
         }
@@ -55,18 +79,18 @@ function VendorOrdersPage() {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
-      
+
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
-      
-      oscillator.type = 'sine';
+
+      oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
       oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
-      
+
       gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
       gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-      
+
       oscillator.start(audioCtx.currentTime);
       oscillator.stop(audioCtx.currentTime + 0.5);
     } catch (e) {}
@@ -89,7 +113,9 @@ function VendorOrdersPage() {
 
   useEffect(() => {
     if (vendorOrders.length > 0) {
-      const currentPendingIds = vendorOrders.filter((o: any) => o.status?.toUpperCase() === 'PENDING').map((o: any) => o.id);
+      const currentPendingIds = vendorOrders
+        .filter((o: any) => o.status?.toUpperCase() === "PENDING")
+        .map((o: any) => o.id);
       const hasNewPending = currentPendingIds.some((id: string) => !prevOrdersRef.current.has(id));
       if (hasNewPending && prevOrdersRef.current.size > 0) {
         playDing();
@@ -110,15 +136,24 @@ function VendorOrdersPage() {
       (o.user?.name && o.user.name.toLowerCase().includes(q)) ||
       (o.customer?.name && o.customer.name.toLowerCase().includes(q));
 
-    const isLive = ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY"].includes(
-      (o.status || "").toUpperCase()
-    );
+    const isLive = [
+      "CONFIRMED",
+      "PREPARING",
+      "PACKED",
+      "READY_FOR_PICKUP",
+      "OUT_FOR_DELIVERY",
+    ].includes((o.status || "").toUpperCase());
 
     if (statusFilter === "ALL") return matchesSearch;
     if (statusFilter === "BOOKED") return matchesSearch && o.status?.toUpperCase() === "PENDING";
     if (statusFilter === "LIVE") return matchesSearch && isLive;
-    if (statusFilter === "DELIVERED") return matchesSearch && o.status?.toUpperCase() === "DELIVERED";
-    if (statusFilter === "CANCELLED") return matchesSearch && (o.status?.toUpperCase() === "CANCELLED" || o.status?.toUpperCase() === "REFUNDED");
+    if (statusFilter === "DELIVERED")
+      return matchesSearch && o.status?.toUpperCase() === "DELIVERED";
+    if (statusFilter === "CANCELLED")
+      return (
+        matchesSearch &&
+        (o.status?.toUpperCase() === "CANCELLED" || o.status?.toUpperCase() === "REFUNDED")
+      );
     return matchesSearch;
   });
 
@@ -211,9 +246,13 @@ function VendorOrdersPage() {
               id: "LIVE",
               label: `Active (${
                 vendorOrders.filter((o: any) =>
-                  ["CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY"].includes(
-                    (o.status || "").toUpperCase()
-                  )
+                  [
+                    "CONFIRMED",
+                    "PREPARING",
+                    "PACKED",
+                    "READY_FOR_PICKUP",
+                    "OUT_FOR_DELIVERY",
+                  ].includes((o.status || "").toUpperCase()),
                 ).length
               })`,
             },
@@ -257,92 +296,97 @@ function VendorOrdersPage() {
         <div className="space-y-4">
           {filteredOrders.map((o: any) => {
             const getNextStatuses = (currentStatus: string, orderData: any) => {
-              const statusFlow: Record<
-                string,
-                { status: string; label: string; color: string }[]
-              > = {
-                PENDING: [
-                  {
-                    status: "accepted",
-                    label: "Accept Order",
-                    color: "bg-emerald-500 text-black hover:bg-emerald-400 font-bold",
-                  },
-                  {
-                    status: "CANCELLED",
-                    label: "Cancel Order",
-                    color: "bg-rose-100 text-rose-600 hover:bg-rose-200 font-bold border border-rose-200",
-                  }
-                ],
-                CONFIRMED: [
-                  {
-                    status: "preparing",
-                    label: "Start Preparing",
-                    color: "bg-blue-600 text-white hover:bg-blue-500 font-bold",
-                  },
-                  {
-                    status: "delivered",
-                    label: "🔑 Verify OTP & Deliver",
-                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
-                  },
-                  {
-                    status: "CANCELLED",
-                    label: "Cancel Order",
-                    color: "bg-rose-100 text-rose-600 hover:bg-rose-200 font-bold border border-rose-200",
-                  }
-                ],
-                PREPARING: [
-                  {
-                    status: "packed",
-                    label: "Mark Packed",
-                    color: "bg-indigo-600 text-white hover:bg-indigo-500 font-bold",
-                  },
-                  {
-                    status: "delivered",
-                    label: "🔑 Verify OTP & Deliver",
-                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
-                  },
-                ],
-                PACKED: [
-                  {
-                    status: "ready_for_pickup",
-                    label: "Ready for Pickup",
-                    color: "bg-cyan-600 text-white hover:bg-cyan-500 font-bold",
-                  },
-                  {
-                    status: "delivered",
-                    label: "🔑 Verify OTP & Deliver",
-                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
-                  },
-                ],
-                READY_FOR_PICKUP: [
-                  {
-                    status: "out_for_delivery",
-                    label: "Out for Delivery",
-                    color: "bg-amber-600 text-white hover:bg-amber-500 font-bold",
-                  },
-                  {
-                    status: "delivered",
-                    label: "🔑 Verify OTP & Deliver",
-                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
-                  },
-                ],
-                OUT_FOR_DELIVERY: [
-                  {
-                    status: "delivered",
-                    label: "🔑 Verify OTP & Complete",
-                    color: "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
-                  },
-                ],
-              };
-              
+              const statusFlow: Record<string, { status: string; label: string; color: string }[]> =
+                {
+                  PENDING: [
+                    {
+                      status: "accepted",
+                      label: "Accept Order",
+                      color: "bg-emerald-500 text-black hover:bg-emerald-400 font-bold",
+                    },
+                    {
+                      status: "CANCELLED",
+                      label: "Cancel Order",
+                      color:
+                        "bg-rose-100 text-rose-600 hover:bg-rose-200 font-bold border border-rose-200",
+                    },
+                  ],
+                  CONFIRMED: [
+                    {
+                      status: "preparing",
+                      label: "Start Preparing",
+                      color: "bg-blue-600 text-white hover:bg-blue-500 font-bold",
+                    },
+                    {
+                      status: "delivered",
+                      label: "🔑 Verify OTP & Deliver",
+                      color:
+                        "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                    },
+                    {
+                      status: "CANCELLED",
+                      label: "Cancel Order",
+                      color:
+                        "bg-rose-100 text-rose-600 hover:bg-rose-200 font-bold border border-rose-200",
+                    },
+                  ],
+                  PREPARING: [
+                    {
+                      status: "packed",
+                      label: "Mark Packed",
+                      color: "bg-indigo-600 text-white hover:bg-indigo-500 font-bold",
+                    },
+                    {
+                      status: "delivered",
+                      label: "🔑 Verify OTP & Deliver",
+                      color:
+                        "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                    },
+                  ],
+                  PACKED: [
+                    {
+                      status: "ready_for_pickup",
+                      label: "Ready for Pickup",
+                      color: "bg-cyan-600 text-white hover:bg-cyan-500 font-bold",
+                    },
+                    {
+                      status: "delivered",
+                      label: "🔑 Verify OTP & Deliver",
+                      color:
+                        "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                    },
+                  ],
+                  READY_FOR_PICKUP: [
+                    {
+                      status: "out_for_delivery",
+                      label: "Out for Delivery",
+                      color: "bg-amber-600 text-white hover:bg-amber-500 font-bold",
+                    },
+                    {
+                      status: "delivered",
+                      label: "🔑 Verify OTP & Deliver",
+                      color:
+                        "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                    },
+                  ],
+                  OUT_FOR_DELIVERY: [
+                    {
+                      status: "delivered",
+                      label: "🔑 Verify OTP & Complete",
+                      color:
+                        "bg-emerald-600 text-white hover:bg-emerald-500 font-bold border border-emerald-500",
+                    },
+                  ],
+                };
+
               let available = statusFlow[currentStatus?.toUpperCase()] || [];
               if (orderData?.master_order?._count?.orders > 1) {
                 // If it's a multi-store route, the vendor cannot handle the final delivery themselves
                 available = available.filter(
-                  (s) => s.status !== "delivered" && s.status !== "out_for_delivery"
+                  (s) => s.status !== "delivered" && s.status !== "out_for_delivery",
                 );
               }
-              
+
               return available;
             };
 
@@ -354,17 +398,17 @@ function VendorOrdersPage() {
               o.payment_status,
               Number(o.total || 0),
               dInfo.id === "self_pickup",
-              o.payment?.amount != null ? Number(o.payment.amount) : null
+              o.payment?.amount != null ? Number(o.payment.amount) : null,
             );
             const DIcon = dInfo.icon;
             const SIcon = sInfo.icon;
             const PIcon = pInfo.icon;
             const isHighlighted = Boolean(
               highlight &&
-                (o.id === highlight ||
-                  o.order_number === highlight ||
-                  o.id.toLowerCase().includes(highlight.toLowerCase()) ||
-                  o.order_number?.toLowerCase().includes(highlight.toLowerCase()))
+              (o.id === highlight ||
+                o.order_number === highlight ||
+                o.id.toLowerCase().includes(highlight.toLowerCase()) ||
+                o.order_number?.toLowerCase().includes(highlight.toLowerCase())),
             );
 
             return (
@@ -383,7 +427,7 @@ function VendorOrdersPage() {
                     <Sparkles className="h-3.5 w-3.5" /> Selected Order
                   </div>
                 )}
-                
+
                 {o.master_order?._count?.orders > 1 && (
                   <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-black uppercase tracking-wider w-fit shadow-sm">
                     <MapPin className="h-3.5 w-3.5" /> Multi-Store Route
@@ -410,7 +454,9 @@ function VendorOrdersPage() {
                       <div className="font-display text-lg font-black text-emerald-600">
                         ₹{Number(o.total || 0).toLocaleString("en-IN")}
                       </div>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${sInfo.badgeBg}`}>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${sInfo.badgeBg}`}
+                      >
                         <SIcon className="h-3 w-3" /> {sInfo.label}
                       </span>
                     </div>
@@ -425,7 +471,9 @@ function VendorOrdersPage() {
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                         Delivery Option Chosen
                       </span>
-                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}>
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}
+                      >
                         <DIcon className="h-3 w-3" />
                         {dInfo.shortLabel}
                       </span>
@@ -440,18 +488,24 @@ function VendorOrdersPage() {
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                         Payment Mode
                       </span>
-                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}>
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}
+                      >
                         <PIcon className="h-3 w-3" />
                         {pInfo.shortLabel}
                       </span>
                     </div>
                     <div className="font-bold text-foreground text-sm flex items-center justify-between">
                       <span>{pInfo.label}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pInfo.statusColorClass}`}>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pInfo.statusColorClass}`}
+                      >
                         {pInfo.statusText}
                       </span>
                     </div>
-                    <p className="text-muted-foreground text-[11px] font-medium leading-snug">{pInfo.instruction}</p>
+                    <p className="text-muted-foreground text-[11px] font-medium leading-snug">
+                      {pInfo.instruction}
+                    </p>
                     {pInfo.isPartialAdvance && (
                       <div className="mt-1 pt-1 border-t border-border/50 text-[10.5px] font-bold text-teal-800 dark:text-teal-300">
                         {pInfo.summaryText}
@@ -468,7 +522,9 @@ function VendorOrdersPage() {
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <p className="font-semibold text-foreground">{o.user?.name || o.customer?.name || o.customer_name || "Customer"}</p>
+                        <p className="font-semibold text-foreground">
+                          {o.user?.name || o.customer?.name || o.customer_name || "Customer"}
+                        </p>
                         {(o.user?.phone || o.customer?.phone || o.address?.phone) && (
                           <a
                             href={`tel:${o.customer?.phone || o.user?.phone || o.address?.phone}`}
@@ -479,7 +535,9 @@ function VendorOrdersPage() {
                           </a>
                         )}
                         {(o.user?.email || o.customer?.email) && (
-                          <p className="text-muted-foreground text-[11px] mt-1">{o.user?.email || o.customer?.email}</p>
+                          <p className="text-muted-foreground text-[11px] mt-1">
+                            {o.user?.email || o.customer?.email}
+                          </p>
                         )}
                       </div>
                       {o.address && (
@@ -505,11 +563,17 @@ function VendorOrdersPage() {
                           </p>
                           {o.address.landmark && (
                             <p className="text-[11px] text-muted-foreground">
-                              <strong className="text-foreground">Landmark:</strong> {o.address.landmark}
+                              <strong className="text-foreground">Landmark:</strong>{" "}
+                              {o.address.landmark}
                             </p>
                           )}
                           <p className="text-[11px] text-muted-foreground">
-                            {[o.address.city, o.address.state, o.address.pincode ? `- ${o.address.pincode}` : "", o.address.country || "India"]
+                            {[
+                              o.address.city,
+                              o.address.state,
+                              o.address.pincode ? `- ${o.address.pincode}` : "",
+                              o.address.country || "India",
+                            ]
                               .filter(Boolean)
                               .join(", ")}
                           </p>
@@ -525,6 +589,44 @@ function VendorOrdersPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Assigned Delivery Partner */}
+                {o.delivery_partner && (
+                  <div className="rounded-2xl bg-emerald-50/60 border border-emerald-200/70 p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-2xl bg-emerald-600 text-white grid place-items-center shrink-0 shadow-sm">
+                        <Bike className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                          Assigned Delivery Partner
+                        </div>
+                        <div className="font-bold text-foreground text-sm">
+                          {o.delivery_partner.user?.name ||
+                            o.delivery_partner.name ||
+                            "Delivery Partner"}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          {o.delivery_partner.vehicle_type
+                            ? `${o.delivery_partner.vehicle_type}`
+                            : "Delivery Vehicle"}{" "}
+                          {o.delivery_partner.vehicle_number
+                            ? `(${o.delivery_partner.vehicle_number})`
+                            : ""}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(o.delivery_partner.user?.phone || o.delivery_partner.phone) && (
+                      <a
+                        href={`tel:${o.delivery_partner.user?.phone || o.delivery_partner.phone}`}
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-600 text-white font-bold text-xs shadow-sm hover:bg-emerald-700 transition-colors shrink-0"
+                      >
+                        <Phone className="h-3.5 w-3.5" /> Call Partner
+                      </a>
+                    )}
                   </div>
                 )}
 
@@ -597,16 +699,14 @@ function VendorOrdersPage() {
                               >
                                 ₹
                                 {Number(
-                                  item.total_price || item.unit_price * item.quantity || 0
+                                  item.total_price || item.unit_price * item.quantity || 0,
                                 ).toLocaleString("en-IN")}
                               </span>
                               {!isRejected &&
                                 (o.status?.toUpperCase() === "PENDING" ||
                                   o.status?.toUpperCase() === "CONFIRMED") && (
                                   <button
-                                    onClick={() =>
-                                      setRejectTarget({ orderId: o.id, item })
-                                    }
+                                    onClick={() => setRejectTarget({ orderId: o.id, item })}
                                     className="text-[10px] flex items-center gap-1 text-rose-600 hover:text-rose-700 font-bold px-2 py-0.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 transition-colors"
                                     disabled={rejectItemMutation.isPending}
                                   >
@@ -622,7 +722,9 @@ function VendorOrdersPage() {
                     <div className="bg-muted/10 p-3 space-y-1.5 border-t border-border/50 text-xs">
                       <div className="flex justify-between text-muted-foreground">
                         <span>Accepted Items Subtotal</span>
-                        <span>₹{Number(o.items_subtotal || o.total || 0).toLocaleString("en-IN")}</span>
+                        <span>
+                          ₹{Number(o.items_subtotal || o.total || 0).toLocaleString("en-IN")}
+                        </span>
                       </div>
                       {Number(o.delivery_fee) > 0 && (
                         <div className="flex justify-between text-muted-foreground">
@@ -644,7 +746,9 @@ function VendorOrdersPage() {
                       )}
                       <div className="flex justify-between font-bold text-foreground pt-1 border-t border-border/50 mt-1">
                         <span>Total Payable / Paid</span>
-                        <span className="text-emerald-600">₹{Number(o.total || 0).toLocaleString("en-IN")}</span>
+                        <span className="text-emerald-600">
+                          ₹{Number(o.total || 0).toLocaleString("en-IN")}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -652,9 +756,7 @@ function VendorOrdersPage() {
 
                 {/* Status Action Buttons */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <span className="text-xs text-muted-foreground font-medium">
-                    Next Action:
-                  </span>
+                  <span className="text-xs text-muted-foreground font-medium">Next Action:</span>
                   <div className="flex gap-2">
                     {nextStatuses.length > 0 ? (
                       nextStatuses.map((ns) => (
@@ -662,7 +764,11 @@ function VendorOrdersPage() {
                           key={ns.status}
                           onClick={() => {
                             if (ns.status === "CANCELLED") {
-                              if (window.confirm("Are you sure you want to cancel this order? This action cannot be undone and will automatically initiate a refund if paid online.")) {
+                              if (
+                                window.confirm(
+                                  "Are you sure you want to cancel this order? This action cannot be undone and will automatically initiate a refund if paid online.",
+                                )
+                              ) {
                                 updateOrderStatusMutation.mutate({
                                   orderId: o.id,
                                   status: ns.status,
@@ -683,9 +789,11 @@ function VendorOrdersPage() {
                           {ns.label}
                         </button>
                       ))
-                    ) : (o.status?.toUpperCase() === "CANCELLED" || o.status?.toUpperCase() === "REFUNDED") ? (
+                    ) : o.status?.toUpperCase() === "CANCELLED" ||
+                      o.status?.toUpperCase() === "REFUNDED" ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600">
-                        <X className="h-4 w-4" /> Order {o.status?.toUpperCase() === "REFUNDED" ? "Refunded" : "Cancelled"}
+                        <X className="h-4 w-4" /> Order{" "}
+                        {o.status?.toUpperCase() === "REFUNDED" ? "Refunded" : "Cancelled"}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
@@ -709,7 +817,8 @@ function VendorOrdersPage() {
               Verify Customer Delivery OTP
             </DialogTitle>
             <DialogDescription className="text-xs text-center">
-              Ask the customer for the 6-digit verification PIN displayed on their live order screen to complete order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
+              Ask the customer for the 6-digit verification PIN displayed on their live order screen
+              to complete order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-3">
@@ -722,7 +831,8 @@ function VendorOrdersPage() {
               className="w-full text-center text-4xl tracking-widest rounded-2xl border border-border bg-muted/50 px-4 py-5 font-display font-black focus:bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
             <p className="text-[11px] text-muted-foreground text-center">
-              💡 If delivery partner is unavailable or customer is collecting directly, you can complete the order immediately with this OTP.
+              💡 If delivery partner is unavailable or customer is collecting directly, you can
+              complete the order immediately with this OTP.
             </p>
             <button
               onClick={() => {
@@ -751,10 +861,7 @@ function VendorOrdersPage() {
       </Dialog>
 
       {/* Reject Item Confirmation Dialog */}
-      <Dialog
-        open={!!rejectTarget}
-        onOpenChange={(open) => !open && setRejectTarget(null)}
-      >
+      <Dialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
         <DialogContent className="rounded-3xl border-border max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-display text-center text-rose-600 flex items-center justify-center gap-2">

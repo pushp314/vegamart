@@ -304,7 +304,8 @@ export function AdminSettings() {
           <CardHeader>
             <CardTitle>VegaMart Delivery Partner & Platform Pricing</CardTitle>
             <CardDescription>
-              Centrally manage VegaMart Delivery Partner rider charges, platform free delivery thresholds, and default minimum order requirements.
+              Centrally manage VegaMart Delivery Partner rider charges, platform free delivery
+              thresholds, and default minimum order requirements.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -314,11 +315,12 @@ export function AdminSettings() {
                   Enable VegaMart Delivery Partner Fleet
                 </Label>
                 <p className="text-[11px] text-muted-foreground">
-                  Master switch to enable or disable VegaMart Delivery Partner rider service across all stores.
+                  Master switch to enable or disable VegaMart Delivery Partner rider service across
+                  all stores.
                 </p>
               </div>
               <Switch
-                checked={settings["platform.vegamart_delivery_enabled"] !== false}
+                checked={settings["platform.vegamart_delivery_enabled"] === true}
                 onCheckedChange={(checked) =>
                   setSettings({
                     ...settings,
@@ -331,7 +333,9 @@ export function AdminSettings() {
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
                 <span>Default Rider Estimated Delivery Time</span>
-                <span className="text-[11px] text-muted-foreground font-normal">Shown to customers</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  Shown to customers
+                </span>
               </Label>
               <Input
                 placeholder="e.g. 20-30 mins"
@@ -344,35 +348,40 @@ export function AdminSettings() {
                 }
               />
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {["15-20 mins", "20-30 mins", "30-45 mins", "45-60 mins", "Same Day"].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() =>
-                      setSettings({
-                        ...settings,
-                        "platform.default_delivery_eta": preset,
-                      })
-                    }
-                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
-                      (settings["platform.default_delivery_eta"] || "20-30 mins") === preset
-                        ? "bg-emerald-600 text-white border-emerald-600"
-                        : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                ))}
+                {["15-20 mins", "20-30 mins", "30-45 mins", "45-60 mins", "Same Day"].map(
+                  (preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          "platform.default_delivery_eta": preset,
+                        })
+                      }
+                      className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                        (settings["platform.default_delivery_eta"] || "20-30 mins") === preset
+                          ? "bg-emerald-600 text-white border-emerald-600"
+                          : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ),
+                )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Default estimated delivery ETA displayed on VegaMart Delivery Partner option at checkout.
+                Default estimated delivery ETA displayed on VegaMart Delivery Partner option at
+                checkout.
               </p>
             </div>
 
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
                 <span>VegaMart Delivery Partner Fee (₹)</span>
-                <span className="text-[11px] text-muted-foreground font-normal">Flat fee per order</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  Flat fee per order
+                </span>
               </Label>
               <Input
                 type="number"
@@ -386,7 +395,8 @@ export function AdminSettings() {
                 }
               />
               <p className="text-[11px] text-muted-foreground">
-                Standard platform delivery partner charge billed to customer at checkout for VegaMart Delivery Partner orders (unless free delivery threshold applies).
+                Standard platform delivery partner charge billed to customer at checkout for
+                VegaMart Delivery Partner orders (unless free delivery threshold applies).
               </p>
             </div>
 
@@ -407,14 +417,17 @@ export function AdminSettings() {
                 }
               />
               <p className="text-[11px] text-muted-foreground">
-                VegaMart Delivery Partner orders with an item subtotal equal to or exceeding this amount receive free delivery.
+                VegaMart Delivery Partner orders with an item subtotal equal to or exceeding this
+                amount receive free delivery.
               </p>
             </div>
 
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
                 <span>VegaMart Delivery Partner Minimum Order (₹)</span>
-                <span className="text-[11px] text-muted-foreground font-normal">0 for no minimum</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  0 for no minimum
+                </span>
               </Label>
               <Input
                 type="number"
@@ -435,7 +448,9 @@ export function AdminSettings() {
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
                 <span>Tax Rate (%)</span>
-                <span className="text-[11px] text-muted-foreground font-normal">GST percentage</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  GST percentage
+                </span>
               </Label>
               <Input
                 type="number"
@@ -461,18 +476,25 @@ export function AdminSettings() {
                 <Wallet className="h-5 w-5 text-emerald-600" />
                 Vendor Wallet & Direct Bank Payouts
               </CardTitle>
-              {settings["platform.vendor_wallet_enabled"] !== false ? (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-xs">
+              {settings["platform.vendor_wallet_enabled"] === true ? (
+                <Badge
+                  variant="outline"
+                  className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-xs"
+                >
                   Active 🟢
                 </Badge>
               ) : (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-xs">
+                <Badge
+                  variant="outline"
+                  className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-xs"
+                >
                   Disabled
                 </Badge>
               )}
             </div>
             <CardDescription>
-              Control whether vendors receive automatic split settlements directly into their bank account via Razorpay Route or hold ledger balances.
+              Control whether vendors receive automatic split settlements directly into their bank
+              account via Razorpay Route or hold ledger balances.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -483,11 +505,12 @@ export function AdminSettings() {
                   Enable Vendor Wallet & Automated Payouts
                 </Label>
                 <p className="text-[11px] text-muted-foreground">
-                  When enabled, verified online orders trigger automated split settlements to the vendor's bank account / UPI ID.
+                  When enabled, verified online orders trigger automated split settlements to the
+                  vendor's bank account / UPI ID.
                 </p>
               </div>
               <Switch
-                checked={settings["platform.vendor_wallet_enabled"] !== false}
+                checked={settings["platform.vendor_wallet_enabled"] === true}
                 onCheckedChange={(checked) =>
                   setSettings({
                     ...settings,
@@ -501,7 +524,9 @@ export function AdminSettings() {
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
                 <span>Vendor Settlement & Payout Gateway Mode</span>
-                <span className="text-[11px] text-muted-foreground font-normal">Active Integration</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  Active Integration
+                </span>
               </Label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
@@ -552,7 +577,9 @@ export function AdminSettings() {
             <div className="space-y-1.5">
               <Label className="font-semibold text-foreground flex items-center justify-between">
                 <span>Minimum Payout / Withdrawal Threshold (₹)</span>
-                <span className="text-[11px] text-muted-foreground font-normal">Minimum ledger balance</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  Minimum ledger balance
+                </span>
               </Label>
               <Input
                 type="number"
@@ -566,74 +593,125 @@ export function AdminSettings() {
                 }
               />
               <p className="text-[11px] text-muted-foreground">
-                Minimum earnings balance a vendor must accumulate before automated or manual batch payouts are triggered.
+                Minimum earnings balance a vendor must accumulate before automated or manual batch
+                payouts are triggered.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        
         {/* Checkout Charges */}
         <Card className="col-span-1 md:col-span-2">
           <CardHeader>
             <CardTitle>Checkout & Platform Charges</CardTitle>
-            <CardDescription>Configure extra fees like Rain Charge, Platform Fee, Surge Pricing, etc.</CardDescription>
+            <CardDescription>
+              Configure extra fees like Rain Charge, Platform Fee, Surge Pricing, etc.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {(() => {
               let charges: any[] = [];
               try {
                 charges = JSON.parse(settings["platform.checkout_charges"] || "[]");
-              } catch (e) { }
+              } catch (e) {}
 
               const updateCharges = (newCharges: any[]) => {
-                setSettings({ ...settings, "platform.checkout_charges": JSON.stringify(newCharges) });
+                setSettings({
+                  ...settings,
+                  "platform.checkout_charges": JSON.stringify(newCharges),
+                });
               };
 
               return (
                 <div className="space-y-4">
                   {charges.map((charge: any, i: number) => (
-                    <div key={i} className="flex flex-col md:flex-row gap-4 items-start md:items-end border p-4 rounded-lg bg-muted/20">
+                    <div
+                      key={i}
+                      className="flex flex-col md:flex-row gap-4 items-start md:items-end border p-4 rounded-lg bg-muted/20"
+                    >
                       <div className="space-y-2 flex-1">
                         <Label>Fee Name</Label>
-                        <Input value={charge.name} onChange={e => {
-                          const c = [...charges]; c[i].name = e.target.value; updateCharges(c);
-                        }} placeholder="e.g. Rain Charge" />
+                        <Input
+                          value={charge.name}
+                          onChange={(e) => {
+                            const c = [...charges];
+                            c[i].name = e.target.value;
+                            updateCharges(c);
+                          }}
+                          placeholder="e.g. Rain Charge"
+                        />
                       </div>
                       <div className="space-y-2 w-full md:w-32">
                         <Label>Type</Label>
-                        <select className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm" value={charge.type} onChange={e => {
-                          const c = [...charges]; c[i].type = e.target.value; updateCharges(c);
-                        }}>
+                        <select
+                          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={charge.type}
+                          onChange={(e) => {
+                            const c = [...charges];
+                            c[i].type = e.target.value;
+                            updateCharges(c);
+                          }}
+                        >
                           <option value="fixed">Fixed (₹)</option>
                           <option value="percentage">Percentage (%)</option>
                         </select>
                       </div>
                       <div className="space-y-2 w-full md:w-32">
                         <Label>Amount</Label>
-                        <Input type="number" value={charge.amount} onChange={e => {
-                          const c = [...charges]; c[i].amount = e.target.value; updateCharges(c);
-                        }} />
+                        <Input
+                          type="number"
+                          value={charge.amount}
+                          onChange={(e) => {
+                            const c = [...charges];
+                            c[i].amount = e.target.value;
+                            updateCharges(c);
+                          }}
+                        />
                       </div>
                       <div className="space-y-2 w-full md:w-24">
-                         <Label className="block mb-2 text-center">Active</Label>
-                         <div className="flex justify-center">
-                           <Switch checked={charge.is_active} onCheckedChange={checked => {
-                              const c = [...charges]; c[i].is_active = checked; updateCharges(c);
-                           }} />
-                         </div>
+                        <Label className="block mb-2 text-center">Active</Label>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={charge.is_active}
+                            onCheckedChange={(checked) => {
+                              const c = [...charges];
+                              c[i].is_active = checked;
+                              updateCharges(c);
+                            }}
+                          />
+                        </div>
                       </div>
-                      <Button variant="destructive" size="icon" className="shrink-0" onClick={() => {
-                        const c = [...charges]; c.splice(i, 1); updateCharges(c);
-                      }}>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => {
+                          const c = [...charges];
+                          c.splice(i, 1);
+                          updateCharges(c);
+                        }}
+                      >
                         <XCircle className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
-                  <Button variant="outline" className="w-full" onClick={() => {
-                    const c = [...charges, { id: Date.now().toString(), name: "", type: "fixed", amount: 0, is_active: true }];
-                    updateCharges(c);
-                  }}>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const c = [
+                        ...charges,
+                        {
+                          id: Date.now().toString(),
+                          name: "",
+                          type: "fixed",
+                          amount: 0,
+                          is_active: true,
+                        },
+                      ];
+                      updateCharges(c);
+                    }}
+                  >
                     + Add New Charge
                   </Button>
                 </div>
@@ -691,7 +769,7 @@ export function AdminSettings() {
                 <input
                   type="checkbox"
                   id="delivery_active"
-                  checked={settings["platform.deliveries_active"] ?? true}
+                  checked={settings["platform.deliveries_active"] === true}
                   onChange={(e) =>
                     setSettings({
                       ...settings,
@@ -723,7 +801,7 @@ export function AdminSettings() {
                 </p>
               </div>
               <Switch
-                checked={settings["platform.multi_store_checkout_enabled"] ?? false}
+                checked={settings["platform.multi_store_checkout_enabled"] === true}
                 onCheckedChange={(checked) =>
                   setSettings({ ...settings, "platform.multi_store_checkout_enabled": checked })
                 }
@@ -742,7 +820,10 @@ export function AdminSettings() {
                   className="w-24 text-right"
                   value={settings["platform.max_stores_per_order"] ?? 5}
                   onChange={(e) =>
-                    setSettings({ ...settings, "platform.max_stores_per_order": parseInt(e.target.value) || 5 })
+                    setSettings({
+                      ...settings,
+                      "platform.max_stores_per_order": parseInt(e.target.value) || 5,
+                    })
                   }
                 />
               </div>
@@ -755,7 +836,7 @@ export function AdminSettings() {
                 </p>
               </div>
               <Switch
-                checked={settings["platform.maintenance_mode"] ?? false}
+                checked={settings["platform.maintenance_mode"] === true}
                 onCheckedChange={(checked) =>
                   setSettings({ ...settings, "platform.maintenance_mode": checked })
                 }

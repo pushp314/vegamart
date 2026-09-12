@@ -27,11 +27,26 @@ const baseSelect = {
   created_at: true,
   updated_at: true,
   images: {
-    select: { id: true, url: true, alt_text: true, sort_order: true, is_primary: true },
+    select: {
+      id: true,
+      url: true,
+      alt_text: true,
+      sort_order: true,
+      is_primary: true,
+    },
     orderBy: { sort_order: "asc" as const },
   },
   vendor: {
-    select: { id: true, business_name: true, logo_url: true, status: true, is_sponsored: true, free_delivery_min_order: true, is_open: true, provides_delivery: true },
+    select: {
+      id: true,
+      business_name: true,
+      logo_url: true,
+      status: true,
+      is_sponsored: true,
+      free_delivery_min_order: true,
+      is_open: true,
+      provides_delivery: true,
+    },
   },
 } as const;
 
@@ -90,7 +105,9 @@ export async function findById(id: string): Promise<ProductRow | null> {
   return row ? mapRow(row) : null;
 }
 
-export async function findByIdIncludingDeleted(id: string): Promise<ProductRow | null> {
+export async function findByIdIncludingDeleted(
+  id: string,
+): Promise<ProductRow | null> {
   const row = await prisma.product.findFirst({
     where: { id },
     select: baseSelect,
@@ -98,7 +115,10 @@ export async function findByIdIncludingDeleted(id: string): Promise<ProductRow |
   return row ? mapRow(row) : null;
 }
 
-export async function listSlugs(vendorId: string, exceptId?: string): Promise<Set<string>> {
+export async function listSlugs(
+  vendorId: string,
+  exceptId?: string,
+): Promise<Set<string>> {
   const rows = await prisma.product.findMany({
     where: {
       vendor_id: vendorId,
@@ -129,25 +149,34 @@ export interface ProductListFilter {
   tag?: string;
   sort?: string;
   includeInactive?: boolean;
+  vendorIsOpen?: boolean;
 }
 
 export async function listProducts(
   filter: ProductListFilter,
   skip: number,
-  take: number
+  take: number,
 ): Promise<{ rows: ProductRow[]; total: number }> {
   const where: Prisma.ProductWhereInput = { deleted_at: null };
 
   if (!filter.includeInactive) {
     where.is_active = true;
     where.is_available = true;
-    where.vendor = { is_open: true, status: "APPROVED", deleted_at: null };
+    const vendorFilter: Prisma.VendorProfileWhereInput = {
+      status: "APPROVED",
+      deleted_at: null,
+    };
+    if (filter.vendorIsOpen !== false) {
+      vendorFilter.is_open = true;
+    }
+    where.vendor = vendorFilter;
   }
   if (filter.vendorId) where.vendor_id = filter.vendorId;
   if (filter.categoryId) where.category_id = filter.categoryId;
   if (filter.subcategoryId) where.subcategory_id = filter.subcategoryId;
   if (filter.tag) where.tag = filter.tag;
-  if (filter.isVegetarian !== undefined) where.is_vegetarian = filter.isVegetarian;
+  if (filter.isVegetarian !== undefined)
+    where.is_vegetarian = filter.isVegetarian;
   if (filter.isAvailable !== undefined) where.is_available = filter.isAvailable;
   if (filter.minPrice !== undefined || filter.maxPrice !== undefined) {
     where.price = {
@@ -181,7 +210,7 @@ export async function listProducts(
 export async function listProductsAdmin(
   filter: ProductListFilter,
   skip: number,
-  take: number
+  take: number,
 ): Promise<{ rows: ProductRow[]; total: number }> {
   const where: Prisma.ProductWhereInput = { deleted_at: null };
 
@@ -222,14 +251,20 @@ export async function listByVendor(
   includeInactive: boolean,
   q: string | undefined,
   skip: number,
-  take: number
+  take: number,
 ): Promise<{ rows: ProductRow[]; total: number }> {
-  const where: Prisma.ProductWhereInput = { vendor_id: vendorId, deleted_at: null };
+  const where: Prisma.ProductWhereInput = {
+    vendor_id: vendorId,
+    deleted_at: null,
+  };
   if (!includeInactive) {
     where.is_active = true;
   }
   if (q) {
-    where.OR = [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }];
+    where.OR = [
+      { name: { contains: q, mode: "insensitive" } },
+      { description: { contains: q, mode: "insensitive" } },
+    ];
   }
   const [rows, total] = await Promise.all([
     prisma.product.findMany({
@@ -246,7 +281,12 @@ export async function listByVendor(
 
 export async function listByVendorIds(
   vendorIds: string[],
-  options: { categoryId?: string; q?: string; skip?: number; take?: number } = {}
+  options: {
+    categoryId?: string;
+    q?: string;
+    skip?: number;
+    take?: number;
+  } = {},
 ): Promise<{ rows: ProductRow[]; total: number }> {
   if (vendorIds.length === 0) {
     return { rows: [], total: 0 };
@@ -270,7 +310,11 @@ export async function listByVendorIds(
     prisma.product.findMany({
       where,
       select: baseSelect,
-      orderBy: [{ is_featured: "desc" }, { rating: "desc" }, { created_at: "desc" }],
+      orderBy: [
+        { is_featured: "desc" },
+        { rating: "desc" },
+        { created_at: "desc" },
+      ],
       skip: options.skip ?? 0,
       take: options.take ?? 50,
     }),
@@ -326,7 +370,10 @@ export async function createProduct(data: {
   return mapRow(row);
 }
 
-export async function updateProduct(id: string, data: Prisma.ProductUpdateInput): Promise<ProductRow> {
+export async function updateProduct(
+  id: string,
+  data: Prisma.ProductUpdateInput,
+): Promise<ProductRow> {
   const row = await prisma.product.update({
     where: { id },
     data,
@@ -342,8 +389,13 @@ export async function softDelete(id: string): Promise<void> {
   });
 }
 
-export async function addImage(productId: string, image: { url: string; alt_text?: string | null; is_primary?: boolean }) {
-  const count = await prisma.productImage.count({ where: { product_id: productId } });
+export async function addImage(
+  productId: string,
+  image: { url: string; alt_text?: string | null; is_primary?: boolean },
+) {
+  const count = await prisma.productImage.count({
+    where: { product_id: productId },
+  });
   const isPrimary = image.is_primary ?? count === 0;
   return prisma.productImage.create({
     data: {
@@ -356,14 +408,20 @@ export async function addImage(productId: string, image: { url: string; alt_text
   });
 }
 
-export async function removeImage(productId: string, imageId: string): Promise<boolean> {
+export async function removeImage(
+  productId: string,
+  imageId: string,
+): Promise<boolean> {
   const deleted = await prisma.productImage.deleteMany({
     where: { id: imageId, product_id: productId },
   });
   return deleted.count > 0;
 }
 
-export async function setPrimaryImage(productId: string, imageId: string): Promise<boolean> {
+export async function setPrimaryImage(
+  productId: string,
+  imageId: string,
+): Promise<boolean> {
   const image = await prisma.productImage.findFirst({
     where: { id: imageId, product_id: productId },
     select: { id: true },
@@ -376,7 +434,10 @@ export async function setPrimaryImage(productId: string, imageId: string): Promi
       where: { product_id: productId, is_primary: true },
       data: { is_primary: false },
     }),
-    prisma.productImage.update({ where: { id: imageId }, data: { is_primary: true } }),
+    prisma.productImage.update({
+      where: { id: imageId },
+      data: { is_primary: true },
+    }),
   ]);
   return true;
 }

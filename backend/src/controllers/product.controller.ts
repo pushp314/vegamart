@@ -13,15 +13,20 @@ import type {
   UpdateProductBody,
 } from "../validators/product.validators";
 
-export const getGalleryImages = asyncHandler(async (_req: Request, res: Response) => {
-  const images = await prisma.productImage.findMany({
-    distinct: ['url'],
-    select: { url: true },
-    orderBy: { created_at: 'desc' },
-    take: 100,
-  });
-  return sendSuccess(res, images.map(img => img.url));
-});
+export const getGalleryImages = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const images = await prisma.productImage.findMany({
+      distinct: ["url"],
+      select: { url: true },
+      orderBy: { created_at: "desc" },
+      take: 100,
+    });
+    return sendSuccess(
+      res,
+      images.map((img) => img.url),
+    );
+  },
+);
 
 /**
  * @swagger
@@ -61,26 +66,32 @@ export const getGalleryImages = asyncHandler(async (_req: Request, res: Response
  *       200:
  *         description: Paginated product list.
  */
-export const listProducts = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as Record<string, string | undefined>;
-  const result = await productService.list({
-    page: query.page ? Number(query.page) : undefined,
-    per_page: query.per_page ? Number(query.per_page) : undefined,
-    q: query.q,
-    vendor_id: query.vendor_id,
-    category_id: query.category_id,
-    subcategory_id: query.subcategory_id,
-    min_price: query.min_price ? Number(query.min_price) : undefined,
-    max_price: query.max_price ? Number(query.max_price) : undefined,
-    is_vegetarian: query.is_vegetarian,
-    is_available: query.is_available,
-    tag: query.tag,
-    sort: query.sort,
-  });
-  return sendSuccess(res, result.rows, {
-    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
-  });
-});
+export const listProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const query = req.query as Record<string, string | undefined>;
+    const result = await productService.list({
+      page: query.page ? Number(query.page) : undefined,
+      per_page: query.per_page ? Number(query.per_page) : undefined,
+      q: query.q,
+      vendor_id: query.vendor_id,
+      category_id: query.category_id,
+      subcategory_id: query.subcategory_id,
+      min_price: query.min_price ? Number(query.min_price) : undefined,
+      max_price: query.max_price ? Number(query.max_price) : undefined,
+      is_vegetarian: query.is_vegetarian,
+      is_available: query.is_available,
+      tag: query.tag,
+      sort: query.sort,
+      vendor_is_open: query.vendor_is_open,
+    });
+    return sendSuccess(res, result.rows, {
+      pagination: buildPaginationMeta(
+        { page: result.page, per_page: result.perPage },
+        result.total,
+      ),
+    });
+  },
+);
 
 /**
  * @swagger
@@ -136,10 +147,16 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
  *       201:
  *         description: Product created.
  */
-export const createProduct = asyncHandler(async (req: Request, res: Response) => {
-  const product = await productService.create(req.user!.id, req.body as CreateProductBody, req);
-  return sendCreated(res, product);
-});
+export const createProduct = asyncHandler(
+  async (req: Request, res: Response) => {
+    const product = await productService.create(
+      req.user!.id,
+      req.body as CreateProductBody,
+      req,
+    );
+    return sendCreated(res, product);
+  },
+);
 
 /**
  * @swagger
@@ -166,18 +183,28 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
  *       200:
  *         description: Vendor's products.
  */
-export const listMyProducts = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as { page?: string; per_page?: string; q?: string; include_inactive?: string };
-  const result = await productService.listMyProducts(req.user!.id, {
-    page: query.page ? Number(query.page) : undefined,
-    per_page: query.per_page ? Number(query.per_page) : undefined,
-    q: query.q,
-    include_inactive: query.include_inactive,
-  });
-  return sendSuccess(res, result.rows, {
-    pagination: buildPaginationMeta({ page: result.page, per_page: result.perPage }, result.total),
-  });
-});
+export const listMyProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const query = req.query as {
+      page?: string;
+      per_page?: string;
+      q?: string;
+      include_inactive?: string;
+    };
+    const result = await productService.listMyProducts(req.user!.id, {
+      page: query.page ? Number(query.page) : undefined,
+      per_page: query.per_page ? Number(query.per_page) : undefined,
+      q: query.q,
+      include_inactive: query.include_inactive,
+    });
+    return sendSuccess(res, result.rows, {
+      pagination: buildPaginationMeta(
+        { page: result.page, per_page: result.perPage },
+        result.total,
+      ),
+    });
+  },
+);
 
 /**
  * @swagger
@@ -202,10 +229,17 @@ export const listMyProducts = asyncHandler(async (req: Request, res: Response) =
  *       200:
  *         description: Product updated.
  */
-export const updateProduct = asyncHandler(async (req: Request, res: Response) => {
-  const product = await productService.update(req.user!.id, req.params.product_id as string, req.body as UpdateProductBody, req);
-  return sendSuccess(res, product);
-});
+export const updateProduct = asyncHandler(
+  async (req: Request, res: Response) => {
+    const product = await productService.update(
+      req.user!.id,
+      req.params.product_id as string,
+      req.body as UpdateProductBody,
+      req,
+    );
+    return sendSuccess(res, product);
+  },
+);
 
 /**
  * @swagger
@@ -224,10 +258,16 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
  *       204:
  *         description: Product deleted.
  */
-export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
-  await productService.remove(req.user!.id, req.params.product_id as string, req);
-  return sendNoContent(res);
-});
+export const deleteProduct = asyncHandler(
+  async (req: Request, res: Response) => {
+    await productService.remove(
+      req.user!.id,
+      req.params.product_id as string,
+      req,
+    );
+    return sendNoContent(res);
+  },
+);
 
 /**
  * @swagger
@@ -263,11 +303,24 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response) =>
  *       200:
  *         description: Images added.
  */
-export const addProductImages = asyncHandler(async (req: Request, res: Response) => {
-  const { images } = req.body as { images: Array<{ url: string; alt_text?: string | null; is_primary?: boolean }> };
-  const product = await productService.addImages(req.user!.id, req.params.product_id as string, images, req);
-  return sendSuccess(res, product, { status: HttpStatus.OK });
-});
+export const addProductImages = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { images } = req.body as {
+      images: Array<{
+        url: string;
+        alt_text?: string | null;
+        is_primary?: boolean;
+      }>;
+    };
+    const product = await productService.addImages(
+      req.user!.id,
+      req.params.product_id as string,
+      images,
+      req,
+    );
+    return sendSuccess(res, product, { status: HttpStatus.OK });
+  },
+);
 
 /**
  * @swagger
@@ -290,10 +343,17 @@ export const addProductImages = asyncHandler(async (req: Request, res: Response)
  *       204:
  *         description: Image removed.
  */
-export const removeProductImage = asyncHandler(async (req: Request, res: Response) => {
-  await productService.removeImage(req.user!.id, req.params.product_id as string, req.params.image_id as string, req);
-  return sendNoContent(res);
-});
+export const removeProductImage = asyncHandler(
+  async (req: Request, res: Response) => {
+    await productService.removeImage(
+      req.user!.id,
+      req.params.product_id as string,
+      req.params.image_id as string,
+      req,
+    );
+    return sendNoContent(res);
+  },
+);
 
 /**
  * @swagger
@@ -321,11 +381,18 @@ export const removeProductImage = asyncHandler(async (req: Request, res: Respons
  *       200:
  *         description: Primary image set.
  */
-export const setPrimaryProductImage = asyncHandler(async (req: Request, res: Response) => {
-  const { image_id } = req.body as { image_id: string };
-  await productService.setPrimaryImage(req.user!.id, req.params.product_id as string, image_id, req);
-  return sendSuccess(res, { primary_image_id: image_id });
-});
+export const setPrimaryProductImage = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { image_id } = req.body as { image_id: string };
+    await productService.setPrimaryImage(
+      req.user!.id,
+      req.params.product_id as string,
+      image_id,
+      req,
+    );
+    return sendSuccess(res, { primary_image_id: image_id });
+  },
+);
 
 /**
  * @swagger
@@ -356,9 +423,16 @@ export const setPrimaryProductImage = asyncHandler(async (req: Request, res: Res
  *       201:
  *         description: Review created.
  */
-export const createProductReview = asyncHandler(async (req: Request, res: Response) => {
-  const { product_id } = req.params as { product_id: string };
-  const body = req.body as CreateReviewBody;
-  const review = await productService.createReview(req.user!.id, product_id, body, req);
-  return sendCreated(res, review, "Review submitted successfully.");
-});
+export const createProductReview = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { product_id } = req.params as { product_id: string };
+    const body = req.body as CreateReviewBody;
+    const review = await productService.createReview(
+      req.user!.id,
+      product_id,
+      body,
+      req,
+    );
+    return sendCreated(res, review, "Review submitted successfully.");
+  },
+);

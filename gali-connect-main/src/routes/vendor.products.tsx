@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, formatErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import {
   MoveRight,
   Maximize2,
   CheckCircle2,
+  ChevronDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -93,7 +94,9 @@ function VendorProductsPage() {
   const [prodTaxRate, setProdTaxRate] = useState("0");
   const [prodUnit, setProdUnit] = useState("1 pc");
   const [prodTag, setProdTag] = useState("");
-  const [prodVariants, setProdVariants] = useState<{ unit: string; price: string; mrp: string }[]>([]);
+  const [prodVariants, setProdVariants] = useState<{ unit: string; price: string; mrp: string }[]>(
+    [],
+  );
   const [prodStock, setProdStock] = useState("");
   const [prodCategoryId, setProdCategoryId] = useState("");
   const [prodIsVegetarian, setProdIsVegetarian] = useState<boolean | null>(null);
@@ -107,12 +110,50 @@ function VendorProductsPage() {
   });
   const vendor = vendorRes?.data?.data || vendorRes?.data;
 
-  const { data: productsRes, isLoading: prodsLoading } = useQuery({
-    queryKey: ["vendorProducts", vendor?.id],
-    queryFn: () => api.get<Product[]>("/products/me?include_inactive=true"),
+  const [page, setPage] = useState(1);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const PAGE_SIZE = 100;
+
+  const {
+    data: productsRes,
+    isLoading: prodsLoading,
+    isFetching: isFetchingMore,
+  } = useQuery({
+    queryKey: ["vendorProducts", vendor?.id, page, searchQuery],
+    queryFn: () =>
+      api.get<{ rows: Product[]; total: number; page: number; perPage: number }>(
+        `/products/me?include_inactive=true&per_page=${PAGE_SIZE}&page=${page}${searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ""}`,
+      ),
     enabled: !!vendor?.id,
+    placeholderData: (previousData) => previousData,
   });
-  const productList: Product[] = productsRes?.data || [];
+
+  const fetchedProducts = productsRes?.data?.rows || [];
+  const totalProducts = productsRes?.data?.total || 0;
+
+  useEffect(() => {
+    if (page === 1) {
+      setAllProducts(fetchedProducts);
+    } else {
+      setAllProducts((prev) => [...prev, ...fetchedProducts]);
+    }
+    setHasMore(
+      fetchedProducts.length === PAGE_SIZE &&
+        allProducts.length + fetchedProducts.length < totalProducts,
+    );
+    setIsLoadingMore(false);
+  }, [fetchedProducts, page, totalProducts]);
+
+  const loadMore = useCallback(() => {
+    if (!isLoadingMore && !prodsLoading && hasMore) {
+      setIsLoadingMore(true);
+      setPage((p) => p + 1);
+    }
+  }, [isLoadingMore, prodsLoading, hasMore]);
+
+  const productList: Product[] = allProducts;
 
   const { data: categoriesRes } = useQuery({
     queryKey: ["vendorCategories"],
@@ -127,12 +168,10 @@ function VendorProductsPage() {
   });
   const galleryImages: string[] = galleryRes?.data || [];
 
-  // Filtered list
+  // Filtered list (category only - search is done server-side)
   const filteredProducts = productList.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "ALL" || p.category_id === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesCategory = selectedCategory === "ALL" || p.category_id === selectedCategory;
+    return matchesCategory;
   });
 
   // Bulk Selection Helpers
@@ -158,18 +197,18 @@ function VendorProductsPage() {
     try {
       if (action === "delete") {
         await Promise.all(
-          Array.from(selectedProductIds).map((id) => api.delete(`/products/${id}`))
+          Array.from(selectedProductIds).map((id) => api.delete(`/products/${id}`)),
         );
         toast.success(`Deleted ${selectedProductIds.size} products.`);
       } else {
         const is_active = action === "active";
         await Promise.all(
           Array.from(selectedProductIds).map((id) =>
-            api.patch(`/products/${id}`, { is_active, is_available: is_active })
-          )
+            api.patch(`/products/${id}`, { is_active, is_available: is_active }),
+          ),
         );
         toast.success(
-          `Marked ${selectedProductIds.size} products as ${is_active ? "In Stock" : "Out of Stock"}.`
+          `Marked ${selectedProductIds.size} products as ${is_active ? "In Stock" : "Out of Stock"}.`,
         );
       }
       setSelectedProductIds(new Set());
@@ -217,7 +256,7 @@ function VendorProductsPage() {
             price: v.price != null ? String(v.price) : "",
             mrp: v.mrp != null ? String(v.mrp) : "",
           }))
-        : []
+        : [],
     );
     setProdStock(String(p.stock ?? 0));
     setProdCategoryId(p.category_id || "");
@@ -232,8 +271,8 @@ function VendorProductsPage() {
             is_primary: img.is_primary ?? i === 0,
           }))
         : p.image_url
-        ? [{ url: p.image_url, is_primary: true }]
-        : [];
+          ? [{ url: p.image_url, is_primary: true }]
+          : [];
 
     setProdImages(existingImages);
     setUrlInput("");
@@ -364,7 +403,9 @@ function VendorProductsPage() {
       return res;
     },
     onSuccess: () => {
-      toast.success(editingProduct ? "Product updated successfully!" : "Product created successfully!");
+      toast.success(
+        editingProduct ? "Product updated successfully!" : "Product created successfully!",
+      );
       setProductModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });
     },
@@ -456,10 +497,7 @@ function VendorProductsPage() {
     }
     setProdImages((prev) => {
       const hasPrimary = prev.some((img) => img.is_primary);
-      return [
-        ...prev,
-        { url: trimmed, is_primary: !hasPrimary && prev.length === 0 },
-      ].slice(0, 10);
+      return [...prev, { url: trimmed, is_primary: !hasPrimary && prev.length === 0 }].slice(0, 10);
     });
     setUrlInput("");
     toast.success("Image URL added to product gallery!");
@@ -469,10 +507,7 @@ function VendorProductsPage() {
   const handlePickFromGallery = (url: string) => {
     setProdImages((prev) => {
       const hasPrimary = prev.some((img) => img.is_primary);
-      return [
-        ...prev,
-        { url, is_primary: !hasPrimary && prev.length === 0 },
-      ].slice(0, 10);
+      return [...prev, { url, is_primary: !hasPrimary && prev.length === 0 }].slice(0, 10);
     });
     setGalleryModalOpen(false);
     toast.success("Gallery image added!");
@@ -484,7 +519,7 @@ function VendorProductsPage() {
       prev.map((img, i) => ({
         ...img,
         is_primary: i === index,
-      }))
+      })),
     );
     toast.success("Primary cover image updated!");
   };
@@ -609,7 +644,11 @@ function VendorProductsPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+                setAllProducts([]);
+              }}
               placeholder="Search products by title..."
               className="w-full rounded-2xl border border-border bg-card pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
@@ -617,7 +656,11 @@ function VendorProductsPage() {
 
           <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
             <button
-              onClick={() => setSelectedCategory("ALL")}
+              onClick={() => {
+                setSelectedCategory("ALL");
+                setPage(1);
+                setAllProducts([]);
+              }}
               className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors whitespace-nowrap ${
                 selectedCategory === "ALL"
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
@@ -629,7 +672,11 @@ function VendorProductsPage() {
             {categoriesList.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
+                onClick={() => {
+                  setSelectedCategory(cat.id);
+                  setPage(1);
+                  setAllProducts([]);
+                }}
                 className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors whitespace-nowrap ${
                   selectedCategory === cat.id
                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
@@ -665,7 +712,8 @@ function VendorProductsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
             {filteredProducts.map((p) => {
               const isSelected = selectedProductIds.has(p.id);
-              const primaryImg = p.images?.find((img) => img.is_primary)?.url || p.images?.[0]?.url || p.image_url;
+              const primaryImg =
+                p.images?.find((img) => img.is_primary)?.url || p.images?.[0]?.url || p.image_url;
               return (
                 <div
                   key={p.id}
@@ -737,7 +785,13 @@ function VendorProductsPage() {
                     <div className="flex items-center justify-between text-[9px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border/50">
                       <span>Stock: {p.stock ?? 0}</span>
                       {p.is_vegetarian !== null && (
-                        <span className={p.is_vegetarian ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
+                        <span
+                          className={
+                            p.is_vegetarian
+                              ? "text-emerald-600 font-bold"
+                              : "text-amber-600 font-bold"
+                          }
+                        >
                           {p.is_vegetarian ? "Veg" : "Non-Veg"}
                         </span>
                       )}
@@ -762,6 +816,29 @@ function VendorProductsPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Load More Button */}
+        {hasMore && !prodsLoading && filteredProducts.length > 0 && (
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={loadMore}
+              disabled={isLoadingMore || isFetchingMore}
+              className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-6 py-3 text-xs font-bold hover:bg-muted transition-colors disabled:opacity-50"
+            >
+              {isLoadingMore || isFetchingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading more...
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4" />
+                  Load More Products
+                </>
+              )}
+            </button>
           </div>
         )}
 
@@ -795,7 +872,9 @@ function VendorProductsPage() {
               >
                 <Trash2 className="h-3.5 w-3.5" /> Delete
               </button>
-              {isBulkActing && <Loader2 className="h-4 w-4 animate-spin ml-2 text-muted-foreground" />}
+              {isBulkActing && (
+                <Loader2 className="h-4 w-4 animate-spin ml-2 text-muted-foreground" />
+              )}
             </div>
           </div>
         )}
@@ -824,7 +903,9 @@ function VendorProductsPage() {
                 <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                   <span>Product Title *</span>
                   {fieldErrors.name && (
-                    <span className="text-rose-500 text-[10px] font-semibold">{fieldErrors.name}</span>
+                    <span className="text-rose-500 text-[10px] font-semibold">
+                      {fieldErrors.name}
+                    </span>
                   )}
                 </label>
                 <input
@@ -850,7 +931,9 @@ function VendorProductsPage() {
                   <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span>Selling Price (₹) *</span>
                     {fieldErrors.price && (
-                      <span className="text-rose-500 text-[10px] font-semibold">{fieldErrors.price}</span>
+                      <span className="text-rose-500 text-[10px] font-semibold">
+                        {fieldErrors.price}
+                      </span>
                     )}
                   </label>
                   <input
@@ -875,7 +958,9 @@ function VendorProductsPage() {
                   <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span>Original MRP (₹)</span>
                     {fieldErrors.mrp && (
-                      <span className="text-rose-500 text-[10px] font-semibold">{fieldErrors.mrp}</span>
+                      <span className="text-rose-500 text-[10px] font-semibold">
+                        {fieldErrors.mrp}
+                      </span>
                     )}
                   </label>
                   <input
@@ -901,7 +986,9 @@ function VendorProductsPage() {
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span>Base Unit *</span>
-                    <span className="text-[10px] text-muted-foreground font-normal">e.g. 1 pc, 1 pack, 1 kg</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      e.g. 1 pc, 1 pack, 1 kg
+                    </span>
                   </label>
                   <input
                     type="text"
@@ -913,7 +1000,19 @@ function VendorProductsPage() {
                   />
                   {/* Quick Unit Presets */}
                   <div className="flex flex-wrap gap-1 pt-0.5">
-                    {["1 pc", "1 pack", "1 kg", "500 g", "1 dozen", "1 L", "500 ml", "1 box", "1 bottle", "1 set", "1 pair"].map((u) => (
+                    {[
+                      "1 pc",
+                      "1 pack",
+                      "1 kg",
+                      "500 g",
+                      "1 dozen",
+                      "1 L",
+                      "500 ml",
+                      "1 box",
+                      "1 bottle",
+                      "1 set",
+                      "1 pair",
+                    ].map((u) => (
                       <button
                         key={u}
                         type="button"
@@ -984,8 +1083,8 @@ function VendorProductsPage() {
                             onChange={(e) =>
                               setProdVariants((prev) =>
                                 prev.map((row, i) =>
-                                  i === idx ? { ...row, unit: e.target.value } : row
-                                )
+                                  i === idx ? { ...row, unit: e.target.value } : row,
+                                ),
                               )
                             }
                             placeholder="e.g. 250g"
@@ -1004,8 +1103,8 @@ function VendorProductsPage() {
                             onChange={(e) =>
                               setProdVariants((prev) =>
                                 prev.map((row, i) =>
-                                  i === idx ? { ...row, price: e.target.value } : row
-                                )
+                                  i === idx ? { ...row, price: e.target.value } : row,
+                                ),
                               )
                             }
                             placeholder="25"
@@ -1024,8 +1123,8 @@ function VendorProductsPage() {
                             onChange={(e) =>
                               setProdVariants((prev) =>
                                 prev.map((row, i) =>
-                                  i === idx ? { ...row, mrp: e.target.value } : row
-                                )
+                                  i === idx ? { ...row, mrp: e.target.value } : row,
+                                ),
                               )
                             }
                             placeholder="30"
@@ -1069,14 +1168,17 @@ function VendorProductsPage() {
                 <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                   <span>Category *</span>
                   {fieldErrors.category_id && (
-                    <span className="text-rose-500 text-[10px] font-semibold">{fieldErrors.category_id}</span>
+                    <span className="text-rose-500 text-[10px] font-semibold">
+                      {fieldErrors.category_id}
+                    </span>
                   )}
                 </label>
                 <select
                   value={prodCategoryId}
                   onChange={(e) => {
                     setProdCategoryId(e.target.value);
-                    if (fieldErrors.category_id) setFieldErrors((prev) => ({ ...prev, category_id: "" }));
+                    if (fieldErrors.category_id)
+                      setFieldErrors((prev) => ({ ...prev, category_id: "" }));
                   }}
                   required
                   className={`w-full rounded-2xl border px-4 py-2.5 text-xs focus:outline-none focus:ring-2 ${
@@ -1117,7 +1219,9 @@ function VendorProductsPage() {
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span>Badge / Tag (Optional)</span>
-                    <span className="text-[10px] text-muted-foreground font-normal">e.g. Bestseller</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      e.g. Bestseller
+                    </span>
                   </label>
                   <input
                     type="text"
@@ -1139,10 +1243,14 @@ function VendorProductsPage() {
                       Product Photos ({prodImages.length}/10)
                     </label>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Upload multiple images or paste URLs. Select <Star className="inline h-2.5 w-2.5 text-amber-500 fill-amber-500" /> to set the Cover Photo.
+                      Upload multiple images or paste URLs. Select{" "}
+                      <Star className="inline h-2.5 w-2.5 text-amber-500 fill-amber-500" /> to set
+                      the Cover Photo.
                     </p>
                   </div>
-                  <span className="text-[10px] font-mono text-muted-foreground">Max: 10 MB/image</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    Max: 10 MB/image
+                  </span>
                 </div>
 
                 {/* Upload Action Toolbar */}
@@ -1310,7 +1418,9 @@ function VendorProductsPage() {
                 ) : (
                   <div className="py-6 text-center border border-dashed border-border rounded-xl bg-background/50">
                     <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground/60 mb-1" />
-                    <p className="text-[11px] font-bold text-muted-foreground">No photos added yet</p>
+                    <p className="text-[11px] font-bold text-muted-foreground">
+                      No photos added yet
+                    </p>
                     <p className="text-[10px] text-muted-foreground/80">
                       Upload high quality photos of your product to attract more customers.
                     </p>
@@ -1367,7 +1477,8 @@ function VendorProductsPage() {
                 <AlertCircle className="h-5 w-5" /> Delete Product
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Are you sure you want to remove <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+                Are you sure you want to remove <strong>{deleteTarget?.name}</strong>? This action
+                cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2 justify-end pt-4">
@@ -1420,7 +1531,11 @@ function VendorProductsPage() {
                     onClick={() => handlePickFromGallery(url)}
                     className="group relative aspect-square rounded-xl overflow-hidden border border-border bg-muted/30 hover:border-emerald-500 hover:ring-2 hover:ring-emerald-500/20 transition-all cursor-pointer"
                   >
-                    <img src={url} alt={`Gallery ${i}`} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                    <img
+                      src={url}
+                      alt={`Gallery ${i}`}
+                      className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                    />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold">
                       Select
                     </div>

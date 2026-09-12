@@ -587,7 +587,7 @@ function Hero() {
             const hasText = Boolean(
               (slide.title && slide.title.trim().length > 0) ||
               (slide.subtitle && slide.subtitle.trim().length > 0) ||
-              (slide.body && slide.body.trim().length > 0)
+              (slide.body && slide.body.trim().length > 0),
             );
 
             return (
@@ -855,7 +855,7 @@ function ShopWiseProducts() {
   type ShopProduct = Product & { vendor?: StoreVendor };
   const { data: res, isLoading } = useQuery({
     queryKey: ["products", "shopwise"],
-    queryFn: () => api.get<ShopProduct[]>("/products?per_page=100"),
+    queryFn: () => api.get<ShopProduct[]>("/products?per_page=100&vendor_is_open=false"),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -1229,12 +1229,12 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
   const rawList: any[] = Array.isArray(rawData)
     ? rawData
     : Array.isArray(rawData?.data)
-    ? rawData.data
-    : Array.isArray(rawData?.vendors)
-    ? rawData.vendors
-    : Array.isArray(res)
-    ? (res as any)
-    : [];
+      ? rawData.data
+      : Array.isArray(rawData?.vendors)
+        ? rawData.vendors
+        : Array.isArray(res)
+          ? (res as any)
+          : [];
 
   const normalizedList = rawList.map((item: any) =>
     item.vendor
@@ -1260,7 +1260,9 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
             </span>
             Live street vendors near you
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Moving street vendors & carts in your neighborhood</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Moving street vendors & carts in your neighborhood
+          </p>
         </div>
         <Link to="/street-vendors" className="text-sm md:text-base font-semibold text-primary">
           See map →
@@ -1301,7 +1303,10 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                   .filter(Boolean);
               }
             }
-            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || (typeof v.eta_min === "number" ? `${v.eta_min} mins` : "20-30 mins");
+            const deliveryTime =
+              v.estimated_delivery_time ||
+              v.delivery_configs?.estimated_delivery_time ||
+              (typeof v.eta_min === "number" ? `${v.eta_min} mins` : "20-30 mins");
             const hasDistance = typeof v.distance_km === "number";
             const distance = hasDistance ? v.distance_km.toFixed(1) : "0.8";
 
@@ -1325,7 +1330,8 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
                   {/* Top Badges */}
                   <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/90 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-md">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-ping" /> LIVE CART
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-ping" /> LIVE
+                      CART
                     </span>
 
                     <span className="inline-flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10.5px] font-bold text-amber-400">
@@ -1410,12 +1416,12 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
   const rawList: any[] = Array.isArray(rawData)
     ? rawData
     : Array.isArray(rawData?.data)
-    ? rawData.data
-    : Array.isArray(rawData?.vendors)
-    ? rawData.vendors
-    : Array.isArray(res)
-    ? (res as any)
-    : [];
+      ? rawData.data
+      : Array.isArray(rawData?.vendors)
+        ? rawData.vendors
+        : Array.isArray(res)
+          ? (res as any)
+          : [];
 
   const normalizedList = rawList.map((item: any) =>
     item.vendor
@@ -1437,7 +1443,9 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
           <h2 className="font-display text-[22px] md:text-3xl font-bold tracking-tight">
             Local shops near you
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Kirana, organic stores & neighborhood markets</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Kirana, organic stores & neighborhood markets
+          </p>
         </div>
         <Link to="/vendors" className="text-sm md:text-base font-semibold text-primary">
           See all →
@@ -1449,9 +1457,7 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
           <Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading shops...
         </div>
       ) : list.length === 0 ? (
-        <div className="mt-5 text-muted-foreground text-sm">
-          No local shops found nearby.
-        </div>
+        <div className="mt-5 text-muted-foreground text-sm">No local shops found nearby.</div>
       ) : (
         <div className="mt-4 md:mt-6 flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-visible no-scrollbar pb-2 md:pb-0 snap-x snap-mandatory">
           {list.map((v) => {
@@ -1478,7 +1484,10 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
                   .filter(Boolean);
               }
             }
-            const deliveryTime = v.estimated_delivery_time || v.delivery_configs?.estimated_delivery_time || (typeof v.eta_min === "number" ? `${v.eta_min} mins` : "20-30 mins");
+            const deliveryTime =
+              v.estimated_delivery_time ||
+              v.delivery_configs?.estimated_delivery_time ||
+              (typeof v.eta_min === "number" ? `${v.eta_min} mins` : "20-30 mins");
 
             return (
               <Link
@@ -1554,7 +1563,8 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
                     </span>
                     {typeof v.distance_km === "number" ? (
                       <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                        <MapPin className="h-3.5 w-3.5 text-primary" /> {v.distance_km.toFixed(1)} km away
+                        <MapPin className="h-3.5 w-3.5 text-primary" /> {v.distance_km.toFixed(1)}{" "}
+                        km away
                       </span>
                     ) : (
                       <span className="text-muted-foreground">{v.city || "Neighborhood"}</span>
@@ -1938,13 +1948,18 @@ function BrandFooter() {
         {/* Divider with Heart */}
         <div className="flex items-center justify-center gap-3 md:gap-4 w-4/5 sm:w-2/3 md:w-1/2 lg:w-2/5 mx-auto py-1 md:py-2">
           <div className="h-[1px] flex-1 bg-emerald-200 dark:bg-emerald-800/60" />
-          <span className="text-emerald-600 dark:text-emerald-400 text-sm md:text-base leading-none">💚</span>
+          <span className="text-emerald-600 dark:text-emerald-400 text-sm md:text-base leading-none">
+            💚
+          </span>
           <div className="h-[1px] flex-1 bg-emerald-200 dark:bg-emerald-800/60" />
         </div>
 
         {/* Founded By Section */}
         <div className="flex items-center justify-center gap-2 sm:gap-4 md:gap-6 py-1 md:py-2">
-          <LeafBranch className="h-9 w-9 sm:h-11 sm:w-11 md:h-14 md:w-14 lg:h-16 lg:w-16 shrink-0" flip={true} />
+          <LeafBranch
+            className="h-9 w-9 sm:h-11 sm:w-11 md:h-14 md:w-14 lg:h-16 lg:w-16 shrink-0"
+            flip={true}
+          />
 
           <div className="flex flex-col items-center">
             <span className="font-serif italic text-base sm:text-lg md:text-xl lg:text-2xl text-emerald-900 dark:text-emerald-300 font-medium tracking-wide">

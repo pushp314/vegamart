@@ -16,10 +16,17 @@ import {
   Navigation,
   AlertTriangle,
   Bike,
+  ChevronDown,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo, useEffect } from "react";
-import { api, authStorage, getVendorDailyLocation, WS_BASE_URL, type DailyLocationData } from "@/lib/api";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import {
+  api,
+  authStorage,
+  getVendorDailyLocation,
+  WS_BASE_URL,
+  type DailyLocationData,
+} from "@/lib/api";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
@@ -32,7 +39,8 @@ import { lazy, Suspense } from "react";
 import { ClientOnly } from "@/components/system/client-only";
 import useEmblaCarousel from "embla-carousel-react";
 
-const VendorMap = typeof window !== "undefined" ? lazy(() => import("@/components/vendor/vendor-map")) : () => null;
+const VendorMap =
+  typeof window !== "undefined" ? lazy(() => import("@/components/vendor/vendor-map")) : () => null;
 
 export const Route = createFileRoute("/vendors/$vendorId")({
   validateSearch: (search: Record<string, unknown>): { product?: string } => ({
@@ -91,7 +99,7 @@ function VendorDetail() {
             queryClient.setQueryData<any>(["vendor", vendorId], (old: any) => {
               if (!old?.data) return old;
               const products = (old.data.products || []).map((p: any) =>
-                p.id === product_id ? { ...p, stock, is_available } : p
+                p.id === product_id ? { ...p, stock, is_available } : p,
               );
               return { ...old, data: { ...old.data, products } };
             });
@@ -139,12 +147,50 @@ function VendorDetail() {
     toggleSubscriptionMutation.mutate();
   };
 
-  const { data: productsRes, isLoading } = useQuery({
-    queryKey: ["products", { vendor_id: vendor.id }],
-    queryFn: () => api.get<Product[]>(`/products?vendor_id=${vendor.id}`),
+  // Pagination state for product catalog
+  const [page, setPage] = useState(1);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const PAGE_SIZE = 100;
+
+  const {
+    data: productsRes,
+    isLoading,
+    isFetching: isFetchingMore,
+  } = useQuery({
+    queryKey: ["products", { vendor_id: vendor.id }, page],
+    queryFn: () =>
+      api.get<{ rows: Product[]; total: number; page: number; perPage: number }>(
+        `/products?vendor_id=${vendor.id}&per_page=${PAGE_SIZE}&page=${page}`,
+      ),
+    placeholderData: (previousData) => previousData,
   });
 
-  const rawShowcase = productsRes?.data || [];
+  const fetchedProducts = productsRes?.data?.rows || [];
+  const totalProducts = productsRes?.data?.total || 0;
+
+  useEffect(() => {
+    if (page === 1) {
+      setAllProducts(fetchedProducts);
+    } else {
+      setAllProducts((prev) => [...prev, ...fetchedProducts]);
+    }
+    setHasMore(
+      fetchedProducts.length === PAGE_SIZE &&
+        allProducts.length + fetchedProducts.length < totalProducts,
+    );
+    setIsLoadingMore(false);
+  }, [fetchedProducts, page, totalProducts]);
+
+  const loadMore = useCallback(() => {
+    if (!isLoadingMore && !isLoading && hasMore) {
+      setIsLoadingMore(true);
+      setPage((p) => p + 1);
+    }
+  }, [isLoadingMore, isLoading, hasMore]);
+
+  const rawShowcase = allProducts;
 
   const showcase = useMemo(() => {
     if (!pinnedProductId) return rawShowcase;
@@ -199,9 +245,7 @@ function VendorDetail() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const banners = profile.banner_urls?.length
-    ? profile.banner_urls
-    : [coverUrl];
+  const banners = profile.banner_urls?.length ? profile.banner_urls : [coverUrl];
 
   // Embla Select Event
   useEffect(() => {
@@ -264,10 +308,16 @@ function VendorDetail() {
               isOpen ? "bg-emerald-500/90" : "bg-rose-600/90"
             }`}
           >
-            <span className={`h-2 w-2 rounded-full ${isOpen ? "bg-white animate-pulse" : "bg-rose-200"}`} />
+            <span
+              className={`h-2 w-2 rounded-full ${isOpen ? "bg-white animate-pulse" : "bg-rose-200"}`}
+            />
             {isRoaming
-              ? (isOpen ? "🟢 LIVE ROAMING CART" : "🔴 CART OFFLINE")
-              : (isOpen ? "🟢 STORE OPEN NOW" : "🔴 STORE CLOSED")}
+              ? isOpen
+                ? "🟢 LIVE ROAMING CART"
+                : "🔴 CART OFFLINE"
+              : isOpen
+                ? "🟢 STORE OPEN NOW"
+                : "🔴 STORE CLOSED"}
           </span>
         </div>
 
@@ -356,11 +406,17 @@ function VendorDetail() {
                   </button>
 
                   <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
-                    <MapPin className="h-3.5 w-3.5" /> {distanceKm != null ? `${distanceKm.toFixed(1)} km away` : (profile.city || "Local Store")}
+                    <MapPin className="h-3.5 w-3.5" />{" "}
+                    {distanceKm != null
+                      ? `${distanceKm.toFixed(1)} km away`
+                      : profile.city || "Local Store"}
                   </span>
 
                   <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                    <Clock className="h-3.5 w-3.5" /> {profile.estimated_delivery_time || profile.delivery_configs?.estimated_delivery_time || "20-30 mins"}
+                    <Clock className="h-3.5 w-3.5" />{" "}
+                    {profile.estimated_delivery_time ||
+                      profile.delivery_configs?.estimated_delivery_time ||
+                      "20-30 mins"}
                   </span>
 
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
@@ -419,9 +475,13 @@ function VendorDetail() {
             <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 text-xs font-medium">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-0.5">
-                <span className="font-bold">Your Location is Outside Store Delivery Range ({distanceKm.toFixed(1)} km away)</span>
+                <span className="font-bold">
+                  Your Location is Outside Store Delivery Range ({distanceKm.toFixed(1)} km away)
+                </span>
                 <p className="text-[11px] text-muted-foreground">
-                  {vendor.business_name} only delivers home orders within <strong>{deliveryRadiusKm} km</strong> (Sakti District). You can still browse products or select <strong>Self Pickup</strong> during checkout.
+                  {vendor.business_name} only delivers home orders within{" "}
+                  <strong>{deliveryRadiusKm} km</strong> (Sakti District). You can still browse
+                  products or select <strong>Self Pickup</strong> during checkout.
                 </p>
               </div>
             </div>
@@ -450,11 +510,16 @@ function VendorDetail() {
               )}
             </div>
             <div className="h-[240px] md:h-[300px] overflow-hidden rounded-2xl border relative z-0">
-            <ClientOnly>
-              <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
-                <VendorMap lat={lat} lng={lng} businessName={vendor.business_name} address={profile.address || ""} />
-              </Suspense>
-            </ClientOnly>
+              <ClientOnly>
+                <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
+                  <VendorMap
+                    lat={lat}
+                    lng={lng}
+                    businessName={vendor.business_name}
+                    address={profile.address || ""}
+                  />
+                </Suspense>
+              </ClientOnly>
             </div>
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
@@ -515,18 +580,43 @@ function VendorDetail() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              {showcase.map((p) => (
-                <div key={p.id} className={p.id === pinnedProductId ? "relative" : ""}>
-                  {p.id === pinnedProductId && (
-                    <span className="absolute -top-2 -right-1 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm">
-                      Selected
-                    </span>
-                  )}
-                  <ProductCard key={p.id} product={p} />
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                {showcase.map((p) => (
+                  <div key={p.id} className={p.id === pinnedProductId ? "relative" : ""}>
+                    {p.id === pinnedProductId && (
+                      <span className="absolute -top-2 -right-1 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm">
+                        Selected
+                      </span>
+                    )}
+                    <ProductCard key={p.id} product={p} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Load More Button */}
+              {hasMore && !isLoading && showcase.length > 0 && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={loadMore}
+                    disabled={isLoadingMore || isFetchingMore}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-6 py-3 text-xs font-bold hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    {isLoadingMore || isFetchingMore ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading more...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        Load More Products
+                      </>
+                    )}
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </main>

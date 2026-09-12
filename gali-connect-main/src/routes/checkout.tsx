@@ -75,8 +75,9 @@ function Checkout() {
     queryFn: () => api.get<any>("/settings/public"),
   });
   const publicSettings = publicSettingsRes?.data || {};
-  const isVegaMartFleetEnabled = publicSettings?.["platform.vegamart_delivery_enabled"] !== false;
-  const hasActiveDeliveryPartners = !!publicSettings.has_active_delivery_partners && isVegaMartFleetEnabled;
+  const isVegaMartFleetEnabled = publicSettings?.["platform.vegamart_delivery_enabled"] === true;
+  const hasActiveDeliveryPartners =
+    !!publicSettings.has_active_delivery_partners && isVegaMartFleetEnabled;
   const platformDeliveryEta = publicSettings?.["platform.default_delivery_eta"] || "20-30 mins";
 
   // Extract vendor delivery configurations from checkout summary or first item's vendor
@@ -91,8 +92,10 @@ function Checkout() {
   });
 
   const vendorData = vendorDetailRes?.data || firstVendor;
-  const vendorName = vendorGroup?.vendor_name || vendorData?.business_name || vendorData?.name || "Local Store";
-  const vendorEta = vendorData?.estimated_delivery_time || vendorGroup?.estimated_delivery_time || "20-30 mins";
+  const vendorName =
+    vendorGroup?.vendor_name || vendorData?.business_name || vendorData?.name || "Local Store";
+  const vendorEta =
+    vendorData?.estimated_delivery_time || vendorGroup?.estimated_delivery_time || "20-30 mins";
   const vendorAddress = vendorData?.address || vendorGroup?.vendor_address || "";
   const isStoreOpen = vendorData?.is_open !== false;
 
@@ -119,7 +122,10 @@ function Checkout() {
     advance_payment_enabled: true,
   };
   const shopDeliveryConfig = rawConfigs?.shop_delivery ?? {
-    enabled: !!(items.some((i) => !!(i.product?.vendor?.provides_delivery || (i.product as any)?.vendor_provides_delivery))),
+    enabled: !!items.some(
+      (i) =>
+        !!(i.product?.vendor?.provides_delivery || (i.product as any)?.vendor_provides_delivery),
+    ),
     delivery_fee: vendorGroup?.delivery_fee ?? 30,
     min_order: 0,
     estimated_time: "30-45 mins",
@@ -140,19 +146,25 @@ function Checkout() {
 
   const adminDeliveryFee = vendorGroup?.admin_delivery_fee ?? publicSettings.delivery_fee ?? 30;
   const adminMinOrder = vendorGroup?.admin_min_order ?? publicSettings.min_order_value ?? 0;
-  const adminFreeDeliveryThreshold = vendorGroup?.admin_free_delivery_threshold ?? publicSettings.free_delivery_threshold ?? 0;
+  const adminFreeDeliveryThreshold =
+    vendorGroup?.admin_free_delivery_threshold ?? publicSettings.free_delivery_threshold ?? 0;
 
   const isRoamingVendor = items.some(
     (i) =>
       (i.product?.vendor as any)?.vendor_type === "roaming" ||
-      !!(i.product?.vendor as any)?.provides_vendor_comes_to_me
+      !!(i.product?.vendor as any)?.provides_vendor_comes_to_me,
   );
 
   // Multi-vendor consolidated delivery detection
-  const uniqueVendorIds = new Set(items.map((i) => i.product?.vendor_id || (i.product as any)?.vendorId).filter(Boolean));
+  const uniqueVendorIds = new Set(
+    items.map((i) => i.product?.vendor_id || (i.product as any)?.vendorId).filter(Boolean),
+  );
   const isMultiVendorCart = uniqueVendorIds.size > 1;
-  const isConsolidatedDelivery = summary?.is_consolidated_delivery || (isMultiVendorCart && isVegaMartFleetEnabled);
-  const consolidatedDeliveryFee = isConsolidatedDelivery ? (summary?.delivery_fee ?? adminDeliveryFee) : 0;
+  const isConsolidatedDelivery =
+    summary?.is_consolidated_delivery || (isMultiVendorCart && isVegaMartFleetEnabled);
+  const consolidatedDeliveryFee = isConsolidatedDelivery
+    ? (summary?.delivery_fee ?? adminDeliveryFee)
+    : 0;
 
   interface CheckoutDeliveryOption {
     id: string;
@@ -171,20 +183,22 @@ function Checkout() {
 
   const DELIVERY_OPTIONS: CheckoutDeliveryOption[] = [
     ...(isRoamingVendor
-      ? [{
-          id: "vendor_comes_to_me",
-          label: "Vendor comes to me",
-          desc: "Moving street cart arrives at your door",
-          icon: "🛒",
-          eta: `~${vendorEta || "15-20 mins"}`,
-          advancePct: 0,
-          minOrder: 0,
-          fee: 0,
-          onlinePaymentEnabled: true,
-          codEnabled: true,
-          fullPaymentEnabled: true,
-          advancePaymentEnabled: false,
-        }]
+      ? [
+          {
+            id: "vendor_comes_to_me",
+            label: "Vendor comes to me",
+            desc: "Moving street cart arrives at your door",
+            icon: "🛒",
+            eta: `~${vendorEta || "15-20 mins"}`,
+            advancePct: 0,
+            minOrder: 0,
+            fee: 0,
+            onlinePaymentEnabled: true,
+            codEnabled: true,
+            fullPaymentEnabled: true,
+            advancePaymentEnabled: false,
+          },
+        ]
       : []),
     ...(bookingConfig.enabled
       ? [
@@ -250,7 +264,10 @@ function Checkout() {
             eta: `~${platformDeliveryEta || vendorEta}`,
             advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
             minOrder: Number(adminMinOrder) || 0,
-            fee: (adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold) ? 0 : Number(adminDeliveryFee) || 30,
+            fee:
+              adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold
+                ? 0
+                : Number(adminDeliveryFee) || 30,
             onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
             codEnabled: deliveryPartnerConfig.cod_enabled !== false,
             fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
@@ -262,40 +279,45 @@ function Checkout() {
 
   // When multi-vendor cart with consolidated VegaMart delivery, show only delivery_partner option
   const consolidatedOptions: CheckoutDeliveryOption[] = isConsolidatedDelivery
-    ? [{
-        id: "delivery_partner",
-        label: "VegaMart Home Delivery",
-        desc: `All stores picked up by VegaMart rider (₹${consolidatedDeliveryFee === 0 ? "Free" : consolidatedDeliveryFee})`,
-        icon: "🏍️",
-        eta: `~${platformDeliveryEta || vendorEta}`,
-        advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
-        minOrder: Number(adminMinOrder) || 0,
-        fee: consolidatedDeliveryFee,
-        onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
-        codEnabled: deliveryPartnerConfig.cod_enabled !== false,
-        fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
-        advancePaymentEnabled: Boolean(deliveryPartnerConfig.advance_payment_enabled),
-      }]
+    ? [
+        {
+          id: "delivery_partner",
+          label: "VegaMart Home Delivery",
+          desc: `All stores picked up by VegaMart rider (₹${consolidatedDeliveryFee === 0 ? "Free" : consolidatedDeliveryFee})`,
+          icon: "🏍️",
+          eta: `~${platformDeliveryEta || vendorEta}`,
+          advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
+          minOrder: Number(adminMinOrder) || 0,
+          fee: consolidatedDeliveryFee,
+          onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
+          codEnabled: deliveryPartnerConfig.cod_enabled !== false,
+          fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
+          advancePaymentEnabled: Boolean(deliveryPartnerConfig.advance_payment_enabled),
+        },
+      ]
     : DELIVERY_OPTIONS;
 
-  const effectiveOptions: CheckoutDeliveryOption[] = (isConsolidatedDelivery ? consolidatedOptions : DELIVERY_OPTIONS).length > 0
-    ? (isConsolidatedDelivery ? consolidatedOptions : DELIVERY_OPTIONS)
-    : [
-    {
-      id: "self_pickup",
-      label: "Self Pickup",
-      desc: "Store pickup",
-      icon: "🚶",
-      eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
-      advancePct: 10,
-      minOrder: 0,
-      fee: 0,
-      onlinePaymentEnabled: true,
-      codEnabled: true,
-      fullPaymentEnabled: true,
-      advancePaymentEnabled: true,
-    }
-  ];
+  const effectiveOptions: CheckoutDeliveryOption[] =
+    (isConsolidatedDelivery ? consolidatedOptions : DELIVERY_OPTIONS).length > 0
+      ? isConsolidatedDelivery
+        ? consolidatedOptions
+        : DELIVERY_OPTIONS
+      : [
+          {
+            id: "self_pickup",
+            label: "Self Pickup",
+            desc: "Store pickup",
+            icon: "🚶",
+            eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
+            advancePct: 10,
+            minOrder: 0,
+            fee: 0,
+            onlinePaymentEnabled: true,
+            codEnabled: true,
+            fullPaymentEnabled: true,
+            advancePaymentEnabled: true,
+          },
+        ];
 
   useEffect(() => {
     setDeliveryOption((i) => Math.min(i, Math.max(0, effectiveOptions.length - 1)));
@@ -317,7 +339,11 @@ function Checkout() {
     // 2. Sync Payment Method
     if (!selectedOptionObj.onlinePaymentEnabled && selectedOptionObj.codEnabled) {
       setPayment("cod");
-    } else if (selectedOptionObj.onlinePaymentEnabled && !selectedOptionObj.codEnabled && payment === "cod") {
+    } else if (
+      selectedOptionObj.onlinePaymentEnabled &&
+      !selectedOptionObj.codEnabled &&
+      payment === "cod"
+    ) {
       setPayment("upi");
     }
   }, [selectedOptionObj]);
@@ -354,16 +380,19 @@ function Checkout() {
     }
   }, [addresses, selectedAddressId]);
 
-function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 10) / 10;
-}
+  function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10;
+  }
 
   const selectedAddress = addresses.find((a: any) => a.id === selectedAddressId) || addresses[0];
 
@@ -371,17 +400,23 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
   const vendorLat = vendorData?.latitude || vendorGroup?.latitude;
   const vendorLng = vendorData?.longitude || vendorGroup?.longitude;
   const vendorDeliveryRadius = Number(vendorData?.delivery_radius_km || 5);
-  
+
   const addressLat = selectedAddress?.latitude ? Number(selectedAddress.latitude) : null;
   const addressLng = selectedAddress?.longitude ? Number(selectedAddress.longitude) : null;
 
   let deliveryDistanceKm: number | null = null;
   if (vendorLat && vendorLng && addressLat && addressLng) {
-    deliveryDistanceKm = calculateDistanceKm(addressLat, addressLng, Number(vendorLat), Number(vendorLng));
+    deliveryDistanceKm = calculateDistanceKm(
+      addressLat,
+      addressLng,
+      Number(vendorLat),
+      Number(vendorLng),
+    );
   }
 
   const isSelfPickup = selectedOptionObj?.id === "self_pickup";
-  const isOutOfDeliveryRadius = !isSelfPickup && deliveryDistanceKm !== null && deliveryDistanceKm > vendorDeliveryRadius;
+  const isOutOfDeliveryRadius =
+    !isSelfPickup && deliveryDistanceKm !== null && deliveryDistanceKm > vendorDeliveryRadius;
 
   const createAddressMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -571,16 +606,20 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
     }
     if (isOutOfDeliveryRadius) {
       toast.error(
-        `Selected address (${deliveryDistanceKm} km away) is outside ${vendorName}'s delivery limit of ${vendorDeliveryRadius} km. Please select a delivery address in Sakti District or choose Self Pickup.`
+        `Selected address (${deliveryDistanceKm} km away) is outside ${vendorName}'s delivery limit of ${vendorDeliveryRadius} km. Please select a delivery address in Sakti District or choose Self Pickup.`,
       );
       return;
     }
     if (!selectedOptionObj.onlinePaymentEnabled && !selectedOptionObj.codEnabled) {
-      toast.error(`No payment methods are available for ${selectedOptionObj.label}. Please choose another delivery option.`);
+      toast.error(
+        `No payment methods are available for ${selectedOptionObj.label}. Please choose another delivery option.`,
+      );
       return;
     }
     if (!isMinOrderMet) {
-      toast.error(`Minimum order of ₹${optionMinOrder} is required for ${selectedOptionObj.label}. Please add ₹${deficitAmount.toFixed(2)} more to proceed.`);
+      toast.error(
+        `Minimum order of ₹${optionMinOrder} is required for ${selectedOptionObj.label}. Please add ₹${deficitAmount.toFixed(2)} more to proceed.`,
+      );
       return;
     }
 
@@ -616,14 +655,17 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
       // Step B: Load Razorpay SDK and open payment modal
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
-        throw new Error("Payment gateway SDK failed to load. Please check your internet connection.");
+        throw new Error(
+          "Payment gateway SDK failed to load. Please check your internet connection.",
+        );
       }
 
       const RazorpayCtor = (window as any).Razorpay;
       await new Promise<void>((resolve, reject) => {
         let paymentReceived = false;
         const options = {
-          key: sessionData.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
+          key:
+            sessionData.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
           amount: Math.round(sessionData.amount),
           currency: sessionData.currency || "INR",
           name: "Vegamart",
@@ -644,19 +686,30 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                 clearCart();
                 toast.success("Payment successful! Your order has been placed.");
                 const firstOrder = verifyRes.data?.orders?.[0]?.order;
-                navigate({ to: "/order-success", search: { orderId: verifyRes?.data?.master_order_id || "" } });
+                navigate({
+                  to: "/order-success",
+                  search: { orderId: verifyRes?.data?.master_order_id || "" },
+                });
                 resolve();
               } else {
-                reject(new Error(verifyRes.error?.message || "Payment verification failed on server."));
+                reject(
+                  new Error(verifyRes.error?.message || "Payment verification failed on server."),
+                );
               }
             } catch (err: any) {
-              reject(err instanceof Error ? err : new Error("Payment verification failed on server."));
+              reject(
+                err instanceof Error ? err : new Error("Payment verification failed on server."),
+              );
             }
           },
           modal: {
             ondismiss: () => {
               if (paymentReceived) return;
-              reject(new Error("Payment was cancelled. Your order was not placed and your cart is saved."));
+              reject(
+                new Error(
+                  "Payment was cancelled. Your order was not placed and your cart is saved.",
+                ),
+              );
             },
           },
           prefill: {
@@ -704,19 +757,28 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
   }
 
   const displayDeliveryFee = selectedOptionObj.fee;
-  
+
   let displayTax = tax;
   if (selectedOptionObj.id === "delivery_partner" && displayDeliveryFee > 0) {
     displayTax = tax + (displayDeliveryFee * taxRatePercent) / 100;
   }
 
-  const additionalChargesTotal = summary?.additional_charges?.reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0;
-  const finalOrderTotal = Math.max(0, subtotal + displayDeliveryFee + displayTax + additionalChargesTotal - discount);
-  const isAdvanceSelected = paymentType === "ADVANCE" && selectedOptionObj.advancePaymentEnabled && payment !== "cod";
+  const additionalChargesTotal =
+    summary?.additional_charges?.reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0;
+  const finalOrderTotal = Math.max(
+    0,
+    subtotal + displayDeliveryFee + displayTax + additionalChargesTotal - discount,
+  );
+  const isAdvanceSelected =
+    paymentType === "ADVANCE" && selectedOptionObj.advancePaymentEnabled && payment !== "cod";
   const advancePct = selectedOptionObj.advancePct || 20;
   const upfrontPaymentAmount = isAdvanceSelected
-    ? (advancePct <= 0 || advancePct >= 100 ? finalOrderTotal : Math.max(1, Math.round(finalOrderTotal * (advancePct / 100) * 100) / 100))
-    : (payment === "cod" ? 0 : finalOrderTotal);
+    ? advancePct <= 0 || advancePct >= 100
+      ? finalOrderTotal
+      : Math.max(1, Math.round(finalOrderTotal * (advancePct / 100) * 100) / 100)
+    : payment === "cod"
+      ? 0
+      : finalOrderTotal;
   const balanceDue = Math.max(0, finalOrderTotal - (payment === "cod" ? 0 : upfrontPaymentAmount));
 
   const optionMinOrder = selectedOptionObj.minOrder || 0;
@@ -749,9 +811,7 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="font-display text-base font-bold text-foreground truncate">
-                        {isConsolidatedDelivery
-                          ? `${uniqueVendorIds.size} Stores`
-                          : vendorName}
+                        {isConsolidatedDelivery ? `${uniqueVendorIds.size} Stores` : vendorName}
                       </h2>
                       {isConsolidatedDelivery ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-blue-800 bg-blue-100 dark:bg-blue-950 dark:text-blue-300 px-2 py-0.5 rounded-full border border-blue-300 dark:border-blue-800">
@@ -765,7 +825,8 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                     </div>
                     {isConsolidatedDelivery ? (
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {summary?.groups?.map((g: any) => g.vendor_name).join(", ") || "Multiple vendors"}
+                        {summary?.groups?.map((g: any) => g.vendor_name).join(", ") ||
+                          "Multiple vendors"}
                       </p>
                     ) : vendorAddress ? (
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -778,8 +839,12 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                 <div className="flex items-center gap-2 rounded-2xl bg-muted/60 p-2.5 px-3.5 border border-border/50 text-xs self-start sm:self-auto">
                   <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold block leading-none">Option Time</span>
-                    <span className="font-bold text-foreground">{selectedOptionObj.eta || vendorEta}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block leading-none">
+                      Option Time
+                    </span>
+                    <span className="font-bold text-foreground">
+                      {selectedOptionObj.eta || vendorEta}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -824,7 +889,9 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                       >
                         <span
                           className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-xl ${
-                            active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                            active
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-foreground"
                           }`}
                         >
                           <MapPin className="h-3.5 w-3.5" />
@@ -864,7 +931,13 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                       <span>Address Out of Delivery Zone ({deliveryDistanceKm} km away)</span>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {vendorName} currently delivers within a maximum of <strong className="text-foreground">{vendorDeliveryRadius} km</strong> (Sakti District). Your selected address in <strong className="text-foreground">{selectedAddress.city || selectedAddress.area || "selected location"}</strong> is beyond the deliverable zone.
+                      {vendorName} currently delivers within a maximum of{" "}
+                      <strong className="text-foreground">{vendorDeliveryRadius} km</strong> (Sakti
+                      District). Your selected address in{" "}
+                      <strong className="text-foreground">
+                        {selectedAddress.city || selectedAddress.area || "selected location"}
+                      </strong>{" "}
+                      is beyond the deliverable zone.
                     </p>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
@@ -896,7 +969,9 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h2 className="font-display text-base font-bold">Delivery &amp; Pickup Options</h2>
+                  <h2 className="font-display text-base font-bold">
+                    Delivery &amp; Pickup Options
+                  </h2>
                   <p className="text-xs text-muted-foreground">
                     {isConsolidatedDelivery
                       ? "VegaMart handles all store pickups for you"
@@ -915,7 +990,13 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                   <div>
                     <strong>Multi-store order — Single delivery charge!</strong>
                     <p className="mt-0.5 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
-                      Your cart has items from {uniqueVendorIds.size} different stores. A VegaMart rider will pick up from all stores and deliver everything together with just one delivery fee{consolidatedDeliveryFee === 0 ? " (Free!)" : ` of ₹${consolidatedDeliveryFee}`}.
+                      Your cart has items from {uniqueVendorIds.size} different stores. A VegaMart
+                      rider will pick up from all stores and deliver everything together with just
+                      one delivery fee
+                      {consolidatedDeliveryFee === 0
+                        ? " (Free!)"
+                        : ` of ₹${consolidatedDeliveryFee}`}
+                      .
                     </p>
                   </div>
                 </div>
@@ -946,9 +1027,13 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                             </span>
                           )}
                           {opt.minOrder > 0 && (
-                            <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md ${
-                              meetsMin ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                            }`}>
+                            <span
+                              className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md ${
+                                meetsMin
+                                  ? "bg-muted text-muted-foreground"
+                                  : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                              }`}
+                            >
                               Min ₹{opt.minOrder}
                             </span>
                           )}
@@ -961,8 +1046,12 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                       </div>
 
                       <div>
-                        <div className="text-xs font-bold leading-tight text-foreground">{opt.label}</div>
-                        <div className="text-[10.5px] text-muted-foreground leading-tight mt-0.5">{opt.desc}</div>
+                        <div className="text-xs font-bold leading-tight text-foreground">
+                          {opt.label}
+                        </div>
+                        <div className="text-[10.5px] text-muted-foreground leading-tight mt-0.5">
+                          {opt.desc}
+                        </div>
                       </div>
                     </button>
                   );
@@ -975,7 +1064,9 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-display text-base font-bold">Payment Method &amp; Type</h2>
-                  <p className="text-xs text-muted-foreground">Configured independently for {selectedOptionObj.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Configured independently for {selectedOptionObj.label}
+                  </p>
                 </div>
               </div>
 
@@ -997,9 +1088,15 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-foreground">💯 Full Payment (100%)</span>
-                        <span className={`grid h-4 w-4 place-items-center rounded-full border ${paymentType === "FULL" ? "border-primary bg-primary" : "border-border"}`}>
-                          {paymentType === "FULL" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                        <span className="text-xs font-bold text-foreground">
+                          💯 Full Payment (100%)
+                        </span>
+                        <span
+                          className={`grid h-4 w-4 place-items-center rounded-full border ${paymentType === "FULL" ? "border-primary bg-primary" : "border-border"}`}
+                        >
+                          {paymentType === "FULL" && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                          )}
                         </span>
                       </div>
                       <p className="text-[11px] text-muted-foreground">
@@ -1018,13 +1115,21 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-foreground">⏳ Advance ({advancePct}%)</span>
-                        <span className={`grid h-4 w-4 place-items-center rounded-full border ${paymentType === "ADVANCE" ? "border-purple-600 bg-purple-600" : "border-border"}`}>
-                          {paymentType === "ADVANCE" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                        <span className="text-xs font-bold text-foreground">
+                          ⏳ Advance ({advancePct}%)
+                        </span>
+                        <span
+                          className={`grid h-4 w-4 place-items-center rounded-full border ${paymentType === "ADVANCE" ? "border-purple-600 bg-purple-600" : "border-border"}`}
+                        >
+                          {paymentType === "ADVANCE" && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                          )}
                         </span>
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        Pay ₹{((finalOrderTotal * (advancePct / 100))).toFixed(2)} now, ₹{(finalOrderTotal - (finalOrderTotal * (advancePct / 100))).toFixed(2)} on arrival.
+                        Pay ₹{(finalOrderTotal * (advancePct / 100)).toFixed(2)} now, ₹
+                        {(finalOrderTotal - finalOrderTotal * (advancePct / 100)).toFixed(2)} on
+                        arrival.
                       </p>
                     </button>
                   </div>
@@ -1033,14 +1138,16 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                 <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/50 text-xs text-purple-900 dark:text-purple-200">
                   <Percent className="h-4 w-4 text-purple-600 shrink-0" />
                   <div>
-                    <strong>Advance Payment Required ({advancePct}%):</strong> Store requires an upfront token payment of {advancePct}% for {selectedOptionObj.label}.
+                    <strong>Advance Payment Required ({advancePct}%):</strong> Store requires an
+                    upfront token payment of {advancePct}% for {selectedOptionObj.label}.
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-xs text-emerald-900 dark:text-emerald-200">
                   <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
                   <div>
-                    <strong>Full Payment (100%):</strong> Total order value is paid upfront or via cash on delivery.
+                    <strong>Full Payment (100%):</strong> Total order value is paid upfront or via
+                    cash on delivery.
                   </div>
                 </div>
               )}
@@ -1049,7 +1156,10 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
               {availablePayments.length === 0 ? (
                 <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
                   <span>⚠️</span>
-                  <span>No payment methods are enabled by the vendor for {selectedOptionObj.label}. Please select another delivery option.</span>
+                  <span>
+                    No payment methods are enabled by the vendor for {selectedOptionObj.label}.
+                    Please select another delivery option.
+                  </span>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1069,7 +1179,9 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                       >
                         <span
                           className={`grid h-9 w-9 place-items-center rounded-xl ${
-                            active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                            active
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-foreground"
                           }`}
                         >
                           <Icon className="h-4 w-4" />
@@ -1208,12 +1320,16 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                   <span className="text-muted-foreground">Taxes & Charges (GST)</span>
                   <span className="font-semibold tabular-nums">₹{displayTax.toFixed(2)}</span>
                 </div>
-                {summary?.additional_charges && summary.additional_charges.length > 0 && summary.additional_charges.map((charge: any) => (
-                  <div key={charge.id} className="flex justify-between">
-                    <span className="text-muted-foreground">{charge.name}</span>
-                    <span className="font-semibold tabular-nums">₹{Number(charge.amount).toFixed(2)}</span>
-                  </div>
-                ))}
+                {summary?.additional_charges &&
+                  summary.additional_charges.length > 0 &&
+                  summary.additional_charges.map((charge: any) => (
+                    <div key={charge.id} className="flex justify-between">
+                      <span className="text-muted-foreground">{charge.name}</span>
+                      <span className="font-semibold tabular-nums">
+                        ₹{Number(charge.amount).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
 
                 {discount > 0 && (
                   <div className="flex justify-between text-emerald-700 font-semibold">
@@ -1251,7 +1367,11 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
 
                 <div className="flex items-center justify-between pt-1">
                   <span className="font-display text-sm font-bold">
-                    {isAdvanceSelected ? "To Pay Now" : (payment === "cod" ? "Pay on Delivery/Pickup" : "Total Payable")}
+                    {isAdvanceSelected
+                      ? "To Pay Now"
+                      : payment === "cod"
+                        ? "Pay on Delivery/Pickup"
+                        : "Total Payable"}
                   </span>
                   <span className="font-display text-xl font-bold tabular-nums text-primary">
                     ₹{(payment === "cod" ? finalOrderTotal : upfrontPaymentAmount).toFixed(2)}
@@ -1271,7 +1391,9 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
               ) : isOutOfDeliveryRadius ? (
                 <div className="hidden md:block text-center p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-950 dark:text-amber-200 text-xs font-bold space-y-1">
                   <div>Out of Delivery Range ({deliveryDistanceKm} km)</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">Store limit: {vendorDeliveryRadius} km (Sakti District)</div>
+                  <div className="text-[10px] font-normal text-muted-foreground">
+                    Store limit: {vendorDeliveryRadius} km (Sakti District)
+                  </div>
                 </div>
               ) : availablePayments.length === 0 ? (
                 <div className="hidden md:block text-center p-3 rounded-2xl bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20">
@@ -1280,7 +1402,12 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
               ) : (
                 <button
                   onClick={handlePlaceOrder}
-                  disabled={createOrderMutation.isPending || isProcessingPayment || items.length === 0 || isOutOfDeliveryRadius}
+                  disabled={
+                    createOrderMutation.isPending ||
+                    isProcessingPayment ||
+                    items.length === 0 ||
+                    isOutOfDeliveryRadius
+                  }
                   className="hidden md:flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {createOrderMutation.isPending || isProcessingPayment ? (
@@ -1290,8 +1417,8 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                       {isAdvanceSelected
                         ? `Pay ₹${upfrontPaymentAmount.toFixed(2)} Advance & Place Order`
                         : payment === "cod"
-                        ? "Place Order (Cash on Delivery)"
-                        : `Pay ₹${finalOrderTotal.toFixed(2)} & Place Order`}{" "}
+                          ? "Place Order (Cash on Delivery)"
+                          : `Pay ₹${finalOrderTotal.toFixed(2)} & Place Order`}{" "}
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -1314,8 +1441,8 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                 {isAdvanceSelected
                   ? `Pay Now (${advancePct}%)`
                   : payment === "cod"
-                  ? "Due on Delivery"
-                  : "Total Payable"}
+                    ? "Due on Delivery"
+                    : "Total Payable"}
               </div>
               <div className="font-display text-lg font-bold leading-none tabular-nums">
                 ₹{(payment === "cod" ? finalOrderTotal : upfrontPaymentAmount).toFixed(2)}
@@ -1336,7 +1463,12 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
             ) : (
               <button
                 onClick={handlePlaceOrder}
-                disabled={createOrderMutation.isPending || isProcessingPayment || items.length === 0 || isOutOfDeliveryRadius}
+                disabled={
+                  createOrderMutation.isPending ||
+                  isProcessingPayment ||
+                  items.length === 0 ||
+                  isOutOfDeliveryRadius
+                }
                 className="inline-flex items-center gap-2 rounded-2xl bg-white text-emerald-900 font-bold text-xs h-11 px-4 shadow-xs hover:bg-emerald-50 disabled:opacity-50"
               >
                 {createOrderMutation.isPending || isProcessingPayment ? (
@@ -1346,8 +1478,8 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
                     {isAdvanceSelected
                       ? `Pay ₹${upfrontPaymentAmount.toFixed(2)} Advance`
                       : payment === "cod"
-                      ? "Place Order (COD)"
-                      : "Place Order"}{" "}
+                        ? "Place Order (COD)"
+                        : "Place Order"}{" "}
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}

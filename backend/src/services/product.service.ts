@@ -5,7 +5,10 @@ import { AUDIT_ACTIONS } from "../constants/auth";
 import { auditService } from "./audit.service";
 import { vendorService } from "./vendor.service";
 import * as productRepo from "../repositories/product.repository";
-import { upsertInventory, findByProductId } from "../repositories/inventory.repository";
+import {
+  upsertInventory,
+  findByProductId,
+} from "../repositories/inventory.repository";
 import { existsById as categoryExists } from "../repositories/category.repository";
 import { realtime } from "../realtime/realtime";
 import { cacheService } from "../database/cache";
@@ -30,16 +33,25 @@ function listCacheKey(query: Record<string, unknown>): string {
 }
 
 export const productService = {
-  async ensureOwnedProduct(productId: string, userId: string): Promise<productRepo.ProductRow> {
+  async ensureOwnedProduct(
+    productId: string,
+    userId: string,
+  ): Promise<productRepo.ProductRow> {
     const product = await productRepo.findById(productId);
     if (!product) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", {
+        code: "NOT_FOUND",
+      });
     }
     const vendor = await vendorService.getMyVendor(userId);
     if (vendor.status !== VendorStatus.APPROVED) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved before managing products.", {
-        code: "VENDOR_NOT_APPROVED",
-      });
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Vendor must be approved before managing products.",
+        {
+          code: "VENDOR_NOT_APPROVED",
+        },
+      );
     }
     if (product.vendor_id !== vendor.id) {
       throw new ForbiddenError("You do not own this product.");
@@ -47,16 +59,26 @@ export const productService = {
     return product;
   },
 
-  async create(userId: string, input: CreateProductBody, req: Request): Promise<productRepo.ProductRow> {
+  async create(
+    userId: string,
+    input: CreateProductBody,
+    req: Request,
+  ): Promise<productRepo.ProductRow> {
     const vendor = await vendorService.getMyVendor(userId);
     if (vendor.status !== VendorStatus.APPROVED) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved before listing products.", {
-        code: "VENDOR_NOT_APPROVED",
-      });
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Vendor must be approved before listing products.",
+        {
+          code: "VENDOR_NOT_APPROVED",
+        },
+      );
     }
 
     if (!(await categoryExists(input.category_id))) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Category does not exist.", { code: "INVALID_CATEGORY" });
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Category does not exist.", {
+        code: "INVALID_CATEGORY",
+      });
     }
 
     const planLimit = vendor.membership_plan?.product_limit ?? 20;
@@ -66,7 +88,10 @@ export const productService = {
         throw new ApiError(
           HttpStatus.BAD_REQUEST,
           `Your current membership allows up to ${planLimit} products. Upgrade your membership to list more.`,
-          { code: "PRODUCT_LIMIT_REACHED", details: { limit: String(planLimit), current: String(activeCount) } }
+          {
+            code: "PRODUCT_LIMIT_REACHED",
+            details: { limit: String(planLimit), current: String(activeCount) },
+          },
         );
       }
     }
@@ -109,18 +134,35 @@ export const productService = {
     });
 
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.PRODUCT_CREATED, entityType: "product", entityId: product.id, newValues: { name: product.name, slug, price: product.price.toFixed(2) } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.PRODUCT_CREATED,
+        entityType: "product",
+        entityId: product.id,
+        newValues: {
+          name: product.name,
+          slug,
+          price: product.price.toFixed(2),
+        },
+      },
+      req,
     );
 
     return product;
   },
 
-  async update(userId: string, productId: string, input: UpdateProductBody, req: Request): Promise<productRepo.ProductRow> {
+  async update(
+    userId: string,
+    productId: string,
+    input: UpdateProductBody,
+    req: Request,
+  ): Promise<productRepo.ProductRow> {
     const product = await this.ensureOwnedProduct(productId, userId);
 
     if (input.category_id && !(await categoryExists(input.category_id))) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "Category does not exist.", { code: "INVALID_CATEGORY" });
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Category does not exist.", {
+        code: "INVALID_CATEGORY",
+      });
     }
 
     const data: Record<string, unknown> = {};
@@ -128,31 +170,42 @@ export const productService = {
       const trimmedName = input.name.trim();
       data.name = trimmedName;
       if (trimmedName !== product.name) {
-        const existingSlugs = await productRepo.listSlugs(product.vendor_id, product.id);
+        const existingSlugs = await productRepo.listSlugs(
+          product.vendor_id,
+          product.id,
+        );
         data.slug = uniqueSlug(trimmedName, existingSlugs);
       }
     }
     if (input.category_id !== undefined) data.category_id = input.category_id;
-    if (input.subcategory_id !== undefined) data.subcategory_id = input.subcategory_id;
-    if (input.description !== undefined) data.description = input.description || null;
+    if (input.subcategory_id !== undefined)
+      data.subcategory_id = input.subcategory_id;
+    if (input.description !== undefined)
+      data.description = input.description || null;
     if (input.price !== undefined) data.price = input.price;
     if (input.mrp !== undefined) data.mrp = input.mrp;
     if (input.tax_rate !== undefined) data.tax_rate = input.tax_rate;
     if (input.unit !== undefined) data.unit = input.unit.trim();
-    if (input.variants !== undefined) data.variants = input.variants as unknown as Prisma.InputJsonValue;
+    if (input.variants !== undefined)
+      data.variants = input.variants as unknown as Prisma.InputJsonValue;
     if (input.tag !== undefined) data.tag = input.tag || null;
     if (input.is_active !== undefined) data.is_active = input.is_active;
     if (input.is_featured !== undefined) data.is_featured = input.is_featured;
-    if (input.is_vegetarian !== undefined) data.is_vegetarian = input.is_vegetarian;
+    if (input.is_vegetarian !== undefined)
+      data.is_vegetarian = input.is_vegetarian;
 
     if (input.stock !== undefined) {
       const nextStock = Math.max(0, Math.floor(input.stock));
       if (nextStock > product.stock) {
-        data.total_stock = (product.total_stock ?? 0) + (nextStock - product.stock);
+        data.total_stock =
+          (product.total_stock ?? 0) + (nextStock - product.stock);
       }
       data.stock = nextStock;
       data.is_available = nextStock > 0;
-      const currentInv = typeof findByProductId === "function" ? await findByProductId(product.id).catch(() => null) : null;
+      const currentInv =
+        typeof findByProductId === "function"
+          ? await findByProductId(product.id).catch(() => null)
+          : null;
       const currentReserved = currentInv?.reserved ?? 0;
       await upsertInventory({
         product_id: product.id,
@@ -175,8 +228,14 @@ export const productService = {
       });
     }
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.PRODUCT_UPDATED, entityType: "product", entityId: product.id, newValues: data },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.PRODUCT_UPDATED,
+        entityType: "product",
+        entityId: product.id,
+        newValues: data,
+      },
+      req,
     );
 
     return updated!;
@@ -184,7 +243,7 @@ export const productService = {
 
   async remove(userId: string, productId: string, req: Request): Promise<void> {
     const product = await this.ensureOwnedProduct(productId, userId);
-    
+
     // Cleanup R2 images
     for (const image of product.images) {
       if (image.url) {
@@ -192,21 +251,32 @@ export const productService = {
         if (key) await deleteObject(key).catch(() => {});
       }
     }
-    
+
     await productRepo.softDelete(productId);
     await cacheService.invalidateNamespace("product");
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.PRODUCT_DELETED, entityType: "product", entityId: productId },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.PRODUCT_DELETED,
+        entityType: "product",
+        entityId: productId,
+      },
+      req,
     );
   },
 
-  async adminRemove(adminUserId: string, productId: string, req: Request): Promise<void> {
+  async adminRemove(
+    adminUserId: string,
+    productId: string,
+    req: Request,
+  ): Promise<void> {
     const product = await productRepo.findById(productId);
     if (!product) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", {
+        code: "NOT_FOUND",
+      });
     }
-    
+
     // Cleanup R2 images
     for (const image of product.images) {
       if (image.url) {
@@ -214,12 +284,17 @@ export const productService = {
         if (key) await deleteObject(key).catch(() => {});
       }
     }
-    
+
     await productRepo.softDelete(productId);
     await cacheService.invalidateNamespace("product");
     await auditService.record(
-      { userId: adminUserId, action: "ADMIN_PRODUCT_DELETED", entityType: "product", entityId: productId },
-      req
+      {
+        userId: adminUserId,
+        action: "ADMIN_PRODUCT_DELETED",
+        entityType: "product",
+        entityId: productId,
+      },
+      req,
     );
   },
 
@@ -236,6 +311,7 @@ export const productService = {
     is_available?: string;
     tag?: string;
     sort?: string;
+    vendor_is_open?: string;
   }) {
     const page = Math.max(1, query.page ?? 1);
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
@@ -251,13 +327,29 @@ export const productService = {
           subcategoryId: query.subcategory_id,
           minPrice: query.min_price,
           maxPrice: query.max_price,
-          isVegetarian: query.is_vegetarian === "true" ? true : query.is_vegetarian === "false" ? false : undefined,
-          isAvailable: query.is_available === "true" ? true : query.is_available === "false" ? false : undefined,
+          isVegetarian:
+            query.is_vegetarian === "true"
+              ? true
+              : query.is_vegetarian === "false"
+                ? false
+                : undefined,
+          isAvailable:
+            query.is_available === "true"
+              ? true
+              : query.is_available === "false"
+                ? false
+                : undefined,
           tag: query.tag,
           sort: query.sort,
+          vendorIsOpen:
+            query.vendor_is_open === "true"
+              ? true
+              : query.vendor_is_open === "false"
+                ? false
+                : undefined,
         },
         (page - 1) * perPage,
-        perPage
+        perPage,
       );
 
     if (!cacheable) {
@@ -265,10 +357,21 @@ export const productService = {
       return { rows, total, page, perPage };
     }
 
-    return cacheService.remember<{ rows: productRepo.ProductRow[]; total: number }>("product", key, async () => {
-      const { rows, total } = await load();
-      return { rows, total };
-    }).then((cached) => ({ rows: cached?.rows ?? [], total: cached?.total ?? 0, page, perPage }));
+    return cacheService
+      .remember<{ rows: productRepo.ProductRow[]; total: number }>(
+        "product",
+        key,
+        async () => {
+          const { rows, total } = await load();
+          return { rows, total };
+        },
+      )
+      .then((cached) => ({
+        rows: cached?.rows ?? [],
+        total: cached?.total ?? 0,
+        page,
+        perPage,
+      }));
   },
 
   async listAdmin(query: {
@@ -284,12 +387,22 @@ export const productService = {
     const { rows, total } = await productRepo.listProductsAdmin(
       {
         q: query.q,
-        isActive: query.is_active === "true" ? true : query.is_active === "false" ? false : undefined,
-        isFeatured: query.is_featured === "true" ? true : query.is_featured === "false" ? false : undefined,
+        isActive:
+          query.is_active === "true"
+            ? true
+            : query.is_active === "false"
+              ? false
+              : undefined,
+        isFeatured:
+          query.is_featured === "true"
+            ? true
+            : query.is_featured === "false"
+              ? false
+              : undefined,
         vendorId: query.vendor_id,
       },
       (page - 1) * perPage,
-      perPage
+      perPage,
     );
     return {
       rows: rows.map((p) => ({
@@ -303,22 +416,30 @@ export const productService = {
     };
   },
 
-  async getById(productId: string, includeInactive = false): Promise<productRepo.ProductRow> {
+  async getById(
+    productId: string,
+    includeInactive = false,
+  ): Promise<productRepo.ProductRow> {
     if (includeInactive) {
       return this.getByIdUncached(productId, true);
     }
     const product = await cacheService.remember<productRepo.ProductRow>(
       "product",
       `detail:${productId}`,
-      () => this.getByIdUncached(productId, false)
+      () => this.getByIdUncached(productId, false),
     );
     return product as productRepo.ProductRow;
   },
 
-  async getByIdUncached(productId: string, includeInactive: boolean): Promise<productRepo.ProductRow> {
+  async getByIdUncached(
+    productId: string,
+    includeInactive: boolean,
+  ): Promise<productRepo.ProductRow> {
     const product = await productRepo.findById(productId);
     if (!product) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", {
+        code: "NOT_FOUND",
+      });
     }
     if (
       !includeInactive &&
@@ -327,12 +448,22 @@ export const productService = {
         product.vendor?.status !== "APPROVED" ||
         product.vendor?.is_open === false)
     ) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", {
+        code: "NOT_FOUND",
+      });
     }
     return product;
   },
 
-  async listMyProducts(userId: string, query: { page?: number; per_page?: number; q?: string; include_inactive?: string }) {
+  async listMyProducts(
+    userId: string,
+    query: {
+      page?: number;
+      per_page?: number;
+      q?: string;
+      include_inactive?: string;
+    },
+  ) {
     const vendor = await vendorService.getMyVendor(userId);
     const page = Math.max(1, query.page ?? 1);
     const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
@@ -342,65 +473,113 @@ export const productService = {
       includeInactive,
       query.q,
       (page - 1) * perPage,
-      perPage
+      perPage,
     );
     return { rows, total, page, perPage };
   },
 
-  async addImages(userId: string, productId: string, images: Array<{ url: string; alt_text?: string | null; is_primary?: boolean }>, req: Request): Promise<productRepo.ProductRow> {
+  async addImages(
+    userId: string,
+    productId: string,
+    images: Array<{
+      url: string;
+      alt_text?: string | null;
+      is_primary?: boolean;
+    }>,
+    req: Request,
+  ): Promise<productRepo.ProductRow> {
     await this.ensureOwnedProduct(productId, userId);
     for (const image of images) {
       await productRepo.addImage(productId, image);
     }
     await cacheService.invalidateEntity("product", productId);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.IMAGE_ADDED, entityType: "product", entityId: productId, newValues: { count: images.length } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.IMAGE_ADDED,
+        entityType: "product",
+        entityId: productId,
+        newValues: { count: images.length },
+      },
+      req,
     );
     const product = await productRepo.findById(productId);
     return product!;
   },
 
-  async removeImage(userId: string, productId: string, imageId: string, req: Request): Promise<void> {
+  async removeImage(
+    userId: string,
+    productId: string,
+    imageId: string,
+    req: Request,
+  ): Promise<void> {
     const product = await this.ensureOwnedProduct(productId, userId);
     const image = product.images.find((i) => i.id === imageId);
-    
+
     const removed = await productRepo.removeImage(productId, imageId);
     if (!removed) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Image not found.", { code: "NOT_FOUND" });
+      throw new ApiError(HttpStatus.NOT_FOUND, "Image not found.", {
+        code: "NOT_FOUND",
+      });
     }
-    
+
     if (image?.url) {
       const key = extractKeyFromUrl(image.url);
       if (key) {
         await deleteObject(key).catch(() => {}); // fire and forget
       }
     }
-    
+
     await cacheService.invalidateEntity("product", productId);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.IMAGE_REMOVED, entityType: "product", entityId: productId, newValues: { image_id: imageId } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.IMAGE_REMOVED,
+        entityType: "product",
+        entityId: productId,
+        newValues: { image_id: imageId },
+      },
+      req,
     );
   },
 
-  async setPrimaryImage(userId: string, productId: string, imageId: string, req: Request): Promise<void> {
+  async setPrimaryImage(
+    userId: string,
+    productId: string,
+    imageId: string,
+    req: Request,
+  ): Promise<void> {
     await this.ensureOwnedProduct(productId, userId);
     const ok = await productRepo.setPrimaryImage(productId, imageId);
     if (!ok) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Image not found.", { code: "NOT_FOUND" });
+      throw new ApiError(HttpStatus.NOT_FOUND, "Image not found.", {
+        code: "NOT_FOUND",
+      });
     }
     await cacheService.invalidateEntity("product", productId);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.IMAGE_REMOVED, entityType: "product", entityId: productId, newValues: { primary_image_id: imageId } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.IMAGE_REMOVED,
+        entityType: "product",
+        entityId: productId,
+        newValues: { primary_image_id: imageId },
+      },
+      req,
     );
   },
 
-  async createReview(userId: string, productId: string, input: CreateReviewBody, req: Request) {
+  async createReview(
+    userId: string,
+    productId: string,
+    input: CreateReviewBody,
+    req: Request,
+  ) {
     const product = await productRepo.findById(productId);
     if (!product) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", { code: "NOT_FOUND" });
+      throw new ApiError(HttpStatus.NOT_FOUND, "Product not found.", {
+        code: "NOT_FOUND",
+      });
     }
 
     const existing = await prisma.review.findFirst({
@@ -441,8 +620,14 @@ export const productService = {
 
     await cacheService.invalidateEntity("product", productId);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.REVIEW_CREATED, entityType: "product", entityId: productId, newValues: { rating: input.rating } },
-      req
+      {
+        userId,
+        action: AUDIT_ACTIONS.REVIEW_CREATED,
+        entityType: "product",
+        entityId: productId,
+        newValues: { rating: input.rating },
+      },
+      req,
     );
 
     return review;

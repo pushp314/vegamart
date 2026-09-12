@@ -29,6 +29,17 @@ function valueToJson(value: SettingValue): string | number | boolean | null {
   return String(value);
 }
 
+async function countEligibleDeliveryPartners(prisma: any): Promise<number> {
+  return prisma.deliveryProfile.count({
+    where: {
+      status: "APPROVED",
+      is_verified: true,
+      availability_status: "ONLINE",
+      deleted_at: null,
+    },
+  });
+}
+
 export const settingsService = {
   async getPublicSettings() {
     const cached = await cacheService.remember<Record<string, SettingValue>>("settings", "public", async () => {
@@ -44,14 +55,11 @@ export const settingsService = {
       return merged;
     });
 
-    // Check if any delivery partners are currently online & available
+    // Check if any delivery partners are currently online, approved, and verified
     let hasActiveDeliveryPartners = false;
     try {
       const prisma = (await import("../database/prisma")).default;
-      const count = await prisma.deliveryProfile.count({
-        where: { is_available: true },
-      });
-      hasActiveDeliveryPartners = count > 0;
+      hasActiveDeliveryPartners = (await countEligibleDeliveryPartners(prisma)) > 0;
     } catch {
       hasActiveDeliveryPartners = false;
     }
@@ -123,4 +131,4 @@ export const settingsService = {
   },
 };
 
-export { SETTING_KEYS };
+export { SETTING_KEYS, countEligibleDeliveryPartners };

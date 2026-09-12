@@ -17,7 +17,7 @@ import * as productRepo from "../repositories/product.repository";
 import * as orderRepo from "../repositories/order.repository";
 import * as paymentRepo from "../repositories/payment.repository";
 import { findById as findAddressById } from "../repositories/address.repository";
-import { settingsService } from "./settings.service";
+import { settingsService, countEligibleDeliveryPartners } from "./settings.service";
 import { SETTING_KEYS } from "../constants/settings";
 import { findById as findVendorById } from "../repositories/vendor.repository";
 import { razorpayGateway } from "../payments/razorpay.gateway";
@@ -282,8 +282,14 @@ export const checkoutService = {
     }
 
     // Detect multi-vendor + VegaMart delivery consolidation
-    const vegamartDeliveryEnabled = settings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED] !== false;
-    const isConsolidatedDelivery = groups.length > 1 && vegamartDeliveryEnabled;
+    const vegamartDeliveryEnabled = settings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED] === true;
+    
+    // Check if there are eligible delivery partners
+    const eligiblePartnerCount = await countEligibleDeliveryPartners(prisma);
+    const hasActiveDeliveryPartners = eligiblePartnerCount > 0;
+
+    // For multi-store consolidation, require VegaMart delivery to be enabled AND partners available
+    const isConsolidatedDelivery = groups.length > 1 && vegamartDeliveryEnabled && hasActiveDeliveryPartners;
 
     // When consolidated, only VegaMart Home Delivery (delivery_partner) is allowed
     if (isConsolidatedDelivery && input.delivery_slot) {
@@ -382,6 +388,13 @@ export const checkoutService = {
             HttpStatus.BAD_REQUEST,
             `${vendor.business_name} does not offer VegaMart Delivery Partner delivery at this time.`,
             { code: "DELIVERY_OPTION_DISABLED" }
+          );
+        }
+        if (!hasActiveDeliveryPartners) {
+          throw new ApiError(
+            HttpStatus.BAD_REQUEST,
+            "No VegaMart delivery partners are currently available. Please choose Self Pickup or Shop Direct Delivery.",
+            { code: "NO_DELIVERY_PARTNERS_AVAILABLE" }
           );
         }
         effectiveMinOrder = (deliveryConfigs.delivery_partner.min_order !== undefined && deliveryConfigs.delivery_partner.min_order > 0)
@@ -512,6 +525,10 @@ export const checkoutService = {
         isVegaMartDelivery = true;
       }
     }
+    // If VegaMart delivery is requested but no eligible partners, it's not actually available
+    if (isVegaMartDelivery && !hasActiveDeliveryPartners) {
+      isVegaMartDelivery = false;
+    }
     if (isVegaMartDelivery && deliveryFee > 0) {
       totalTax += Math.round(((deliveryFee * taxRatePercent) / 100) * 100) / 100;
     }
@@ -619,6 +636,24 @@ export const checkoutService = {
 
     const slotRaw = (input.delivery_slot || "").toLowerCase();
     const isPickup = slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway");
+
+    // Determine if this is a VegaMart delivery
+    const isVegaMartDelivery = !isPickup &&
+      (summary.is_consolidated_delivery ||
+        (!slotRaw.includes("self") && !slotRaw.includes("pickup") && !slotRaw.includes("takeaway") &&
+          !slotRaw.includes("shop") && !slotRaw.includes("direct") && !slotRaw.includes("book")));
+
+    // Validate delivery partner availability for VegaMart delivery
+    if (isVegaMartDelivery) {
+      const eligiblePartnerCount = await countEligibleDeliveryPartners(prisma);
+      if (eligiblePartnerCount === 0) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          "No VegaMart delivery partners are currently available. Please choose Self Pickup or Shop Direct Delivery.",
+          { code: "NO_DELIVERY_PARTNERS_AVAILABLE" }
+        );
+      }
+    }
 
     // Enforce vendor delivery radius on all home deliveries
     if (!isPickup && address.latitude && address.longitude) {
