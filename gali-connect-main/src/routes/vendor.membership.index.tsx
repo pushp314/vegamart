@@ -80,9 +80,11 @@ function VendorMembershipIndex() {
 
   const { data: productsRes } = useQuery({
     queryKey: ["vendorProducts"],
-    queryFn: () => api.get<{ length: number }[]>("/products/me?include_inactive=true"),
+    queryFn: () => api.get<any[]>("/products/me?include_inactive=true"),
   });
-  const productCount = productsRes?.data?.length ?? 0;
+  const productCount =
+    productsRes?.pagination?.total ??
+    (Array.isArray(productsRes?.data) ? productsRes.data.length : (productsRes?.data as any)?.rows?.length ?? 0);
 
   const plan = membership?.plan ?? null;
   const subscription = membership?.subscription ?? null;

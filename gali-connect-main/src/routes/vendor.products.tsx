@@ -123,15 +123,20 @@ function VendorProductsPage() {
   } = useQuery({
     queryKey: ["vendorProducts", vendor?.id, page, searchQuery],
     queryFn: () =>
-      api.get<{ rows: Product[]; total: number; page: number; perPage: number }>(
+      api.get<Product[]>(
         `/products/me?include_inactive=true&per_page=${PAGE_SIZE}&page=${page}${searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ""}`,
       ),
     enabled: !!vendor?.id,
     placeholderData: (previousData) => previousData,
   });
 
-  const fetchedProducts = productsRes?.data?.rows || [];
-  const totalProducts = productsRes?.data?.total || 0;
+  const fetchedProducts = Array.isArray(productsRes?.data)
+    ? productsRes.data
+    : (productsRes?.data as any)?.rows || [];
+  const totalProducts =
+    productsRes?.pagination?.total ??
+    (productsRes?.data as any)?.total ??
+    fetchedProducts.length;
 
   useEffect(() => {
     if (page === 1) {
