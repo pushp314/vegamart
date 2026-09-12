@@ -314,7 +314,7 @@ async list(query: {
     vendor_is_open?: string;
   }) {
     const page = Math.max(1, query.page ?? 1);
-    const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
+    const perPage = Math.min(200, Math.max(1, query.per_page ?? 20));
 
     const cacheable = !query.q && page <= 5;
     const key = listCacheKey({ ...query, page, per_page: perPage });
@@ -484,7 +484,7 @@ async list(query: {
   ) {
     const vendor = await vendorService.getMyVendor(userId);
     const page = Math.max(1, query.page ?? 1);
-    const perPage = Math.min(100, Math.max(1, query.per_page ?? 20));
+    const perPage = Math.min(200, Math.max(1, query.per_page ?? 20));
     const includeInactive = query.include_inactive === "true";
     const { rows, total } = await productRepo.listByVendor(
       vendor.id,

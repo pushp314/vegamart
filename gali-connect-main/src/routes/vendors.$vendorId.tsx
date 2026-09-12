@@ -161,27 +161,41 @@ function VendorDetail() {
   } = useQuery({
     queryKey: ["products", { vendor_id: vendor.id }, page],
     queryFn: () =>
-      api.get<{ rows: Product[]; total: number; page: number; perPage: number }>(
+      api.get<Product[]>(
         `/products?vendor_id=${vendor.id}&per_page=${PAGE_SIZE}&page=${page}`,
       ),
     placeholderData: (previousData) => previousData,
   });
 
-  const fetchedProducts = productsRes?.data?.rows || [];
-  const totalProducts = productsRes?.data?.total || 0;
+  const fetchedProducts: Product[] = useMemo(() => {
+    if (Array.isArray(productsRes?.data)) {
+      return productsRes.data;
+    }
+    return (productsRes?.data as any)?.rows || [];
+  }, [productsRes?.data]);
+
+  const totalProducts =
+    productsRes?.pagination?.total ??
+    (productsRes?.data as any)?.total ??
+    fetchedProducts.length;
 
   useEffect(() => {
     if (page === 1) {
       setAllProducts(fetchedProducts);
     } else {
-      setAllProducts((prev) => [...prev, ...fetchedProducts]);
+      setAllProducts((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const newProducts = fetchedProducts.filter((p) => !existingIds.has(p.id));
+        return [...prev, ...newProducts];
+      });
     }
-    setHasMore(
-      fetchedProducts.length === PAGE_SIZE &&
-        allProducts.length + fetchedProducts.length < totalProducts,
-    );
     setIsLoadingMore(false);
-  }, [fetchedProducts, page, totalProducts]);
+  }, [fetchedProducts, page]);
+
+  useEffect(() => {
+    const currentCount = allProducts.length;
+    setHasMore(fetchedProducts.length > 0 && currentCount < totalProducts);
+  }, [allProducts.length, fetchedProducts.length, totalProducts]);
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && !isLoading && hasMore) {

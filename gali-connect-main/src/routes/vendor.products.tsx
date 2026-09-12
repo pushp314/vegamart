@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, formatErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
@@ -130,26 +130,40 @@ function VendorProductsPage() {
     placeholderData: (previousData) => previousData,
   });
 
-  const fetchedProducts = Array.isArray(productsRes?.data)
-    ? productsRes.data
-    : (productsRes?.data as any)?.rows || [];
+  const fetchedProducts: Product[] = useMemo(() => {
+    if (Array.isArray(productsRes?.data)) {
+      return productsRes.data;
+    }
+    return (productsRes?.data as any)?.rows || [];
+  }, [productsRes?.data]);
+
   const totalProducts =
     productsRes?.pagination?.total ??
     (productsRes?.data as any)?.total ??
     fetchedProducts.length;
 
   useEffect(() => {
+    setPage(1);
+    setAllProducts([]);
+  }, [searchQuery]);
+
+  useEffect(() => {
     if (page === 1) {
       setAllProducts(fetchedProducts);
     } else {
-      setAllProducts((prev) => [...prev, ...fetchedProducts]);
+      setAllProducts((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const newProducts = fetchedProducts.filter((p) => !existingIds.has(p.id));
+        return [...prev, ...newProducts];
+      });
     }
-    setHasMore(
-      fetchedProducts.length === PAGE_SIZE &&
-        allProducts.length + fetchedProducts.length < totalProducts,
-    );
     setIsLoadingMore(false);
-  }, [fetchedProducts, page, totalProducts]);
+  }, [fetchedProducts, page]);
+
+  useEffect(() => {
+    const currentCount = allProducts.length;
+    setHasMore(fetchedProducts.length > 0 && currentCount < totalProducts);
+  }, [allProducts.length, fetchedProducts.length, totalProducts]);
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && !prodsLoading && hasMore) {
