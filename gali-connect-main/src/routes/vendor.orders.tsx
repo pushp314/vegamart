@@ -593,7 +593,7 @@ function VendorOrdersPage() {
                 )}
 
                 {/* Assigned Delivery Partner */}
-                {o.delivery_partner && (
+                {o.delivery_partner ? (
                   <div className="rounded-2xl bg-emerald-50/60 border border-emerald-200/70 p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-2xl bg-emerald-600 text-white grid place-items-center shrink-0 shadow-sm">
@@ -628,7 +628,15 @@ function VendorOrdersPage() {
                       </a>
                     )}
                   </div>
-                )}
+                ) : dInfo.id !== "self_pickup" && o.status !== "CANCELLED" && o.status !== "REFUNDED" ? (
+                  <div className="rounded-2xl bg-muted/20 border border-border/50 p-3 text-xs flex items-center gap-2.5 text-muted-foreground">
+                    <Bike className="h-4 w-4 opacity-50 shrink-0" />
+                    <span className="font-medium">
+                      Assigned Delivery Partner: <strong className="font-bold text-foreground">Not assigned</strong>
+                    </span>
+                  </div>
+                ) : null}
+
 
                 {/* Items & Summary */}
                 {Array.isArray(o.items) && o.items.length > 0 && (

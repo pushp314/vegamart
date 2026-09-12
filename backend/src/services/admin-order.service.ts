@@ -84,12 +84,22 @@ export const adminOrderService = {
           delivery_partner: {
             select: {
               id: true,
+              vehicle_type: true,
+              vehicle_number: true,
               user: { select: { name: true, phone: true } },
             },
           },
           orders: {
             select: {
               delivery_note: true,
+              delivery_partner: {
+                select: {
+                  id: true,
+                  vehicle_type: true,
+                  vehicle_number: true,
+                  user: { select: { name: true, phone: true } },
+                },
+              },
               payment: {
                 select: {
                   id: true,
@@ -130,6 +140,40 @@ export const adminOrderService = {
         const firstOrder = m.orders[0];
         const items = m.orders.flatMap((o) => o.items);
         const vendors = m.orders.map((o) => o.vendor);
+        const subPartners = m.orders.map((o) => o.delivery_partner).filter(Boolean);
+
+        let partner = m.delivery_partner
+          ? {
+              id: m.delivery_partner.id,
+              name: m.delivery_partner.user?.name ?? "Partner",
+              phone: m.delivery_partner.user?.phone ?? null,
+              vehicle_type: m.delivery_partner.vehicle_type,
+              vehicle_number: m.delivery_partner.vehicle_number,
+            }
+          : null;
+
+        if (!partner && subPartners.length > 0) {
+          const uniquePartnerIds = new Set(subPartners.map((p) => p!.id));
+          if (uniquePartnerIds.size === 1) {
+            const p = subPartners[0]!;
+            partner = {
+              id: p.id,
+              name: p.user?.name ?? "Partner",
+              phone: p.user?.phone ?? null,
+              vehicle_type: p.vehicle_type,
+              vehicle_number: p.vehicle_number,
+            };
+          } else {
+            partner = {
+              id: "multiple",
+              name: `${uniquePartnerIds.size} Partners`,
+              phone: null,
+              vehicle_type: "Multi-Store",
+              vehicle_number: "",
+            };
+          }
+        }
+
         return {
           id: m.id,
           order_number: m.order_number,
@@ -147,11 +191,8 @@ export const adminOrderService = {
             ? { id: m.customer.id, name: m.customer.name, email: m.customer.email, phone: m.customer.phone }
             : null,
           vendors: vendors.length > 0 ? vendors : null,
-          // Expose vendor as single to not break existing strict assumptions, or Multiple Stores
           vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null, id: 'multiple' },
-          delivery_partner: m.delivery_partner
-            ? { id: m.delivery_partner.id, name: m.delivery_partner.user?.name ?? "Partner", phone: m.delivery_partner.user?.phone ?? null }
-            : null,
+          delivery_partner: partner,
           payment: firstOrder?.payment
             ? {
                 id: firstOrder.payment.id,
@@ -251,6 +292,8 @@ export const adminOrderService = {
         delivery_partner: o.delivery_partner
           ? {
               id: o.delivery_partner.id,
+              name: o.delivery_partner.user?.name ?? "Partner",
+              phone: o.delivery_partner.user?.phone ?? null,
               vehicle_type: o.delivery_partner.vehicle_type,
               vehicle_number: o.delivery_partner.vehicle_number,
               user: o.delivery_partner.user
@@ -270,6 +313,44 @@ export const adminOrderService = {
         }))
       };
     });
+
+    const subPartners = mOrder.orders.map((o) => o.delivery_partner).filter(Boolean);
+    let masterPartner = mOrder.delivery_partner
+      ? {
+          id: mOrder.delivery_partner.id,
+          name: mOrder.delivery_partner.user?.name ?? "Partner",
+          phone: mOrder.delivery_partner.user?.phone ?? null,
+          vehicle_type: mOrder.delivery_partner.vehicle_type,
+          vehicle_number: mOrder.delivery_partner.vehicle_number,
+          user: mOrder.delivery_partner.user
+            ? { name: mOrder.delivery_partner.user.name, phone: mOrder.delivery_partner.user.phone }
+            : null,
+        }
+      : null;
+
+    if (!masterPartner && subPartners.length > 0) {
+      const uniquePartnerIds = new Set(subPartners.map((p) => p!.id));
+      if (uniquePartnerIds.size === 1) {
+        const p = subPartners[0]!;
+        masterPartner = {
+          id: p.id,
+          name: p.user?.name ?? "Partner",
+          phone: p.user?.phone ?? null,
+          vehicle_type: p.vehicle_type,
+          vehicle_number: p.vehicle_number,
+          user: p.user ? { name: p.user.name, phone: p.user.phone } : null,
+        };
+      } else {
+        masterPartner = {
+          id: "multiple",
+          name: `${uniquePartnerIds.size} Partners`,
+          phone: null,
+          vehicle_type: "Multi-Store",
+          vehicle_number: "",
+          user: null,
+        };
+      }
+    }
 
     return {
       id: mOrder.id,
@@ -295,7 +376,7 @@ export const adminOrderService = {
       customer: mOrder.customer,
       vendors: vendors,
       vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null, id: 'multiple' },
-      delivery_partner: mOrder.delivery_partner,
+      delivery_partner: masterPartner,
       address: mOrder.address,
       sub_orders: subOrders, // Store-wise breakdown
       payment: firstOrder?.payment

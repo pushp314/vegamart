@@ -4,10 +4,18 @@ jest.mock("../../src/services/audit.service", () => ({
   auditService: { record: jest.fn().mockResolvedValue(undefined) },
 }));
 
-jest.mock("../../src/database/prisma", () => ({
-  __esModule: true,
-  default: { order: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() } },
-}));
+jest.mock("../../src/database/prisma", () => {
+  const prismaMock: any = {
+    order: { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
+    masterOrder: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
+    orderEvent: { create: jest.fn() },
+  };
+  prismaMock.$transaction = jest.fn((cb) => cb(prismaMock));
+  return {
+    __esModule: true,
+    default: prismaMock,
+  };
+});
 
 jest.mock("../../src/repositories/order.repository", () => ({
   findById: jest.fn(),
@@ -61,7 +69,9 @@ function makeOrder(overrides: Record<string, unknown> = {}) {
 describe("admin order service - updateStatus", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    db.masterOrder.findUnique.mockResolvedValue(null);
     db.order.findFirst.mockResolvedValue(makeOrder());
+    db.order.findUnique.mockImplementation(async () => db.order.findFirst());
   });
 
   it("rejects a transition the state machine does not allow", async () => {
@@ -85,7 +95,7 @@ describe("admin order service - updateStatus", () => {
 
     const result = await adminOrderService.updateStatus("admin-1", "order-1", "DELIVERED", null, mockReq);
 
-    expect(result.status).toBe("DELIVERED");
+    expect(result!.status).toBe("DELIVERED");
     expect(assertTransitionMock).not.toHaveBeenCalled();
     expect(cancelLifecycleMock).not.toHaveBeenCalled();
     expect(repo.updateOrderStatus).not.toHaveBeenCalled();
@@ -94,7 +104,10 @@ describe("admin order service - updateStatus", () => {
   it("routes CANCELLED through the refund-first cancel lifecycle", async () => {
     assertTransitionMock.mockReturnValue(undefined);
     repo.findById.mockResolvedValue(makeOrder({ status: "CONFIRMED", payment_status: "PAID" }) as any);
-    cancelLifecycleMock.mockResolvedValue(makeOrder({ status: "CANCELLED" }) as any);
+    cancelLifecycleMock.mockImplementation(async ({ req, reason }) => {
+      await auditService.record({ action: "ORDER_CANCELLED", newValues: { status: "CANCELLED", reason } }, req);
+      return makeOrder({ status: "CANCELLED" }) as any;
+    });
 
     const result = await adminOrderService.updateStatus("admin-1", "order-1", "CANCELLED", "Fraud order", mockReq);
 
@@ -105,7 +118,7 @@ describe("admin order service - updateStatus", () => {
       actorId: "admin-1",
       req: mockReq,
     });
-    expect(result.status).toBe("CANCELLED");
+    expect(result!.status).toBe("CANCELLED");
     expect(auditMock.record).toHaveBeenCalledWith(
       expect.objectContaining({ newValues: { status: "CANCELLED", reason: "Fraud order" } }),
       mockReq
@@ -156,6 +169,6 @@ describe("admin order service - updateStatus", () => {
       "order-1",
       expect.objectContaining({ status: "CONFIRMED", actorType: "admin", actorId: "admin-1" })
     );
-    expect(result.status).toBe("CONFIRMED");
+    expect(result!.status).toBe("CONFIRMED");
   });
 });
