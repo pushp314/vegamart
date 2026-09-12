@@ -283,13 +283,22 @@ export const checkoutService = {
 
     // Detect multi-vendor + VegaMart delivery consolidation
     const vegamartDeliveryEnabled = isBooleanSettingEnabled(settings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED], true);
+    const deliveriesActive = isBooleanSettingEnabled(settings[SETTING_KEYS.DELIVERIES_ACTIVE], true);
     
     // Check if there are eligible delivery partners
     const eligiblePartnerCount = await countEligibleDeliveryPartners(prisma);
-    const hasActiveDeliveryPartners = eligiblePartnerCount > 0;
+    const hasActiveDeliveryPartners = vegamartDeliveryEnabled && deliveriesActive && eligiblePartnerCount > 0;
+
+    if (groups.length > 1 && !hasActiveDeliveryPartners) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Multi-store checkout requires VegaMart Home Delivery, but no delivery partners are currently available. Please order from each store separately.",
+        { code: "MULTI_STORE_NO_DELIVERY_PARTNERS" }
+      );
+    }
 
     // For multi-store consolidation, require VegaMart delivery to be enabled AND partners available
-    const isConsolidatedDelivery = groups.length > 1 && vegamartDeliveryEnabled && hasActiveDeliveryPartners;
+    const isConsolidatedDelivery = groups.length > 1 && hasActiveDeliveryPartners;
 
     // When consolidated, only VegaMart Home Delivery (delivery_partner) is allowed
     if (isConsolidatedDelivery && input.delivery_slot) {
@@ -382,7 +391,7 @@ export const checkoutService = {
           );
         }
         effectiveMinOrder = deliveryConfigs.shop_delivery.min_order;
-      } else if (slotRaw.includes("partner") || slotRaw.includes("vegamart")) {
+      } else if (slotRaw.includes("partner") || slotRaw.includes("vegamart") || slotRaw.includes("home")) {
         if (deliveryConfigs.delivery_partner.enabled === false) {
           throw new ApiError(
             HttpStatus.BAD_REQUEST,

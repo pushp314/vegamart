@@ -161,7 +161,7 @@ function Checkout() {
   );
   const isMultiVendorCart = uniqueVendorIds.size > 1;
   const isConsolidatedDelivery =
-    summary?.is_consolidated_delivery || (isMultiVendorCart && isVegaMartFleetEnabled);
+    summary?.is_consolidated_delivery || (isMultiVendorCart && hasActiveDeliveryPartners);
   const consolidatedDeliveryFee = isConsolidatedDelivery
     ? (summary?.delivery_fee ?? adminDeliveryFee)
     : 0;
@@ -254,7 +254,7 @@ function Checkout() {
           },
         ]
       : []),
-    ...(isVegaMartFleetEnabled && deliveryPartnerConfig.enabled !== false
+    ...(isVegaMartFleetEnabled && hasActiveDeliveryPartners && deliveryPartnerConfig.enabled !== false
       ? [
           {
             id: "delivery_partner",
