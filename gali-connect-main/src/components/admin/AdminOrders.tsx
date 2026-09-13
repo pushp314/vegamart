@@ -317,7 +317,7 @@ export function AdminOrders() {
                               )}
                               {(order as any).eta_minutes != null && (
                                 <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 w-fit flex items-center gap-1 mt-0.5">
-                                  <Clock className="h-2.5 w-2.5" /> {(order as any).eta_minutes} Mins ETA
+                                  <Clock className="h-2.5 w-2.5" /> Delivery Boy ने {(order as any).eta_minutes} मिनट का time दिया है — Estimated Delivery: {(order as any).eta_minutes} Minutes
                                 </span>
                               )}
                             </div>
@@ -593,7 +593,7 @@ export function AdminOrders() {
                           {(detail as any).eta_minutes != null && (
                             <div className="text-[11px] font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800 flex items-center gap-1 w-fit">
                               <Clock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                              Delivery Boy Selected Time: {(detail as any).eta_minutes} Minutes
+                              Delivery Boy ने {(detail as any).eta_minutes} मिनट का time दिया है — Estimated Delivery: {(detail as any).eta_minutes} Minutes
                             </div>
                           )}
                         </div>

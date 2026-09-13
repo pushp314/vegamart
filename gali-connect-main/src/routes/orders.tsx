@@ -302,7 +302,7 @@ function OrdersList() {
                           {(o.eta_minutes != null || o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time) && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border text-emerald-800 bg-emerald-50 border-emerald-200">
                               <Clock className="h-3 w-3 text-emerald-600" />
-                              {o.eta_minutes != null ? `Delivery Boy ETA: ${o.eta_minutes} Mins` : (o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time)}
+                              {o.eta_minutes != null ? `Delivery Boy ने ${o.eta_minutes} मिनट का time दिया है — Estimated Delivery: ${o.eta_minutes} Minutes` : (o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time)}
                             </span>
                           )}
                           <span className="text-xs text-muted-foreground ml-1 font-semibold">

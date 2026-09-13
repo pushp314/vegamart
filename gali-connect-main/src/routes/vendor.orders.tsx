@@ -611,7 +611,7 @@ function VendorOrdersPage() {
                         {(o.eta_minutes != null || (o.delivery_partner as any).eta_minutes != null) && (
                           <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 dark:text-blue-300 bg-blue-100 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
                             <Clock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                            Delivery Boy ETA: {o.eta_minutes || (o.delivery_partner as any).eta_minutes} Minutes
+                            Delivery Boy ने {o.eta_minutes || (o.delivery_partner as any).eta_minutes} मिनट का time दिया है — Estimated Delivery: {o.eta_minutes || (o.delivery_partner as any).eta_minutes} Minutes
                           </div>
                         )}
                       </div>
