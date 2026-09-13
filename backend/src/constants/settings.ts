@@ -147,14 +147,14 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
   [SETTING_KEYS.SUPPORT_EMAIL]: {
     key: SETTING_KEYS.SUPPORT_EMAIL,
     type: "string",
-    default: "support@vegamart.in",
+    default: "vegamart.com@gmail.com",
     description: "Public support email address.",
     is_public: true,
   },
   [SETTING_KEYS.SUPPORT_PHONE]: {
     key: SETTING_KEYS.SUPPORT_PHONE,
     type: "string",
-    default: "+91 00000 00000",
+    default: "8640017166",
     description: "Public support phone number.",
     is_public: true,
   },

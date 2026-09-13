@@ -4,6 +4,7 @@ import { Mail, Phone, MapPin, Send, Loader2, MessageSquare } from "lucide-react"
 import { AppHeader } from "@/components/layout/app-header";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/contact")({
@@ -46,6 +47,17 @@ function ContactPage() {
     }
   };
 
+  const { data: publicSettingsRes } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<Record<string, any>>("/settings/public"),
+    staleTime: 60_000,
+  });
+  const publicSettings: Record<string, any> =
+    (publicSettingsRes?.data as any)?.data ?? (publicSettingsRes?.data as any) ?? {};
+
+  const supportEmail = publicSettings["support.email"] || "vegamart.com@gmail.com";
+  const supportPhone = publicSettings["support.phone"] || "8640017166";
+
   return (
     <div className="min-h-screen bg-background pb-28 md:pb-16">
       <AppHeader title="Contact Support" subtitle="We're here to help" />
@@ -60,40 +72,48 @@ function ContactPage() {
             </p>
 
             <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-3 rounded-2xl border bg-card p-3.5">
-                <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-primary">
+              <a
+                href={`mailto:${supportEmail}`}
+                className="flex items-center gap-3 rounded-2xl border bg-card p-3.5 hover:border-emerald-500/50 transition-colors"
+              >
+                <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-primary shrink-0">
                   <Mail className="h-4 w-4" />
                 </div>
                 <div>
                   <div className="text-[10px] font-bold uppercase text-muted-foreground">
                     Email Support
                   </div>
-                  <div className="text-xs font-bold text-foreground">support@vegamart.in</div>
+                  <div className="text-xs font-bold text-foreground">{supportEmail}</div>
                 </div>
-              </div>
+              </a>
 
-              <div className="flex items-center gap-3 rounded-2xl border bg-card p-3.5">
-                <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-100 text-blue-700">
+              <a
+                href={`tel:${supportPhone}`}
+                className="flex items-center gap-3 rounded-2xl border bg-card p-3.5 hover:border-blue-500/50 transition-colors"
+              >
+                <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-100 text-blue-700 shrink-0">
                   <Phone className="h-4 w-4" />
                 </div>
                 <div>
                   <div className="text-[10px] font-bold uppercase text-muted-foreground">
                     Helpline
                   </div>
-                  <div className="text-xs font-bold text-foreground">+91 1800-VEGA-MART</div>
+                  <div className="text-xs font-bold text-foreground">{supportPhone}</div>
                 </div>
-              </div>
+              </a>
 
-              <div className="flex items-center gap-3 rounded-2xl border bg-card p-3.5">
-                <div className="grid h-9 w-9 place-items-center rounded-xl bg-amber-100 text-amber-700">
+              <div className="flex items-start gap-3 rounded-2xl border bg-card p-3.5">
+                <div className="grid h-9 w-9 place-items-center rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5">
                   <MapPin className="h-4 w-4" />
                 </div>
                 <div>
                   <div className="text-[10px] font-bold uppercase text-muted-foreground">
-                    Headquarters
+                    Address / Headquarters
                   </div>
-                  <div className="text-xs font-bold text-foreground">
-                    Indiranagar 100ft Rd, Bengaluru, Karnataka 560038
+                  <div className="text-xs font-bold text-foreground leading-relaxed">
+                    Ketan, Jhulkadam Road, Sakti
+                    <br />
+                    Sakti, Chhattisgarh – 495689
                   </div>
                 </div>
               </div>

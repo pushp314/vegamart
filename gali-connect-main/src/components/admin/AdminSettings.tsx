@@ -488,6 +488,55 @@ export function AdminSettings() {
                   })
                 }
               />
+              <p className="text-[11px] text-muted-foreground">
+                Goods and Services Tax (GST) percentage applied to products during checkout.
+              </p>
+            </div>
+
+            <div className="space-y-1.5 pt-3 border-t border-border">
+              <Label className="font-semibold text-foreground flex items-center justify-between">
+                <span>Maximum Store Purchase Limit (Multi-Store Orders)</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  Max stores per order
+                </span>
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={settings["platform.max_stores_per_order"] ?? 3}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    "platform.max_stores_per_order": Math.max(1, Number(e.target.value)),
+                  })
+                }
+              />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {[2, 3, 4, 5, 8, 10].map((limit) => (
+                  <button
+                    key={limit}
+                    type="button"
+                    onClick={() =>
+                      setSettings({
+                        ...settings,
+                        "platform.max_stores_per_order": limit,
+                      })
+                    }
+                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                      (settings["platform.max_stores_per_order"] ?? 3) === limit
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                    }`}
+                  >
+                    Max {limit} Stores
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Maximum number of different vendor stores a customer can combine into a single multi-store order when delivery partner is online.
+              </p>
+            </div>
               <Button
                 type="button"
                 onClick={handleSave}
@@ -501,7 +550,6 @@ export function AdminSettings() {
                 )}
                 Save Delivery & Tax Settings
               </Button>
-            </div>
           </CardContent>
         </Card>
 
@@ -1027,7 +1075,7 @@ export function AdminSettings() {
                   Developer Contact Phone
                 </Label>
                 <Input
-                  placeholder="+91 00000 00000"
+                  placeholder="8640017166"
                   value={maintenanceContact.contact_phone}
                   onChange={(e) =>
                     setMaintenanceContact({

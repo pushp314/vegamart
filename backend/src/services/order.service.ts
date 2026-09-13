@@ -208,6 +208,7 @@ export const orderService = {
     const firstOrder = m.orders[0];
     const payment = firstOrder?.transactions?.find((t: any) => t.status === "COMPLETED");
     const activeOtp = m.orders.find((o: any) => Boolean(o.otp_code))?.otp_code || firstOrder?.otp_code;
+    const activeEtaMinutes = m.orders.find((o: any) => o.eta_minutes != null)?.eta_minutes || firstOrder?.eta_minutes || null;
 
     const subOrders = m.orders.map((o: any) => ({
       id: o.id,
@@ -218,6 +219,7 @@ export const orderService = {
       vendor: o.vendor,
       otp_code: o.otp_code,
       delivery_note: o.delivery_note,
+      eta_minutes: o.eta_minutes ?? null,
       items: o.items.map((i: any) => ({
         ...i,
         image_url: i.image_url || i.product?.images?.[0]?.url || null,
@@ -246,6 +248,7 @@ export const orderService = {
       total: m.total_amount,
       vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null },
       otp_code: activeOtp,
+      eta_minutes: activeEtaMinutes,
       payment,
       events: firstOrder?.events || [],
       orders: m.orders,

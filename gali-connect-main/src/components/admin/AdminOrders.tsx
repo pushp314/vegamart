@@ -41,6 +41,7 @@ import {
   Banknote,
   ShieldCheck,
   ExternalLink,
+  Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -314,6 +315,11 @@ export function AdminOrders() {
                                     : ""}
                                 </span>
                               )}
+                              {(order as any).eta_minutes != null && (
+                                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 w-fit flex items-center gap-1 mt-0.5">
+                                  <Clock className="h-2.5 w-2.5" /> {(order as any).eta_minutes} Mins ETA
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -571,17 +577,25 @@ export function AdminOrders() {
                         <p className="text-xs text-muted-foreground mt-0.5">{modalDInfo.desc}</p>
                       </div>
                       {detail.delivery_partner && (
-                        <div className="pt-2 border-t text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Bike className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>
-                            Assigned Partner:{" "}
-                            <strong className="text-foreground">
-                              {detail.delivery_partner.name}
-                            </strong>{" "}
-                            {detail.delivery_partner.phone
-                              ? `(${detail.delivery_partner.phone})`
-                              : ""}
-                          </span>
+                        <div className="pt-2 border-t text-xs text-muted-foreground space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <Bike className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>
+                              Assigned Partner:{" "}
+                              <strong className="text-foreground">
+                                {detail.delivery_partner.name}
+                              </strong>{" "}
+                              {detail.delivery_partner.phone
+                                ? `(${detail.delivery_partner.phone})`
+                                : ""}
+                            </span>
+                          </div>
+                          {(detail as any).eta_minutes != null && (
+                            <div className="text-[11px] font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800 flex items-center gap-1 w-fit">
+                              <Clock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                              Delivery Boy Selected Time: {(detail as any).eta_minutes} Minutes
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

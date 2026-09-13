@@ -399,15 +399,25 @@ export const deliveryService = {
       select: { business_name: true },
     });
     const storeName = vendor?.business_name ?? "a store";
-    const totalStores = masterOrder.orders.length;
-    const pickedUpCount = masterOrder.orders.filter(
-      (o) => o.status === "PICKED_UP" || o.id === subOrderId
+    const updatedSubOrders = await prisma.order.findMany({
+      where: { master_order_id: masterOrder.id },
+      select: { id: true, status: true },
+    });
+    const activeSubOrders = updatedSubOrders.filter(
+      (o) => o.status !== "CANCELLED" && o.status !== "FAILED"
+    );
+    const totalStores = activeSubOrders.length || masterOrder.orders.length;
+    const pickedUpCount = activeSubOrders.filter(
+      (o) => o.status === "PICKED_UP" || o.status === "OUT_FOR_DELIVERY" || o.status === "DELIVERED"
     ).length;
 
-    if (masterOrder.status === "PENDING" || masterOrder.status === "ACCEPTED") {
+    const targetMasterStatus =
+      pickedUpCount >= totalStores && totalStores > 0 ? "OUT_FOR_DELIVERY" : "PICKUP_IN_PROGRESS";
+
+    if (masterOrder.status !== "DELIVERED" && masterOrder.status !== "CANCELLED") {
       await prisma.masterOrder.update({
         where: { id: masterOrder.id },
-        data: { status: "PICKUP_IN_PROGRESS" },
+        data: { status: targetMasterStatus },
       });
     }
 

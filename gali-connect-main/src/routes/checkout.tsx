@@ -24,6 +24,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
 import { AddressModal, AddressData } from "@/components/marketplace/address-modal";
 import { PaymentFailureModal } from "@/components/checkout/PaymentFailureModal";
+import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
 import { Label } from "@/components/ui/label";
 
 import { toast } from "sonner";
@@ -62,7 +63,7 @@ function Checkout() {
 
   const [payment, setPayment] = useState("upi");
   const [paymentType, setPaymentType] = useState<"FULL" | "ADVANCE">("FULL");
-  const [deliveryOption, setDeliveryOption] = useState(0);
+  const [selectedOptionId, setSelectedOptionId] = useState<string>("delivery_partner");
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
   const [failureModalOpen, setFailureModalOpen] = useState(false);
@@ -320,10 +321,30 @@ function Checkout() {
         ];
 
   useEffect(() => {
-    setDeliveryOption((i) => Math.min(i, Math.max(0, effectiveOptions.length - 1)));
-  }, [effectiveOptions.length]);
+    if (effectiveOptions.length > 0) {
+      const exists = effectiveOptions.some((o) => o.id === selectedOptionId);
+      if (!exists) {
+        setSelectedOptionId(effectiveOptions[0].id);
+      }
+    }
+  }, [effectiveOptions, selectedOptionId]);
 
-  const selectedOptionObj = effectiveOptions[deliveryOption] || effectiveOptions[0];
+  const selectedOptionObj =
+    effectiveOptions.find((o) => o.id === selectedOptionId) ||
+    effectiveOptions[0] || {
+      id: "self_pickup",
+      label: "Self Pickup",
+      desc: "Store pickup",
+      icon: "🚶",
+      eta: "15 mins",
+      advancePct: 0,
+      minOrder: 0,
+      fee: 0,
+      onlinePaymentEnabled: true,
+      codEnabled: true,
+      fullPaymentEnabled: true,
+      advancePaymentEnabled: true,
+    };
 
   // Auto-synchronize Payment Type (Full vs Advance) & Payment Method (Online vs COD)
   useEffect(() => {
@@ -950,10 +971,7 @@ function Checkout() {
                       {selfPickupConfig.enabled && (
                         <button
                           type="button"
-                          onClick={() => {
-                            const idx = effectiveOptions.findIndex((o) => o.id === "self_pickup");
-                            if (idx >= 0) setDeliveryOption(idx);
-                          }}
+                          onClick={() => setSelectedOptionId("self_pickup")}
                           className="text-xs font-bold px-3 py-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                         >
                           Switch to Self Pickup
@@ -964,6 +982,9 @@ function Checkout() {
                 )}
               </div>
             </section>
+
+            {/* Multi-Store Live Network Status Badge */}
+            <MultiStoreLiveBadge />
 
             {/* Delivery Options */}
             <section className="rounded-3xl bg-card border p-5 shadow-soft">
@@ -1003,15 +1024,15 @@ function Checkout() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {effectiveOptions.map((opt, i) => {
-                  const active = deliveryOption === i;
+                {effectiveOptions.map((opt) => {
+                  const active = selectedOptionObj.id === opt.id;
                   const meetsMin = opt.minOrder <= 0 || subtotal >= opt.minOrder;
 
                   return (
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => setDeliveryOption(i)}
+                      onClick={() => setSelectedOptionId(opt.id)}
                       className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
                         active
                           ? "border-primary bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs ring-2 ring-primary/20"

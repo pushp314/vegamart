@@ -60,10 +60,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { data: settingsRes } = useQuery({
     queryKey: ["publicSettings"],
     queryFn: () => api.get<any>("/settings/public"),
+    refetchInterval: 5000, // 5s live polling so rider online state updates multi-store mode live!
   });
   const settings = settingsRes?.data || {};
 
-  const multiStoreEnabled = !!settings["platform.multi_store_checkout_enabled"];
+  const isVegaMartFleetEnabled = settings["platform.vegamart_delivery_enabled"] !== false;
+  const hasActiveDeliveryPartners = !!settings.has_active_delivery_partners && isVegaMartFleetEnabled;
+  // Multi-Store Ordering is enabled automatically when a Delivery Partner is Online
+  const multiStoreEnabled = hasActiveDeliveryPartners;
 
   // Restore cart from localStorage on mount
   useEffect(() => {
@@ -139,7 +143,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const pVendorId = product.vendor_id || (product as any).vendorId;
     const prevVendorId = items[0]?.product?.vendor_id || (items[0]?.product as any)?.vendorId;
 
-    // Single Store Enforcement Rule
+    // Single Store Enforcement Rule when Delivery Partner is Offline
     if (
       !multiStoreEnabled &&
       items.length > 0 &&
@@ -147,8 +151,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       pVendorId &&
       prevVendorId !== pVendorId
     ) {
-      // Trigger Store Changed Modal Popup
+      // Trigger Store Changed Premium Modal Popup
       setPendingItem({ product, quantity, variantLabel });
+      return;
+    }
+
+    // Maximum Store Purchase Limit check when Multi-Store is Live
+    const maxStoresPerOrder = Number(settings["platform.max_stores_per_order"] ?? 3);
+    const uniqueVendorIds = new Set(
+      items.map((i) => i.product.vendor_id || (i.product as any).vendorId).filter(Boolean)
+    );
+    if (
+      multiStoreEnabled &&
+      pVendorId &&
+      !uniqueVendorIds.has(pVendorId) &&
+      uniqueVendorIds.size >= maxStoresPerOrder
+    ) {
+      toast.warning(
+        `Multi-store orders are limited to a maximum of ${maxStoresPerOrder} stores per order.`
+      );
       return;
     }
 
@@ -322,45 +343,45 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
 
-      {/* Store Changed Modal Popup */}
+      {/* Single-Store Order Mode Premium Modal */}
       <Dialog open={!!pendingItem} onOpenChange={(open) => !open && setPendingItem(null)}>
-        <DialogContent className="rounded-3xl border-border max-w-md p-6">
+        <DialogContent className="rounded-3xl border-border max-w-md p-6 shadow-2xl">
           <DialogHeader className="text-center space-y-3">
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-amber-500/10 text-amber-500">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
               <Store className="h-8 w-8" />
             </div>
-            <DialogTitle className="font-display text-xl font-bold">
-              अलग Store का Product / Store Changed
+            <DialogTitle className="font-display text-lg font-bold text-foreground">
+              Single-Store Order Mode 🔴
             </DialogTitle>
             <DialogDescription className="text-xs leading-relaxed text-muted-foreground">
-              आपके Cart में पहले से <span className="font-bold text-foreground">{currentVendorName}</span> का सामान मौजूद है।
+              Delivery Partner is currently offline, so multi-store delivery is temporarily limited.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs space-y-2 text-foreground">
-            <p className="font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs space-y-2 text-foreground">
+            <div className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
               <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-              एक समय में सिर्फ एक ही Store से Order किया जा सकता है।
-            </p>
-            <p className="text-muted-foreground text-[11px]">
-              पहले वाले store का cart clear करें या उसी store से shopping जारी रखें।
+              Cart currently has items from <span className="underline font-black">{currentVendorName}</span>
+            </div>
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
+              Multi-Store Ordering will unlock automatically as soon as a Delivery Partner comes online. Would you like to clear existing items from <strong>{currentVendorName}</strong> and order from <strong>{pendingVendorName}</strong> instead?
             </p>
           </div>
 
           <div className="space-y-2.5 pt-2">
             <button
               onClick={handleConfirmClearAndAdd}
-              className="w-full rounded-2xl bg-amber-500 text-slate-950 px-4 py-3 text-xs font-black uppercase tracking-wider shadow-lg hover:bg-amber-400 flex items-center justify-center gap-2 transition-all"
+              className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
               <Trash2 className="h-4 w-4" />
-              पहले वाला Cart Clear करें और {pendingVendorName} से Item जोड़ें
+              Clear Cart & Add from {pendingVendorName}
             </button>
 
             <button
               onClick={() => setPendingItem(null)}
-              className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-xs font-bold text-muted-foreground hover:text-foreground transition-all"
+              className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
             >
-              पुराने Store ({currentVendorName}) से Shopping जारी रखें
+              Keep Existing Cart ({currentVendorName})
             </button>
           </div>
         </DialogContent>

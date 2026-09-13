@@ -122,8 +122,8 @@ function OrderIdTrackingPage() {
          effectiveStatus = "DELIVERED";
        } else if (subStatuses.some((s: string) => ["OUT_FOR_DELIVERY", "DELIVERED"].includes(s))) {
          effectiveStatus = "OUT_FOR_DELIVERY";
-       } else if (subStatuses.some((s: string) => ["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP"].includes(s))) {
-         effectiveStatus = "PREPARING";
+       } else if (subStatuses.some((s: string) => ["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP", "PICKUP_IN_PROGRESS"].includes(s))) {
+          effectiveStatus = "PREPARING";
        } else if (subStatuses.some((s: string) => s === "CONFIRMED")) {
          effectiveStatus = "CONFIRMED";
        }
@@ -576,7 +576,7 @@ function OrderIdTrackingPage() {
             </div>
 
             {/* Estimated Delivery / Fulfillment Time Banner */}
-            {(order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time) && !isDelivered && (
+            {!isDelivered && (
               <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-soft flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-600 text-white font-bold shrink-0">
@@ -587,7 +587,13 @@ function OrderIdTrackingPage() {
                       Estimated Delivery / Fulfillment Time
                     </span>
                     <div className="font-bold text-sm text-foreground">
-                      ⚡ {order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time}
+                      {(order.eta_minutes || trackingData?.eta_minutes) ? (
+                        <span className="text-emerald-700 dark:text-emerald-300 font-extrabold flex items-center gap-1.5 flex-wrap">
+                          🛵 Delivery Partner ने {order.eta_minutes || trackingData?.eta_minutes} मिनट का time दिया है — Estimated Delivery: {order.eta_minutes || trackingData?.eta_minutes} Minutes
+                        </span>
+                      ) : (
+                        `⚡ ${order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time || "20-30 mins"}`
+                      )}
                     </div>
                   </div>
                 </div>
@@ -855,7 +861,7 @@ function OrderIdTrackingPage() {
                         const v = sub.vendor;
                         const subStatus = String(sub.status || "PENDING").toUpperCase();
                         const isSubCancelled = subStatus === "CANCELLED";
-                        const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
+                        const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
                         return (
                           <div key={sub.id || sIdx} className="rounded-2xl bg-muted/40 border border-border/60 p-3.5 space-y-2 text-xs">
                             <div className="flex items-center justify-between gap-2">
@@ -867,7 +873,7 @@ function OrderIdTrackingPage() {
                                   </span>
                                 ) : isSubConfirmed ? (
                                   <span className="shrink-0 text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                    {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
+                                    {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PICKED_UP" ? "Picked Up" : subStatus === "OUT_FOR_DELIVERY" ? "Out for Delivery" : subStatus === "DELIVERED" ? "Delivered" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
                                   </span>
                                 ) : (
                                   <span className="shrink-0 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
@@ -1039,7 +1045,7 @@ function OrderIdTrackingPage() {
                       const v = sub.vendor;
                       const subStatus = String(sub.status || "PENDING").toUpperCase();
                       const isSubCancelled = subStatus === "CANCELLED";
-                      const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
+                      const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
                       const subItems = sub.items || [];
                       return (
                         <div key={sub.id || sIdx} className="rounded-2xl border border-border/80 overflow-hidden bg-background shadow-xs">
@@ -1061,7 +1067,7 @@ function OrderIdTrackingPage() {
                                 </span>
                               ) : isSubConfirmed ? (
                                 <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                  {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
+                                  {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PICKED_UP" ? "Picked Up" : subStatus === "OUT_FOR_DELIVERY" ? "Out for Delivery" : subStatus === "DELIVERED" ? "Delivered" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
                                 </span>
                               ) : (
                                 <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">

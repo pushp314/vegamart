@@ -3,6 +3,7 @@ import { ArrowRight, ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
+import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({ meta: [{ title: "Your cart — Vegamart" }] }),
@@ -53,7 +54,8 @@ function Cart() {
         title="Your cart"
         subtitle={`${itemCount} item${itemCount === 1 ? "" : "s"} · ${displayLocation}`}
       />
-      <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 pb-40 md:pb-16">
+      <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 pb-40 md:pb-16 space-y-4">
+        <MultiStoreLiveBadge />
         <div className="md:grid md:grid-cols-[1fr_360px] md:gap-6 lg:gap-8">
           <div>
             <ul className="space-y-3">

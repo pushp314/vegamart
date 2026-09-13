@@ -31,6 +31,7 @@ import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
 import { ProductCard } from "@/components/marketplace/product-card";
+import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
 import { VendorLocationCard } from "@/components/vendor/vendor-location-card";
 import { ReviewModal } from "@/components/marketplace/review-modal";
 import { calculateDistance, formatDistance } from "@/lib/utils/distance";
@@ -500,6 +501,9 @@ function VendorDetail() {
               </div>
             </div>
           )}
+
+          {/* Multi-Store Live Network Status Badge */}
+          <MultiStoreLiveBadge />
 
           {/* Address & Operational Info */}
           {profile.address && (

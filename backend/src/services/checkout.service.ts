@@ -63,9 +63,9 @@ function groupByVendor(cart: cartRepo.CartRow): VendorGroup[] {
 export function getDeliveryOptionConfig(
   slot: string | undefined | null,
   configs: VendorDeliveryConfigs
-): { id: "booking" | "self_pickup" | "shop_delivery" | "delivery_partner"; name: string; config: import("./vendor.service").DeliveryOptionConfig } {
+): { id: "booking" | "self_pickup" | "shop_delivery" | "delivery_partner" | "vendor_comes_to_me"; name: string; config: import("./vendor.service").DeliveryOptionConfig } {
   const normalized = (slot || "").toLowerCase();
-  if (normalized.includes("book")) {
+  if (normalized.includes("book") || normalized.includes("advance")) {
     return { id: "booking", name: "Advance Booking", config: configs.booking };
   }
   if (normalized.includes("self") || normalized.includes("pickup") || normalized.includes("takeaway")) {
@@ -73,6 +73,9 @@ export function getDeliveryOptionConfig(
   }
   if (normalized.includes("shop") || normalized.includes("direct")) {
     return { id: "shop_delivery", name: "Shop Direct Delivery", config: configs.shop_delivery };
+  }
+  if (normalized.includes("vendor") || normalized.includes("comes") || normalized.includes("cart")) {
+    return { id: "vendor_comes_to_me", name: "Vendor Comes to Me", config: (configs as any).vendor_comes_to_me || configs.self_pickup };
   }
   return { id: "delivery_partner", name: "VegaMart Home Delivery", config: configs.delivery_partner };
 }
@@ -1347,6 +1350,9 @@ export const checkoutService = {
       for (let i = 0; i < computations.length; i++) {
         const { group, groupDiscount, groupTax, groupTotal, orderNumber } = computations[i]!;
 
+        const deliveryInfo = group.delivery_configs ? getDeliveryOptionConfig(input.delivery_slot, group.delivery_configs) : null;
+        const deliverySlotLabel = input.delivery_slot || deliveryInfo?.name || "VegaMart Home Delivery";
+
         const order = await orderRepo.createOrder(
           {
             order_number: orderNumber,
@@ -1361,7 +1367,7 @@ export const checkoutService = {
             tax: groupTax,
             total: groupTotal,
             payment_method: "RAZORPAY",
-            delivery_note: input.delivery_slot ?? null,
+            delivery_note: deliverySlotLabel,
             items: group.items.map((item) => ({
               product_id: item.product_id,
               product_name: item.name,

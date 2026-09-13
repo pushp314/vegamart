@@ -383,7 +383,7 @@ function VendorOrdersPage() {
             };
 
             const nextStatuses = getNextStatuses(o.status, o);
-            const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
+            const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option || o.delivery_slot);
             const sInfo = getOrderStatusInfo(o.status);
             const pInfo = getPaymentMethodInfo(
               o.payment_method,
@@ -608,6 +608,12 @@ function VendorOrdersPage() {
                             ? `(${o.delivery_partner.vehicle_number})`
                             : ""}
                         </div>
+                        {(o.eta_minutes != null || (o.delivery_partner as any).eta_minutes != null) && (
+                          <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 dark:text-blue-300 bg-blue-100 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                            <Clock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                            Delivery Boy ETA: {o.eta_minutes || (o.delivery_partner as any).eta_minutes} Minutes
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -792,9 +798,13 @@ function VendorOrdersPage() {
                         <X className="h-4 w-4" /> Order{" "}
                         {o.status?.toUpperCase() === "REFUNDED" ? "Refunded" : "Cancelled"}
                       </span>
-                    ) : (
+                    ) : o.status?.toUpperCase() === "DELIVERED" ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
                         <CheckCircle2 className="h-4 w-4" /> Order Completed
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-sky-600">
+                        <Bike className="h-4 w-4" /> Delivery in Progress
                       </span>
                     )}
                   </div>

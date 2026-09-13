@@ -8,6 +8,7 @@ import { api, type DailyLocationData, getNearbyDailyLocations } from "@/lib/api"
 import type { Vendor, Category } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useLocation } from "@/hooks/use-location";
+import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
 
 export const Route = createFileRoute("/vendors/")({
   head: () => ({
@@ -139,9 +140,11 @@ function VendorsPage() {
               <div className="text-[10.5px] font-semibold uppercase tracking-wide text-white/85">
                 Live now
               </div>
-              <div className="font-semibold">{liveVendorsCount} vendors moving near you</div>
             </div>
           </div>
+
+          {/* Multi-Store Live Network Status Badge */}
+          <MultiStoreLiveBadge className="mt-3" />
 
           {/* Search */}
           <div className="mt-4 flex items-center gap-3 rounded-full bg-card border h-12 px-4 shadow-sm">

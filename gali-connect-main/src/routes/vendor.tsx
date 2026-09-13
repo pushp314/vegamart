@@ -203,7 +203,7 @@ function VendorDashboard() {
                 Submit Appeal
               </button>
               <a
-                href="mailto:support@vegamart.com"
+                href="mailto:vegamart.com@gmail.com"
                 className="inline-flex items-center gap-2 rounded-2xl border border-border bg-muted/50 px-6 py-3 text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <Ticket className="h-4 w-4" />

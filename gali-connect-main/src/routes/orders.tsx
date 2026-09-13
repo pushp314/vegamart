@@ -260,7 +260,7 @@ function OrdersList() {
                   toast.success("Items added to your cart!");
                   navigate({ to: "/cart" });
                 };
-                const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option);
+                const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option || (o as any).delivery_slot);
                 const pInfo = getPaymentMethodInfo(
                   o.payment_method,
                   o.payment_status,
@@ -299,10 +299,10 @@ function OrdersList() {
                               Advance Paid: ₹{pInfo.advancePaid.toFixed(2)} · Bal: ₹{pInfo.balanceAmount.toFixed(2)}
                             </span>
                           )}
-                          {(o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time) && (
+                          {(o.eta_minutes != null || o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time) && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border text-emerald-800 bg-emerald-50 border-emerald-200">
                               <Clock className="h-3 w-3 text-emerald-600" />
-                              {o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time}
+                              {o.eta_minutes != null ? `Delivery Boy ETA: ${o.eta_minutes} Mins` : (o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time)}
                             </span>
                           )}
                           <span className="text-xs text-muted-foreground ml-1 font-semibold">

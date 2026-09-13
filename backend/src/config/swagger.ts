@@ -23,7 +23,7 @@ const options: swaggerJSDoc.Options = {
       ].join(" "),
       contact: {
         name: "VegaMart Team",
-        email: "support@vegamart.in",
+        email: "vegamart.com@gmail.com",
       },
       license: {
         name: "Proprietary",

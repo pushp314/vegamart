@@ -92,6 +92,7 @@ export const adminOrderService = {
           orders: {
             select: {
               delivery_note: true,
+              eta_minutes: true,
               delivery_partner: {
                 select: {
                   id: true,
@@ -141,6 +142,7 @@ export const adminOrderService = {
         const items = m.orders.flatMap((o) => o.items);
         const vendors = m.orders.map((o) => o.vendor);
         const subPartners = m.orders.map((o) => o.delivery_partner).filter(Boolean);
+        const activeEtaMinutes = m.orders.find((o) => o.eta_minutes != null)?.eta_minutes || null;
 
         let partner = m.delivery_partner
           ? {
@@ -185,6 +187,7 @@ export const adminOrderService = {
           payment_method: m.payment_method,
           payment_status: m.payment_status,
           delivery_note: firstOrder?.delivery_note,
+          eta_minutes: activeEtaMinutes,
           created_at: m.created_at,
           updated_at: m.updated_at,
           customer: m.customer
@@ -289,6 +292,7 @@ export const adminOrderService = {
         total: o.total.toNumber(),
         commission,
         vendorEarnings,
+        eta_minutes: o.eta_minutes ?? null,
         delivery_partner: o.delivery_partner
           ? {
               id: o.delivery_partner.id,
@@ -366,6 +370,7 @@ export const adminOrderService = {
       payment_status: mOrder.payment_status,
       delivery_note: firstOrder?.delivery_note,
       otp_code: firstOrder?.otp_code,
+      eta_minutes: mOrder.orders.find((o) => o.eta_minutes != null)?.eta_minutes || firstOrder?.eta_minutes || null,
       created_at: mOrder.created_at,
       updated_at: mOrder.updated_at,
       accepted_at: firstOrder?.accepted_at,
