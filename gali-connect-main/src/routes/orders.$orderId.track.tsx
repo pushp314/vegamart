@@ -701,7 +701,7 @@ function OrderIdTrackingPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Delivery Mode Badge */}
                   {(() => {
-                    const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
+                    const dInfo = getDeliveryOptionInfo(order.delivery_option || order.delivery_slot || order.delivery_note);
                     const DIcon = dInfo.icon;
                     return (
                       <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dInfo.colorClass}`}>
@@ -726,7 +726,7 @@ function OrderIdTrackingPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Chosen Delivery Option Card */}
                 {(() => {
-                  const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
+                  const dInfo = getDeliveryOptionInfo(order.delivery_option || order.delivery_slot || order.delivery_note);
                   const DIcon = dInfo.icon;
                   return (
                     <div className="rounded-2xl border border-border bg-muted/30 p-3.5 space-y-1.5 text-xs">
@@ -747,7 +747,7 @@ function OrderIdTrackingPage() {
 
                 {/* Chosen Payment Mode Card */}
                 {(() => {
-                  const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
+                  const dInfo = getDeliveryOptionInfo(order.delivery_option || order.delivery_slot || order.delivery_note);
                   const pInfo = getPaymentMethodInfo(
                     order.payment_method,
                     order.payment_status,
@@ -1308,7 +1308,7 @@ function OrderIdTrackingPage() {
                 </div>
 
                 {(() => {
-                  const dInfo = getDeliveryOptionInfo(order.delivery_note || order.delivery_option || order.delivery_slot);
+                  const dInfo = getDeliveryOptionInfo(order.delivery_option || order.delivery_slot || order.delivery_note);
                   const pInfo = getPaymentMethodInfo(
                     order.payment_method,
                     order.payment_status,

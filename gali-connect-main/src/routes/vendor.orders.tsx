@@ -383,7 +383,7 @@ function VendorOrdersPage() {
             };
 
             const nextStatuses = getNextStatuses(o.status, o);
-            const dInfo = getDeliveryOptionInfo(o.delivery_note || o.delivery_option || o.delivery_slot);
+            const dInfo = getDeliveryOptionInfo(o.delivery_option || o.delivery_slot || o.delivery_note);
             const sInfo = getOrderStatusInfo(o.status);
             const pInfo = getPaymentMethodInfo(
               o.payment_method,
