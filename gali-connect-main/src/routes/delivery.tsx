@@ -665,7 +665,7 @@ function DeliveryDashboard() {
         </button>
       </div>
 
-      <main className="p-4 space-y-6">
+      <main className="p-4 space-y-6 pb-36">
         {/* RIDER PERFORMANCE STRIP */}
         {partner.status?.toUpperCase() === "APPROVED" && (
           <div className="grid grid-cols-3 gap-3">
