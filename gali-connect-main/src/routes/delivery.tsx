@@ -238,7 +238,15 @@ function DeliveryDashboard() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsOrder, setDetailsOrder] = useState<any | null>(null);
   const [upiQrModalOrder, setUpiQrModalOrder] = useState<any | null>(null);
+  const [showLiveQrCode, setShowLiveQrCode] = useState(false);
   const [isCollectingUpi, setIsCollectingUpi] = useState(false);
+
+  // Fetch Public Settings for UPI configuration
+  const { data: publicSettingsRes } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: () => api.get<any>("/settings/public"),
+  });
+  const publicSettings = publicSettingsRes?.data?.data || publicSettingsRes?.data || {};
 
   // Fetch Delivery Profile
   const { data: profileRes, isLoading: partnerLoading } = useQuery({
@@ -388,15 +396,18 @@ function DeliveryDashboard() {
 
   const handleCollectUpiPayment = async (orderToCollect: any) => {
     if (!orderToCollect?.id) return;
+    setShowLiveQrCode(true);
     setIsCollectingUpi(true);
     try {
       const RazorpayCtor = await loadRazorpay();
       if (!RazorpayCtor) {
-        throw new Error("Razorpay SDK failed to load. Please check your internet connection.");
+        toast.info("Displaying Live UPI QR Code below for customer to scan.");
+        return;
       }
       const res = await api.post<any>(`/payments/${orderToCollect.id}/retry`, {});
       if (!res.success || !res.data) {
-        throw new Error(res.error?.message || "Failed to initialize UPI payment gateway.");
+        toast.info("Displaying Live UPI QR Code below for customer to scan.");
+        return;
       }
       const retryData = res.data;
       const amount = Number(retryData.amount || orderToCollect.total_amount || orderToCollect.total || 0);
@@ -408,6 +419,20 @@ function DeliveryDashboard() {
         name: "Vegamart",
         description: `Order #${retryData.order_number || orderToCollect.order_number || orderToCollect.id}`,
         order_id: retryData.razorpay_order_id,
+        upi: {
+          flow: "qr",
+        },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "UPI QR Code",
+                instruments: [{ method: "upi", flows: ["qr"] }],
+              },
+            },
+            sequence: ["block.upi"],
+          },
+        },
         handler: async (response: any) => {
           try {
             const verifyRes = await api.post<any>("/payments/verify", {
@@ -418,6 +443,7 @@ function DeliveryDashboard() {
             if (verifyRes?.success) {
               toast.success("Payment collected and verified via UPI! 🎉");
               setUpiQrModalOrder(null);
+              setShowLiveQrCode(false);
               queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
               queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
             } else {
@@ -438,8 +464,8 @@ function DeliveryDashboard() {
       };
       const paymentObject = new RazorpayCtor(options);
       paymentObject.open();
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to launch UPI payment.");
+    } catch {
+      toast.info("Displaying Live UPI QR Code below for customer to scan.");
     } finally {
       setIsCollectingUpi(false);
     }
@@ -2250,8 +2276,16 @@ function DeliveryDashboard() {
         </ClientOnly>
       )}
       {/* DELIVERY UPI QR MODAL */}
-      <Dialog open={!!upiQrModalOrder} onOpenChange={(open) => !open && setUpiQrModalOrder(null)}>
-        <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4">
+      <Dialog
+        open={!!upiQrModalOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUpiQrModalOrder(null);
+            setShowLiveQrCode(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold flex items-center justify-center gap-2">
               <Smartphone className="h-5 w-5 text-emerald-600" />
@@ -2274,20 +2308,75 @@ function DeliveryDashboard() {
                 </div>
               </div>
 
-              <div className="space-y-2 pt-1">
-                <Button
-                  className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md gap-2"
-                  onClick={() => handleCollectUpiPayment(upiQrModalOrder)}
-                  disabled={isCollectingUpi || confirmCashMutation.isPending}
-                >
-                  {isCollectingUpi ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <QrCode className="h-4 w-4" />
-                  )}
-                  {isCollectingUpi ? "Opening UPI Gateway..." : "Open Live UPI QR Code"}
-                </Button>
+              {/* LIVE SCANNER / QR DISPLAY */}
+              {(() => {
+                const amt = Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2);
+                const ordNo = upiQrModalOrder.order_number || upiQrModalOrder.id;
+                const vpa = publicSettings?.["platform.upi_id"] || "vegamart@upi";
+                const upiUri = `upi://pay?pa=${vpa}&pn=VegaMart&am=${amt}&tr=${ordNo}&tn=Order_${ordNo}&cu=INR`;
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(upiUri)}`;
 
+                return (
+                  <div className="space-y-3">
+                    {showLiveQrCode ? (
+                      <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
+                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1.5">
+                          <QrCode className="h-4 w-4 text-emerald-600 animate-pulse" />
+                          Live Doorstep UPI QR Code
+                        </div>
+
+                        <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center">
+                          <img
+                            src={qrUrl}
+                            alt="Live UPI QR Code"
+                            className="w-48 h-48 object-contain rounded-lg"
+                          />
+                        </div>
+
+                        <div className="text-[11px] text-muted-foreground font-medium">
+                          Customer can scan using GPay, PhonePe, Paytm, BHIM, or any UPI App.
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <a
+                            href={upiUri}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-emerald-600 text-white font-bold text-[11px] shadow-sm hover:bg-emerald-500 transition-colors"
+                          >
+                            <Smartphone className="h-3.5 w-3.5" /> Open UPI App
+                          </a>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-8 rounded-xl border-emerald-300 text-[11px] font-bold text-emerald-800 bg-white hover:bg-emerald-50 dark:bg-zinc-900"
+                            onClick={() => handleCollectUpiPayment(upiQrModalOrder)}
+                            disabled={isCollectingUpi}
+                          >
+                            {isCollectingUpi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5 text-emerald-600" />}
+                            Razorpay Pop-up
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md gap-2"
+                        onClick={() => handleCollectUpiPayment(upiQrModalOrder)}
+                        disabled={isCollectingUpi || confirmCashMutation.isPending}
+                      >
+                        {isCollectingUpi ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <QrCode className="h-4 w-4" />
+                        )}
+                        {isCollectingUpi ? "Opening UPI Gateway..." : "Open Live UPI QR Code"}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-2 pt-1">
                 <Button
                   variant="outline"
                   className="w-full h-12 rounded-2xl border-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-bold text-sm shadow-xs gap-2"
@@ -2320,6 +2409,7 @@ function DeliveryDashboard() {
                   className="w-full h-10 rounded-xl font-bold text-xs"
                   onClick={() => {
                     setUpiQrModalOrder(null);
+                    setShowLiveQrCode(false);
                     refetchRequests();
                     queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
                   }}

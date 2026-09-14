@@ -55,9 +55,12 @@ interface Order {
   order_number: string;
   status: string;
   total: number;
+  total_amount?: number;
   items_subtotal?: number;
   delivery_fee?: number;
   tax?: number;
+  platform_fee?: number;
+  additional_charges?: any;
   discount?: number;
   payment_method: string;
   payment_status: string;
@@ -851,63 +854,93 @@ export function AdminOrders() {
                           );
                         })}
                       </div>
-                      <div className="bg-muted/30 p-4 border-t border-border space-y-1.5 text-sm">
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>Accepted Items Subtotal</span>
-                          <span className="tabular-nums">
-                            ₹{Number(detail.items_subtotal || 0).toFixed(2)}
-                          </span>
-                        </div>
-                        {Number(detail.delivery_fee) > 0 && (
-                          <div className="flex justify-between text-muted-foreground">
-                            <span>Delivery Fee</span>
-                            <span className="tabular-nums">
-                              + ₹{Number(detail.delivery_fee).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-                        {Number(detail.tax) > 0 && (
-                          <div className="flex justify-between text-muted-foreground">
-                            <span>Taxes</span>
-                            <span className="tabular-nums">+ ₹{Number(detail.tax).toFixed(2)}</span>
-                          </div>
-                        )}
-                        {Number(detail.discount) > 0 && (
-                          <div className="flex justify-between text-emerald-600 font-medium">
-                            <span>Discount</span>
-                            <span className="tabular-nums">
-                              - ₹{Number(detail.discount).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center font-bold text-base pt-2 border-t border-border/50">
-                          <span>Total Order Amount</span>
-                          <span className="text-foreground font-black text-lg">
-                            ₹{Number(detail.total || 0).toFixed(2)}
-                          </span>
-                        </div>
-                        {modalPInfo.isPartialAdvance && (
-                          <div className="space-y-1.5 pt-1">
-                            <div className="flex justify-between text-xs font-bold text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                              <span>
-                                Advance Paid Online ({detail.payment?.method || "UPI/Card"})
-                              </span>
-                              <span className="tabular-nums font-black">
-                                - ₹{modalPInfo.advancePaid.toFixed(2)}
+                      {(() => {
+                        const calculatedSubtotal = (detail.items || [])
+                          .filter((i: any) => i.status !== "rejected")
+                          .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
+                        const itemsSubtotal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(detail.items_subtotal || 0);
+
+                        let addCharges: any[] = [];
+                        if (Array.isArray(detail.additional_charges)) {
+                          addCharges = detail.additional_charges;
+                        } else if (typeof detail.additional_charges === "string") {
+                          try {
+                            addCharges = JSON.parse(detail.additional_charges);
+                          } catch {}
+                        }
+
+                        return (
+                          <div className="bg-muted/30 p-4 border-t border-border space-y-1.5 text-sm">
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>Accepted Items Subtotal</span>
+                              <span className="tabular-nums">
+                                ₹{itemsSubtotal.toFixed(2)}
                               </span>
                             </div>
-                            <div className="flex justify-between text-xs font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                              <span>Balance to Collect at Store</span>
-                              <span className="tabular-nums font-black text-sm text-amber-700">
-                                ₹{modalPInfo.balanceAmount.toFixed(2)}
+                            {Number(detail.delivery_fee) > 0 && (
+                              <div className="flex justify-between text-muted-foreground">
+                                <span>Delivery Fee</span>
+                                <span className="tabular-nums">
+                                  + ₹{Number(detail.delivery_fee).toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                            {Number(detail.tax) > 0 && (
+                              <div className="flex justify-between text-muted-foreground">
+                                <span>Taxes</span>
+                                <span className="tabular-nums">+ ₹{Number(detail.tax).toFixed(2)}</span>
+                              </div>
+                            )}
+                            {Number(detail.platform_fee) > 0 && (
+                              <div className="flex justify-between text-muted-foreground">
+                                <span>Platform Fee</span>
+                                <span className="tabular-nums">+ ₹{Number(detail.platform_fee).toFixed(2)}</span>
+                              </div>
+                            )}
+                            {addCharges.map((ch: any, cIdx: number) => (
+                              <div key={cIdx} className="flex justify-between text-muted-foreground">
+                                <span>{ch.name || "Extra Charge"}</span>
+                                <span className="tabular-nums">+ ₹{Number(ch.amount || 0).toFixed(2)}</span>
+                              </div>
+                            ))}
+                            {Number(detail.discount) > 0 && (
+                              <div className="flex justify-between text-emerald-600 font-medium">
+                                <span>Discount</span>
+                                <span className="tabular-nums">
+                                  - ₹{Number(detail.discount).toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center font-bold text-base pt-2 border-t border-border/50">
+                              <span>Total Order Amount</span>
+                              <span className="text-foreground font-black text-lg">
+                                ₹{Number(detail.total || detail.total_amount || 0).toFixed(2)}
                               </span>
                             </div>
-                            <div className="text-[11px] text-center font-bold text-emerald-800 bg-emerald-100/60 py-1 rounded-md border border-emerald-200">
-                              {modalPInfo.summaryText}
-                            </div>
+                            {modalPInfo.isPartialAdvance && (
+                              <div className="space-y-1.5 pt-1">
+                                <div className="flex justify-between text-xs font-bold text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                                  <span>
+                                    Advance Paid Online ({detail.payment?.method || "UPI/Card"})
+                                  </span>
+                                  <span className="tabular-nums font-black">
+                                    - ₹{modalPInfo.advancePaid.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                                  <span>Balance to Collect at Store</span>
+                                  <span className="tabular-nums font-black text-sm text-amber-700">
+                                    ₹{modalPInfo.balanceAmount.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-center font-bold text-emerald-800 bg-emerald-100/60 py-1 rounded-md border border-emerald-200">
+                                  {modalPInfo.summaryText}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

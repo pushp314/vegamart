@@ -84,16 +84,27 @@ export const orderService = {
       const vendors = m.orders.map((o: any) => o.vendor);
       const firstOrder = m.orders[0];
       const activeOtp = m.orders.find((o: any) => Boolean(o.otp_code))?.otp_code || firstOrder?.otp_code;
+      const activeDeliveryNote = firstOrder?.delivery_note || m.orders.find((o: any) => Boolean(o.delivery_note))?.delivery_note || null;
+
+      const itemsSubtotal = allItems
+        .filter((i: any) => i.status !== "rejected")
+        .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
 
       return {
         id: m.id,
         order_number: m.order_number,
         status: m.status,
         total_amount: m.total_amount,
+        items_subtotal: itemsSubtotal,
         delivery_fee: m.delivery_fee,
         tax: m.tax,
+        platform_fee: Number(m.platform_fee || 0),
+        additional_charges: m.additional_charges || [],
         payment_method: m.payment_method,
         payment_status: m.payment_status,
+        delivery_note: activeDeliveryNote,
+        delivery_slot: activeDeliveryNote,
+        delivery_option: activeDeliveryNote,
         created_at: m.created_at,
         delivery_partner_id: m.delivery_partner_id,
         delivery_partner: m.delivery_partner,
@@ -106,6 +117,9 @@ export const orderService = {
           delivery_partner_id: o.delivery_partner_id,
           total: Number(o.total),
           vendor: o.vendor,
+          delivery_note: o.delivery_note,
+          delivery_slot: o.delivery_note,
+          delivery_option: o.delivery_note,
           items: o.items.map((i: any) => ({
             ...i,
             image_url: i.image_url || i.product?.images?.[0]?.url || null,
@@ -227,17 +241,26 @@ export const orderService = {
       })),
     }));
 
+    const activeDeliveryNote = firstOrder?.delivery_note || m.orders.find((o: any) => Boolean(o.delivery_note))?.delivery_note || null;
+    const itemsSubtotal = allItems
+      .filter((i: any) => i.status !== "rejected")
+      .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
+
     return {
       id: m.id,
       order_number: m.order_number,
       status: m.status,
       total_amount: m.total_amount,
+      items_subtotal: itemsSubtotal,
       delivery_fee: m.delivery_fee,
       tax: m.tax,
-      platform_fee: m.platform_fee,
-      additional_charges: m.additional_charges,
+      platform_fee: Number(m.platform_fee || 0),
+      additional_charges: m.additional_charges || [],
       payment_method: m.payment_method,
       payment_status: m.payment_status,
+      delivery_note: activeDeliveryNote,
+      delivery_slot: activeDeliveryNote,
+      delivery_option: activeDeliveryNote,
       created_at: m.created_at,
       delivery_partner_id: m.delivery_partner_id,
       items: allItems,

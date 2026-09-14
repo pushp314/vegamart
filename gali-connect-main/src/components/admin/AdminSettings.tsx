@@ -34,25 +34,26 @@ import { useAuth } from "@/context/auth-context";
 interface Settings {
   "platform.name"?: string;
   "platform.currency"?: string;
-  "platform.tax_rate_percent"?: number;
-  "platform.delivery_fee"?: number;
-  "platform.free_delivery_threshold"?: number;
-  "platform.min_order_value"?: number;
-  "platform.order_expiry_minutes"?: number;
-  "platform.default_delivery_radius_km"?: number;
+  "platform.tax_rate_percent"?: number | string;
+  "platform.delivery_fee"?: number | string;
+  "platform.free_delivery_threshold"?: number | string;
+  "platform.min_order_value"?: number | string;
+  "platform.order_expiry_minutes"?: number | string;
+  "platform.default_delivery_radius_km"?: number | string;
   "platform.deliveries_active"?: boolean;
   "platform.maintenance_mode"?: boolean;
   "platform.multi_store_checkout_enabled"?: boolean;
-  "platform.max_stores_per_order"?: number;
+  "platform.max_stores_per_order"?: number | string;
   "platform.logo_url"?: string;
   "platform.default_delivery_eta"?: string;
   "platform.vegamart_delivery_enabled"?: boolean;
   "platform.vendor_wallet_enabled"?: boolean;
   "platform.vendor_payout_mode"?: string;
-  "platform.vendor_min_withdrawal_amount"?: number;
+  "platform.vendor_min_withdrawal_amount"?: number | string;
   "platform.checkout_charges"?: string;
   "support.email"?: string;
   "support.phone"?: string;
+  [key: string]: any;
 }
 
 const maintenanceSeverityStyles: Record<MaintenanceTask["severity"], string> = {
@@ -163,13 +164,20 @@ export function AdminSettings() {
         key.startsWith("support.") ||
         key.startsWith("notifications.")
       ) {
+        if (val === "" || val === undefined || val === null) continue;
         if (typeof val === "number" || typeof val === "boolean") {
           payload[key] = val;
         } else if (typeof val === "string") {
-          if (!isNaN(Number(val)) && val.trim() !== "") {
-            payload[key] = Number(val);
+          const trimmed = val.trim();
+          if (trimmed === "") continue;
+          if (
+            !isNaN(Number(trimmed)) &&
+            key !== "platform.default_delivery_eta" &&
+            key !== "support.phone"
+          ) {
+            payload[key] = Number(trimmed);
           } else {
-            payload[key] = val;
+            payload[key] = trimmed;
           }
         } else {
           payload[key] = val;
@@ -410,11 +418,11 @@ export function AdminSettings() {
               <Input
                 type="number"
                 min={0}
-                value={settings["platform.delivery_fee"] ?? 0}
+                value={settings["platform.delivery_fee"] ?? ""}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    "platform.delivery_fee": Number(e.target.value),
+                    "platform.delivery_fee": e.target.value === "" ? "" : Number(e.target.value),
                   })
                 }
               />
@@ -432,11 +440,11 @@ export function AdminSettings() {
               <Input
                 type="number"
                 min={0}
-                value={settings["platform.free_delivery_threshold"] ?? 0}
+                value={settings["platform.free_delivery_threshold"] ?? ""}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    "platform.free_delivery_threshold": Number(e.target.value),
+                    "platform.free_delivery_threshold": e.target.value === "" ? "" : Number(e.target.value),
                   })
                 }
               />
@@ -456,11 +464,11 @@ export function AdminSettings() {
               <Input
                 type="number"
                 min={0}
-                value={settings["platform.min_order_value"] ?? 0}
+                value={settings["platform.min_order_value"] ?? ""}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    "platform.min_order_value": Number(e.target.value),
+                    "platform.min_order_value": e.target.value === "" ? "" : Number(e.target.value),
                   })
                 }
               />
@@ -480,11 +488,11 @@ export function AdminSettings() {
                 type="number"
                 min={0}
                 max={100}
-                value={settings["platform.tax_rate_percent"] ?? 0}
+                value={settings["platform.tax_rate_percent"] ?? ""}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    "platform.tax_rate_percent": Number(e.target.value),
+                    "platform.tax_rate_percent": e.target.value === "" ? "" : Number(e.target.value),
                   })
                 }
               />
@@ -504,11 +512,11 @@ export function AdminSettings() {
                 type="number"
                 min={1}
                 max={10}
-                value={settings["platform.max_stores_per_order"] ?? 3}
+                value={settings["platform.max_stores_per_order"] ?? ""}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    "platform.max_stores_per_order": Math.max(1, Number(e.target.value)),
+                    "platform.max_stores_per_order": e.target.value === "" ? "" : Number(e.target.value),
                   })
                 }
               />

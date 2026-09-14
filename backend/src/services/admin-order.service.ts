@@ -187,6 +187,8 @@ export const adminOrderService = {
           payment_method: m.payment_method,
           payment_status: m.payment_status,
           delivery_note: firstOrder?.delivery_note,
+          delivery_slot: firstOrder?.delivery_note,
+          delivery_option: firstOrder?.delivery_note,
           eta_minutes: activeEtaMinutes,
           created_at: m.created_at,
           updated_at: m.updated_at,
@@ -356,19 +358,27 @@ export const adminOrderService = {
       }
     }
 
+    const itemsSubtotal = items
+      .filter((i: any) => i.status !== "rejected")
+      .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
+
     return {
       id: mOrder.id,
       order_number: mOrder.order_number,
       invoice_number: firstOrder?.invoice_number,
       status: mOrder.status,
       total: Number(mOrder.total_amount),
-      items_subtotal: Number(mOrder.total_amount), // approximation
+      items_subtotal: itemsSubtotal,
       delivery_fee: Number(mOrder.delivery_fee),
       tax: Number(mOrder.tax),
+      platform_fee: Number(mOrder.platform_fee || 0),
+      additional_charges: mOrder.additional_charges || [],
       discount: 0,
       payment_method: mOrder.payment_method,
       payment_status: mOrder.payment_status,
       delivery_note: firstOrder?.delivery_note,
+      delivery_slot: firstOrder?.delivery_note,
+      delivery_option: firstOrder?.delivery_note,
       otp_code: firstOrder?.otp_code,
       eta_minutes: mOrder.orders.find((o) => o.eta_minutes != null)?.eta_minutes || firstOrder?.eta_minutes || null,
       created_at: mOrder.created_at,

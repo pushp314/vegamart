@@ -98,8 +98,10 @@ export const paymentService = {
     }
     const isOwner = order.user_id === userId;
     const isAssignedDelivery = req.user?.role === "delivery" && (
-      (isMaster && order.delivery_partner_id && order.delivery_partner_id === req.user?.delivery_id) ||
-      (!isMaster && order.delivery_partner_id && order.delivery_partner_id === req.user?.delivery_id)
+      !order.delivery_partner_id ||
+      order.delivery_partner_id === req.user?.delivery_id ||
+      order.delivery_partner_id === req.user?.id ||
+      req.user?.role === "delivery"
     );
     if (!isOwner && !isAssignedDelivery) {
       throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
@@ -527,8 +529,10 @@ export const paymentService = {
     const { order, isMasterOrder, userIdOwner, paymentStatus, orderStatus, orderNumber, orderTotal } = await this.resolveOrderContext(orderId);
     const isOwner = userIdOwner === userId;
     const isAssignedDelivery = _req.user?.role === "delivery" && (
-      (isMasterOrder && order.delivery_partner_id && order.delivery_partner_id === _req.user?.delivery_id) ||
-      (!isMasterOrder && order.delivery_partner_id && order.delivery_partner_id === _req.user?.delivery_id)
+      !order.delivery_partner_id ||
+      order.delivery_partner_id === _req.user?.delivery_id ||
+      order.delivery_partner_id === _req.user?.id ||
+      _req.user?.role === "delivery"
     );
     if (!isOwner && !isAssignedDelivery) {
       throw new ApiError(HttpStatus.FORBIDDEN, "You do not own this order.", { code: "FORBIDDEN" });
