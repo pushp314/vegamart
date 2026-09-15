@@ -123,13 +123,17 @@ export function AdminSettings() {
   }, [settingsRes]);
 
   const updateSettingsMutation = useMutation({
-    mutationFn: (data: Partial<Settings>) => api.patch("/admin/settings", data),
-    onSuccess: () => {
+    mutationFn: (data: Partial<Settings>) => api.patch<any>("/admin/settings", data),
+    onSuccess: (res: any) => {
+      if (res?.success === false) {
+        toast.error(res?.error?.message || "Failed to update platform settings.");
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
       queryClient.invalidateQueries({ queryKey: ["publicSettings"] });
-      toast.success("Settings updated");
+      toast.success("Platform settings saved successfully! 🎉");
     },
-    onError: () => toast.error("Failed to update settings"),
+    onError: (err: any) => toast.error(err?.message || "Failed to update settings"),
   });
 
   const handleLogoUpload = async () => {
@@ -164,16 +168,39 @@ export function AdminSettings() {
         key.startsWith("support.") ||
         key.startsWith("notifications.")
       ) {
-        if (val === "" || val === undefined || val === null) continue;
-        if (typeof val === "number" || typeof val === "boolean") {
+        if (val === undefined || val === null) continue;
+
+        // Ensure JSON array/object fields remain string representation (not coerced to number 0)
+        if (
+          key === "platform.checkout_charges" ||
+          key === "platform.customer_fees_config" ||
+          key === "platform.homepage_sections"
+        ) {
+          payload[key] = typeof val === "string" ? val : JSON.stringify(val);
+          continue;
+        }
+
+        if (typeof val === "boolean") {
+          payload[key] = val;
+        } else if (typeof val === "number") {
           payload[key] = val;
         } else if (typeof val === "string") {
           const trimmed = val.trim();
-          if (trimmed === "") continue;
+          if (trimmed === "") {
+            payload[key] = "";
+            continue;
+          }
+          // Do not coerce string keys like phone, eta, upi_id, email, logo_url, etc. into numbers!
           if (
             !isNaN(Number(trimmed)) &&
             key !== "platform.default_delivery_eta" &&
-            key !== "support.phone"
+            key !== "support.phone" &&
+            key !== "platform.name" &&
+            key !== "platform.currency" &&
+            key !== "platform.logo_url" &&
+            key !== "platform.upi_id" &&
+            key !== "support.email" &&
+            key !== "platform.vendor_payout_mode"
           ) {
             payload[key] = Number(trimmed);
           } else {

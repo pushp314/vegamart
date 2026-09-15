@@ -27,6 +27,7 @@ export const SETTING_KEYS = {
   PLATFORM_CHECKOUT_CHARGES: "platform.checkout_charges",
   CUSTOMER_FEES_CONFIG: "platform.customer_fees_config",
   MAX_STORES_PER_ORDER: "platform.max_stores_per_order",
+  PLATFORM_UPI_ID: "platform.upi_id",
 } as const;
 
 export type SettingValue =
@@ -240,6 +241,13 @@ export const DEFAULT_SETTINGS: Record<string, SettingDefinition> = {
     type: "number",
     default: 5,
     description: "Maximum number of distinct stores a customer can purchase from in a single checkout.",
+    is_public: true,
+  },
+  [SETTING_KEYS.PLATFORM_UPI_ID]: {
+    key: SETTING_KEYS.PLATFORM_UPI_ID,
+    type: "string",
+    default: "vegamart@upi",
+    description: "Default platform VPA / UPI ID for doorstep UPI payments.",
     is_public: true,
   },
 };
