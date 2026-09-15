@@ -669,7 +669,11 @@ function DeliveryDashboard() {
         {/* RIDER PERFORMANCE STRIP */}
         {partner.status?.toUpperCase() === "APPROVED" && (
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+            <button
+              type="button"
+              onClick={() => setActiveTab("history")}
+              className="text-left rounded-3xl border border-border bg-card p-4 shadow-soft cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all active:scale-95 group"
+            >
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -679,11 +683,16 @@ function DeliveryDashboard() {
               <div className="text-2xl font-black font-display text-emerald-600 mt-1">
                 {deliveryStats.stats?.total_deliveries ?? completedOrders.length}
               </div>
-              <div className="text-[10px] font-semibold text-muted-foreground mt-0.5">
-                deliveries completed
+              <div className="text-[10px] font-semibold text-emerald-600 group-hover:underline mt-0.5">
+                View history →
               </div>
-            </div>
-            <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("active")}
+              className="text-left rounded-3xl border border-border bg-card p-4 shadow-soft cursor-pointer hover:border-sky-500/50 hover:bg-sky-500/5 transition-all active:scale-95 group"
+            >
               <div className="flex items-center gap-2">
                 <Navigation className="h-4 w-4 text-sky-600" />
                 <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -693,11 +702,16 @@ function DeliveryDashboard() {
               <div className="text-2xl font-black font-display text-sky-600 mt-1">
                 {activeOrders.length}
               </div>
-              <div className="text-[10px] font-semibold text-muted-foreground mt-0.5">
-                on the go
+              <div className="text-[10px] font-semibold text-sky-600 group-hover:underline mt-0.5">
+                View active →
               </div>
-            </div>
-            <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("earnings")}
+              className="text-left rounded-3xl border border-border bg-card p-4 shadow-soft cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/5 transition-all active:scale-95 group"
+            >
               <div className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-amber-600" />
                 <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -707,10 +721,10 @@ function DeliveryDashboard() {
               <div className="text-2xl font-black font-display text-amber-600 mt-1">
                 ₹{deliveryStats.stats?.today_earnings ?? 0}
               </div>
-              <div className="text-[10px] font-semibold text-muted-foreground mt-0.5">
-                today's earnings
+              <div className="text-[10px] font-semibold text-amber-600 group-hover:underline mt-0.5">
+                View wallet →
               </div>
-            </div>
+            </button>
           </div>
         )}
 

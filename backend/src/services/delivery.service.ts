@@ -231,9 +231,15 @@ export const deliveryService = {
         _sum: { amount: true },
       }),
       prisma.order.findMany({
-        where: { delivery_partner_id: partner.id, deleted_at: null },
+        where: {
+          OR: [
+            { delivery_partner_id: partner.id },
+            { master_order: { delivery_partner_id: partner.id } },
+          ],
+          deleted_at: null,
+        },
         orderBy: { updated_at: "desc" },
-        take: 10,
+        take: 20,
         select: {
           id: true,
           order_number: true,
@@ -242,6 +248,8 @@ export const deliveryService = {
           delivery_fee: true,
           updated_at: true,
           vendor: { select: { business_name: true } },
+          customer: { select: { name: true, phone: true } },
+          address: { select: { full_address: true, city: true } },
         },
       }),
     ]);
@@ -271,6 +279,8 @@ export const deliveryService = {
         total: Number(d.total),
         delivery_fee: Number(d.delivery_fee),
         vendor_name: d.vendor?.business_name ?? "Vendor",
+        customer_name: d.customer?.name ?? "Customer",
+        customer_address: d.address?.full_address || d.address?.city || null,
         updated_at: d.updated_at,
       })),
     };
