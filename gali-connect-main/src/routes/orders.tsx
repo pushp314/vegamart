@@ -260,7 +260,7 @@ function OrdersList() {
                   toast.success("Items added to your cart!");
                   navigate({ to: "/cart" });
                 };
-                const dInfo = getDeliveryOptionInfo(o.delivery_option || (o as any).delivery_slot || o.delivery_note);
+                const dInfo = getDeliveryOptionInfo(o);
                 const pInfo = getPaymentMethodInfo(
                   o.payment_method,
                   o.payment_status,

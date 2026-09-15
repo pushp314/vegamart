@@ -181,14 +181,20 @@ export const deliveryService = {
     ] = await Promise.all([
       prisma.order.count({
         where: {
-          delivery_partner_id: partner.id,
+          OR: [
+            { delivery_partner_id: partner.id },
+            { master_order: { delivery_partner_id: partner.id } },
+          ],
           status: "DELIVERED",
           deleted_at: null,
         },
       }),
       prisma.order.count({
         where: {
-          delivery_partner_id: partner.id,
+          OR: [
+            { delivery_partner_id: partner.id },
+            { master_order: { delivery_partner_id: partner.id } },
+          ],
           status: "DELIVERED",
           updated_at: { gte: startOfDay },
           deleted_at: null,
@@ -196,7 +202,10 @@ export const deliveryService = {
       }),
       prisma.order.count({
         where: {
-          delivery_partner_id: partner.id,
+          OR: [
+            { delivery_partner_id: partner.id },
+            { master_order: { delivery_partner_id: partner.id } },
+          ],
           status: { in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
           deleted_at: null,
         },

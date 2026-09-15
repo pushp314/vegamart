@@ -16,7 +16,12 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
   const additionalCharges: { name: string; amount: number; type?: string }[] = [];
 
   for (const fee of configs) {
-    if (!fee.enabled) continue;
+    const isEnabled = fee.enabled !== false && (fee as any).is_active !== false;
+    if (!isEnabled) continue;
+
+    const feeName = fee.name || (fee as any).title || "Extra Charge";
+    const feeType = String(fee.type || "FIXED").toUpperCase();
+    const feeAmount = Number(fee.amount || 0);
 
     // Minimum order check
     if (fee.min_order_amount && context.cartTotal < fee.min_order_amount) {
@@ -30,13 +35,13 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
 
     // Determine base amount based on type
     let calculatedAmount = 0;
-    if (fee.type === "PERCENTAGE") {
-      calculatedAmount = (context.cartTotal * fee.amount) / 100;
+    if (feeType === "PERCENTAGE") {
+      calculatedAmount = (context.cartTotal * feeAmount) / 100;
       if (fee.max_cap && fee.max_cap > 0 && calculatedAmount > fee.max_cap) {
         calculatedAmount = fee.max_cap;
       }
     } else {
-      calculatedAmount = fee.amount;
+      calculatedAmount = feeAmount;
     }
 
     // Apply specific dynamic rules based on fee key
@@ -97,9 +102,9 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
     if (finalAmount > 0) {
       totalPlatformFee += finalAmount;
       additionalCharges.push({
-        name: fee.name,
+        name: feeName,
         amount: finalAmount,
-        type: fee.type
+        type: feeType
       });
     }
   }

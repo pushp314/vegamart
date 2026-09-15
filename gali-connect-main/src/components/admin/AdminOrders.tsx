@@ -246,9 +246,7 @@ export function AdminOrders() {
                   </TableRow>
                 ) : (
                   orders.map((order) => {
-                    const dInfo = getDeliveryOptionInfo(
-                      order.delivery_option || (order as any).delivery_slot || order.delivery_note,
-                    );
+                    const dInfo = getDeliveryOptionInfo(order);
                     const pInfo = getPaymentMethodInfo(
                       order.payment_method,
                       order.payment_status,
@@ -474,9 +472,7 @@ export function AdminOrders() {
           ) : (
             detail &&
             (() => {
-              const modalDInfo = getDeliveryOptionInfo(
-                detail.delivery_option || (detail as any).delivery_slot || detail.delivery_note,
-              );
+              const modalDInfo = getDeliveryOptionInfo(detail);
               const modalPInfo = getPaymentMethodInfo(
                 detail.payment_method,
                 detail.payment_status,

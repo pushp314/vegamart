@@ -32,7 +32,7 @@ function OrderSuccess() {
     : "Your delivery address";
   const orderStatus = String(order?.status || "pending").toLowerCase();
 
-  const dInfo = getDeliveryOptionInfo(order?.delivery_option || order?.delivery_slot || order?.delivery_note);
+  const dInfo = getDeliveryOptionInfo(order);
   const pInfo = getPaymentMethodInfo(
     order?.payment_method,
     order?.payment_status,

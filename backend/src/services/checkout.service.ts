@@ -547,7 +547,10 @@ export const checkoutService = {
 
     let platformFeeTotal = 0;
     const additionalCharges: any[] = [];
-    const rawCharges = settings[SETTING_KEYS.CUSTOMER_FEES_CONFIG] as string;
+    const rawCharges =
+      (settings[SETTING_KEYS.CUSTOMER_FEES_CONFIG] as string) ||
+      (settings[SETTING_KEYS.PLATFORM_CHECKOUT_CHARGES] as string) ||
+      (settings["platform.checkout_charges"] as string);
     
     if (rawCharges) {
       try {

@@ -184,8 +184,32 @@ export interface DeliveryOptionInfo {
   badgeBg: string;
 }
 
-export function getDeliveryOptionInfo(deliveryNote?: string | null, fallbackOption?: string | null): DeliveryOptionInfo {
-  const raw = String(deliveryNote || fallbackOption || "Delivery partner").trim().toLowerCase();
+export function getDeliveryOptionInfo(
+  deliveryNoteOrOrder?: string | Record<string, any> | null,
+  fallbackOption?: string | null,
+): DeliveryOptionInfo {
+  let note: string | null = null;
+  let fallback: string | null = fallbackOption ?? null;
+
+  if (deliveryNoteOrOrder && typeof deliveryNoteOrOrder === "object") {
+    const o = deliveryNoteOrOrder;
+    if (o.is_self_pickup === true || o.master_order?.is_self_pickup === true) {
+      note = "self_pickup";
+    } else {
+      note =
+        o.delivery_option ||
+        o.delivery_type ||
+        o.master_order?.delivery_option ||
+        o.master_order?.delivery_type ||
+        o.delivery_slot ||
+        o.delivery_note ||
+        null;
+    }
+  } else if (typeof deliveryNoteOrOrder === "string") {
+    note = deliveryNoteOrOrder;
+  }
+
+  const raw = String(note || fallback || "Delivery partner").trim().toLowerCase();
 
   if (raw.includes("booking") || raw.includes("advance")) {
     return {
@@ -200,7 +224,12 @@ export function getDeliveryOptionInfo(deliveryNote?: string | null, fallbackOpti
     };
   }
 
-  if (raw.includes("self") || raw.includes("pickup") || raw.includes("takeaway")) {
+  if (
+    raw.includes("self") ||
+    raw.includes("pickup") ||
+    raw.includes("takeaway") ||
+    raw.includes("store_collect")
+  ) {
     return {
       id: "self_pickup",
       label: "Self Pickup (Takeaway)",

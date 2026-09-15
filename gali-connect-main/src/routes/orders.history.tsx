@@ -131,7 +131,7 @@ function OrderHistoryPage() {
           ) : (
             <div className="space-y-4">
               {orders.map((o: any) => {
-                const dInfo = getDeliveryOptionInfo(o.delivery_option || o.delivery_slot || o.delivery_note);
+                const dInfo = getDeliveryOptionInfo(o);
                 const pInfo = getPaymentMethodInfo(
                   o.payment_method,
                   o.payment_status,
