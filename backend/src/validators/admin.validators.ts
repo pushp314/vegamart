@@ -184,9 +184,13 @@ export const settingsUpdateSchema = z
     "platform.vendor_wallet_enabled": z.boolean().optional(),
     "platform.vendor_payout_mode": z.string().trim().max(50).optional(),
     "platform.vendor_min_withdrawal_amount": z.coerce.number().min(0).optional(),
-    "platform.checkout_charges": z.coerce.number().min(0).optional(),
+    "platform.checkout_charges": z.union([z.string(), z.number()]).optional(),
     "platform.customer_fees_config": z.string().trim().optional(),
     "platform.max_stores_per_order": z.coerce.number().int().min(1).max(50).optional(),
+    "platform.upi_id": z.string().trim().max(100).optional().nullable(),
+    "platform.commission_rate": z.coerce.number().min(0).max(100).optional(),
+    "platform.base_delivery_fee": z.coerce.number().min(0).optional(),
+    "platform.per_km_fee": z.coerce.number().min(0).optional(),
   })
   .passthrough()
   .refine((data) => Object.keys(data).length > 0, {
