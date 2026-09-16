@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -174,6 +175,20 @@ export function AdminOrders() {
   });
 
   const detail: Order | null = detailRes?.data || selectedOrder;
+  const queryClient = useQueryClient();
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
+      api.patch(`/admin/orders/${orderId}/status`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminOrders"] });
+      queryClient.invalidateQueries({ queryKey: ["adminOrderDetail"] });
+      toast.success("Order status updated successfully!");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update order status");
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -522,7 +537,7 @@ export function AdminOrders() {
                 <div className="space-y-6 pt-2">
                   {/* Status Lifecycle Track */}
                   <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <ModalSIcon className="h-4 w-4 text-emerald-600" />
                         <span className="text-xs font-bold text-foreground">
@@ -535,24 +550,90 @@ export function AdminOrders() {
                       <span className="text-[11px] text-muted-foreground">{modalSInfo.desc}</span>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-2 pt-1">
-                      {modalSteps.map((st, sIdx) => (
-                        <div
+                    {/* Interactive Stage Action Buttons */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                      {modalSteps.map((st) => (
+                        <button
                           key={st.key}
-                          className={`rounded-xl border p-2 text-center text-[10px] font-bold transition-all ${
+                          type="button"
+                          disabled={updateStatusMutation.isPending}
+                          onClick={() => {
+                            if (detail?.id) {
+                              updateStatusMutation.mutate({
+                                orderId: detail.id,
+                                status: st.key,
+                              });
+                            }
+                          }}
+                          className={`rounded-xl border p-2.5 text-center text-xs font-bold transition-all cursor-pointer hover:shadow-md active:scale-95 flex items-center justify-center gap-1.5 ${
                             st.done
-                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
-                              : "bg-muted/40 border-border text-muted-foreground"
+                              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                              : "bg-muted/50 border-border text-muted-foreground hover:border-emerald-500/50 hover:text-foreground"
                           }`}
                         >
-                          <div className="flex items-center justify-center gap-1">
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${st.done ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
-                            />
-                            <span className="truncate">{st.label}</span>
-                          </div>
-                        </div>
+                          <span
+                            className={`h-2 w-2 rounded-full shrink-0 ${st.done ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+                          />
+                          <span className="truncate">{st.label}</span>
+                        </button>
                       ))}
+                    </div>
+
+                    {/* Quick Admin Actions Row */}
+                    <div className="pt-2 border-t flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Admin Force Actions:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs font-bold border-blue-200 text-blue-700 hover:bg-blue-50"
+                          disabled={updateStatusMutation.isPending}
+                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "CONFIRMED" })}
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                          disabled={updateStatusMutation.isPending}
+                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "PREPARING" })}
+                        >
+                          Preparing
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs font-bold border-amber-200 text-amber-700 hover:bg-amber-50"
+                          disabled={updateStatusMutation.isPending}
+                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "OUT_FOR_DELIVERY" })}
+                        >
+                          Out for Delivery
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
+                          disabled={updateStatusMutation.isPending}
+                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "DELIVERED" })}
+                        >
+                          ✓ Force Deliver
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs font-bold border-rose-200 text-rose-700 hover:bg-rose-50"
+                          disabled={updateStatusMutation.isPending}
+                          onClick={() => {
+                            if (detail?.id && confirm("Are you sure you want to cancel this order as admin?")) {
+                              updateStatusMutation.mutate({ orderId: detail.id, status: "CANCELLED" });
+                            }
+                          }}
+                        >
+                          Cancel Order
+                        </Button>
+                      </div>
                     </div>
                   </div>
 

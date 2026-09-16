@@ -801,8 +801,9 @@ export const checkoutService = {
       const effectiveDeliveryFee = summary.is_consolidated_delivery
         ? (idx === 0 ? summary.delivery_fee : 0)
         : group.delivery_fee;
-      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax) * 100) / 100;
-      return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
+      const groupPlatformFee = idx === 0 ? Number(summary.platform_fee || 0) : 0;
+      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax + groupPlatformFee) * 100) / 100;
+      return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, groupPlatformFee, orderNumber: generateOrderNumber() };
     });
 
     // Read each vendor's daily order limit before the transaction. A slightly

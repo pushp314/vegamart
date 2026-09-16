@@ -255,6 +255,13 @@ export const detailSelect = {
   },
   master_order: {
     select: {
+      id: true,
+      order_number: true,
+      total_amount: true,
+      delivery_fee: true,
+      tax: true,
+      platform_fee: true,
+      additional_charges: true,
       _count: {
         select: { orders: true }
       }

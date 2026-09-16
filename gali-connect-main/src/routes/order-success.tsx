@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
-import { CheckCircle2, Package, MapPin, Store, Bike, Calendar, User, Banknote } from "lucide-react";
+import { CheckCircle2, Package, MapPin, Store, Bike, Calendar, User, Banknote, Copy, Check, KeyRound } from "lucide-react";
 import { OrderTracker } from "@/components/marketplace/order-tracker";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getDeliveryOptionInfo, getPaymentMethodInfo } from "@/lib/order-helpers";
+import { toast } from "sonner";
+import { useState } from "react";
 
 export const Route = createFileRoute("/order-success")({
   head: () => ({ meta: [{ title: "Order placed — Vegamart" }] }),
@@ -15,6 +17,7 @@ export const Route = createFileRoute("/order-success")({
 
 function OrderSuccess() {
   const { orderId } = useSearch({ from: "/order-success" });
+  const [copiedOtp, setCopiedOtp] = useState(false);
 
   const { data: orderRes } = useQuery({
     queryKey: ["order", orderId],
@@ -31,6 +34,7 @@ function OrderSuccess() {
     ? `${order.address.full_address}${order.address.landmark ? `, ${order.address.landmark}` : ""}`
     : "Your delivery address";
   const orderStatus = String(order?.status || "pending").toLowerCase();
+  const otpCode = order?.otp_code || order?.delivery_otp;
 
   const dInfo = getDeliveryOptionInfo(order);
   const pInfo = getPaymentMethodInfo(
@@ -64,6 +68,36 @@ function OrderSuccess() {
 
         {/* Live Order Tracker */}
         <OrderTracker status={orderStatus} />
+
+        {/* Delivery OTP Card */}
+        {otpCode && (
+          <div className="rounded-3xl border border-rose-500/30 bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-rose-500/5 p-4 shadow-soft text-left flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 font-bold text-rose-600 text-xs">
+                <KeyRound className="h-4 w-4" /> Secure Delivery OTP
+              </div>
+              <div className="text-2xl font-black font-mono tracking-[0.2em] text-foreground">
+                {otpCode}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Share this 6-digit OTP with your delivery partner or store counter upon receiving items.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(String(otpCode));
+                setCopiedOtp(true);
+                toast.success("Delivery OTP copied to clipboard!");
+                setTimeout(() => setCopiedOtp(false), 2500);
+              }}
+              className="px-3.5 py-2 rounded-xl bg-card border shadow-xs text-xs font-bold shrink-0 hover:bg-muted transition-colors flex items-center gap-1 text-foreground"
+            >
+              {copiedOtp ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4 text-muted-foreground" />}
+              {copiedOtp ? "Copied" : "Copy"}
+            </button>
+          </div>
+        )}
 
         <div className="rounded-3xl bg-card border shadow-soft overflow-hidden text-left divide-y text-xs">
           <div className="flex items-center justify-between p-3.5">

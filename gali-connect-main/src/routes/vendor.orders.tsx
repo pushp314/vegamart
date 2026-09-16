@@ -385,10 +385,31 @@ function VendorOrdersPage() {
             const nextStatuses = getNextStatuses(o.status, o);
             const dInfo = getDeliveryOptionInfo(o);
             const sInfo = getOrderStatusInfo(o.status);
+
+            const itemsSubtotalVal = Number(o.items_subtotal || 0);
+            const deliveryFeeVal = Number(o.delivery_fee || o.master_order?.delivery_fee || 0);
+            const taxVal = Number(o.tax || o.master_order?.tax || 0);
+            const discountVal = Number(o.discount || 0);
+            const platformFeeVal = Number(o.platform_fee || o.master_order?.platform_fee || 0);
+            const additionalChargesArr: any[] = Array.isArray(o.additional_charges)
+              ? o.additional_charges
+              : Array.isArray(o.master_order?.additional_charges)
+                ? o.master_order.additional_charges
+                : [];
+            const additionalChargesSum = additionalChargesArr.reduce(
+              (acc: number, ch: any) => acc + Number(ch.amount || 0),
+              0,
+            );
+            const effectiveOrderTotal = Number(
+              o.total ||
+              o.master_order?.total_amount ||
+              (itemsSubtotalVal + deliveryFeeVal + taxVal + platformFeeVal + additionalChargesSum - discountVal),
+            );
+
             const pInfo = getPaymentMethodInfo(
               o.payment_method,
               o.payment_status,
-              Number(o.total || 0),
+              effectiveOrderTotal,
               dInfo.id === "self_pickup",
               o.payment?.amount != null ? Number(o.payment.amount) : null,
             );
@@ -728,32 +749,42 @@ function VendorOrdersPage() {
                     <div className="bg-muted/10 p-3 space-y-1.5 border-t border-border/50 text-xs">
                       <div className="flex justify-between text-muted-foreground">
                         <span>Accepted Items Subtotal</span>
-                        <span>
-                          ₹{Number(o.items_subtotal || o.total || 0).toLocaleString("en-IN")}
-                        </span>
+                        <span>₹{itemsSubtotalVal.toLocaleString("en-IN")}</span>
                       </div>
-                      {Number(o.delivery_fee) > 0 && (
+                      {deliveryFeeVal > 0 && (
                         <div className="flex justify-between text-muted-foreground">
                           <span>Delivery Fee</span>
-                          <span>+ ₹{Number(o.delivery_fee).toLocaleString("en-IN")}</span>
+                          <span>+ ₹{deliveryFeeVal.toLocaleString("en-IN")}</span>
                         </div>
                       )}
-                      {Number(o.tax) > 0 && (
+                      {platformFeeVal > 0 && (
                         <div className="flex justify-between text-muted-foreground">
-                          <span>Taxes</span>
-                          <span>+ ₹{Number(o.tax).toLocaleString("en-IN")}</span>
+                          <span>Platform / Handling Fee</span>
+                          <span>+ ₹{platformFeeVal.toLocaleString("en-IN")}</span>
                         </div>
                       )}
-                      {Number(o.discount) > 0 && (
+                      {additionalChargesArr.map((ch: any, idx: number) => (
+                        <div key={idx} className="flex justify-between text-muted-foreground">
+                          <span>{ch.name || ch.title || "Extra Charge"}</span>
+                          <span>+ ₹{Number(ch.amount || 0).toLocaleString("en-IN")}</span>
+                        </div>
+                      ))}
+                      {taxVal > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Taxes / GST</span>
+                          <span>+ ₹{taxVal.toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {discountVal > 0 && (
                         <div className="flex justify-between text-emerald-600 font-medium">
                           <span>Discount</span>
-                          <span>- ₹{Number(o.discount).toLocaleString("en-IN")}</span>
+                          <span>- ₹{discountVal.toLocaleString("en-IN")}</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-bold text-foreground pt-1 border-t border-border/50 mt-1">
+                      <div className="flex justify-between font-bold text-foreground pt-1.5 border-t border-border/50 mt-1 text-sm">
                         <span>Total Payable / Paid</span>
                         <span className="text-emerald-600">
-                          ₹{Number(o.total || 0).toLocaleString("en-IN")}
+                          ₹{effectiveOrderTotal.toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>

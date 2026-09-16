@@ -9,7 +9,6 @@ import { HttpStatus } from "../utils/httpStatus";
 import { parseDateParam } from "../utils/time";
 import * as orderRepo from "../repositories/order.repository";
 import {
-  assertOrderTransition,
   cancelOrderLifecycle,
   refundOrderLifecycle,
 } from "./order-lifecycle.service";
@@ -519,63 +518,104 @@ export const adminOrderService = {
     reason: string | null,
     req: Request
   ) {
-    const order = await prisma.order.findFirst({
-      where: { id: orderId, deleted_at: null },
+    let subOrders = await prisma.order.findMany({
+      where: {
+        OR: [{ id: orderId }, { master_order_id: orderId }],
+        deleted_at: null,
+      },
     });
-    if (!order) {
+
+    if (subOrders.length === 0) {
+      const masterOrder = await prisma.masterOrder.findUnique({
+        where: { id: orderId },
+        include: { orders: { where: { deleted_at: null } } },
+      });
+      if (masterOrder && masterOrder.orders.length > 0) {
+        subOrders = masterOrder.orders;
+      }
+    }
+
+    if (subOrders.length === 0) {
       throw new NotFoundError("Order not found.");
     }
-    const mappedStatus = status.toUpperCase();
-    if (order.status === mappedStatus) {
-      return order as unknown as orderRepo.OrderRow;
-    }
-    assertOrderTransition(order.status, mappedStatus);
 
-    let updated: orderRepo.OrderRow;
-    if (mappedStatus === "CANCELLED") {
-      const detail = await orderRepo.findById(orderId);
-      if (!detail) {
-        throw new NotFoundError("Order not found.");
+    const STATUS_MAP: Record<string, string> = {
+      pending: "PENDING",
+      booked: "PENDING",
+      booking: "PENDING",
+      confirmed: "CONFIRMED",
+      accepted: "CONFIRMED",
+      preparing: "PREPARING",
+      packed: "PACKED",
+      ready_for_pickup: "READY_FOR_PICKUP",
+      out_for_delivery: "OUT_FOR_DELIVERY",
+      delivered: "DELIVERED",
+      cancelled: "CANCELLED",
+      refunded: "REFUNDED",
+    };
+
+    const mappedStatus = STATUS_MAP[status.toLowerCase()] || status.toUpperCase();
+
+    let lastUpdated: any = null;
+    for (const order of subOrders) {
+      if (order.status === mappedStatus) {
+        lastUpdated = order;
+        continue;
       }
-      updated = await cancelOrderLifecycle({
-        order: detail,
-        reason,
-        actorType: "admin",
-        actorId: adminUserId,
-        req,
-      });
-    } else if (mappedStatus === "REFUNDED") {
-      const detail = await orderRepo.findById(orderId);
-      if (!detail) {
-        throw new NotFoundError("Order not found.");
+
+      if (mappedStatus === "CANCELLED") {
+        const detail = await orderRepo.findById(order.id);
+        if (detail) {
+          lastUpdated = await cancelOrderLifecycle({
+            order: detail,
+            reason: reason ?? "Cancelled by admin",
+            actorType: "admin",
+            actorId: adminUserId,
+            req,
+          });
+        }
+      } else if (mappedStatus === "REFUNDED") {
+        const detail = await orderRepo.findById(order.id);
+        if (detail) {
+          lastUpdated = await refundOrderLifecycle({
+            order: detail,
+            reason: reason ?? "Refunded by admin",
+            actorType: "admin",
+            actorId: adminUserId,
+            req,
+          });
+        }
+      } else if (mappedStatus === "DELIVERED") {
+        lastUpdated = await completeDelivery({
+          orderId: order.id,
+          otp: "",
+          allowedStates: ["PENDING", "CONFIRMED", "PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"],
+          note: reason ?? "Order marked as delivered by admin.",
+          actorType: "admin",
+          actorId: adminUserId,
+          skipOtp: true,
+        });
+      } else {
+        lastUpdated = await orderRepo.updateOrderStatus(order.id, {
+          status: mappedStatus,
+          note: reason ?? `Admin updated status to ${mappedStatus}.`,
+          actorType: "admin",
+          actorId: adminUserId,
+        });
       }
-      updated = await refundOrderLifecycle({
-        order: detail,
-        reason,
-        actorType: "admin",
-        actorId: adminUserId,
-        req,
-      });
-    } else if (mappedStatus === "DELIVERED") {
-      updated = await completeDelivery({
-        orderId,
-        otp: "",
-        allowedStates: ["READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"],
-        note: reason ?? "Order marked as delivered by admin.",
-        actorType: "admin",
-        actorId: adminUserId,
-        skipOtp: true,
-      });
-    } else {
-      updated = await orderRepo.updateOrderStatus(orderId, {
-        status: mappedStatus,
-        note: reason ?? `Admin updated status to ${status}.`,
-        actorType: "admin",
-        actorId: adminUserId,
-      });
     }
 
-    return updated;
+    const masterId = subOrders[0]?.master_order_id || (subOrders[0]?.id === orderId ? null : orderId);
+    if (masterId) {
+      try {
+        await prisma.masterOrder.update({
+          where: { id: masterId },
+          data: { status: mappedStatus as any },
+        });
+      } catch (e) {}
+    }
+
+    return lastUpdated || subOrders[0];
   },
 
   async bypassSubOrder(
