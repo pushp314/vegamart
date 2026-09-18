@@ -9,6 +9,7 @@ import { HttpStatus } from "../utils/httpStatus";
 import { parseDateParam } from "../utils/time";
 import * as orderRepo from "../repositories/order.repository";
 import {
+  assertOrderTransition,
   cancelOrderLifecycle,
   refundOrderLifecycle,
 } from "./order-lifecycle.service";
@@ -518,20 +519,27 @@ export const adminOrderService = {
     reason: string | null,
     req: Request
   ) {
-    let subOrders = await prisma.order.findMany({
+    let subOrders = (await prisma.order.findMany({
       where: {
         OR: [{ id: orderId }, { master_order_id: orderId }],
         deleted_at: null,
       },
-    });
+    })) || [];
 
     if (subOrders.length === 0) {
       const masterOrder = await prisma.masterOrder.findUnique({
         where: { id: orderId },
         include: { orders: { where: { deleted_at: null } } },
       });
-      if (masterOrder && masterOrder.orders.length > 0) {
+      if (masterOrder && masterOrder.orders && masterOrder.orders.length > 0) {
         subOrders = masterOrder.orders;
+      } else {
+        const singleOrder = await prisma.order.findUnique({
+          where: { id: orderId, deleted_at: null },
+        });
+        if (singleOrder) {
+          subOrders = [singleOrder];
+        }
       }
     }
 
@@ -562,6 +570,8 @@ export const adminOrderService = {
         lastUpdated = order;
         continue;
       }
+
+      assertOrderTransition(order.status, mappedStatus);
 
       if (mappedStatus === "CANCELLED") {
         const detail = await orderRepo.findById(order.id);

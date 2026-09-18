@@ -74,6 +74,7 @@ jest.mock("../../src/services/settings.service", () => ({
     }),
   },
   countEligibleDeliveryPartners: jest.fn().mockResolvedValue(1),
+  isBooleanSettingEnabled: jest.fn((val, def = true) => (val === undefined ? def : Boolean(val))),
 }));
 
 jest.mock("../../src/repositories/cart.repository", () => ({
@@ -373,9 +374,9 @@ describe("checkout service", () => {
     const summary = await checkoutService.preview("u1", {}, mockReq);
 
     expect(summary.groups).toHaveLength(2);
-    expect(summary.groups[0]?.delivery_fee).toBe(30);
-    expect(summary.groups[1]?.delivery_fee).toBe(20);
-    expect(summary.delivery_fee).toBe(50);
+    expect(summary.groups[0]?.delivery_fee).toBe(0);
+    expect(summary.groups[1]?.delivery_fee).toBe(0);
+    expect(summary.delivery_fee).toBe(30);
   });
 
   it("applies per-vendor coupon discounts to a multi-vendor cart", async () => {

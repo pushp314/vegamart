@@ -86,6 +86,7 @@ function VendorProductsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageUploadRef = useRef<HTMLInputElement>(null);
   const replaceUploadRef = useRef<HTMLInputElement>(null);
+  const baseUnitInputRef = useRef<HTMLInputElement>(null);
 
   // Form Fields
   const [prodName, setProdName] = useState("");
@@ -1003,19 +1004,36 @@ function VendorProductsPage() {
               {/* Unit & Stock */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <label
+                    htmlFor="prod-base-unit"
+                    className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between cursor-pointer"
+                  >
                     <span>Base Unit *</span>
                     <span className="text-[10px] text-muted-foreground font-normal">
                       e.g. 1 pc, 1 pack, 1 kg
                     </span>
                   </label>
                   <input
+                    id="prod-base-unit"
+                    ref={baseUnitInputRef}
+                    name="unit"
                     type="text"
+                    autoComplete="off"
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
+                    onFocus={(e) => {
+                      if (e.target.value === "1 pc") {
+                        e.target.select();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                      }
+                    }}
                     placeholder="e.g. 1 pc, 1 pack, 1 kg, 1 L"
                     required
-                    className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-2xl border border-border bg-muted/50 px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-text"
                   />
                   {/* Quick Unit Presets */}
                   <div className="flex flex-wrap gap-1 pt-0.5">
@@ -1035,8 +1053,11 @@ function VendorProductsPage() {
                       <button
                         key={u}
                         type="button"
-                        onClick={() => setProdUnit(u)}
-                        className={`text-[10px] px-2 py-0.5 rounded-lg border transition-all ${
+                        onClick={() => {
+                          setProdUnit(u);
+                          baseUnitInputRef.current?.focus();
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
                           prodUnit === u
                             ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
                             : "bg-muted/60 text-muted-foreground border-border hover:bg-muted hover:text-foreground"

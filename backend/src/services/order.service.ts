@@ -14,7 +14,7 @@ import {
 } from "./order-lifecycle.service";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
-import { completeDelivery, VENDOR_DELIVERY_STATES } from "./order-delivery.service";
+import { completeDelivery, VENDOR_DELIVERY_STATES, verifyDeliveryOtp } from "./order-delivery.service";
 import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 
@@ -144,7 +144,11 @@ export const orderService = {
       (page - 1) * perPage,
       perPage
     );
-    return { rows, total, page, perPage };
+    const sanitizedRows = rows.map((r: any) => {
+      const { otp_code, otp_expires_at, otp_attempts, ...rest } = r;
+      return rest;
+    });
+    return { rows: sanitizedRows, total, page, perPage };
   },
 
   async getOrderForUser(userId: string, orderId: string): Promise<any> {
@@ -287,7 +291,8 @@ export const orderService = {
     if (order.vendor_id !== vendor.id) {
       throw new ForbiddenError("You do not own this order.");
     }
-    return order;
+    const { otp_code, otp_expires_at, otp_attempts, ...sanitized } = order as any;
+    return sanitized as orderRepo.OrderDetail;
   },
 
   async cancelOrder(userId: string, orderId: string, input: { reason?: string }, req: Request): Promise<any> {
@@ -435,10 +440,13 @@ export const orderService = {
       throw new ForbiddenError("You do not own this order.");
     }
 
-    // Restrict vendor from completing delivery for multi-store routes
+    // Restrict vendor from completing delivery for multi-store routes or if a delivery partner is assigned
     if (["OUT_FOR_DELIVERY", "DELIVERED"].includes(input.status)) {
       if (order.master_order?._count?.orders && order.master_order._count.orders > 1) {
         throw new ForbiddenError("Delivery partner handles final delivery for multi-store routes.");
+      }
+      if (order.delivery_partner_id || (order as any).master_order?.delivery_partner_id) {
+        throw new ForbiddenError("A delivery partner is assigned to deliver this order.");
       }
     }
 
@@ -490,15 +498,41 @@ export const orderService = {
 
     let updated: orderRepo.OrderRow;
     if (input.status === "DELIVERED") {
+      const otp = (input.otp_code ?? "").trim();
+      if (!otp || !/^\d{6}$/.test(otp)) {
+        throw new ApiError(HttpStatus.BAD_REQUEST, "Delivery OTP must be exactly 6 digits.", { code: "INVALID_OTP" });
+      }
+
+      await verifyDeliveryOtp(order, otp, VENDOR_DELIVERY_STATES);
+
       updated = await completeDelivery({
         orderId: order.id,
-        otp: input.otp_code ?? "",
-        skipOtp: true,
+        otp,
+        skipOtp: false,
         allowedStates: VENDOR_DELIVERY_STATES,
         note: input.note ?? "Order delivered by vendor.",
         actorType: "vendor",
         actorId: userId,
       });
+
+      if (order.master_order_id) {
+        const remainingActive = await prisma.order.count({
+          where: {
+            master_order_id: order.master_order_id,
+            status: { notIn: ["DELIVERED", "CANCELLED", "FAILED"] },
+          },
+        }).catch(() => 0);
+        if (remainingActive === 0) {
+          await prisma.masterOrder.update({
+            where: { id: order.master_order_id },
+            data: { status: "DELIVERED", payment_status: "PAID" },
+          }).catch(() => {});
+          await prisma.payment.updateMany({
+            where: { master_order_id: order.master_order_id, status: "PENDING" },
+            data: { status: "PAID" },
+          }).catch(() => {});
+        }
+      }
     } else {
       updated = await orderRepo.updateOrderStatus(order.id, {
         status: input.status,

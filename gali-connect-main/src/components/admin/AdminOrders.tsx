@@ -550,32 +550,22 @@ export function AdminOrders() {
                       <span className="text-[11px] text-muted-foreground">{modalSInfo.desc}</span>
                     </div>
 
-                    {/* Interactive Stage Action Buttons */}
+                    {/* Stage Track Indicators */}
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
                       {modalSteps.map((st) => (
-                        <button
+                        <div
                           key={st.key}
-                          type="button"
-                          disabled={updateStatusMutation.isPending}
-                          onClick={() => {
-                            if (detail?.id) {
-                              updateStatusMutation.mutate({
-                                orderId: detail.id,
-                                status: st.key,
-                              });
-                            }
-                          }}
-                          className={`rounded-xl border p-2.5 text-center text-xs font-bold transition-all cursor-pointer hover:shadow-md active:scale-95 flex items-center justify-center gap-1.5 ${
+                          className={`rounded-xl border p-2.5 text-center text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                             st.done
-                              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
-                              : "bg-muted/50 border-border text-muted-foreground hover:border-emerald-500/50 hover:text-foreground"
+                              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                              : "bg-muted/50 border-border text-muted-foreground"
                           }`}
                         >
                           <span
                             className={`h-2 w-2 rounded-full shrink-0 ${st.done ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
                           />
                           <span className="truncate">{st.label}</span>
-                        </button>
+                        </div>
                       ))}
                     </div>
 
@@ -616,7 +606,11 @@ export function AdminOrders() {
                           size="sm"
                           className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
                           disabled={updateStatusMutation.isPending}
-                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "DELIVERED" })}
+                          onClick={() => {
+                            if (detail?.id && window.confirm("Are you sure you want to FORCE DELIVER this order without customer OTP verification? This action will mark all items delivered and process payouts.")) {
+                              updateStatusMutation.mutate({ orderId: detail.id, status: "DELIVERED" });
+                            }
+                          }}
                         >
                           ✓ Force Deliver
                         </Button>

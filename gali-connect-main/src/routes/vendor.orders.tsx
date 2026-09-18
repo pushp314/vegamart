@@ -21,6 +21,8 @@ import {
   MapPin,
   ExternalLink,
   Sparkles,
+  KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Dialog,
@@ -52,6 +54,8 @@ function VendorOrdersPage() {
   const { highlight } = useSearch({ from: "/vendor/orders" });
   const queryClient = useQueryClient();
   const [rejectTarget, setRejectTarget] = useState<{ orderId: string; item: any } | null>(null);
+  const [otpTarget, setOtpTarget] = useState<any | null>(null);
+  const [otpInput, setOtpInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState(highlight || "");
 
@@ -159,9 +163,11 @@ function VendorOrdersPage() {
     mutationFn: ({
       orderId,
       status,
+      otpCode,
     }: {
       orderId: string;
       status: string;
+      otpCode?: string;
     }) => {
       const VENDOR_ORDER_STATUS_MAP: Record<string, string> = {
         accepted: "CONFIRMED",
@@ -173,9 +179,12 @@ function VendorOrdersPage() {
       };
       return api.patch(`/vendors/orders/${orderId}/status`, {
         status: VENDOR_ORDER_STATUS_MAP[status] || status,
+        otp_code: otpCode,
       });
     },
     onSuccess: () => {
+      setOtpTarget(null);
+      setOtpInput("");
       queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
       toast.success("Order status updated successfully");
     },
@@ -372,8 +381,14 @@ function VendorOrdersPage() {
                 };
 
               let available = statusFlow[currentStatus?.toUpperCase()] || [];
-              if (orderData?.master_order?._count?.orders > 1) {
-                // If it's a multi-store route, the vendor cannot handle the final delivery themselves
+              const isMultiStore = Boolean(orderData?.master_order?._count?.orders && orderData.master_order._count.orders > 1);
+              const hasAssignedDeliveryPartner = Boolean(
+                orderData?.delivery_partner_id ||
+                orderData?.delivery_partner ||
+                orderData?.master_order?.delivery_partner_id
+              );
+              if (isMultiStore || hasAssignedDeliveryPartner) {
+                // If it's a multi-store route or a delivery partner is assigned, the delivery partner handles final delivery
                 available = available.filter(
                   (s) => s.status !== "delivered" && s.status !== "out_for_delivery",
                 );
@@ -811,6 +826,9 @@ function VendorOrdersPage() {
                                   status: ns.status,
                                 });
                               }
+                            } else if (ns.status === "delivered") {
+                              setOtpTarget(o);
+                              setOtpInput("");
                             } else {
                               updateOrderStatusMutation.mutate({
                                 orderId: o.id,
@@ -847,6 +865,80 @@ function VendorOrdersPage() {
       )}
 
 
+
+      {/* Delivery OTP Verification Dialog */}
+      <Dialog open={!!otpTarget} onOpenChange={(open) => {
+        if (!open) {
+          setOtpTarget(null);
+          setOtpInput("");
+        }
+      }}>
+        <DialogContent className="rounded-3xl border-border max-w-sm">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 mb-1">
+              <KeyRound className="h-6 w-6" />
+            </div>
+            <DialogTitle className="font-display text-center text-lg font-black text-foreground">
+              Verify Delivery OTP
+            </DialogTitle>
+            <DialogDescription className="text-xs text-center leading-relaxed">
+              Ask the customer for the 6-digit verification code shown on their live tracking screen to complete handover of order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <input
+              type="text"
+              maxLength={6}
+              autoFocus
+              value={otpInput}
+              onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="000000"
+              className="w-full text-center text-4xl tracking-[0.25em] rounded-2xl border border-border bg-muted/40 py-4 font-display font-black text-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all placeholder:text-muted-foreground/30"
+            />
+            <div className="rounded-xl bg-muted/40 border border-border/50 p-2.5 text-center">
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                🔒 Delivery can only be completed with the customer's OTP to ensure proof of delivery.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setOtpTarget(null);
+                  setOtpInput("");
+                }}
+                className="flex-1 rounded-2xl border border-border py-3 text-xs font-bold hover:bg-muted/50 transition-colors"
+                disabled={updateOrderStatusMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (otpInput.length !== 6) {
+                    toast.error("Please enter a valid 6-digit OTP");
+                    return;
+                  }
+                  updateOrderStatusMutation.mutate({
+                    orderId: otpTarget.id,
+                    status: "delivered",
+                    otpCode: otpInput,
+                  });
+                }}
+                disabled={updateOrderStatusMutation.isPending || otpInput.length !== 6}
+                className="flex-1 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white py-3 text-xs font-bold shadow-md disabled:opacity-50 transition-all inline-flex items-center justify-center gap-1.5"
+              >
+                {updateOrderStatusMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
+                Verify & Deliver
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Reject Item Confirmation Dialog */}
       <Dialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
