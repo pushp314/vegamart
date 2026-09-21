@@ -263,6 +263,25 @@ export const paymentService = {
       await cacheService.set("webhook", dedupeKey, true, env.CACHE_TTL_SECONDS_DEFAULT * 60);
     }
 
+    if (event === "payment_link.paid") {
+      const plinkEntity = (payload.payload as any)?.payment_link?.entity;
+      const rzpOrderId = plinkEntity?.order_id || paymentEntity?.order_id;
+      if (rzpOrderId) {
+        const payment = await paymentRepo.findByRazorpayOrderId(rzpOrderId);
+        if (payment && payment.status !== "PAID") {
+          const simulatedEntity = {
+            id: paymentEntity?.id || `plink_pay_${Date.now()}`,
+            order_id: rzpOrderId,
+            amount: plinkEntity?.amount || payment.amount.toNumber() * 100,
+            currency: "INR",
+            status: "captured",
+            method: "upi",
+          };
+          await this.handlePaymentCaptured(simulatedEntity as never);
+        }
+      }
+    }
+
     await auditService.record(
       { actorType: "system", action: AUDIT_ACTIONS.PAYMENT_VERIFIED, entityType: "webhook", newValues: { event } },
       req
@@ -595,6 +614,139 @@ export const paymentService = {
       currency: "INR",
       razorpay_order_id: gatewayOrder.id,
       key: env.RAZORPAY_KEY_ID || "",
+    };
+  },
+
+  async generateDynamicOrderQr(userId: string, orderId: string, _req: Request) {
+    const { order, isMasterOrder, userIdOwner, paymentStatus, orderNumber, orderTotal } = await this.resolveOrderContext(orderId);
+    const isOwner = userIdOwner === userId;
+    const isAssignedDelivery = _req.user?.role === "delivery";
+    if (!isOwner && !isAssignedDelivery && _req.user?.role !== "admin") {
+      throw new ApiError(HttpStatus.FORBIDDEN, "You are not authorized for this order.", { code: "FORBIDDEN" });
+    }
+    if (paymentStatus === "PAID") {
+      return {
+        already_paid: true,
+        order_id: order.id,
+        order_number: orderNumber,
+        status: "PAID",
+      };
+    }
+
+    const existingPayment = isMasterOrder 
+      ? await paymentRepo.findByMasterOrderId(order.id)
+      : await paymentRepo.findByOrderId(order.id);
+
+    const advAmount = Number((order as any).advance_paid ?? existingPayment?.amount ?? 0);
+    const totAmount = Number(orderTotal || 0);
+    const isCod = String(order.payment_method || "").toUpperCase() === "COD";
+    const isPartialAdvance = !isCod && paymentStatus === "PAID" && advAmount > 0 && advAmount < totAmount;
+    const amountToCharge = isPartialAdvance ? Math.max(0, totAmount - advAmount) : totAmount;
+    const amountPaise = Math.max(100, Math.round(amountToCharge * 100));
+
+    let paymentLink: any = null;
+    if (razorpayGateway.isConfigured()) {
+      try {
+        paymentLink = await razorpayGateway.createPaymentLink({
+          amountPaise,
+          currency: "INR",
+          description: `Vegamart Order #${orderNumber}`,
+          reference_id: `ord_${order.id.replace(/-/g, "").substring(0, 16)}_${Date.now()}`,
+          notes: {
+            order_id: order.id,
+            order_number: String(orderNumber),
+            is_master: isMasterOrder ? "true" : "false",
+          },
+          customer: {
+            name: (order as any).customer?.name || "Customer",
+            contact: (order as any).customer?.phone || undefined,
+            email: (order as any).customer?.email || undefined,
+          },
+          upi_link: true,
+        });
+
+        if (paymentLink?.order_id) {
+          if (existingPayment) {
+            await paymentRepo.updatePayment(existingPayment.id, {
+              razorpay_order_id: paymentLink.order_id,
+              amount: amountToCharge as any,
+              method: "RAZORPAY" as never,
+              status: "PENDING",
+            });
+          } else {
+            await paymentRepo.createForOrder({
+              order_id: isMasterOrder ? undefined : order.id,
+              master_order_id: isMasterOrder ? order.id : undefined,
+              amount: amountToCharge,
+              method: "RAZORPAY",
+              razorpay_order_id: paymentLink.order_id,
+            });
+          }
+        }
+      } catch (err: any) {
+        log.warn(`[payments] Could not create dynamic Razorpay payment link: ${err?.message}`);
+      }
+    }
+
+    return {
+      order_id: order.id,
+      order_number: orderNumber,
+      amount: amountToCharge,
+      currency: "INR",
+      payment_link_id: paymentLink?.id || null,
+      short_url: paymentLink?.short_url || null,
+      razorpay_order_id: paymentLink?.order_id || null,
+      status: paymentLink?.status || "created",
+    };
+  },
+
+  async checkOrderPaymentStatus(_userId: string, orderId: string, _req: Request) {
+    const { order, isMasterOrder, paymentStatus, orderNumber, orderTotal } = await this.resolveOrderContext(orderId);
+    if (paymentStatus === "PAID") {
+      return {
+        paid: true,
+        payment_status: "PAID",
+        order_id: order.id,
+        order_number: orderNumber,
+        amount: orderTotal,
+      };
+    }
+
+    const existingPayment = isMasterOrder 
+      ? await paymentRepo.findByMasterOrderId(order.id)
+      : await paymentRepo.findByOrderId(order.id);
+
+    if (existingPayment?.razorpay_order_id && razorpayGateway.isConfigured()) {
+      try {
+        const rzpPayments = await razorpayGateway.fetchOrderPayments(existingPayment.razorpay_order_id);
+        const successful = rzpPayments?.items?.find((p: any) => p.status === "captured");
+        if (successful) {
+          await this.handlePaymentCaptured(successful as never);
+          return {
+            paid: true,
+            payment_status: "PAID",
+            order_id: order.id,
+            order_number: orderNumber,
+            amount: orderTotal,
+            razorpay_payment_id: successful.id,
+          };
+        }
+      } catch (err: any) {
+        log.debug(`[payments] Polling Razorpay order error: ${err?.message}`);
+      }
+    }
+
+    const freshOrder = isMasterOrder 
+      ? await findMasterOrderById(order.id)
+      : await findOrderById(order.id);
+
+    const isPaid = freshOrder?.payment_status === "PAID";
+    return {
+      paid: isPaid,
+      payment_status: freshOrder?.payment_status || paymentStatus,
+      order_id: order.id,
+      order_number: orderNumber,
+      amount: orderTotal,
     };
   },
 

@@ -29,7 +29,11 @@ import {
   Receipt,
   ChevronRight,
   QrCode,
+  Copy,
+  Check,
+  RefreshCw,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -179,20 +183,6 @@ function OrderItemsLine({ order }: { order: any }) {
   );
 }
 
-function loadRazorpay(): Promise<any> {
-  return new Promise((resolve) => {
-    if (typeof window !== "undefined" && (window as any).Razorpay) {
-      resolve((window as any).Razorpay);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve((window as any).Razorpay);
-    script.onerror = () => resolve(null);
-    document.body.appendChild(script);
-  });
-}
-
 export const Route = createFileRoute("/delivery")({
   component: DeliveryDashboard,
 });
@@ -238,8 +228,16 @@ function DeliveryDashboard() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsOrder, setDetailsOrder] = useState<any | null>(null);
   const [upiQrModalOrder, setUpiQrModalOrder] = useState<any | null>(null);
-  const [showLiveQrCode, setShowLiveQrCode] = useState(false);
-  const [isCollectingUpi, setIsCollectingUpi] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [dynamicQrLoading, setDynamicQrLoading] = useState(false);
+  const [dynamicQrData, setDynamicQrData] = useState<{
+    short_url?: string;
+    payment_link_id?: string;
+    amount?: number;
+    status?: string;
+    order_number?: string;
+  } | null>(null);
+  const [paymentCompletedSuccess, setPaymentCompletedSuccess] = useState(false);
 
   // Fetch Public Settings for UPI configuration
   const { data: publicSettingsRes } = useQuery({
@@ -267,7 +265,7 @@ function DeliveryDashboard() {
   });
 
   // Fetch My Active Deliveries
-  const { data: myDeliveriesRes } = useQuery({
+  const { data: myDeliveriesRes, refetch: refetchDeliveries } = useQuery({
     queryKey: ["myDeliveries"],
     queryFn: () => api.get<any[]>("/delivery/my-deliveries"),
     enabled: !!partner && partner.status?.toUpperCase() === "APPROVED",
@@ -394,82 +392,75 @@ function DeliveryDashboard() {
     confirmCashMutation.mutate(order.id);
   };
 
-  const handleCollectUpiPayment = async (orderToCollect: any) => {
-    if (!orderToCollect?.id) return;
-    setShowLiveQrCode(true);
-    setIsCollectingUpi(true);
-    try {
-      const RazorpayCtor = await loadRazorpay();
-      if (!RazorpayCtor) {
-        toast.info("Displaying Live UPI QR Code below for customer to scan.");
-        return;
-      }
-      const res = await api.post<any>(`/payments/${orderToCollect.id}/retry`, {});
-      if (!res.success || !res.data) {
-        toast.info("Displaying Live UPI QR Code below for customer to scan.");
-        return;
-      }
-      const retryData = res.data;
-      const amount = Number(retryData.amount || orderToCollect.total_amount || orderToCollect.total || 0);
-
-      const options = {
-        key: retryData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_xxxxxxxxxxxx",
-        amount: Math.round(amount * 100),
-        currency: retryData.currency || "INR",
-        name: "Vegamart",
-        description: `Order #${retryData.order_number || orderToCollect.order_number || orderToCollect.id}`,
-        order_id: retryData.razorpay_order_id,
-        upi: {
-          flow: "qr",
-        },
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: "UPI QR Code",
-                instruments: [{ method: "upi", flows: ["qr"] }],
-              },
-            },
-            sequence: ["block.upi"],
-          },
-        },
-        handler: async (response: any) => {
-          try {
-            const verifyRes = await api.post<any>("/payments/verify", {
-              razorpay_order_id: retryData.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            if (verifyRes?.success) {
-              toast.success("Payment collected and verified via UPI! 🎉");
-              setUpiQrModalOrder(null);
-              setShowLiveQrCode(false);
-              queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
-              queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
-            } else {
-              toast.error(verifyRes?.error?.message || "Payment verification failed. Please check with customer.");
-            }
-          } catch {
-            toast.error("Payment verification failed. Please try again.");
-          }
-        },
-        prefill: {
-          name: orderToCollect.customer?.name || "Customer",
-          email: orderToCollect.customer?.email || "",
-          contact: orderToCollect.customer?.phone || "9999999999",
-        },
-        theme: {
-          color: "#10b981",
-        },
-      };
-      const paymentObject = new RazorpayCtor(options);
-      paymentObject.open();
-    } catch {
-      toast.info("Displaying Live UPI QR Code below for customer to scan.");
-    } finally {
-      setIsCollectingUpi(false);
+  // Generate dynamic Razorpay payment link & QR whenever an order QR modal opens
+  useEffect(() => {
+    if (!upiQrModalOrder?.id) {
+      setDynamicQrData(null);
+      setPaymentCompletedSuccess(false);
+      setDynamicQrLoading(false);
+      return;
     }
-  };
+
+    const isAlreadyPaid = String(upiQrModalOrder.payment_status || "").toUpperCase() === "PAID";
+    if (isAlreadyPaid) {
+      setPaymentCompletedSuccess(true);
+      return;
+    }
+
+    let isMounted = true;
+    setDynamicQrLoading(true);
+
+    api
+      .post<any>(`/payments/${upiQrModalOrder.id}/dynamic-qr`, {})
+      .then((res) => {
+        if (isMounted && res.success && res.data) {
+          setDynamicQrData(res.data);
+          if (res.data.already_paid || res.data.status === "PAID") {
+            setPaymentCompletedSuccess(true);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("Razorpay dynamic link notice (using direct UPI fallback):", err);
+      })
+      .finally(() => {
+        if (isMounted) setDynamicQrLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [upiQrModalOrder?.id]);
+
+  // Live auto-verification: poll every 2.5 seconds to auto-detect payment completion
+  useEffect(() => {
+    if (!upiQrModalOrder?.id || paymentCompletedSuccess) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await api.get<any>(`/payments/${upiQrModalOrder.id}/status`);
+        if (res.success && res.data?.paid) {
+          clearInterval(pollInterval);
+          setPaymentCompletedSuccess(true);
+          toast.success("🎉 Payment verified & received via Razorpay!");
+          refetchDeliveries();
+          refetchRequests();
+          queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+          queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
+
+          // Automatically close the modal after 3 seconds so the delivery partner can see the confirmation
+          setTimeout(() => {
+            setUpiQrModalOrder(null);
+            setPaymentCompletedSuccess(false);
+          }, 3000);
+        }
+      } catch {
+        // Continue polling silently
+      }
+    }, 2500);
+
+    return () => clearInterval(pollInterval);
+  }, [upiQrModalOrder?.id, paymentCompletedSuccess]);
 
   // Availability toggle — persisted to backend
   const availabilityMutation = useMutation({
@@ -2138,7 +2129,7 @@ function DeliveryDashboard() {
 
                 if (modalIsPartial) {
                   return (
-                    <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/50 p-4 space-y-2">
+                    <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/50 p-4 space-y-3">
                       <div className="flex justify-between items-center">
                         <div>
                           <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">
@@ -2151,6 +2142,28 @@ function DeliveryDashboard() {
                         <div className="text-right text-xs text-teal-700 font-bold">
                           ₹{modalAdv.toFixed(2)} prepaid online
                         </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          type="button"
+                          onClick={() => handleConfirmCashPayment(detailsOrder)}
+                          disabled={confirmCashMutation.isPending}
+                          className="flex-1 h-11 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs gap-1.5 shadow-sm"
+                        >
+                          <Banknote className="h-4 w-4" /> Confirm Cash Collected
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setDetailsModalOpen(false);
+                            setUpiQrModalOrder(detailsOrder);
+                          }}
+                          className="flex-1 h-11 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs gap-1.5 shadow-2xs"
+                        >
+                          <QrCode className="h-4 w-4 text-emerald-600" /> Open UPI QR Code
+                        </Button>
                       </div>
                     </div>
                   );
@@ -2295,144 +2308,195 @@ function DeliveryDashboard() {
         onOpenChange={(open) => {
           if (!open) {
             setUpiQrModalOrder(null);
-            setShowLiveQrCode(false);
+            setDynamicQrData(null);
+            setPaymentCompletedSuccess(false);
+            setDynamicQrLoading(false);
           }
         }}
       >
         <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold flex items-center justify-center gap-2">
-              <Smartphone className="h-5 w-5 text-emerald-600" />
+              <QrCode className="h-5 w-5 text-emerald-600" />
               Collect UPI / QR Payment
             </DialogTitle>
             <DialogDescription className="text-center text-xs text-muted-foreground">
-              Collect digital payment from customer at doorstep via Google Pay, PhonePe, Paytm, or any UPI app.
+              Customer scans the dynamic QR with GPay, PhonePe, Paytm, or any UPI app. Payment auto-verifies immediately!
             </DialogDescription>
           </DialogHeader>
 
-          {upiQrModalOrder && (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1">
-                <div className="text-xs text-muted-foreground font-semibold">Amount to Collect</div>
-                <div className="text-3xl font-black text-emerald-600 tabular-nums">
-                  ₹{Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2)}
+          {upiQrModalOrder && (() => {
+            const latestOrder = (myDeliveries || []).find((o: any) => o.id === upiQrModalOrder?.id) || upiQrModalOrder;
+            const isAlreadyPaid = String(latestOrder?.payment_status || "").toUpperCase() === "PAID";
+
+            const advAmount = Number(latestOrder.advance_paid ?? latestOrder.payment?.amount ?? latestOrder.advance ?? 0);
+            const totAmount = Number(latestOrder.total_amount || latestOrder.total || 0);
+            const isCod = String(latestOrder.payment_method || "").toUpperCase() === "COD";
+            const isPartialAdvance = !isCod && isAlreadyPaid && advAmount > 0 && advAmount < totAmount;
+            const balAmount = isPartialAdvance ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100) : totAmount;
+            const amt = Number(balAmount > 0 ? balAmount : totAmount).toFixed(2);
+            const ordNo = latestOrder.order_number || latestOrder.id;
+            const vpa = publicSettings?.["platform.upi_id"] || "vegamart@upi";
+            const platformName = publicSettings?.["platform.name"] || "VegaMart";
+            const upiUri = `upi://pay?pa=${vpa}&pn=${encodeURIComponent(platformName)}&am=${amt}&tr=${ordNo}&tn=${encodeURIComponent(`Order_${ordNo}`)}&cu=INR`;
+            const activeQrValue = dynamicQrData?.short_url || upiUri;
+
+            if (paymentCompletedSuccess || (isAlreadyPaid && !isPartialAdvance)) {
+              return (
+                <div className="space-y-4 py-3 text-center animate-in zoom-in-95 duration-300">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center mx-auto border-2 border-emerald-500 shadow-md">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-600 animate-bounce" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+                      Payment Received!
+                    </div>
+                    <div className="text-2xl font-black text-emerald-600 tabular-nums">
+                      ₹{amt}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Order #{ordNo} is verified and marked as <strong>PAID</strong>. Auto-closing in 3 seconds...
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
+                    onClick={() => {
+                      setUpiQrModalOrder(null);
+                      setPaymentCompletedSuccess(false);
+                      refetchDeliveries();
+                      refetchRequests();
+                      queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+                    }}
+                  >
+                    Done / Next Step
+                  </Button>
                 </div>
-                <div className="text-[11px] text-muted-foreground font-mono">
-                  Order #{upiQrModalOrder.order_number || upiQrModalOrder.id}
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1">
+                  <div className="text-xs text-muted-foreground font-semibold">
+                    {isPartialAdvance ? "Balance Amount to Collect" : "Amount to Collect"}
+                  </div>
+                  <div className="text-3xl font-black text-emerald-600 tabular-nums">
+                    ₹{amt}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground font-mono">
+                    Order #{ordNo}
+                  </div>
                 </div>
-              </div>
 
-              {/* LIVE SCANNER / QR DISPLAY */}
-              {(() => {
-                const amt = Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2);
-                const ordNo = upiQrModalOrder.order_number || upiQrModalOrder.id;
-                const vpa = publicSettings?.["platform.upi_id"] || "vegamart@upi";
-                const upiUri = `upi://pay?pa=${vpa}&pn=VegaMart&am=${amt}&tr=${ordNo}&tn=Order_${ordNo}&cu=INR`;
-                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(upiUri)}`;
+                {/* LIVE DYNAMIC SCANNER / QR DISPLAY */}
+                <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
+                  <div className="flex items-center justify-between gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 px-1">
+                    <span className="flex items-center gap-1.5">
+                      <QrCode className="h-4 w-4 text-emerald-600" />
+                      {dynamicQrData?.short_url ? "Dynamic Razorpay QR" : "Doorstep UPI QR"}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300/60 shadow-2xs">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-600"></span>
+                      </span>
+                      Auto-Detecting
+                    </span>
+                  </div>
 
-                return (
-                  <div className="space-y-3">
-                    {showLiveQrCode ? (
-                      <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
-                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1.5">
-                          <QrCode className="h-4 w-4 text-emerald-600 animate-pulse" />
-                          Live Doorstep UPI QR Code
-                        </div>
-
-                        <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center">
-                          <img
-                            src={qrUrl}
-                            alt="Live UPI QR Code"
-                            className="w-48 h-48 object-contain rounded-lg"
-                          />
-                        </div>
-
-                        <div className="text-[11px] text-muted-foreground font-medium">
-                          Customer can scan using GPay, PhonePe, Paytm, BHIM, or any UPI App.
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 pt-1">
-                          <a
-                            href={upiUri}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-emerald-600 text-white font-bold text-[11px] shadow-sm hover:bg-emerald-500 transition-colors"
-                          >
-                            <Smartphone className="h-3.5 w-3.5" /> Open UPI App
-                          </a>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 rounded-xl border-emerald-300 text-[11px] font-bold text-emerald-800 bg-white hover:bg-emerald-50 dark:bg-zinc-900"
-                            onClick={() => handleCollectUpiPayment(upiQrModalOrder)}
-                            disabled={isCollectingUpi}
-                          >
-                            {isCollectingUpi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5 text-emerald-600" />}
-                            Razorpay Pop-up
-                          </Button>
-                        </div>
+                  <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center">
+                    {dynamicQrLoading ? (
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          Generating Dynamic QR...
+                        </span>
                       </div>
                     ) : (
-                      <Button
-                        className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md gap-2"
-                        onClick={() => handleCollectUpiPayment(upiQrModalOrder)}
-                        disabled={isCollectingUpi || confirmCashMutation.isPending}
-                      >
-                        {isCollectingUpi ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <QrCode className="h-4 w-4" />
-                        )}
-                        {isCollectingUpi ? "Opening UPI Gateway..." : "Open Live UPI QR Code"}
-                      </Button>
+                      <QRCodeSVG
+                        value={activeQrValue}
+                        size={200}
+                        level="M"
+                        includeMargin={false}
+                        className="w-full h-full object-contain"
+                      />
                     )}
                   </div>
-                );
-              })()}
 
-              <div className="space-y-2 pt-1">
-                <Button
-                  variant="outline"
-                  className="w-full h-12 rounded-2xl border-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-bold text-sm shadow-xs gap-2"
-                  onClick={() => handleConfirmCashPayment(upiQrModalOrder)}
-                  disabled={isCollectingUpi || confirmCashMutation.isPending}
-                >
-                  {confirmCashMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Banknote className="h-4 w-4 text-amber-600" />
-                  )}
-                  Confirm Cash Payment Received (₹{Number(upiQrModalOrder.total_amount || upiQrModalOrder.total || 0).toFixed(2)})
-                </Button>
+                  <div className="text-[11px] text-muted-foreground font-medium">
+                    Customer can scan using GPay, PhonePe, Paytm, BHIM, or any camera app.
+                  </div>
 
-                <p className="text-[11px] text-muted-foreground leading-relaxed px-2">
-                  Customer can scan your live UPI QR code to pay digitally, or pay in cash and you confirm receipt above.
-                </p>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-background border text-[11px] font-mono text-muted-foreground shadow-2xs">
+                    <span>UPI ID: <strong className="text-foreground">{vpa}</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(vpa);
+                        setCopiedUpi(true);
+                        toast.success("UPI ID copied to clipboard!");
+                        setTimeout(() => setCopiedUpi(false), 2000);
+                      }}
+                      className="text-emerald-600 hover:text-emerald-500 ml-1 p-0.5 transition-colors"
+                      title="Copy UPI ID"
+                    >
+                      {copiedUpi ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-11 rounded-2xl border-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-bold text-xs shadow-xs gap-2"
+                    onClick={() => handleConfirmCashPayment(latestOrder)}
+                    disabled={confirmCashMutation.isPending}
+                  >
+                    {confirmCashMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Banknote className="h-4 w-4 text-amber-600" />
+                    )}
+                    Customer Paid Cash (₹{amt})
+                  </Button>
+
+                  <p className="text-[10px] text-muted-foreground leading-relaxed px-2">
+                    When customer pays via QR, payment completes <strong>automatically</strong>. If customer hands over cash instead, tap above.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-xl font-bold text-xs gap-1.5"
+                    onClick={() => {
+                      refetchDeliveries();
+                      refetchRequests();
+                      queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+                      toast.info("Checking latest payment status...");
+                    }}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Check Status
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-xl font-bold text-xs"
+                    onClick={() => {
+                      setUpiQrModalOrder(null);
+                      setDynamicQrData(null);
+                      setPaymentCompletedSuccess(false);
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
-
-              <div className="rounded-xl bg-muted/60 p-2.5 text-left text-[11px] text-muted-foreground flex items-start gap-2 border">
-                <Info className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>
-                  Customer can also tap <strong>Pay Online (UPI / QR / Card)</strong> directly on their own phone in Live Order Tracking.
-                </span>
-              </div>
-
-              <div className="pt-1">
-                <Button
-                  variant="outline"
-                  className="w-full h-10 rounded-xl font-bold text-xs"
-                  onClick={() => {
-                    setUpiQrModalOrder(null);
-                    setShowLiveQrCode(false);
-                    refetchRequests();
-                    queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
-                  }}
-                >
-                  Close / Refresh Status
-                </Button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

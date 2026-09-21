@@ -7,7 +7,7 @@ export const verifyPaymentSchema = z.object({
 }).strict();
 
 export const orderIdParamsSchema = z.object({
-  order_id: z.string().uuid("order_id must be a valid UUID."),
+  order_id: z.string().trim().min(1, "order_id is required.").max(64),
 }).strict();
 
 export const refundPaymentSchema = z.object({

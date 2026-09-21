@@ -9,6 +9,8 @@ import {
   recordOrderPaymentFailure,
   initiateCheckoutPayment,
   verifyAndCreateOrder,
+  generateDynamicOrderQr,
+  checkOrderPaymentStatus,
 } from "../../controllers/payment.controller";
 import { authenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
@@ -53,5 +55,7 @@ router.post("/payments/:order_id/refund", authenticate, requirePermission(PERMIS
 router.post("/payments/:order_id/retry", authenticate, requireRole(ROLES.CUSTOMER, ROLES.DELIVERY_PARTNER), validate({ params: orderIdParamsSchema }), retryOrderPayment);
 router.post("/payments/:order_id/switch-to-cod", authenticate, requireRole(ROLES.CUSTOMER), validate({ params: orderIdParamsSchema }), switchOrderToCod);
 router.post("/payments/:order_id/record-failure", authenticate, requireRole(ROLES.CUSTOMER), validate({ params: orderIdParamsSchema }), recordOrderPaymentFailure);
+router.post("/payments/:order_id/dynamic-qr", authenticate, requireRole(ROLES.CUSTOMER, ROLES.DELIVERY_PARTNER), validate({ params: orderIdParamsSchema }), generateDynamicOrderQr);
+router.get("/payments/:order_id/status", authenticate, requireRole(ROLES.CUSTOMER, ROLES.DELIVERY_PARTNER), validate({ params: orderIdParamsSchema }), checkOrderPaymentStatus);
 
 export default router;

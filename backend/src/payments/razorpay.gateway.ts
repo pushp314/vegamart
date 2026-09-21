@@ -133,6 +133,39 @@ export const razorpayGateway = {
     return request<RazorpayPayment>(`/payments/${paymentId}`);
   },
 
+  async fetchOrderPayments(orderId: string): Promise<{ entity: string; count: number; items: RazorpayPayment[] }> {
+    return request<{ entity: string; count: number; items: RazorpayPayment[] }>(`/orders/${orderId}/payments`);
+  },
+
+  async createPaymentLink(input: {
+    amountPaise: number;
+    currency?: string;
+    description: string;
+    reference_id?: string;
+    notes?: Record<string, string>;
+    customer?: { name?: string; email?: string; contact?: string };
+    upi_link?: boolean;
+    expire_by?: number;
+  }): Promise<{ id: string; short_url: string; status: string; order_id?: string; amount: number }> {
+    return request<any>("/payment_links", {
+      method: "POST",
+      body: {
+        amount: input.amountPaise,
+        currency: input.currency || "INR",
+        description: input.description,
+        reference_id: input.reference_id,
+        notes: input.notes,
+        customer: input.customer,
+        upi_link: input.upi_link ?? true,
+        expire_by: input.expire_by,
+      },
+    });
+  },
+
+  async fetchPaymentLink(linkId: string): Promise<{ id: string; status: string; amount: number; amount_paid: number; payments?: any[]; order_id?: string }> {
+    return request<any>(`/payment_links/${linkId}`);
+  },
+
   async refundPayment(paymentId: string, input: { amountPaise?: number; notes?: string } = {}): Promise<{ id: string; status: string }> {
     const body: Record<string, unknown> = {};
     if (input.amountPaise !== undefined) body.amount = input.amountPaise;

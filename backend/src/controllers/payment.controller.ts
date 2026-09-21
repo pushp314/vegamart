@@ -157,3 +157,13 @@ export const verifyAndCreateOrder = asyncHandler(async (req: Request, res: Respo
   return sendSuccess(res, result, { status: 201 });
 });
 
+export const generateDynamicOrderQr = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.generateDynamicOrderQr(req.user!.id, req.params.order_id as string, req);
+  return sendSuccess(res, result);
+});
+
+export const checkOrderPaymentStatus = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.checkOrderPaymentStatus(req.user!.id, req.params.order_id as string, req);
+  return sendSuccess(res, result);
+});
+
