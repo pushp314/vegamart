@@ -180,9 +180,12 @@ export function AdminOrders() {
   const updateStatusMutation = useMutation({
     mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
       api.patch(`/admin/orders/${orderId}/status`, { status }),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["adminOrders"] });
       queryClient.invalidateQueries({ queryKey: ["adminOrderDetail"] });
+      if (res?.data) {
+        setSelectedOrder(res.data);
+      }
       toast.success("Order status updated successfully!");
     },
     onError: (err: any) => {
@@ -620,7 +623,7 @@ export function AdminOrders() {
                           className="h-8 text-xs font-bold border-rose-200 text-rose-700 hover:bg-rose-50"
                           disabled={updateStatusMutation.isPending}
                           onClick={() => {
-                            if (detail?.id && confirm("Are you sure you want to cancel this order as admin?")) {
+                            if (detail?.id && window.confirm("Are you sure you want to cancel this order as admin?")) {
                               updateStatusMutation.mutate({ orderId: detail.id, status: "CANCELLED" });
                             }
                           }}

@@ -340,7 +340,12 @@ export const checkoutService = {
       const globalDeliveryFee = (settings[SETTING_KEYS.DELIVERY_FEE] as number) || 0;
       const globalFreeDeliveryThreshold = (settings[SETTING_KEYS.FREE_DELIVERY_THRESHOLD] as number) || 0;
       const globalMinOrderValue = (settings[SETTING_KEYS.MIN_ORDER_VALUE] as number) || 0;
-      const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
+      const rawTaxSetting = settings[SETTING_KEYS.TAX_RATE_PERCENT];
+      const taxRatePercent = typeof rawTaxSetting === "number"
+        ? rawTaxSetting
+        : typeof rawTaxSetting === "string" && !isNaN(Number(rawTaxSetting))
+          ? Number(rawTaxSetting)
+          : TAX_RATE_PERCENT;
 
       const deliveryConfigs = normalizeDeliveryConfigs((vendor as any).delivery_configs, vendor);
 
@@ -465,8 +470,13 @@ export const checkoutService = {
           quantity: item.quantity,
           unit_price: item.price_snapshot.toNumber(),
           line_total: item.price_snapshot.toNumber() * item.quantity,
-          tax_rate: (item.product as any).tax_rate ? Number((item.product as any).tax_rate) : (vendor as any).tax_rate ? Number((vendor as any).tax_rate) : taxRatePercent,
-          image_url: item.product?.images?.[0]?.url ?? null,
+          tax_rate: (() => {
+            const prodTax = (item.product as any).tax_rate != null ? Number((item.product as any).tax_rate) : null;
+            const vendorTax = (vendor as any).tax_rate != null ? Number((vendor as any).tax_rate) : null;
+            if (prodTax != null && prodTax > 0) return prodTax;
+            if (vendorTax != null && vendorTax > 0) return vendorTax;
+            return taxRatePercent;
+          })(),
         })),
         items_subtotal: Math.round(group.subtotal * 100) / 100,
         delivery_fee: Math.round(vendorDeliveryFee * 100) / 100,
@@ -514,7 +524,12 @@ export const checkoutService = {
       couponInfo = { id: result.coupon.id, code: result.coupon.code, type: result.coupon.type, discount };
     }
 
-    const taxRatePercent = (settings[SETTING_KEYS.TAX_RATE_PERCENT] as number) || TAX_RATE_PERCENT;
+    const rawTaxSetting = settings[SETTING_KEYS.TAX_RATE_PERCENT];
+    const taxRatePercent = typeof rawTaxSetting === "number"
+      ? rawTaxSetting
+      : typeof rawTaxSetting === "string" && !isNaN(Number(rawTaxSetting))
+        ? Number(rawTaxSetting)
+        : TAX_RATE_PERCENT;
 
     let totalTax = 0;
     for (const group of summaryGroups) {
@@ -524,7 +539,7 @@ export const checkoutService = {
       for (const item of group.items) {
         const itemDiscount = item.line_total * discountRatio;
         const itemTaxable = Math.max(0, item.line_total - itemDiscount);
-        groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
+        groupTaxRaw += (itemTaxable * (item.tax_rate ?? taxRatePercent)) / 100;
       }
       totalTax += Math.round(groupTaxRaw * 100) / 100;
     }
@@ -794,13 +809,20 @@ export const checkoutService = {
       for (const item of group.items) {
         const itemDiscount = item.line_total * discountRatio;
         const itemTaxable = Math.max(0, item.line_total - itemDiscount);
-        groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
+        const itemEffectiveTax = item.tax_rate ?? summary.tax_rate ?? TAX_RATE_PERCENT;
+        groupTaxRaw += (itemTaxable * (itemEffectiveTax ?? 0)) / 100;
       }
-      const groupTax = Math.round(groupTaxRaw * 100) / 100;
       // When consolidated delivery, assign the full delivery fee to first order only
       const effectiveDeliveryFee = summary.is_consolidated_delivery
         ? (idx === 0 ? summary.delivery_fee : 0)
         : group.delivery_fee;
+      const isVegaMartDelivery = summary.is_consolidated_delivery || (
+        input.delivery_slot && !["self", "pickup", "takeaway", "shop", "direct", "book"].some(s => input.delivery_slot!.toLowerCase().includes(s))
+      );
+      const deliveryTax = (idx === 0 && isVegaMartDelivery && effectiveDeliveryFee > 0)
+        ? Math.round(((effectiveDeliveryFee * (summary.tax_rate ?? TAX_RATE_PERCENT)) / 100) * 100) / 100
+        : 0;
+      const groupTax = Math.round((groupTaxRaw + deliveryTax) * 100) / 100;
       const groupPlatformFee = idx === 0 ? Number(summary.platform_fee || 0) : 0;
       const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax + groupPlatformFee) * 100) / 100;
       return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, groupPlatformFee, orderNumber: generateOrderNumber() };
@@ -1317,15 +1339,23 @@ export const checkoutService = {
       for (const item of group.items) {
         const itemDiscount = item.line_total * discountRatio;
         const itemTaxable = Math.max(0, item.line_total - itemDiscount);
-        groupTaxRaw += (itemTaxable * (item.tax_rate ?? 0)) / 100;
+        const itemEffectiveTax = item.tax_rate ?? summary.tax_rate ?? TAX_RATE_PERCENT;
+        groupTaxRaw += (itemTaxable * (itemEffectiveTax ?? 0)) / 100;
       }
-      const groupTax = Math.round(groupTaxRaw * 100) / 100;
       // When consolidated delivery, assign the full delivery fee to first order only
       const effectiveDeliveryFee = summary.is_consolidated_delivery
         ? (idx === 0 ? summary.delivery_fee : 0)
         : group.delivery_fee;
-      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax) * 100) / 100;
-      return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, orderNumber: generateOrderNumber() };
+      const isVegaMartDelivery = summary.is_consolidated_delivery || (
+        input.delivery_slot && !["self", "pickup", "takeaway", "shop", "direct", "book"].some(s => input.delivery_slot!.toLowerCase().includes(s))
+      );
+      const deliveryTax = (idx === 0 && isVegaMartDelivery && effectiveDeliveryFee > 0)
+        ? Math.round(((effectiveDeliveryFee * (summary.tax_rate ?? TAX_RATE_PERCENT)) / 100) * 100) / 100
+        : 0;
+      const groupTax = Math.round((groupTaxRaw + deliveryTax) * 100) / 100;
+      const groupPlatformFee = idx === 0 ? Number(summary.platform_fee || 0) : 0;
+      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax + groupPlatformFee) * 100) / 100;
+      return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, groupPlatformFee, orderNumber: generateOrderNumber() };
     });
 
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];

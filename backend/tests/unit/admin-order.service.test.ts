@@ -172,3 +172,133 @@ describe("admin order service - updateStatus", () => {
     expect(result!.status).toBe("CONFIRMED");
   });
 });
+
+describe("admin order service - helpers & master order flow", () => {
+  const { mapStatusToPrisma, computeEffectiveMasterStatus } = require("../../src/services/admin-order.service");
+
+  describe("mapStatusToPrisma", () => {
+    it("maps CONFIRMED to subStatus: CONFIRMED and masterStatus: ACCEPTED", () => {
+      const res = mapStatusToPrisma("CONFIRMED");
+      expect(res).toEqual({ subStatus: "CONFIRMED", masterStatus: "ACCEPTED" });
+    });
+
+    it("maps PREPARING to subStatus: PREPARING and masterStatus: ACCEPTED", () => {
+      const res = mapStatusToPrisma("PREPARING");
+      expect(res).toEqual({ subStatus: "PREPARING", masterStatus: "ACCEPTED" });
+    });
+
+    it("maps OUT_FOR_DELIVERY to OUT_FOR_DELIVERY on both", () => {
+      const res = mapStatusToPrisma("OUT_FOR_DELIVERY");
+      expect(res).toEqual({ subStatus: "OUT_FOR_DELIVERY", masterStatus: "OUT_FOR_DELIVERY" });
+    });
+
+    it("maps DELIVERED to DELIVERED on both", () => {
+      const res = mapStatusToPrisma("DELIVERED");
+      expect(res).toEqual({ subStatus: "DELIVERED", masterStatus: "DELIVERED" });
+    });
+
+    it("maps CANCELLED to CANCELLED on both", () => {
+      const res = mapStatusToPrisma("CANCELLED");
+      expect(res).toEqual({ subStatus: "CANCELLED", masterStatus: "CANCELLED" });
+    });
+  });
+
+  describe("computeEffectiveMasterStatus", () => {
+    it("returns PREPARING when any suborder is preparing", () => {
+      expect(computeEffectiveMasterStatus("ACCEPTED", ["CONFIRMED", "PREPARING"])).toBe("PREPARING");
+    });
+
+    it("returns CONFIRMED when suborder is confirmed", () => {
+      expect(computeEffectiveMasterStatus("ACCEPTED", ["CONFIRMED"])).toBe("CONFIRMED");
+    });
+
+    it("returns OUT_FOR_DELIVERY when suborder is out for delivery", () => {
+      expect(computeEffectiveMasterStatus("ACCEPTED", ["OUT_FOR_DELIVERY"])).toBe("OUT_FOR_DELIVERY");
+    });
+
+    it("returns DELIVERED when all suborders are delivered", () => {
+      expect(computeEffectiveMasterStatus("ACCEPTED", ["DELIVERED", "DELIVERED"])).toBe("DELIVERED");
+    });
+  });
+
+  describe("master order updateStatus flow", () => {
+    const mockReq = { user: { id: "admin-1" } } as any;
+
+    it("updates masterOrder to ACCEPTED and sub-orders to CONFIRMED when Admin confirms", async () => {
+      const master = {
+        id: "master-1",
+        order_number: "MO-1",
+        status: "PENDING",
+        user_id: "u1",
+        orders: [
+          { id: "sub-1", order_number: "SO-1", status: "PENDING" },
+        ],
+      };
+
+      db.masterOrder.findUnique.mockResolvedValueOnce(master);
+      db.order.findUnique.mockResolvedValue(null);
+
+      jest.spyOn(adminOrderService, "getById").mockResolvedValueOnce({
+        id: "master-1",
+        order_number: "MO-1",
+        status: "CONFIRMED",
+        raw_master_status: "ACCEPTED",
+        sub_orders: [{ id: "sub-1", status: "CONFIRMED" }],
+      } as any);
+
+      const res = await adminOrderService.updateStatus("admin-1", "master-1", "CONFIRMED", null, mockReq);
+
+      expect(db.masterOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "master-1" },
+          data: { status: "ACCEPTED" },
+        })
+      );
+      expect(db.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "sub-1" },
+          data: expect.objectContaining({ status: "CONFIRMED" }),
+        })
+      );
+      expect(res.status).toBe("CONFIRMED");
+    });
+
+    it("updates masterOrder to ACCEPTED and sub-orders to PREPARING when Admin marks preparing", async () => {
+      const master = {
+        id: "master-1",
+        order_number: "MO-1",
+        status: "ACCEPTED",
+        user_id: "u1",
+        orders: [
+          { id: "sub-1", order_number: "SO-1", status: "CONFIRMED" },
+        ],
+      };
+
+      db.masterOrder.findUnique.mockResolvedValueOnce(master);
+
+      jest.spyOn(adminOrderService, "getById").mockResolvedValueOnce({
+        id: "master-1",
+        order_number: "MO-1",
+        status: "PREPARING",
+        raw_master_status: "ACCEPTED",
+        sub_orders: [{ id: "sub-1", status: "PREPARING" }],
+      } as any);
+
+      const res = await adminOrderService.updateStatus("admin-1", "master-1", "PREPARING", null, mockReq);
+
+      expect(db.masterOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "master-1" },
+          data: { status: "ACCEPTED" },
+        })
+      );
+      expect(db.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "sub-1" },
+          data: expect.objectContaining({ status: "PREPARING" }),
+        })
+      );
+      expect(res.status).toBe("PREPARING");
+    });
+  });
+});

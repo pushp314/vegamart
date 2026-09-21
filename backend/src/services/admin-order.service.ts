@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { Prisma } from "@prisma/client";
+import type { OrderStatus, MasterOrderStatus } from "@prisma/client";
 
 import prisma from "../database/prisma";
 import { AUDIT_ACTIONS } from "../constants/auth";
@@ -14,6 +15,79 @@ import {
   refundOrderLifecycle,
 } from "./order-lifecycle.service";
 import { completeDelivery } from "./order-delivery.service";
+import { notificationService } from "./notification.service";
+import { realtime } from "../realtime/realtime";
+
+export function mapStatusToPrisma(inputStatus: string): { subStatus: OrderStatus; masterStatus: MasterOrderStatus } {
+  const s = String(inputStatus || "").trim().toUpperCase();
+  switch (s) {
+    case "PENDING":
+    case "BOOKED":
+    case "BOOKING":
+      return { subStatus: "PENDING", masterStatus: "PENDING" };
+    case "CONFIRMED":
+    case "ACCEPTED":
+      return { subStatus: "CONFIRMED", masterStatus: "ACCEPTED" };
+    case "PREPARING":
+    case "PROCESSING":
+      return { subStatus: "PREPARING", masterStatus: "ACCEPTED" };
+    case "PACKED":
+      return { subStatus: "PACKED", masterStatus: "ACCEPTED" };
+    case "READY_FOR_PICKUP":
+      return { subStatus: "READY_FOR_PICKUP", masterStatus: "PICKUP_IN_PROGRESS" };
+    case "PICKED_UP":
+      return { subStatus: "PICKED_UP", masterStatus: "PICKUP_IN_PROGRESS" };
+    case "OUT_FOR_DELIVERY":
+      return { subStatus: "OUT_FOR_DELIVERY", masterStatus: "OUT_FOR_DELIVERY" };
+    case "DELIVERED":
+      return { subStatus: "DELIVERED", masterStatus: "DELIVERED" };
+    case "CANCELLED":
+      return { subStatus: "CANCELLED", masterStatus: "CANCELLED" };
+    case "REFUNDED":
+      return { subStatus: "REFUNDED", masterStatus: "REFUNDED" };
+    case "RETURNED":
+      return { subStatus: "RETURNED", masterStatus: "REFUNDED" };
+    case "FAILED":
+      return { subStatus: "FAILED", masterStatus: "FAILED" };
+    default:
+      return { subStatus: "PENDING", masterStatus: "PENDING" };
+  }
+}
+
+export function computeEffectiveMasterStatus(masterStatus: string, subStatuses: string[]): string {
+  if (["DELIVERED", "CANCELLED", "REFUNDED", "FAILED"].includes(masterStatus)) {
+    return masterStatus;
+  }
+  if (!subStatuses || subStatuses.length === 0) {
+    if (masterStatus === "ACCEPTED") return "CONFIRMED";
+    return masterStatus;
+  }
+  if (
+    subStatuses.every((s) => ["DELIVERED", "CANCELLED", "REFUNDED", "FAILED"].includes(s)) &&
+    subStatuses.some((s) => s === "DELIVERED")
+  ) {
+    return "DELIVERED";
+  }
+  if (masterStatus === "OUT_FOR_DELIVERY" || subStatuses.some((s) => s === "OUT_FOR_DELIVERY")) {
+    return "OUT_FOR_DELIVERY";
+  }
+  if (subStatuses.some((s) => ["READY_FOR_PICKUP", "PICKED_UP", "PICKUP_IN_PROGRESS"].includes(s))) {
+    return "READY_FOR_PICKUP";
+  }
+  if (subStatuses.some((s) => s === "PACKED")) {
+    return "PACKED";
+  }
+  if (subStatuses.some((s) => s === "PREPARING")) {
+    return "PREPARING";
+  }
+  if (subStatuses.some((s) => s === "CONFIRMED")) {
+    return "CONFIRMED";
+  }
+  if (masterStatus === "ACCEPTED") {
+    return "CONFIRMED";
+  }
+  return masterStatus;
+}
 
 export interface AdminOrderQuery {
   page?: number;
@@ -34,8 +108,37 @@ export const adminOrderService = {
 
     const where: Prisma.MasterOrderWhereInput = {};
 
-    if (query.status) {
-      where.status = query.status.toUpperCase() as never;
+    if (query.status && query.status.toUpperCase() !== "ALL") {
+      const s = query.status.toUpperCase();
+      const validMasterStatuses = [
+        "PENDING",
+        "ACCEPTED",
+        "PICKUP_IN_PROGRESS",
+        "OUT_FOR_DELIVERY",
+        "DELIVERED",
+        "CANCELLED",
+        "REFUNDED",
+        "FAILED",
+      ];
+      if (s === "CONFIRMED") {
+        where.OR = [
+          { status: "ACCEPTED" },
+          { orders: { some: { status: "CONFIRMED" } } },
+        ];
+      } else if (s === "PREPARING") {
+        where.orders = { some: { status: "PREPARING" } };
+      } else if (s === "PACKED") {
+        where.orders = { some: { status: "PACKED" } };
+      } else if (s === "READY_FOR_PICKUP") {
+        where.orders = { some: { status: "READY_FOR_PICKUP" } };
+      } else if (validMasterStatuses.includes(s)) {
+        where.OR = [
+          { status: s as any },
+          { orders: { some: { status: s as any } } },
+        ];
+      } else {
+        where.orders = { some: { status: s as any } };
+      }
     }
     if (query.payment_status) {
       where.payment_status = query.payment_status.toUpperCase() as never;
@@ -91,6 +194,7 @@ export const adminOrderService = {
           },
           orders: {
             select: {
+              status: true,
               delivery_note: true,
               eta_minutes: true,
               delivery_partner: {
@@ -128,7 +232,19 @@ export const adminOrderService = {
                   },
                 },
               },
-              vendor: { select: { id: true, business_name: true, slug: true, phone: true } },
+              vendor: {
+                select: {
+                  id: true,
+                  business_name: true,
+                  phone: true,
+                  address: true,
+                  city: true,
+                  state: true,
+                  pincode: true,
+                  latitude: true,
+                  longitude: true,
+                },
+              },
             }
           }
         },
@@ -136,13 +252,12 @@ export const adminOrderService = {
       prisma.masterOrder.count({ where }),
     ]);
 
-    return {
-      rows: rows.map((m) => {
+    const mappedRows = rows.map((m) => {
         const firstOrder = m.orders[0];
         const items = m.orders.flatMap((o) => o.items);
         const vendors = m.orders.map((o) => o.vendor);
         const subPartners = m.orders.map((o) => o.delivery_partner).filter(Boolean);
-        const activeEtaMinutes = m.orders.find((o) => o.eta_minutes != null)?.eta_minutes || null;
+        const activeEtaMinutes = m.orders.find((o) => o.eta_minutes != null)?.eta_minutes || firstOrder?.eta_minutes || null;
 
         let partner = m.delivery_partner
           ? {
@@ -176,10 +291,16 @@ export const adminOrderService = {
           }
         }
 
+        const effectiveStatus = computeEffectiveMasterStatus(
+          m.status,
+          m.orders.map((o) => o.status)
+        );
+
         return {
           id: m.id,
           order_number: m.order_number,
-          status: m.status,
+          status: effectiveStatus,
+          raw_master_status: m.status,
           total: Number(m.total_amount),
           delivery_fee: Number(m.delivery_fee),
           tax: Number(m.tax),
@@ -216,7 +337,11 @@ export const adminOrderService = {
             status: i.status,
           })),
         };
-      }),
+      });
+
+    return {
+      rows: mappedRows,
+      data: mappedRows,
       total,
       page,
       perPage,
@@ -362,11 +487,17 @@ export const adminOrderService = {
       .filter((i: any) => i.status !== "rejected")
       .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
 
+    const effectiveStatus = computeEffectiveMasterStatus(
+      mOrder.status,
+      mOrder.orders.map((o) => o.status)
+    );
+
     return {
       id: mOrder.id,
       order_number: mOrder.order_number,
       invoice_number: firstOrder?.invoice_number,
-      status: mOrder.status,
+      status: effectiveStatus,
+      raw_master_status: mOrder.status,
       total: Number(mOrder.total_amount),
       items_subtotal: itemsSubtotal,
       delivery_fee: Number(mOrder.delivery_fee),
@@ -435,66 +566,202 @@ export const adminOrderService = {
        return await this.updateSubOrderStatus(adminUserId, order.id, status, reason, req);
     }
 
-    const mappedStatus = status.toUpperCase();
-    if (masterOrder.status === mappedStatus) {
-      return masterOrder;
+    const { subStatus: mappedSubStatus, masterStatus: mappedMasterStatus } = mapStatusToPrisma(status);
+
+    const currentEffective = computeEffectiveMasterStatus(
+      masterOrder.status,
+      masterOrder.orders.map((o) => o.status)
+    );
+
+    if (currentEffective === mappedSubStatus && masterOrder.status === mappedMasterStatus) {
+      return await this.getById(orderId);
     }
 
-    if (mappedStatus === "CANCELLED") {
+    const now = new Date();
+
+    if (mappedSubStatus === "CANCELLED") {
        // cancel all suborders
        for (const order of masterOrder.orders) {
           if (order.status !== "CANCELLED" && order.status !== "DELIVERED") {
-              await cancelOrderLifecycle({
-                order: order as any,
-                reason,
-                actorType: "admin",
-                actorId: adminUserId,
-                req,
-              });
+              const fullOrder = await orderRepo.findById(order.id);
+              if (fullOrder) {
+                await cancelOrderLifecycle({
+                  order: fullOrder,
+                  reason: reason ?? "Cancelled by admin",
+                  actorType: "admin",
+                  actorId: adminUserId,
+                  req,
+                });
+              }
           }
        }
        await prisma.masterOrder.update({
          where: { id: masterOrder.id },
          data: { status: "CANCELLED" }
        });
-    } else if (mappedStatus === "REFUNDED") {
+    } else if (mappedSubStatus === "REFUNDED") {
        for (const order of masterOrder.orders) {
           if (order.status !== "REFUNDED") {
-              await refundOrderLifecycle({
-                order: order as any,
-                reason,
-                actorType: "admin",
-                actorId: adminUserId,
-                req,
-              });
+              const fullOrder = await orderRepo.findById(order.id);
+              if (fullOrder) {
+                await refundOrderLifecycle({
+                  order: fullOrder,
+                  reason: reason ?? "Refunded by admin",
+                  actorType: "admin",
+                  actorId: adminUserId,
+                  req,
+                });
+              }
           }
        }
        await prisma.masterOrder.update({
          where: { id: masterOrder.id },
          data: { status: "REFUNDED" }
        });
+    } else if (mappedSubStatus === "DELIVERED") {
+       // Force deliver all active suborders
+       for (const order of masterOrder.orders) {
+         if (order.status !== "DELIVERED" && order.status !== "CANCELLED") {
+           try {
+             await completeDelivery({
+               orderId: order.id,
+               otp: "",
+               skipOtp: true,
+               allowedStates: [
+                 "PENDING",
+                 "CONFIRMED",
+                 "PREPARING",
+                 "PACKED",
+                 "READY_FOR_PICKUP",
+                 "PICKED_UP",
+                 "OUT_FOR_DELIVERY",
+               ],
+               note: reason ?? "Force delivered by admin.",
+               actorType: "admin",
+               actorId: adminUserId,
+             });
+           } catch {
+             await prisma.order.update({
+               where: { id: order.id },
+               data: {
+                 status: "DELIVERED",
+                 delivered_at: now,
+                 otp_code: null,
+               },
+             });
+             await prisma.orderEvent.create({
+               data: {
+                 order_id: order.id,
+                 status: "DELIVERED",
+                 note: reason ?? "Force delivered by admin.",
+                 actor_type: "admin",
+                 actor_id: adminUserId,
+               },
+             });
+           }
+         }
+       }
+       await prisma.masterOrder.update({
+         where: { id: masterOrder.id },
+         data: { status: "DELIVERED", payment_status: "PAID" },
+       });
+       await prisma.payment.updateMany({
+         where: { master_order_id: masterOrder.id, status: "PENDING" },
+         data: { status: "PAID" },
+       }).catch(() => {});
     } else {
        await prisma.$transaction(async (tx) => {
          await tx.masterOrder.update({
            where: { id: masterOrder.id },
-           data: { status: mappedStatus as any }
+           data: { status: mappedMasterStatus }
          });
+
          for (const order of masterOrder.orders) {
+            if (order.status === "DELIVERED" || order.status === "CANCELLED") {
+              continue;
+            }
+
+            const updateData: Prisma.OrderUpdateInput = {
+              status: mappedSubStatus,
+            };
+            if (mappedSubStatus === "CONFIRMED") updateData.accepted_at = now;
+            if (mappedSubStatus === "PREPARING") updateData.prepared_at = now;
+            if (mappedSubStatus === "PACKED") updateData.packed_at = now;
+            if (mappedSubStatus === "OUT_FOR_DELIVERY") updateData.picked_up_at = now;
+
             await tx.order.update({
               where: { id: order.id },
-              data: { status: mappedStatus as any }
+              data: updateData,
             });
+
             await tx.orderEvent.create({
               data: {
                 order_id: order.id,
-                status: mappedStatus as any,
-                note: reason ?? `Admin updated master order status to ${status}.`,
+                status: mappedSubStatus,
+                note: reason ?? `Admin updated status to ${mappedSubStatus}.`,
                 actor_type: "admin",
                 actor_id: adminUserId,
               }
             });
+
+            if (mappedSubStatus === "OUT_FOR_DELIVERY") {
+              await tx.deliveryTracking.upsert({
+                where: { order_id: order.id },
+                update: { status: "OUT_FOR_DELIVERY" as never },
+                create: { order_id: order.id, status: "OUT_FOR_DELIVERY" as never },
+              }).catch(() => {});
+            }
          }
        });
+    }
+
+    // Customer Notification
+    const statusMessages: Record<string, { title: string; body: string }> = {
+      CONFIRMED: {
+        title: "Order confirmed ✅",
+        body: `Your order #${masterOrder.order_number} has been confirmed!`,
+      },
+      PREPARING: {
+        title: "Order being prepared 🍳",
+        body: `Your order #${masterOrder.order_number} is being prepared.`,
+      },
+      PACKED: {
+        title: "Order packed 📦",
+        body: `Your order #${masterOrder.order_number} has been packed.`,
+      },
+      READY_FOR_PICKUP: {
+        title: "Ready for pickup 🏪",
+        body: `Your order #${masterOrder.order_number} is ready for pickup!`,
+      },
+      OUT_FOR_DELIVERY: {
+        title: "Out for delivery 🛵",
+        body: `Your order #${masterOrder.order_number} is on its way!`,
+      },
+      DELIVERED: {
+        title: "Order delivered 🎉",
+        body: `Your order #${masterOrder.order_number} has been delivered. Enjoy!`,
+      },
+      CANCELLED: {
+        title: "Order cancelled ❌",
+        body: `Your order #${masterOrder.order_number} has been cancelled.`,
+      },
+    };
+
+    const msg = statusMessages[mappedSubStatus];
+    if (msg && masterOrder.user_id) {
+      await notificationService.orderStatus(
+        masterOrder.user_id,
+        masterOrder.order_number,
+        msg.title,
+        msg.body,
+        { order_id: masterOrder.id }
+      ).catch(() => {});
+    }
+
+    // Real-time broadcast
+    realtime.publishOrderStatus(masterOrder.id, mappedSubStatus);
+    for (const order of masterOrder.orders) {
+      realtime.publishOrderStatus(order.id, mappedSubStatus);
     }
 
     await auditService.record(
@@ -503,13 +770,13 @@ export const adminOrderService = {
         action: AUDIT_ACTIONS.ORDER_STATUS_CHANGED,
         entityType: "masterOrder",
         entityId: orderId,
-        oldValues: { status: masterOrder.status },
-        newValues: { status: mappedStatus, reason },
+        oldValues: { status: masterOrder.status, effectiveStatus: currentEffective },
+        newValues: { status: mappedMasterStatus, subStatus: mappedSubStatus, reason },
       },
       req
     );
 
-    return await prisma.masterOrder.findUnique({ where: { id: orderId } });
+    return await this.getById(orderId);
   },
   
   async updateSubOrderStatus(
@@ -547,22 +814,7 @@ export const adminOrderService = {
       throw new NotFoundError("Order not found.");
     }
 
-    const STATUS_MAP: Record<string, string> = {
-      pending: "PENDING",
-      booked: "PENDING",
-      booking: "PENDING",
-      confirmed: "CONFIRMED",
-      accepted: "CONFIRMED",
-      preparing: "PREPARING",
-      packed: "PACKED",
-      ready_for_pickup: "READY_FOR_PICKUP",
-      out_for_delivery: "OUT_FOR_DELIVERY",
-      delivered: "DELIVERED",
-      cancelled: "CANCELLED",
-      refunded: "REFUNDED",
-    };
-
-    const mappedStatus = STATUS_MAP[status.toLowerCase()] || status.toUpperCase();
+    const { subStatus: mappedStatus, masterStatus: mappedMasterStatus } = mapStatusToPrisma(status);
 
     let lastUpdated: any = null;
     for (const order of subOrders) {
@@ -615,12 +867,19 @@ export const adminOrderService = {
       }
     }
 
+    for (const o of subOrders) {
+      realtime.publishOrderStatus(o.id, mappedStatus);
+      if (o.master_order_id) {
+        realtime.publishOrderStatus(o.master_order_id, mappedStatus);
+      }
+    }
+
     const masterId = subOrders[0]?.master_order_id || (subOrders[0]?.id === orderId ? null : orderId);
     if (masterId) {
       try {
         await prisma.masterOrder.update({
           where: { id: masterId },
-          data: { status: mappedStatus as any },
+          data: { status: mappedMasterStatus },
         });
       } catch (e) {}
     }

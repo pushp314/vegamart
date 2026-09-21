@@ -32,6 +32,7 @@ import {
   Copy,
   Check,
   RefreshCw,
+  Share2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -386,7 +387,7 @@ function DeliveryDashboard() {
     if (!order?.id) return;
     const amount = Number(order.total_amount || order.total || 0);
     const confirmed = window.confirm(
-      `Confirm cash payment received: ₹${amount.toFixed(2)} for Order #${order.order_number || order.id.substring(0, 8)}?\n\nThis will mark the order payment status as PAID.`
+      `Confirm payment received (UPI / Cash): ₹${amount.toFixed(2)} for Order #${order.order_number || order.id.substring(0, 8)}?\n\nThis will mark the order payment status as PAID.`
     );
     if (!confirmed) return;
     confirmCashMutation.mutate(order.id);
@@ -2339,7 +2340,8 @@ function DeliveryDashboard() {
             const vpa = publicSettings?.["platform.upi_id"] || "vegamart@upi";
             const platformName = publicSettings?.["platform.name"] || "VegaMart";
             const upiUri = `upi://pay?pa=${vpa}&pn=${encodeURIComponent(platformName)}&am=${amt}&tr=${ordNo}&tn=${encodeURIComponent(`Order_${ordNo}`)}&cu=INR`;
-            const activeQrValue = dynamicQrData?.short_url || upiUri;
+            // Must strictly use upiUri so PhonePe, GPay, Paytm, and BHIM in-app scanners parse the payment intent instantly
+            const activeQrValue = upiUri;
 
             if (paymentCompletedSuccess || (isAlreadyPaid && !isPartialAdvance)) {
               return (
@@ -2389,12 +2391,12 @@ function DeliveryDashboard() {
                   </div>
                 </div>
 
-                {/* LIVE DYNAMIC SCANNER / QR DISPLAY */}
+                {/* LIVE UPI SCANNER / QR DISPLAY */}
                 <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
                   <div className="flex items-center justify-between gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 px-1">
                     <span className="flex items-center gap-1.5">
                       <QrCode className="h-4 w-4 text-emerald-600" />
-                      {dynamicQrData?.short_url ? "Dynamic Razorpay QR" : "Doorstep UPI QR"}
+                      Doorstep UPI QR
                     </span>
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300/60 shadow-2xs">
                       <span className="relative flex h-1.5 w-1.5">
@@ -2410,7 +2412,7 @@ function DeliveryDashboard() {
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                         <span className="text-[11px] font-medium text-muted-foreground">
-                          Generating Dynamic QR...
+                          Preparing QR...
                         </span>
                       </div>
                     ) : (
@@ -2425,7 +2427,7 @@ function DeliveryDashboard() {
                   </div>
 
                   <div className="text-[11px] text-muted-foreground font-medium">
-                    Customer can scan using GPay, PhonePe, Paytm, BHIM, or any camera app.
+                    Customer can scan using <strong>Google Pay, PhonePe, Paytm, BHIM</strong>, or any UPI app.
                   </div>
 
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-background border text-[11px] font-mono text-muted-foreground shadow-2xs">
@@ -2444,26 +2446,55 @@ function DeliveryDashboard() {
                       {copiedUpi ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
                     </button>
                   </div>
+
+                  {dynamicQrData?.short_url && (
+                    <div className="pt-1 flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-[11px] text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 gap-1 rounded-lg font-medium"
+                        onClick={() => {
+                          navigator.clipboard.writeText(dynamicQrData.short_url);
+                          toast.success("Razorpay payment link copied!");
+                        }}
+                      >
+                        <Copy className="h-3 w-3" /> Copy Razorpay Link
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-[11px] text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 gap-1 rounded-lg font-medium"
+                        onClick={() => {
+                          const text = encodeURIComponent(`Please pay ₹${amt} for VegaMart Order #${ordNo}: ${dynamicQrData.short_url}`);
+                          window.open(`https://wa.me/?text=${text}`, "_blank");
+                        }}
+                      >
+                        <Share2 className="h-3 w-3" /> WhatsApp Link
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 pt-1">
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full h-11 rounded-2xl border-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-bold text-xs shadow-xs gap-2"
+                    className="w-full h-11 rounded-2xl border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold text-xs shadow-xs gap-2"
                     onClick={() => handleConfirmCashPayment(latestOrder)}
                     disabled={confirmCashMutation.isPending}
                   >
                     {confirmCashMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Banknote className="h-4 w-4 text-amber-600" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     )}
-                    Customer Paid Cash (₹{amt})
+                    Confirm Payment Received (₹{amt})
                   </Button>
 
                   <p className="text-[10px] text-muted-foreground leading-relaxed px-2">
-                    When customer pays via QR, payment completes <strong>automatically</strong>. If customer hands over cash instead, tap above.
+                    Customer can scan via PhonePe/GPay/Paytm. Tap above once customer pays, or if paid via Razorpay link, it confirms <strong>automatically</strong>.
                   </p>
                 </div>
 

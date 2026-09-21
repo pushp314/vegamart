@@ -299,14 +299,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ? 0
         : baseDeliveryFee
       : 0;
-  const taxRatePercent = (settings["platform.tax_rate_percent"] as number) || 5;
+  const rawAdminTax = settings["platform.tax_rate_percent"];
+  const taxRatePercent =
+    rawAdminTax !== undefined && rawAdminTax !== null && rawAdminTax !== ""
+      ? Number(rawAdminTax)
+      : 5;
   const localTax = items.reduce((acc, item) => {
-    const itemTaxRate = item.product.tax_rate ?? 0;
+    const prodTax = item.product.tax_rate != null ? Number(item.product.tax_rate) : null;
+    const itemTaxRate = prodTax != null && prodTax > 0 ? prodTax : taxRatePercent;
     const itemDiscount = localSubtotal > 0 ? (item.product.price * item.quantity / localSubtotal) * couponDiscount : 0;
     const itemTaxable = Math.max(0, item.product.price * item.quantity - itemDiscount);
     return acc + (itemTaxable * itemTaxRate) / 100;
   }, 0);
-  const tax = preview ? Number(preview.tax ?? 0) : Math.round(localTax);
+  const tax = preview ? Number(preview.tax ?? 0) : Math.round(localTax * 100) / 100;
   const discount = preview ? Number(preview.discount ?? couponDiscount) : couponDiscount;
   const total = preview
     ? Number(preview.total ?? 0)
