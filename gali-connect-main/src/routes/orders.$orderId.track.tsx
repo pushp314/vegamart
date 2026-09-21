@@ -24,7 +24,11 @@ import {
   QrCode,
   Copy,
   Check,
+  Receipt,
+  Printer,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { OrderInvoiceModal } from "@/components/orders/OrderInvoiceModal";
 import { AppHeader } from "@/components/layout/app-header";
 import {
   Dialog,
@@ -39,7 +43,11 @@ import { api, WS_BASE_URL, ACCESS_TOKEN_KEY } from "@/lib/api";
 import { OrderLiveTrackingMap } from "@/components/orders/OrderLiveTrackingMap";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
-import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
+import {
+  getDeliveryOptionInfo,
+  getPaymentMethodInfo,
+  getOrderStatusInfo,
+} from "@/lib/order-helpers";
 
 function loadRazorpay(): Promise<any> {
   return new Promise((resolve) => {
@@ -99,16 +107,18 @@ function OrderIdTrackingPage() {
     queryFn: () => api.get<Record<string, any>>("/settings/public"),
     staleTime: 60_000,
   });
-  const publicSettings: Record<string, any> = (publicSettingsRes?.data as any)?.data ?? (publicSettingsRes?.data as any) ?? {};
+  const publicSettings: Record<string, any> =
+    (publicSettingsRes?.data as any)?.data ?? (publicSettingsRes?.data as any) ?? {};
   const isVegaMartFleetEnabled = publicSettings["platform.vegamart_delivery_enabled"] !== false;
 
   const order = orderRes?.data?.data || orderRes?.data || null;
   const [copiedOtp, setCopiedOtp] = useState(false);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
 
   const isMultiStore = Boolean(
     (order?.sub_orders && order.sub_orders.length > 1) ||
     (order?.vendors && order.vendors.length > 1) ||
-    (order?.orders && order.orders.length > 1)
+    (order?.orders && order.orders.length > 1),
   );
 
   const isMasterOrder = !!order?.orders;
@@ -116,17 +126,32 @@ function OrderIdTrackingPage() {
   let effectiveStatus = order?.status;
   if (isMasterOrder && order?.orders?.length > 0) {
     const subStatuses = order.orders.map((o: any) => String(o.status).toUpperCase());
-    
-    if (!["OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REFUNDED"].includes(String(effectiveStatus).toUpperCase())) {
-       if (subStatuses.every((s: string) => ["DELIVERED", "CANCELLED", "REFUNDED", "FAILED"].includes(s)) && subStatuses.some((s: string) => s === "DELIVERED")) {
-         effectiveStatus = "DELIVERED";
-       } else if (subStatuses.some((s: string) => ["OUT_FOR_DELIVERY", "DELIVERED"].includes(s))) {
-         effectiveStatus = "OUT_FOR_DELIVERY";
-       } else if (subStatuses.some((s: string) => ["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP", "PICKUP_IN_PROGRESS"].includes(s))) {
-          effectiveStatus = "PREPARING";
-       } else if (subStatuses.some((s: string) => s === "CONFIRMED")) {
-         effectiveStatus = "CONFIRMED";
-       }
+
+    if (
+      !["OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REFUNDED"].includes(
+        String(effectiveStatus).toUpperCase(),
+      )
+    ) {
+      if (
+        subStatuses.every((s: string) =>
+          ["DELIVERED", "CANCELLED", "REFUNDED", "FAILED"].includes(s),
+        ) &&
+        subStatuses.some((s: string) => s === "DELIVERED")
+      ) {
+        effectiveStatus = "DELIVERED";
+      } else if (subStatuses.some((s: string) => ["OUT_FOR_DELIVERY", "DELIVERED"].includes(s))) {
+        effectiveStatus = "OUT_FOR_DELIVERY";
+      } else if (
+        subStatuses.some((s: string) =>
+          ["PREPARING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP", "PICKUP_IN_PROGRESS"].includes(
+            s,
+          ),
+        )
+      ) {
+        effectiveStatus = "PREPARING";
+      } else if (subStatuses.some((s: string) => s === "CONFIRMED")) {
+        effectiveStatus = "CONFIRMED";
+      }
     }
   }
 
@@ -134,7 +159,8 @@ function OrderIdTrackingPage() {
   const status = statusInfo.status;
   const isDelivered = status === "delivered";
   const isOutForDelivery = status === "out_for_delivery";
-  const isPreparing = status === "preparing" || status === "packed" || status === "ready_for_pickup";
+  const isPreparing =
+    status === "preparing" || status === "packed" || status === "ready_for_pickup";
   const isConfirmed = status === "confirmed" || isPreparing || isOutForDelivery || isDelivered;
 
   // Live GPS tracking query
@@ -145,14 +171,21 @@ function OrderIdTrackingPage() {
   } = useQuery({
     queryKey: ["orderTracking", orderId],
     queryFn: () => api.get<{ data: any }>(`/delivery/order/${orderId}/tracking`),
-    enabled: !!order && (isOutForDelivery || status === "picked_up" || status === "preparing" || status === "confirmed"),
+    enabled:
+      !!order &&
+      (isOutForDelivery ||
+        status === "picked_up" ||
+        status === "preparing" ||
+        status === "confirmed"),
     refetchInterval: isOutForDelivery ? 8000 : false,
   });
 
   const trackingData = trackingRes?.data?.data || trackingRes?.data || null;
 
   // Real-time live coordinates state (updated via WebSocket stream or polling)
-  const [liveDriverLocation, setLiveDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [liveDriverLocation, setLiveDriverLocation] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
 
   // Sync initial or polled coordinates into state
   useEffect(() => {
@@ -167,7 +200,8 @@ function OrderIdTrackingPage() {
   // WebSocket connection to /delivery/order/:order_id/stream
   useEffect(() => {
     if (typeof window === "undefined" || !orderId || isDelivered) return;
-    const token = typeof localStorage !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY) : null;
+    const token =
+      typeof localStorage !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY) : null;
     if (!token) return;
 
     let ws: WebSocket | null = null;
@@ -265,7 +299,8 @@ function OrderIdTrackingPage() {
       return {
         lat: Number(addr.latitude),
         lng: Number(addr.longitude),
-        address: addr.full_address || [addr.landmark, addr.city, addr.pincode].filter(Boolean).join(", "),
+        address:
+          addr.full_address || [addr.landmark, addr.city, addr.pincode].filter(Boolean).join(", "),
       };
     }
     return null;
@@ -287,7 +322,11 @@ function OrderIdTrackingPage() {
   const steps = [
     { label: "Order Booked", desc: "Booking received & sent to merchant", done: !!order },
     { label: "Confirmed", desc: "Accepted by merchant", done: isConfirmed },
-    { label: "Preparing", desc: "Packing fresh items", done: isPreparing || isOutForDelivery || isDelivered },
+    {
+      label: "Preparing",
+      desc: "Packing fresh items",
+      done: isPreparing || isOutForDelivery || isDelivered,
+    },
     {
       label: "Out for Delivery",
       desc: "Partner on the way",
@@ -296,14 +335,28 @@ function OrderIdTrackingPage() {
     { label: "Delivered", desc: "Enjoy your fresh produce!", done: isDelivered },
   ];
 
-  const items = order?.items || (isMasterOrder ? order.orders.flatMap((o: any) => o.items || []) : []);
-  const itemsSubtotal = Number(order?.items_subtotal ?? (isMasterOrder ? order.orders.reduce((sum: number, o: any) => sum + Number(o.items_subtotal || 0), 0) : 0));
+  const items =
+    order?.items || (isMasterOrder ? order.orders.flatMap((o: any) => o.items || []) : []);
+  const itemsSubtotal = Number(
+    order?.items_subtotal ??
+      (isMasterOrder
+        ? order.orders.reduce((sum: number, o: any) => sum + Number(o.items_subtotal || 0), 0)
+        : 0),
+  );
   const deliveryFee = Number(order?.delivery_fee ?? 0);
   const tax = Number(order?.tax ?? order?.platform_fee ?? 0);
   const discount = Number(order?.discount ?? 0);
   const totalAmount = Number(order?.total_amount ?? order?.total ?? 0);
-  const isPaymentUnpaid = !!order && ((order?.payment_status === "PENDING" && order?.payment_method !== "COD") || order?.payment_status === "FAILED") && !["cancelled", "refunded"].includes(String(order?.status || "").toLowerCase());
-  const isCodUnpaid = !!order && order?.payment_method === "COD" && order?.payment_status !== "PAID" && !["cancelled", "refunded", "failed"].includes(String(order?.status || "").toLowerCase());
+  const isPaymentUnpaid =
+    !!order &&
+    ((order?.payment_status === "PENDING" && order?.payment_method !== "COD") ||
+      order?.payment_status === "FAILED") &&
+    !["cancelled", "refunded"].includes(String(order?.status || "").toLowerCase());
+  const isCodUnpaid =
+    !!order &&
+    order?.payment_method === "COD" &&
+    order?.payment_status !== "PAID" &&
+    !["cancelled", "refunded", "failed"].includes(String(order?.status || "").toLowerCase());
 
   const handleRetryPayment = async () => {
     if (!order?.id) return;
@@ -337,7 +390,9 @@ function OrderIdTrackingPage() {
               toast.success("Payment verified and completed successfully! 🎉");
               refetch();
             } else {
-              toast.error(verifyRes?.error?.message || "Verification failed. Please contact support.");
+              toast.error(
+                verifyRes?.error?.message || "Verification failed. Please contact support.",
+              );
             }
           } catch {
             toast.error("Payment verification failed. Please contact support.");
@@ -458,13 +513,18 @@ function OrderIdTrackingPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm text-foreground">Pay Online Option (UPI / QR / Card)</h3>
+                        <h3 className="font-bold text-sm text-foreground">
+                          Pay Online Option (UPI / QR / Card)
+                        </h3>
                         <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500 text-black">
                           Available Anytime / At Delivery
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xl">
-                        This order is currently <strong>Cash on Delivery (₹{totalAmount.toFixed(2)})</strong>. If you want to pay digitally now or when the delivery partner arrives at your doorstep, you can pay online via Google Pay, PhonePe, Paytm, QR, or Card.
+                        This order is currently{" "}
+                        <strong>Cash on Delivery (₹{totalAmount.toFixed(2)})</strong>. If you want
+                        to pay digitally now or when the delivery partner arrives at your doorstep,
+                        you can pay online via Google Pay, PhonePe, Paytm, QR, or Card.
                       </p>
                     </div>
                   </div>
@@ -475,7 +535,11 @@ function OrderIdTrackingPage() {
                       disabled={isRetryingPayment}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-5 py-2.5 shadow-xs transition-colors"
                     >
-                      {isRetryingPayment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Smartphone className="h-3.5 w-3.5" />}
+                      {isRetryingPayment ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Smartphone className="h-3.5 w-3.5" />
+                      )}
                       Pay Online (UPI / QR / Card)
                     </button>
                   </div>
@@ -493,13 +557,18 @@ function OrderIdTrackingPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm text-foreground">Online Payment Incomplete</h3>
+                        <h3 className="font-bold text-sm text-foreground">
+                          Online Payment Incomplete
+                        </h3>
                         <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500 text-white">
                           Action Required
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xl">
-                        Your online payment was not captured. <strong>Did your bank deduct money?</strong> Don't worry — if any amount was debited, your bank will auto-refund it in 3-5 business days. You can retry payment online or switch to Pay on Delivery.
+                        Your online payment was not captured.{" "}
+                        <strong>Did your bank deduct money?</strong> Don't worry — if any amount was
+                        debited, your bank will auto-refund it in 3-5 business days. You can retry
+                        payment online or switch to Pay on Delivery.
                       </p>
                     </div>
                   </div>
@@ -510,7 +579,11 @@ function OrderIdTrackingPage() {
                       disabled={isRetryingPayment || isSwitchingCod}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-4 py-2.5 shadow-xs transition-colors"
                     >
-                      {isRetryingPayment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      {isRetryingPayment ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
                       Retry Payment Online
                     </button>
                     <button
@@ -518,7 +591,11 @@ function OrderIdTrackingPage() {
                       disabled={isRetryingPayment || isSwitchingCod}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground font-bold text-xs px-4 py-2.5 shadow-xs transition-colors"
                     >
-                      {isSwitchingCod ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Banknote className="h-3.5 w-3.5 text-emerald-600" />}
+                      {isSwitchingCod ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Banknote className="h-3.5 w-3.5 text-emerald-600" />
+                      )}
                       Switch to COD
                     </button>
                   </div>
@@ -529,7 +606,9 @@ function OrderIdTrackingPage() {
             {/* Status Banner */}
             <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/5 p-5 shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${statusInfo.badgeBg} font-bold shadow-md`}>
+                <div
+                  className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${statusInfo.badgeBg} font-bold shadow-md`}
+                >
                   <statusInfo.icon className="h-6 w-6" />
                   {isOutForDelivery && (
                     <span className="absolute -top-1 -right-1 flex h-3 w-3">
@@ -587,9 +666,11 @@ function OrderIdTrackingPage() {
                       Estimated Delivery / Fulfillment Time
                     </span>
                     <div className="font-bold text-sm text-foreground">
-                      {(order.eta_minutes || trackingData?.eta_minutes) ? (
+                      {order.eta_minutes || trackingData?.eta_minutes ? (
                         <span className="text-emerald-700 dark:text-emerald-300 font-extrabold flex items-center gap-1.5 flex-wrap">
-                          🛵 Delivery Partner ने {order.eta_minutes || trackingData?.eta_minutes} मिनट का time दिया है — Estimated Delivery: {order.eta_minutes || trackingData?.eta_minutes} Minutes
+                          🛵 Delivery Partner ने {order.eta_minutes || trackingData?.eta_minutes}{" "}
+                          मिनट का time दिया है — Estimated Delivery:{" "}
+                          {order.eta_minutes || trackingData?.eta_minutes} Minutes
                         </span>
                       ) : (
                         `⚡ ${order.estimated_delivery_time || order.eta || order.vendor?.estimated_delivery_time || "20-30 mins"}`
@@ -637,14 +718,20 @@ function OrderIdTrackingPage() {
                     title="Copy OTP"
                     aria-label="Copy OTP"
                   >
-                    {copiedOtp ? <Check className="h-5 w-5 text-emerald-600" /> : <Copy className="h-5 w-5" />}
+                    {copiedOtp ? (
+                      <Check className="h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </div>
             )}
 
             {/* Live GPS Tracking Map */}
-            {(isOutForDelivery || status === "picked_up" || (effectiveStatus === "PICKUP_IN_PROGRESS" && !!liveDriverLocation)) && (
+            {(isOutForDelivery ||
+              status === "picked_up" ||
+              (effectiveStatus === "PICKUP_IN_PROGRESS" && !!liveDriverLocation)) && (
               <OrderLiveTrackingMap
                 driverLocation={liveDriverLocation}
                 pickupLocations={pickupLocations}
@@ -681,7 +768,9 @@ function OrderIdTrackingPage() {
                       {step.done ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
                     </div>
                     <div className="font-bold text-xs line-clamp-2 leading-tight">{step.label}</div>
-                    <div className="text-[10px] opacity-80 line-clamp-2 leading-tight">{step.desc}</div>
+                    <div className="text-[10px] opacity-80 line-clamp-2 leading-tight">
+                      {step.desc}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -694,17 +783,31 @@ function OrderIdTrackingPage() {
                   <h3 className="font-display font-black text-base text-foreground">
                     Order Details
                   </h3>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground font-mono">
                     Order #{order.order_number || orderId}
+                    {order.invoice_number ? ` • Invoice #${order.invoice_number}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* View / Print Tax Invoice Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setInvoiceModalOpen(true)}
+                    className="h-8 px-3 rounded-xl border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold text-xs gap-1.5 shadow-2xs transition-colors"
+                  >
+                    <Receipt className="h-3.5 w-3.5 text-emerald-600" /> View / Print Tax Invoice
+                  </Button>
+
                   {/* Delivery Mode Badge */}
                   {(() => {
                     const dInfo = getDeliveryOptionInfo(order);
                     const DIcon = dInfo.icon;
                     return (
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dInfo.colorClass}`}>
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dInfo.colorClass}`}
+                      >
                         <DIcon className="h-3.5 w-3.5" />
                         {dInfo.shortLabel}
                       </span>
@@ -712,9 +815,14 @@ function OrderIdTrackingPage() {
                   })()}
 
                   {/* Payment Method Badge */}
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${getPaymentMethodInfo(order.payment_method, order.payment_status).colorClass}`}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${getPaymentMethodInfo(order.payment_method, order.payment_status).colorClass}`}
+                  >
                     {(() => {
-                      const PIcon = getPaymentMethodInfo(order.payment_method, order.payment_status).icon;
+                      const PIcon = getPaymentMethodInfo(
+                        order.payment_method,
+                        order.payment_status,
+                      ).icon;
                       return <PIcon className="h-3.5 w-3.5" />;
                     })()}
                     {getPaymentMethodInfo(order.payment_method, order.payment_status).shortLabel}
@@ -734,7 +842,9 @@ function OrderIdTrackingPage() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                           Delivery Option Chosen
                         </span>
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}>
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}
+                        >
                           <DIcon className="h-3 w-3" />
                           {dInfo.shortLabel}
                         </span>
@@ -753,7 +863,7 @@ function OrderIdTrackingPage() {
                     order.payment_status,
                     totalAmount,
                     dInfo.id === "self_pickup",
-                    order.payment?.amount != null ? Number(order.payment.amount) : null
+                    order.payment?.amount != null ? Number(order.payment.amount) : null,
                   );
                   const PIcon = pInfo.icon;
                   return (
@@ -762,14 +872,18 @@ function OrderIdTrackingPage() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                           Payment Mode
                         </span>
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}>
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}
+                        >
                           <PIcon className="h-3 w-3" />
                           {pInfo.shortLabel}
                         </span>
                       </div>
                       <div className="font-bold text-foreground text-sm flex items-center justify-between">
                         <span>{pInfo.label}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pInfo.statusColorClass}`}>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pInfo.statusColorClass}`}
+                        >
                           {pInfo.statusText}
                         </span>
                       </div>
@@ -812,7 +926,8 @@ function OrderIdTrackingPage() {
                         href={`tel:${order.customer?.phone || order.address?.phone}`}
                         className="inline-flex items-center gap-1 text-emerald-700 font-semibold mt-1 hover:underline text-xs"
                       >
-                        <Phone className="h-3 w-3" /> {order.customer?.phone || order.address?.phone}
+                        <Phone className="h-3 w-3" />{" "}
+                        {order.customer?.phone || order.address?.phone}
                       </a>
                     )}
                   </div>
@@ -820,16 +935,24 @@ function OrderIdTrackingPage() {
                   <div className="pt-1.5 border-t border-border/50 space-y-1 text-muted-foreground">
                     <p className="font-medium text-foreground leading-relaxed">
                       {order.address?.full_address ||
-                        [order.address?.address_line1, order.address?.street_address].filter(Boolean).join(", ") ||
+                        [order.address?.address_line1, order.address?.street_address]
+                          .filter(Boolean)
+                          .join(", ") ||
                         "Address on file"}
                     </p>
                     {order.address?.landmark && (
                       <p className="text-[11px]">
-                        <strong className="text-foreground">Landmark:</strong> {order.address.landmark}
+                        <strong className="text-foreground">Landmark:</strong>{" "}
+                        {order.address.landmark}
                       </p>
                     )}
                     <p className="text-[11px]">
-                      {[order.address?.city, order.address?.state, order.address?.pincode ? `- ${order.address.pincode}` : "", order.address?.country || "India"]
+                      {[
+                        order.address?.city,
+                        order.address?.state,
+                        order.address?.pincode ? `- ${order.address.pincode}` : "",
+                        order.address?.country || "India",
+                      ]
                         .filter(Boolean)
                         .join(", ")}
                     </p>
@@ -861,19 +984,41 @@ function OrderIdTrackingPage() {
                         const v = sub.vendor;
                         const subStatus = String(sub.status || "PENDING").toUpperCase();
                         const isSubCancelled = subStatus === "CANCELLED";
-                        const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
+                        const isSubConfirmed = [
+                          "CONFIRMED",
+                          "PREPARING",
+                          "READY_FOR_PICKUP",
+                          "PICKED_UP",
+                          "OUT_FOR_DELIVERY",
+                          "DELIVERED",
+                        ].includes(subStatus);
                         return (
-                          <div key={sub.id || sIdx} className="rounded-2xl bg-muted/40 border border-border/60 p-3.5 space-y-2 text-xs">
+                          <div
+                            key={sub.id || sIdx}
+                            className="rounded-2xl bg-muted/40 border border-border/60 p-3.5 space-y-2 text-xs"
+                          >
                             <div className="flex items-center justify-between gap-2">
                               <div className="font-bold text-foreground text-sm flex items-center gap-1.5 min-w-0">
-                                <span className="truncate">{v?.business_name || `Store #${sIdx + 1}`}</span>
+                                <span className="truncate">
+                                  {v?.business_name || `Store #${sIdx + 1}`}
+                                </span>
                                 {isSubCancelled ? (
                                   <span className="shrink-0 text-[10px] font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
                                     Cancelled
                                   </span>
                                 ) : isSubConfirmed ? (
                                   <span className="shrink-0 text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                    {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PICKED_UP" ? "Picked Up" : subStatus === "OUT_FOR_DELIVERY" ? "Out for Delivery" : subStatus === "DELIVERED" ? "Delivered" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
+                                    {subStatus === "READY_FOR_PICKUP"
+                                      ? "Ready"
+                                      : subStatus === "PICKED_UP"
+                                        ? "Picked Up"
+                                        : subStatus === "OUT_FOR_DELIVERY"
+                                          ? "Out for Delivery"
+                                          : subStatus === "DELIVERED"
+                                            ? "Delivered"
+                                            : subStatus === "PREPARING"
+                                              ? "Preparing"
+                                              : "Accepted"}
                                   </span>
                                 ) : (
                                   <span className="shrink-0 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
@@ -945,7 +1090,13 @@ function OrderIdTrackingPage() {
                             {order.vendor.address}
                           </p>
                           <p className="text-[11px]">
-                            {[order.vendor.city, (order.vendor as any).state, (order.vendor as any).pincode ? `- ${(order.vendor as any).pincode}` : ""]
+                            {[
+                              order.vendor.city,
+                              (order.vendor as any).state,
+                              (order.vendor as any).pincode
+                                ? `- ${(order.vendor as any).pincode}`
+                                : "",
+                            ]
                               .filter(Boolean)
                               .join(", ")}
                           </p>
@@ -980,11 +1131,17 @@ function OrderIdTrackingPage() {
                         Assigned Delivery Partner
                       </div>
                       <div className="font-bold text-foreground text-sm">
-                        {order.delivery_partner.user?.name || order.delivery_partner.name || "Delivery Partner"}
+                        {order.delivery_partner.user?.name ||
+                          order.delivery_partner.name ||
+                          "Delivery Partner"}
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5">
-                        {order.delivery_partner.vehicle_type ? `${order.delivery_partner.vehicle_type}` : "Delivery Vehicle"}{" "}
-                        {order.delivery_partner.vehicle_number ? `(${order.delivery_partner.vehicle_number})` : ""}
+                        {order.delivery_partner.vehicle_type
+                          ? `${order.delivery_partner.vehicle_type}`
+                          : "Delivery Vehicle"}{" "}
+                        {order.delivery_partner.vehicle_number
+                          ? `(${order.delivery_partner.vehicle_number})`
+                          : ""}
                       </div>
                     </div>
                   </div>
@@ -1045,10 +1202,20 @@ function OrderIdTrackingPage() {
                       const v = sub.vendor;
                       const subStatus = String(sub.status || "PENDING").toUpperCase();
                       const isSubCancelled = subStatus === "CANCELLED";
-                      const isSubConfirmed = ["CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(subStatus);
+                      const isSubConfirmed = [
+                        "CONFIRMED",
+                        "PREPARING",
+                        "READY_FOR_PICKUP",
+                        "PICKED_UP",
+                        "OUT_FOR_DELIVERY",
+                        "DELIVERED",
+                      ].includes(subStatus);
                       const subItems = sub.items || [];
                       return (
-                        <div key={sub.id || sIdx} className="rounded-2xl border border-border/80 overflow-hidden bg-background shadow-xs">
+                        <div
+                          key={sub.id || sIdx}
+                          className="rounded-2xl border border-border/80 overflow-hidden bg-background shadow-xs"
+                        >
                           {/* Store Header Banner */}
                           <div className="px-3.5 py-2.5 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-2 min-w-0">
@@ -1067,7 +1234,17 @@ function OrderIdTrackingPage() {
                                 </span>
                               ) : isSubConfirmed ? (
                                 <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                  {subStatus === "READY_FOR_PICKUP" ? "Ready" : subStatus === "PICKED_UP" ? "Picked Up" : subStatus === "OUT_FOR_DELIVERY" ? "Out for Delivery" : subStatus === "DELIVERED" ? "Delivered" : subStatus === "PREPARING" ? "Preparing" : "Accepted"}
+                                  {subStatus === "READY_FOR_PICKUP"
+                                    ? "Ready"
+                                    : subStatus === "PICKED_UP"
+                                      ? "Picked Up"
+                                      : subStatus === "OUT_FOR_DELIVERY"
+                                        ? "Out for Delivery"
+                                        : subStatus === "DELIVERED"
+                                          ? "Delivered"
+                                          : subStatus === "PREPARING"
+                                            ? "Preparing"
+                                            : "Accepted"}
                                 </span>
                               ) : (
                                 <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
@@ -1124,11 +1301,13 @@ function OrderIdTrackingPage() {
                                       </div>
                                       {isRejected ? (
                                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-0.5">
-                                          <AlertCircle className="h-3 w-3" /> Unavailable / Cancelled
+                                          <AlertCircle className="h-3 w-3" /> Unavailable /
+                                          Cancelled
                                         </span>
                                       ) : (
                                         <span className="text-[10px] text-muted-foreground">
-                                          ₹{Number(item.unit_price || item.price || 0).toFixed(2)} each
+                                          ₹{Number(item.unit_price || item.price || 0).toFixed(2)}{" "}
+                                          each
                                         </span>
                                       )}
                                     </div>
@@ -1144,8 +1323,7 @@ function OrderIdTrackingPage() {
                                     >
                                       ₹
                                       {(
-                                        (item.unit_price || item.price || 0) *
-                                        (item.quantity || 1)
+                                        (item.unit_price || item.price || 0) * (item.quantity || 1)
                                       ).toFixed(2)}
                                     </span>
                                     {isRejected && (
@@ -1160,7 +1338,9 @@ function OrderIdTrackingPage() {
                           </div>
                           {/* Store Subtotal */}
                           <div className="px-3.5 py-2 bg-muted/20 border-t border-border/40 flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground font-medium text-[11px]">Store Total:</span>
+                            <span className="text-muted-foreground font-medium text-[11px]">
+                              Store Total:
+                            </span>
                             <span className="font-bold text-foreground tabular-nums">
                               ₹{Number(sub.total || 0).toFixed(2)}
                             </span>
@@ -1238,8 +1418,7 @@ function OrderIdTrackingPage() {
                               >
                                 ₹
                                 {(
-                                  (item.unit_price || item.price || 0) *
-                                  (item.quantity || 1)
+                                  (item.unit_price || item.price || 0) * (item.quantity || 1)
                                 ).toFixed(2)}
                               </span>
                               {isRejected && (
@@ -1274,21 +1453,42 @@ function OrderIdTrackingPage() {
                     {deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : "FREE"}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Taxes (GST)</span>
-                  <span className="tabular-nums font-semibold">₹{(tax || 0).toFixed(2)}</span>
-                </div>
-                {order.additional_charges && order.additional_charges.length > 0 && order.additional_charges.map((charge: any, idx: number) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>{charge.name}</span>
-                    <span className="tabular-nums font-semibold">₹{Number(charge.amount).toFixed(2)}</span>
+                {tax > 0 && (
+                  <div className="flex justify-between">
+                    <span>Taxes &amp; Cess (GST)</span>
+                    <span className="tabular-nums font-semibold">₹{tax.toFixed(2)}</span>
                   </div>
-                ))}
+                )}
+                {Number(order.platform_fee || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span>Platform / Handling Fee</span>
+                    <span className="tabular-nums font-semibold">
+                      ₹{Number(order.platform_fee).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {order.additional_charges &&
+                  order.additional_charges.length > 0 &&
+                  order.additional_charges.map((charge: any, idx: number) => (
+                    <div key={idx} className="flex justify-between">
+                      <span>{charge.name || charge.title || "Extra Charge"}</span>
+                      <span className="tabular-nums font-semibold">
+                        ₹{Number(charge.amount).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
 
                 {discount > 0 && (
                   <div className="flex justify-between text-emerald-600 font-medium">
-                    <span>Discount</span>
-                    <span className="tabular-nums">- ₹{discount.toFixed(2)}</span>
+                    <span className="flex items-center gap-1">
+                      Coupon Discount
+                      {order.coupon_code && (
+                        <span className="text-[10px] uppercase font-mono px-1 bg-emerald-100 text-emerald-800 rounded">
+                          {order.coupon_code}
+                        </span>
+                      )}
+                    </span>
+                    <span className="tabular-nums font-bold">- ₹{discount.toFixed(2)}</span>
                   </div>
                 )}
                 {Number(order.payment?.refund_amount ?? 0) > 0 && (
@@ -1302,7 +1502,7 @@ function OrderIdTrackingPage() {
                 {/* Total Order Amount */}
                 <div className="flex justify-between pt-2 border-t text-sm font-bold text-foreground">
                   <span>Total Order Amount</span>
-                  <span className="tabular-nums font-extrabold">
+                  <span className="tabular-nums font-extrabold text-base text-emerald-600">
                     ₹{(totalAmount || 0).toFixed(2)}
                   </span>
                 </div>
@@ -1314,7 +1514,7 @@ function OrderIdTrackingPage() {
                     order.payment_status,
                     totalAmount,
                     dInfo.id === "self_pickup",
-                    order.payment?.amount != null ? Number(order.payment.amount) : null
+                    order.payment?.amount != null ? Number(order.payment.amount) : null,
                   );
 
                   if (pInfo.isPartialAdvance) {
@@ -1325,7 +1525,9 @@ function OrderIdTrackingPage() {
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                             Advance Paid Online ({order.payment?.method || "UPI/Card"}):
                           </span>
-                          <span className="tabular-nums font-extrabold text-sm">- ₹{pInfo.advancePaid.toFixed(2)}</span>
+                          <span className="tabular-nums font-extrabold text-sm">
+                            - ₹{pInfo.advancePaid.toFixed(2)}
+                          </span>
                         </div>
                         <div className="flex justify-between items-center text-sm font-black text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-2xl border border-amber-200 dark:border-amber-900/50">
                           <span className="flex items-center gap-1.5">
@@ -1343,11 +1545,16 @@ function OrderIdTrackingPage() {
                     );
                   }
 
-                  if (!pInfo.isPartialAdvance && pInfo.isPrepaid && (order.payment_status === "PAID" || order.payment_status === "SUCCESS")) {
+                  if (
+                    !pInfo.isPartialAdvance &&
+                    pInfo.isPrepaid &&
+                    (order.payment_status === "PAID" || order.payment_status === "SUCCESS")
+                  ) {
                     return (
                       <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-300 font-extrabold text-sm bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 mt-1">
                         <span className="flex items-center gap-1.5">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> Full Online Payment Successful
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> Full Online
+                          Payment Successful
                         </span>
                         <span className="tabular-nums">₹{(totalAmount || 0).toFixed(2)}</span>
                       </div>
@@ -1357,8 +1564,12 @@ function OrderIdTrackingPage() {
                   if (pInfo.method === "COD") {
                     return (
                       <div className="flex justify-between items-center text-foreground font-extrabold text-sm bg-muted/50 p-2.5 rounded-xl border mt-1">
-                        <span>Amount to Pay on {dInfo.id === "self_pickup" ? "Pickup" : "Delivery"}</span>
-                        <span className="tabular-nums text-primary font-bold text-base">₹{(totalAmount || 0).toFixed(2)}</span>
+                        <span>
+                          Amount to Pay on {dInfo.id === "self_pickup" ? "Pickup" : "Delivery"}
+                        </span>
+                        <span className="tabular-nums text-primary font-bold text-base">
+                          ₹{(totalAmount || 0).toFixed(2)}
+                        </span>
                       </div>
                     );
                   }
@@ -1370,6 +1581,19 @@ function OrderIdTrackingPage() {
                     </div>
                   );
                 })()}
+
+                {/* Print/Download Invoice Bottom Action */}
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setInvoiceModalOpen(true)}
+                    className="w-full h-10 rounded-2xl border-emerald-500/30 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 font-bold text-xs gap-2 shadow-2xs"
+                  >
+                    <Receipt className="h-4 w-4 text-emerald-600" />
+                    Download / Print Official Tax Invoice &amp; Receipt
+                  </Button>
+                </div>
               </div>
             </div>
           </>
@@ -1381,7 +1605,7 @@ function OrderIdTrackingPage() {
             order?.delivery_partner_id ||
             order?.delivery_partner ||
             order?.sub_orders?.some((s: any) => Boolean(s.delivery_partner_id)) ||
-            order?.orders?.some((o: any) => Boolean(o.delivery_partner_id))
+            order?.orders?.some((o: any) => Boolean(o.delivery_partner_id)),
           );
           const hasAcceptedSub = Boolean(
             order?.sub_orders?.some((s: any) => {
@@ -1391,10 +1615,12 @@ function OrderIdTrackingPage() {
             order?.orders?.some((o: any) => {
               const st = String(o.status || "").toUpperCase();
               return st !== "PENDING" && st !== "CANCELLED";
-            })
+            }),
           );
           const isAccepted = hasRider || hasAcceptedSub || status !== "pending";
-          const canCancelOrder = Boolean(order && !isDelivered && !isAccepted && status === "pending");
+          const canCancelOrder = Boolean(
+            order && !isDelivered && !isAccepted && status === "pending",
+          );
 
           if (!canCancelOrder) return null;
 
@@ -1404,8 +1630,8 @@ function OrderIdTrackingPage() {
                 Need to cancel your order?
               </h3>
               <p className="text-xs text-muted-foreground mx-auto max-w-sm">
-                Orders can only be cancelled while pending store acceptance. If you've already paid online,
-                a refund will be initiated automatically.
+                Orders can only be cancelled while pending store acceptance. If you've already paid
+                online, a refund will be initiated automatically.
               </p>
               <button
                 onClick={() => setCancelModalOpen(true)}
@@ -1477,6 +1703,14 @@ function OrderIdTrackingPage() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+      {/* Order Tax Invoice & Receipt Modal */}
+      {order && (
+        <OrderInvoiceModal
+          order={order}
+          isOpen={invoiceModalOpen}
+          onClose={() => setInvoiceModalOpen(false)}
+        />
       )}
     </div>
   );

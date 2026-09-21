@@ -17,6 +17,7 @@ import * as inventoryRepo from "../repositories/inventory.repository";
 import { completeDelivery, VENDOR_DELIVERY_STATES, verifyDeliveryOtp } from "./order-delivery.service";
 import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
+import { generateInvoiceNumber } from "../utils/order";
 
 export interface OrderListQuery {
   page?: number;
@@ -145,7 +146,7 @@ export const orderService = {
       perPage
     );
     const sanitizedRows = rows.map((r: any) => {
-      const { otp_code, otp_expires_at, otp_attempts, ...rest } = r;
+      const { otp_code: _otp_code, otp_expires_at: _otp_expires_at, otp_attempts: _otp_attempts, ...rest } = r;
       return rest;
     });
     return { rows: sanitizedRows, total, page, perPage };
@@ -153,6 +154,7 @@ export const orderService = {
 
   async getOrderForUser(userId: string, orderId: string): Promise<any> {
     const orderInclude = {
+      customer: { select: { id: true, name: true, phone: true, email: true } },
       address: true,
       delivery_partner: {
         select: {
@@ -162,15 +164,19 @@ export const orderService = {
           user: { select: { name: true, phone: true } },
         },
       },
+      payment: true,
       orders: {
         include: {
           vendor: true,
+          payment: true,
+          coupon: true,
           items: {
             include: {
               product: {
                 select: {
                   id: true,
                   name: true,
+                  unit: true,
                   images: {
                     select: { url: true },
                     take: 1,
@@ -224,16 +230,24 @@ export const orderService = {
     );
     const vendors = m.orders.map((o: any) => o.vendor);
     const firstOrder = m.orders[0];
-    const payment = firstOrder?.transactions?.find((t: any) => t.status === "COMPLETED");
+    const payment = m.payment || firstOrder?.payment || firstOrder?.transactions?.find((t: any) => t.status === "COMPLETED");
     const activeOtp = m.orders.find((o: any) => Boolean(o.otp_code))?.otp_code || firstOrder?.otp_code;
     const activeEtaMinutes = m.orders.find((o: any) => o.eta_minutes != null)?.eta_minutes || firstOrder?.eta_minutes || null;
+    const invoiceNumber = firstOrder?.invoice_number || generateInvoiceNumber(m.order_number);
+    const masterDiscount = m.orders.reduce((sum: number, o: any) => sum + Number(o.discount || 0), 0);
+    const activeCouponCode = (firstOrder as any)?.coupon?.code || (firstOrder as any)?.coupon_id || (m as any).coupon_code || null;
 
     const subOrders = m.orders.map((o: any) => ({
       id: o.id,
       order_number: o.order_number,
+      invoice_number: o.invoice_number || generateInvoiceNumber(o.order_number),
       status: o.status,
       delivery_partner_id: o.delivery_partner_id,
       total: Number(o.total),
+      items_subtotal: Number(o.items_subtotal || 0),
+      delivery_fee: Number(o.delivery_fee || 0),
+      tax: Number(o.tax || 0),
+      discount: Number(o.discount || 0),
       vendor: o.vendor,
       otp_code: o.otp_code,
       delivery_note: o.delivery_note,
@@ -253,15 +267,24 @@ export const orderService = {
     return {
       id: m.id,
       order_number: m.order_number,
+      invoice_number: invoiceNumber,
       status: m.status,
-      total_amount: m.total_amount,
+      total_amount: Number(m.total_amount),
       items_subtotal: itemsSubtotal,
-      delivery_fee: m.delivery_fee,
-      tax: m.tax,
+      delivery_fee: Number(m.delivery_fee),
+      tax: Number(m.tax),
       platform_fee: Number(m.platform_fee || 0),
       additional_charges: m.additional_charges || [],
+      discount: masterDiscount,
+      coupon_code: activeCouponCode,
       payment_method: m.payment_method,
       payment_status: m.payment_status,
+      customer: m.customer || {
+        id: m.user_id,
+        name: m.address?.label || "Customer",
+        phone: m.address?.phone || null,
+        email: null,
+      },
       delivery_note: activeDeliveryNote,
       delivery_slot: activeDeliveryNote,
       delivery_option: activeDeliveryNote,
@@ -272,11 +295,20 @@ export const orderService = {
       sub_orders: subOrders,
       address: m.address,
       delivery_partner: m.delivery_partner,
-      total: m.total_amount,
+      total: Number(m.total_amount),
       vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null },
       otp_code: activeOtp,
       eta_minutes: activeEtaMinutes,
-      payment,
+      payment: payment ? {
+        id: (payment as any).id,
+        method: (payment as any).method || "ONLINE",
+        amount: Number((payment as any).amount),
+        status: (payment as any).status,
+        razorpay_order_id: (payment as any).razorpay_order_id || null,
+        razorpay_payment_id: (payment as any).razorpay_payment_id || (payment as any).payment_id || null,
+        refund_amount: (payment as any).refund_amount ? Number((payment as any).refund_amount) : null,
+        refund_status: (payment as any).refund_status || null,
+      } : null,
       events: firstOrder?.events || [],
       orders: m.orders,
     };
@@ -291,7 +323,7 @@ export const orderService = {
     if (order.vendor_id !== vendor.id) {
       throw new ForbiddenError("You do not own this order.");
     }
-    const { otp_code, otp_expires_at, otp_attempts, ...sanitized } = order as any;
+    const { otp_code: _otp_code, otp_expires_at: _otp_expires_at, otp_attempts: _otp_attempts, ...sanitized } = order as any;
     return sanitized as orderRepo.OrderDetail;
   },
 
@@ -616,15 +648,142 @@ export const orderService = {
     return order.events;
   },
 
-  async getInvoice(orderId: string): Promise<orderRepo.OrderDetail> {
-    const order = await orderRepo.findById(orderId);
-    if (!order) {
-      throw new NotFoundError("Order not found.");
+  async getInvoice(orderId: string): Promise<any> {
+    // 1. Try master order first
+    let m = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        address: true,
+        delivery_partner: {
+          select: {
+            id: true,
+            vehicle_type: true,
+            vehicle_number: true,
+            user: { select: { name: true, phone: true } },
+          },
+        },
+        payment: true,
+        orders: {
+          include: {
+            vendor: true,
+            payment: true,
+            coupon: true,
+            items: {
+              include: {
+                product: { select: { id: true, name: true, unit: true, images: { select: { url: true }, take: 1 } } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 2. If not found as master order, try finding by suborder ID
+    if (!m) {
+      const subOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { master_order_id: true },
+      });
+      if (subOrder?.master_order_id) {
+        m = await prisma.masterOrder.findUnique({
+          where: { id: subOrder.master_order_id },
+          include: {
+            customer: { select: { id: true, name: true, phone: true, email: true } },
+            address: true,
+            delivery_partner: {
+              select: {
+                id: true,
+                vehicle_type: true,
+                vehicle_number: true,
+                user: { select: { name: true, phone: true } },
+              },
+            },
+            payment: true,
+            orders: {
+              include: {
+                vendor: true,
+                payment: true,
+                coupon: true,
+                items: {
+                  include: {
+                    product: { select: { id: true, name: true, unit: true, images: { select: { url: true }, take: 1 } } },
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
     }
-    if (!order.invoice_number) {
-      throw new ApiError(HttpStatus.NOT_FOUND, "Invoice not generated yet.", { code: "NOT_FOUND" });
+
+    // 3. If still not found, try standalone order from orderRepo
+    if (!m) {
+      const standalone = await orderRepo.findById(orderId);
+      if (!standalone) {
+        throw new NotFoundError("Order not found.");
+      }
+      return {
+        ...standalone,
+        invoice_number: standalone.invoice_number || generateInvoiceNumber(standalone.order_number),
+      };
     }
-    return order;
+
+    const firstOrder = m.orders[0];
+    const invoiceNumber = firstOrder?.invoice_number || generateInvoiceNumber(m.order_number);
+    const masterDiscount = m.orders.reduce((sum, o) => sum + Number(o.discount || 0), 0);
+    const allItems = m.orders.flatMap((o) =>
+      o.items.map((item) => ({
+        ...item,
+        unit_price: Number(item.unit_price),
+        total_price: Number(item.total_price),
+        image_url: item.image_url || item.product?.images?.[0]?.url || null,
+        vendor: o.vendor,
+      }))
+    );
+    const itemsSubtotal = allItems
+      .filter((i) => i.status !== "rejected")
+      .reduce((sum, i) => sum + Number(i.unit_price) * Number(i.quantity), 0);
+
+    return {
+      id: m.id,
+      order_number: m.order_number,
+      invoice_number: invoiceNumber,
+      invoice_date: m.created_at,
+      status: m.status,
+      total: Number(m.total_amount),
+      total_amount: Number(m.total_amount),
+      items_subtotal: itemsSubtotal,
+      delivery_fee: Number(m.delivery_fee),
+      tax: Number(m.tax),
+      platform_fee: Number(m.platform_fee || 0),
+      additional_charges: m.additional_charges || [],
+      discount: masterDiscount,
+      coupon_code: (firstOrder as any)?.coupon?.code || null,
+      payment_method: m.payment_method,
+      payment_status: m.payment_status,
+      customer: m.customer,
+      address: m.address,
+      delivery_partner: m.delivery_partner,
+      payment: m.payment || firstOrder?.payment || null,
+      vendor: m.orders.length === 1 ? m.orders[0]?.vendor : null,
+      vendors: m.orders.map((o) => o.vendor).filter(Boolean),
+      items: allItems,
+      sub_orders: m.orders.map((o) => ({
+        id: o.id,
+        order_number: o.order_number,
+        invoice_number: o.invoice_number || generateInvoiceNumber(o.order_number),
+        total: Number(o.total),
+        items_subtotal: Number(o.items_subtotal),
+        delivery_fee: Number(o.delivery_fee),
+        tax: Number(o.tax),
+        discount: Number(o.discount),
+        vendor: o.vendor,
+        status: o.status,
+        items: o.items,
+      })),
+      created_at: m.created_at,
+    };
   },
 
   async requestRefund(userId: string, orderId: string, reason: string, req: Request): Promise<any> {

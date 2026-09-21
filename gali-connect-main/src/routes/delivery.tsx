@@ -33,6 +33,8 @@ import {
   Check,
   RefreshCw,
   Share2,
+  ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -53,7 +55,13 @@ const DeliveryMapModal =
         })),
       )
     : () => null;
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -237,6 +245,9 @@ function DeliveryDashboard() {
     amount?: number;
     status?: string;
     order_number?: string;
+    customer_phone?: string | null;
+    customer_name?: string | null;
+    fallback_url?: string;
   } | null>(null);
   const [paymentCompletedSuccess, setPaymentCompletedSuccess] = useState(false);
 
@@ -285,18 +296,25 @@ function DeliveryDashboard() {
   const requests = rawRequests.filter(
     (r: any) =>
       isVegaMartDelivery(r.delivery_option || r.delivery_note) &&
-      !["DELIVERED", "CANCELLED", "REFUNDED"].includes(r.status?.toUpperCase())
+      !["DELIVERED", "CANCELLED", "REFUNDED"].includes(r.status?.toUpperCase()),
   );
 
   const prevRequestsCountRef = useRef(0);
   useEffect(() => {
-    if (isOnline && requests.length > prevRequestsCountRef.current && prevRequestsCountRef.current >= 0) {
-      toast.info(`⚡ ${requests.length} Delivery Request${requests.length > 1 ? "s" : ""} Available on Radar!`, {
-        action: {
-          label: "View Radar",
-          onClick: () => setActiveTab("requests"),
+    if (
+      isOnline &&
+      requests.length > prevRequestsCountRef.current &&
+      prevRequestsCountRef.current >= 0
+    ) {
+      toast.info(
+        `⚡ ${requests.length} Delivery Request${requests.length > 1 ? "s" : ""} Available on Radar!`,
+        {
+          action: {
+            label: "View Radar",
+            onClick: () => setActiveTab("requests"),
+          },
         },
-      });
+      );
     }
     prevRequestsCountRef.current = requests.length;
   }, [requests.length, isOnline]);
@@ -364,8 +382,7 @@ function DeliveryDashboard() {
 
   // Confirm Cash Payment Collected Mutation
   const confirmCashMutation = useMutation({
-    mutationFn: (orderId: string) =>
-      api.post(`/delivery/orders/${orderId}/confirm-cash`, {}),
+    mutationFn: (orderId: string) => api.post(`/delivery/orders/${orderId}/confirm-cash`, {}),
     onSuccess: (res: any, orderId: string) => {
       queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
       queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
@@ -374,7 +391,10 @@ function DeliveryDashboard() {
       const order = myDeliveries.find((o: any) => o.id === orderId);
       if (order && order.status !== "OUT_FOR_DELIVERY") {
         setTimeout(() => {
-          toast.info("Next step: Tap 'Start Customer Delivery' to begin delivery, then use OTP to confirm handover.", { duration: 6000 });
+          toast.info(
+            "Next step: Tap 'Start Customer Delivery' to begin delivery, then use OTP to confirm handover.",
+            { duration: 6000 },
+          );
         }, 1500);
       }
     },
@@ -387,7 +407,7 @@ function DeliveryDashboard() {
     if (!order?.id) return;
     const amount = Number(order.total_amount || order.total || 0);
     const confirmed = window.confirm(
-      `Confirm payment received (UPI / Cash): ₹${amount.toFixed(2)} for Order #${order.order_number || order.id.substring(0, 8)}?\n\nThis will mark the order payment status as PAID.`
+      `Confirm payment received (UPI / Cash): ₹${amount.toFixed(2)} for Order #${order.order_number || order.id.substring(0, 8)}?\n\nThis will mark the order payment status as PAID.`,
     );
     if (!confirmed) return;
     confirmCashMutation.mutate(order.id);
@@ -519,7 +539,7 @@ function DeliveryDashboard() {
         enableHighAccuracy: true,
         timeout: 20000,
         maximumAge: 10000,
-      }
+      },
     );
 
     return () => {
@@ -773,9 +793,12 @@ function DeliveryDashboard() {
                 <div className="h-20 w-20 rounded-full bg-emerald-50 flex items-center justify-center mb-6 relative z-10 border border-emerald-200">
                   <Radio className="h-8 w-8 text-emerald-600" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 relative z-10">Scanning for Delivery Orders</h3>
+                <h3 className="text-xl font-bold mb-2 relative z-10">
+                  Scanning for Delivery Orders
+                </h3>
                 <p className="text-muted-foreground text-sm max-w-xs relative z-10">
-                  Waiting for vendors to accept orders. Once a vendor confirms an order for VegaMart Delivery, it will appear here for pickup.
+                  Waiting for vendors to accept orders. Once a vendor confirms an order for VegaMart
+                  Delivery, it will appear here for pickup.
                 </p>
               </div>
             ) : (
@@ -797,8 +820,12 @@ function DeliveryDashboard() {
                       </div>
 
                       <div className="flex items-center gap-2 mb-5">
-                        <div className={`h-2 w-2 rounded-full animate-pulse ${r.status === "PENDING" ? "bg-amber-400" : "bg-emerald-500"}`} />
-                        <span className={`text-xs font-bold uppercase tracking-widest ${r.status === "PENDING" ? "text-amber-600" : "text-emerald-600"}`}>
+                        <div
+                          className={`h-2 w-2 rounded-full animate-pulse ${r.status === "PENDING" ? "bg-amber-400" : "bg-emerald-500"}`}
+                        />
+                        <span
+                          className={`text-xs font-bold uppercase tracking-widest ${r.status === "PENDING" ? "text-amber-600" : "text-emerald-600"}`}
+                        >
                           {r.status === "PENDING" ? "Waiting for Vendor" : "New Request"}
                         </span>
                       </div>
@@ -871,7 +898,10 @@ function DeliveryDashboard() {
                               {r.user?.name || r.customer?.name || "Customer"}
                             </div>
                             <div className="text-xs text-muted-foreground mt-0.5">
-                              {r.address?.full_address || r.address?.street_address || r.address?.line1 || "Customer Address"}
+                              {r.address?.full_address ||
+                                r.address?.street_address ||
+                                r.address?.line1 ||
+                                "Customer Address"}
                               {r.address?.landmark ? ` · Landmark: ${r.address.landmark}` : ""}
                               {r.address?.city ? `, ${r.address.city}` : ""}
                               {r.address?.pincode ? ` (${r.address.pincode})` : ""}
@@ -889,15 +919,18 @@ function DeliveryDashboard() {
                           }}
                           className="w-full py-3 rounded-2xl bg-muted/80 hover:bg-muted text-foreground font-bold text-sm flex items-center justify-center gap-2 border border-border transition-colors"
                         >
-                          <Info className="h-4 w-4 text-emerald-600" /> View Order Details ({r.items?.length || 1} items)
+                          <Info className="h-4 w-4 text-emerald-600" /> View Order Details (
+                          {r.items?.length || 1} items)
                         </button>
 
                         <div className="space-y-3">
-                          {(r.status === "PENDING" || r.sub_orders?.some((s: any) => s.status === "PENDING")) && (
+                          {(r.status === "PENDING" ||
+                            r.sub_orders?.some((s: any) => s.status === "PENDING")) && (
                             <div className="bg-amber-50 text-amber-700 text-xs py-2.5 px-3 rounded-xl border border-amber-200 flex items-start gap-2 font-bold shadow-sm">
                               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                               <span>
-                                ⚠️ Store is currently accepting/packing items. You can claim this delivery run now and head to the pickup location.
+                                ⚠️ Store is currently accepting/packing items. You can claim this
+                                delivery run now and head to the pickup location.
                               </span>
                             </div>
                           )}
@@ -945,7 +978,8 @@ function DeliveryDashboard() {
                     onClick={() => setActiveTab("requests")}
                     className="mt-4 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-soft inline-flex items-center gap-2 active:scale-95 transition-transform"
                   >
-                    <Radio className="h-4 w-4 animate-pulse" /> View & Accept {requests.length} Available Order{requests.length > 1 ? "s" : ""}
+                    <Radio className="h-4 w-4 animate-pulse" /> View & Accept {requests.length}{" "}
+                    Available Order{requests.length > 1 ? "s" : ""}
                   </button>
                 )}
               </div>
@@ -1005,29 +1039,47 @@ function DeliveryDashboard() {
                         </div>
 
                         {(() => {
-                          const subTot = o.sub_orders?.reduce((s: number, so: any) => s + Number(so.items_subtotal ?? 0), 0) || 0;
+                          const subTot =
+                            o.sub_orders?.reduce(
+                              (s: number, so: any) => s + Number(so.items_subtotal ?? 0),
+                              0,
+                            ) || 0;
                           const itemsSub = Number(o.items_subtotal ?? 0) || subTot;
                           const fee = Number(o.delivery_fee ?? 0);
                           const taxC = Number(o.tax ?? 0);
                           const disc = Number(o.discount ?? 0);
-                          const total = Number(o.total_amount || o.total || 0) || Math.max(0, itemsSub + fee + taxC - disc);
+                          const total =
+                            Number(o.total_amount || o.total || 0) ||
+                            Math.max(0, itemsSub + fee + taxC - disc);
                           return (
                             <div className="rounded-xl bg-muted/40 border border-border px-3 py-2 grid grid-cols-4 gap-2 text-center text-[11px]">
                               <div>
-                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">Items</div>
-                                <div className="font-bold text-foreground">₹{itemsSub.toFixed(2)}</div>
+                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">
+                                  Items
+                                </div>
+                                <div className="font-bold text-foreground">
+                                  ₹{itemsSub.toFixed(2)}
+                                </div>
                               </div>
                               <div>
-                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">Delivery</div>
+                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">
+                                  Delivery
+                                </div>
                                 <div className="font-bold text-emerald-700">₹{fee.toFixed(2)}</div>
                               </div>
                               <div>
-                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">Tax</div>
+                                <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[9px]">
+                                  Tax
+                                </div>
                                 <div className="font-bold text-foreground">₹{taxC.toFixed(2)}</div>
                               </div>
                               <div>
-                                <div className="text-emerald-700 font-semibold uppercase tracking-wider text-[9px]">Total</div>
-                                <div className="font-black text-emerald-700">₹{total.toFixed(2)}</div>
+                                <div className="text-emerald-700 font-semibold uppercase tracking-wider text-[9px]">
+                                  Total
+                                </div>
+                                <div className="font-black text-emerald-700">
+                                  ₹{total.toFixed(2)}
+                                </div>
                               </div>
                             </div>
                           );
@@ -1045,7 +1097,12 @@ function DeliveryDashboard() {
                                 sIcon = <Hourglass className="h-3 w-3 animate-pulse" />;
                                 sColor = "text-indigo-600";
                                 sText = "Preparing";
-                              } else if (sStatus === "READY_FOR_PICKUP" || sStatus === "PICKED_UP" || sStatus === "OUT_FOR_DELIVERY" || sStatus === "DELIVERED") {
+                              } else if (
+                                sStatus === "READY_FOR_PICKUP" ||
+                                sStatus === "PICKED_UP" ||
+                                sStatus === "OUT_FOR_DELIVERY" ||
+                                sStatus === "DELIVERED"
+                              ) {
                                 sIcon = <CheckCircle2 className="h-3 w-3" />;
                                 sColor = "text-emerald-600";
                                 sText = "Ready";
@@ -1063,15 +1120,21 @@ function DeliveryDashboard() {
                                         <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1 flex items-center gap-1">
                                           Pickup {idx + 1} of {o.sub_orders.length}
                                         </div>
-                                        <div className="font-bold text-sm">{sub.vendor?.business_name}</div>
+                                        <div className="font-bold text-sm">
+                                          {sub.vendor?.business_name}
+                                        </div>
                                       </div>
-                                      <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border bg-card ${sColor} border-current opacity-80`}>
+                                      <div
+                                        className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border bg-card ${sColor} border-current opacity-80`}
+                                      >
                                         {sIcon} {sText}
                                       </div>
                                     </div>
                                     <div className="text-xs text-muted-foreground mt-1 mb-2">
                                       {sub.vendor?.address || "Store Address"}
-                                      {sub.vendor?.landmark ? ` · Landmark: ${sub.vendor.landmark}` : ""}
+                                      {sub.vendor?.landmark
+                                        ? ` · Landmark: ${sub.vendor.landmark}`
+                                        : ""}
                                       {sub.vendor?.city ? `, ${sub.vendor.city}` : ""}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
@@ -1085,13 +1148,18 @@ function DeliveryDashboard() {
                                         </a>
                                       )}
                                       <a
-                                        href={getGoogleMapsUrl(sub.vendor?.latitude, sub.vendor?.longitude, `${sub.vendor?.business_name || ""} ${sub.vendor?.address || ""} ${sub.vendor?.city || ""}`)}
+                                        href={getGoogleMapsUrl(
+                                          sub.vendor?.latitude,
+                                          sub.vendor?.longitude,
+                                          `${sub.vendor?.business_name || ""} ${sub.vendor?.address || ""} ${sub.vendor?.city || ""}`,
+                                        )}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         onClick={(e) => e.stopPropagation()}
                                         className="flex-1 min-w-[100px] text-center py-2 rounded-xl bg-card hover:bg-muted text-foreground border border-border font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                                       >
-                                        <Navigation className="h-3.5 w-3.5 text-emerald-600" /> Directions
+                                        <Navigation className="h-3.5 w-3.5 text-emerald-600" />{" "}
+                                        Directions
                                       </a>
                                     </div>
                                   </div>
@@ -1114,7 +1182,9 @@ function DeliveryDashboard() {
                                     </span>
                                   )}
                                 </div>
-                                <div className="font-bold text-base text-foreground">{o.vendor?.business_name}</div>
+                                <div className="font-bold text-base text-foreground">
+                                  {o.vendor?.business_name}
+                                </div>
                                 <div className="text-xs text-muted-foreground mt-0.5">
                                   {o.vendor?.address || "Store Address"}
                                   {o.vendor?.landmark ? ` · Landmark: ${o.vendor.landmark}` : ""}
@@ -1122,7 +1192,10 @@ function DeliveryDashboard() {
                                 </div>
                                 {o.vendor?.owner_name && (
                                   <div className="text-[11px] text-muted-foreground mt-0.5">
-                                    Contact: <span className="font-semibold text-foreground">{o.vendor.owner_name}</span>
+                                    Contact:{" "}
+                                    <span className="font-semibold text-foreground">
+                                      {o.vendor.owner_name}
+                                    </span>
                                   </div>
                                 )}
                                 <div className="flex flex-wrap gap-2 mt-2.5">
@@ -1136,7 +1209,11 @@ function DeliveryDashboard() {
                                     </a>
                                   )}
                                   <a
-                                    href={getGoogleMapsUrl(o.vendor?.latitude, o.vendor?.longitude, `${o.vendor?.business_name || ""} ${o.vendor?.address || ""} ${o.vendor?.city || ""}`)}
+                                    href={getGoogleMapsUrl(
+                                      o.vendor?.latitude,
+                                      o.vendor?.longitude,
+                                      `${o.vendor?.business_name || ""} ${o.vendor?.address || ""} ${o.vendor?.city || ""}`,
+                                    )}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
@@ -1165,9 +1242,14 @@ function DeliveryDashboard() {
                                   </span>
                                 )}
                               </div>
-                              <div className="font-bold text-base text-foreground">{o.user?.name || o.customer?.name || "Customer"}</div>
+                              <div className="font-bold text-base text-foreground">
+                                {o.user?.name || o.customer?.name || "Customer"}
+                              </div>
                               <div className="text-xs text-muted-foreground mt-0.5">
-                                {o.address?.full_address || o.address?.street_address || o.address?.line1 || "Customer Address"}
+                                {o.address?.full_address ||
+                                  o.address?.street_address ||
+                                  o.address?.line1 ||
+                                  "Customer Address"}
                                 {o.address?.landmark ? ` · Landmark: ${o.address.landmark}` : ""}
                                 {o.address?.city ? `, ${o.address.city}` : ""}
                                 {o.address?.pincode ? ` (${o.address.pincode})` : ""}
@@ -1175,7 +1257,9 @@ function DeliveryDashboard() {
                               {o.delivery_note && (
                                 <div className="mt-1.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded-xl p-2 flex items-start gap-1.5">
                                   <Info className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                                  <span><strong>Delivery Note:</strong> {o.delivery_note}</span>
+                                  <span>
+                                    <strong>Delivery Note:</strong> {o.delivery_note}
+                                  </span>
                                 </div>
                               )}
                               <div className="flex flex-wrap gap-2 mt-2.5">
@@ -1189,7 +1273,11 @@ function DeliveryDashboard() {
                                   </a>
                                 )}
                                 <a
-                                  href={getGoogleMapsUrl(o.address?.latitude, o.address?.longitude, `${o.address?.full_address || o.address?.street_address || ""} ${o.address?.city || ""}`)}
+                                  href={getGoogleMapsUrl(
+                                    o.address?.latitude,
+                                    o.address?.longitude,
+                                    `${o.address?.full_address || o.address?.street_address || ""} ${o.address?.city || ""}`,
+                                  )}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
@@ -1200,11 +1288,19 @@ function DeliveryDashboard() {
                               </div>
 
                               {(() => {
-                                const isPaid = String(o.payment_status || "").toUpperCase() === "PAID";
+                                const isPaid =
+                                  String(o.payment_status || "").toUpperCase() === "PAID";
                                 const advAmount = Number(o.advance_paid ?? o.payment?.amount ?? 0);
-                                const totAmount = Number(o.total_amount || o.total || o.payment?.amount || 0);
-                                const isPartialAdvance = !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
-                                const balAmount = isPartialAdvance ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100) : (isCod ? totAmount : 0);
+                                const totAmount = Number(
+                                  o.total_amount || o.total || o.payment?.amount || 0,
+                                );
+                                const isPartialAdvance =
+                                  !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
+                                const balAmount = isPartialAdvance
+                                  ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100)
+                                  : isCod
+                                    ? totAmount
+                                    : 0;
 
                                 if (isPaid && !isPartialAdvance) {
                                   return (
@@ -1247,14 +1343,15 @@ function DeliveryDashboard() {
                                             }}
                                             className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors border border-emerald-300/40"
                                           >
-                                            <QrCode className="h-3 w-3" /> Show UPI QR
+                                            <QrCode className="h-3 w-3" /> Collect Online / QR
                                           </button>
                                         </div>
                                       </div>
                                       {o.status !== "OUT_FOR_DELIVERY" && (
                                         <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                                           <Info className="h-3 w-3" />
-                                          Collect payment, then tap "Start Customer Delivery" → use OTP at doorstep.
+                                          Collect payment, then tap "Start Customer Delivery" → use
+                                          OTP at doorstep.
                                         </div>
                                       )}
                                     </div>
@@ -1305,10 +1402,16 @@ function DeliveryDashboard() {
                               const cLng = Number(o.address?.longitude ?? o.address?.lng ?? 0);
 
                               // Live Rider Location
-                              const rLat = riderCoords?.lat || Number(partner.current_lat || vLat - 0.01);
-                              const rLng = riderCoords?.lng || Number(partner.current_lng || vLng - 0.01);
+                              const rLat =
+                                riderCoords?.lat || Number(partner.current_lat || vLat - 0.01);
+                              const rLng =
+                                riderCoords?.lng || Number(partner.current_lng || vLng - 0.01);
 
-                              if (o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" || o.status === "PREPARING") {
+                              if (
+                                o.status === "CONFIRMED" ||
+                                o.status === "READY_FOR_PICKUP" ||
+                                o.status === "PREPARING"
+                              ) {
                                 setMapData({
                                   title: "Route to Store Pickup",
                                   startLocation: {
@@ -1345,100 +1448,147 @@ function DeliveryDashboard() {
                           </button>
                         </div>
 
-                        
                         {/* Sub-orders Sequence UI */}
-                        {o.sub_orders && o.sub_orders.length > 0 && o.status !== "OUT_FOR_DELIVERY" && o.status !== "DELIVERED" && (
-                          <div className="flex flex-col gap-2 mt-4">
-                            {(() => {
-                              const pendingCount = o.sub_orders.filter((s: any) => s.status === "PENDING").length;
-                              if (pendingCount > 0) {
+                        {o.sub_orders &&
+                          o.sub_orders.length > 0 &&
+                          o.status !== "OUT_FOR_DELIVERY" &&
+                          o.status !== "DELIVERED" && (
+                            <div className="flex flex-col gap-2 mt-4">
+                              {(() => {
+                                const pendingCount = o.sub_orders.filter(
+                                  (s: any) => s.status === "PENDING",
+                                ).length;
+                                if (pendingCount > 0) {
+                                  return (
+                                    <div className="bg-amber-100 border border-amber-300 text-amber-900 p-3 rounded-xl text-sm font-bold flex gap-2 items-start shadow-sm mb-2">
+                                      <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+                                      <span>
+                                        Wait! {pendingCount} store(s) have not accepted this order
+                                        yet. Contact them or pick up from the ready stores first.
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                                Pickup Sequence ({o.sub_orders.length} Stores)
+                              </div>
+                              {o.sub_orders.map((sub: any, idx: number) => {
+                                const isReady = [
+                                  "READY_FOR_PICKUP",
+                                  "PREPARING",
+                                  "PACKED",
+                                  "CONFIRMED",
+                                  "ACCEPTED",
+                                ].includes(String(sub.status || "").toUpperCase());
+                                const isPickedUp =
+                                  sub.status === "PICKED_UP" ||
+                                  sub.status === "OUT_FOR_DELIVERY" ||
+                                  sub.status === "DELIVERED";
+
                                 return (
-                                  <div className="bg-amber-100 border border-amber-300 text-amber-900 p-3 rounded-xl text-sm font-bold flex gap-2 items-start shadow-sm mb-2">
-                                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
-                                    <span>
-                                      Wait! {pendingCount} store(s) have not accepted this order yet. Contact them or pick up from the ready stores first.
-                                    </span>
+                                  <div
+                                    key={sub.id}
+                                    className="flex flex-col gap-2 p-3.5 rounded-2xl border border-border bg-card shadow-sm"
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <div className="font-bold text-sm">
+                                        {idx + 1}. {sub.vendor?.business_name || "Vendor"}
+                                      </div>
+                                      <div
+                                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${isPickedUp ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                                      >
+                                        {isPickedUp ? "Picked Up" : sub.status.replace(/_/g, " ")}
+                                      </div>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {sub.vendor?.address}
+                                    </div>
+
+                                    {/* Store Items List */}
+                                    {sub.items && sub.items.length > 0 && (
+                                      <div className="space-y-1.5 my-1.5 pt-2 border-t border-border/60">
+                                        <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                          Items to collect ({sub.items.length}):
+                                        </div>
+                                        {sub.items.map((it: any, i: number) => (
+                                          <div
+                                            key={it.id || i}
+                                            className="flex justify-between items-center text-xs bg-muted/30 px-2.5 py-1.5 rounded-lg"
+                                          >
+                                            <span className="font-semibold text-foreground truncate pr-2">
+                                              • {it.product_name}{" "}
+                                              <span className="text-muted-foreground font-normal">
+                                                × {it.quantity} {it.selected_unit || it.unit || ""}
+                                              </span>
+                                            </span>
+                                            <span className="font-bold text-muted-foreground shrink-0">
+                                              ₹{it.total_price || it.unit_price * it.quantity}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {!isPickedUp && (
+                                      <div className="flex flex-col gap-2 mt-2">
+                                        <div className="flex gap-2">
+                                          <a
+                                            href={`tel:${sub.vendor?.phone}`}
+                                            className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center justify-center gap-1"
+                                          >
+                                            <Phone className="h-3 w-3" /> Call
+                                          </a>
+                                          <button
+                                            onClick={() =>
+                                              notifyVendorMutation.mutate({
+                                                orderId: o.id,
+                                                subId: sub.id,
+                                              })
+                                            }
+                                            className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-indigo-100 text-indigo-700 hover:bg-indigo-200 flex items-center justify-center gap-1"
+                                          >
+                                            <Bell className="h-3 w-3" /> Notify
+                                          </button>
+                                          <button
+                                            disabled={!isReady}
+                                            onClick={() =>
+                                              confirmPickupMutation.mutate({
+                                                orderId: o.id,
+                                                subId: sub.id,
+                                              })
+                                            }
+                                            className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                                          >
+                                            <CheckCircle2 className="h-3 w-3" /> Picked Up
+                                          </button>
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            if (
+                                              window.confirm(
+                                                "Is the vendor unreachable or closed? Report this to Admin to get help or bypass this pickup.",
+                                              )
+                                            ) {
+                                              reportIssueMutation.mutate({
+                                                orderId: o.id,
+                                                subId: sub.id,
+                                              });
+                                            }
+                                          }}
+                                          className="w-full py-2 text-xs rounded-lg font-bold transition-colors border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center gap-1"
+                                        >
+                                          <AlertCircle className="h-3 w-3" /> Report Issue (Vendor
+                                          Unreachable)
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 );
-                              }
-                              return null;
-                            })()}
-                            <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                              Pickup Sequence ({o.sub_orders.length} Stores)
+                              })}
                             </div>
-                            {o.sub_orders.map((sub: any, idx: number) => {
-                              const isReady = ["READY_FOR_PICKUP", "PREPARING", "PACKED", "CONFIRMED", "ACCEPTED"].includes(String(sub.status || "").toUpperCase());
-                              const isPickedUp = sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED";
-                              
-                              return (
-                                <div key={sub.id} className="flex flex-col gap-2 p-3.5 rounded-2xl border border-border bg-card shadow-sm">
-                                  <div className="flex justify-between items-center">
-                                    <div className="font-bold text-sm">
-                                      {idx + 1}. {sub.vendor?.business_name || "Vendor"}
-                                    </div>
-                                    <div className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${isPickedUp ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                      {isPickedUp ? "Picked Up" : sub.status.replace(/_/g, " ")}
-                                    </div>
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">{sub.vendor?.address}</div>
-
-                                  {/* Store Items List */}
-                                  {sub.items && sub.items.length > 0 && (
-                                    <div className="space-y-1.5 my-1.5 pt-2 border-t border-border/60">
-                                      <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                        Items to collect ({sub.items.length}):
-                                      </div>
-                                      {sub.items.map((it: any, i: number) => (
-                                        <div key={it.id || i} className="flex justify-between items-center text-xs bg-muted/30 px-2.5 py-1.5 rounded-lg">
-                                          <span className="font-semibold text-foreground truncate pr-2">
-                                            • {it.product_name} <span className="text-muted-foreground font-normal">× {it.quantity} {it.selected_unit || it.unit || ""}</span>
-                                          </span>
-                                          <span className="font-bold text-muted-foreground shrink-0">₹{it.total_price || (it.unit_price * it.quantity)}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  
-                                  {!isPickedUp && (
-                                    <div className="flex flex-col gap-2 mt-2">
-                                      <div className="flex gap-2">
-                                        <a
-                                          href={`tel:${sub.vendor?.phone}`}
-                                          className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center justify-center gap-1"
-                                        >
-                                          <Phone className="h-3 w-3" /> Call
-                                        </a>
-                                        <button
-                                          onClick={() => notifyVendorMutation.mutate({ orderId: o.id, subId: sub.id })}
-                                          className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-indigo-100 text-indigo-700 hover:bg-indigo-200 flex items-center justify-center gap-1"
-                                        >
-                                          <Bell className="h-3 w-3" /> Notify
-                                        </button>
-                                        <button
-                                          disabled={!isReady}
-                                          onClick={() => confirmPickupMutation.mutate({ orderId: o.id, subId: sub.id })}
-                                          className="flex-1 py-2 text-xs rounded-lg font-bold transition-colors bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                                        >
-                                          <CheckCircle2 className="h-3 w-3" /> Picked Up
-                                        </button>
-                                      </div>
-                                      <button
-                                        onClick={() => {
-                                          if (window.confirm("Is the vendor unreachable or closed? Report this to Admin to get help or bypass this pickup.")) {
-                                            reportIssueMutation.mutate({ orderId: o.id, subId: sub.id });
-                                          }
-                                        }}
-                                        className="w-full py-2 text-xs rounded-lg font-bold transition-colors border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center gap-1"
-                                      >
-                                        <AlertCircle className="h-3 w-3" /> Report Issue (Vendor Unreachable)
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                          )}
 
                         <div className="flex gap-2 mt-4">
                           {o.status === "OUT_FOR_DELIVERY" ? (
@@ -1453,13 +1603,26 @@ function DeliveryDashboard() {
                             >
                               <CheckCircle2 className="h-4 w-4" /> Enter OTP & Deliver
                             </button>
-                          ) : o.status === "CONFIRMED" || o.status === "READY_FOR_PICKUP" || o.status === "PREPARING" || o.status === "PICKED_UP" ? (
+                          ) : o.status === "CONFIRMED" ||
+                            o.status === "READY_FOR_PICKUP" ||
+                            o.status === "PREPARING" ||
+                            o.status === "PICKED_UP" ? (
                             <>
                               <button
                                 onClick={() => {
-                                  const allPickedUp = o.sub_orders ? o.sub_orders.every((sub: any) => sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED" || sub.status === "CANCELLED") : true;
+                                  const allPickedUp = o.sub_orders
+                                    ? o.sub_orders.every(
+                                        (sub: any) =>
+                                          sub.status === "PICKED_UP" ||
+                                          sub.status === "OUT_FOR_DELIVERY" ||
+                                          sub.status === "DELIVERED" ||
+                                          sub.status === "CANCELLED",
+                                      )
+                                    : true;
                                   if (!allPickedUp) {
-                                    toast.error("You must confirm pickup from all active stores first.");
+                                    toast.error(
+                                      "You must confirm pickup from all active stores first.",
+                                    );
                                     return;
                                   }
                                   updateStatusMutation.mutate({
@@ -1494,12 +1657,22 @@ function DeliveryDashboard() {
                               >
                                 <ShieldCheck className="h-4 w-4" /> Enter OTP & Deliver
                               </button>
-                              {(["PENDING", "PACKED"].includes(String(o.status).toUpperCase())) && (
+                              {["PENDING", "PACKED"].includes(String(o.status).toUpperCase()) && (
                                 <button
                                   onClick={() => {
-                                    const allPickedUp = o.sub_orders ? o.sub_orders.every((sub: any) => sub.status === "PICKED_UP" || sub.status === "OUT_FOR_DELIVERY" || sub.status === "DELIVERED" || sub.status === "CANCELLED") : true;
+                                    const allPickedUp = o.sub_orders
+                                      ? o.sub_orders.every(
+                                          (sub: any) =>
+                                            sub.status === "PICKED_UP" ||
+                                            sub.status === "OUT_FOR_DELIVERY" ||
+                                            sub.status === "DELIVERED" ||
+                                            sub.status === "CANCELLED",
+                                        )
+                                      : true;
                                     if (!allPickedUp) {
-                                      toast.error("You must confirm pickup from all active stores first.");
+                                      toast.error(
+                                        "You must confirm pickup from all active stores first.",
+                                      );
                                       return;
                                     }
                                     updateStatusMutation.mutate({
@@ -1598,14 +1771,17 @@ function DeliveryDashboard() {
       </div>
 
       {/* OTP MODAL */}
-      <Dialog open={otpModalOpen} onOpenChange={(open) => {
-        setOtpModalOpen(open);
-        if (!open) {
-          setSelectedOrderId(null);
-          setSelectedOrder(null);
-          setOtpValue("");
-        }
-      }}>
+      <Dialog
+        open={otpModalOpen}
+        onOpenChange={(open) => {
+          setOtpModalOpen(open);
+          if (!open) {
+            setSelectedOrderId(null);
+            setSelectedOrder(null);
+            setOtpValue("");
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Enter Delivery OTP</DialogTitle>
@@ -1619,9 +1795,13 @@ function DeliveryDashboard() {
               <div className="rounded-xl p-3 text-xs flex items-start gap-2 border bg-amber-50 border-amber-200 text-amber-800">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
                 <div>
-                  <strong>Order status: {String(selectedOrder.status || "").replace(/_/g, " ")}</strong>
+                  <strong>
+                    Order status: {String(selectedOrder.status || "").replace(/_/g, " ")}
+                  </strong>
                   <div className="mt-0.5">
-                    Delivery can only be confirmed once the order is <strong>Out for Delivery</strong>. If you have picked up all items, tap "Start Delivery" first.
+                    Delivery can only be confirmed once the order is{" "}
+                    <strong>Out for Delivery</strong>. If you have picked up all items, tap "Start
+                    Delivery" first.
                   </div>
                 </div>
               </div>
@@ -1705,13 +1885,16 @@ function DeliveryDashboard() {
             />
             {(() => {
               const orderToAccept = requestsRes?.data?.find((r: any) => r.id === acceptingOrderId);
-              const pendingCount = orderToAccept?.sub_orders?.filter((s: any) => s.status === "PENDING").length || 0;
+              const pendingCount =
+                orderToAccept?.sub_orders?.filter((s: any) => s.status === "PENDING").length || 0;
               if (pendingCount > 0) {
                 return (
                   <div className="bg-rose-50 text-rose-700 p-3 rounded-xl border border-rose-200 text-sm font-medium my-4 flex gap-2 items-start shadow-sm">
                     <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-rose-600" />
                     <span>
-                      <strong>Notice:</strong> Some vendors are still reviewing this order. By accepting now, you secure the delivery route, but you may need to wait at their locations before the items are ready.
+                      <strong>Notice:</strong> Some vendors are still reviewing this order. By
+                      accepting now, you secure the delivery route, but you may need to wait at
+                      their locations before the items are ready.
                     </span>
                   </div>
                 );
@@ -1784,7 +1967,8 @@ function DeliveryDashboard() {
                 <div className="space-y-3">
                   <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <Store className="h-4 w-4" /> Store Pickups ({detailsOrder.sub_orders.length} Locations)
+                      <Store className="h-4 w-4" /> Store Pickups ({detailsOrder.sub_orders.length}{" "}
+                      Locations)
                     </span>
                     <span className="text-[10px] text-muted-foreground font-semibold lowercase">
                       pick up in sequence
@@ -1795,7 +1979,10 @@ function DeliveryDashboard() {
                       const v = sub.vendor || {};
                       const storeAddressStr = `${v.business_name || ""} ${v.address || ""} ${v.landmark || ""} ${v.city || ""}`;
                       return (
-                        <div key={sub.id || sIdx} className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
+                        <div
+                          key={sub.id || sIdx}
+                          className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3"
+                        >
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
@@ -1838,12 +2025,16 @@ function DeliveryDashboard() {
                             </div>
                             {v.landmark && (
                               <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md">
-                                <MapPin className="h-3 w-3 text-emerald-600 shrink-0" /> Landmark: {v.landmark}
+                                <MapPin className="h-3 w-3 text-emerald-600 shrink-0" /> Landmark:{" "}
+                                {v.landmark}
                               </div>
                             )}
                             {v.owner_name && (
                               <div className="text-[11px] text-muted-foreground mt-1">
-                                Store Contact Person: <span className="font-semibold text-foreground">{v.owner_name}</span>
+                                Store Contact Person:{" "}
+                                <span className="font-semibold text-foreground">
+                                  {v.owner_name}
+                                </span>
                               </div>
                             )}
                             {v.business_hours && (
@@ -1861,15 +2052,23 @@ function DeliveryDashboard() {
                               </div>
                               <div className="space-y-1 bg-card rounded-xl p-2.5 border border-border/60">
                                 {sub.items.map((it: any, itIdx: number) => (
-                                  <div key={it.id || itIdx} className="flex justify-between items-center text-xs">
+                                  <div
+                                    key={it.id || itIdx}
+                                    className="flex justify-between items-center text-xs"
+                                  >
                                     <div className="truncate min-w-0 pr-2">
-                                      <span className="font-semibold text-foreground">{it.product_name}</span>
+                                      <span className="font-semibold text-foreground">
+                                        {it.product_name}
+                                      </span>
                                       <span className="text-muted-foreground text-[11px]">
-                                        {" "}× {it.quantity} {it.selected_unit || it.unit || ""}
+                                        {" "}
+                                        × {it.quantity} {it.selected_unit || it.unit || ""}
                                       </span>
                                     </div>
                                     <span className="font-bold shrink-0">
-                                      ₹{it.total_price || (it.unit_price ? it.unit_price * it.quantity : 0)}
+                                      ₹
+                                      {it.total_price ||
+                                        (it.unit_price ? it.unit_price * it.quantity : 0)}
                                     </span>
                                   </div>
                                 ))}
@@ -1930,12 +2129,14 @@ function DeliveryDashboard() {
                           </div>
                           {v.landmark && (
                             <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md">
-                              <MapPin className="h-3 w-3 text-emerald-600 shrink-0" /> Landmark: {v.landmark}
+                              <MapPin className="h-3 w-3 text-emerald-600 shrink-0" /> Landmark:{" "}
+                              {v.landmark}
                             </div>
                           )}
                           {v.owner_name && (
                             <div className="text-[11px] text-muted-foreground mt-1">
-                              Contact Person: <span className="font-semibold text-foreground">{v.owner_name}</span>
+                              Contact Person:{" "}
+                              <span className="font-semibold text-foreground">{v.owner_name}</span>
                             </div>
                           )}
                           {v.business_hours && (
@@ -1953,8 +2154,12 @@ function DeliveryDashboard() {
               {/* Customer Dropoff Details */}
               <div className="rounded-2xl bg-muted/40 border border-border p-4 space-y-3">
                 {(() => {
-                  const custPhone = detailsOrder.user?.phone || detailsOrder.customer?.phone || detailsOrder.address?.phone;
-                  const custName = detailsOrder.user?.name || detailsOrder.customer?.name || "Customer";
+                  const custPhone =
+                    detailsOrder.user?.phone ||
+                    detailsOrder.customer?.phone ||
+                    detailsOrder.address?.phone;
+                  const custName =
+                    detailsOrder.user?.name || detailsOrder.customer?.name || "Customer";
                   const fullCustAddress = `${detailsOrder.address?.full_address || detailsOrder.address?.street_address || detailsOrder.address?.line1 || ""} ${detailsOrder.address?.landmark ? `Landmark: ${detailsOrder.address.landmark}` : ""} ${detailsOrder.address?.city || ""}`;
                   return (
                     <>
@@ -1979,7 +2184,11 @@ function DeliveryDashboard() {
                             </a>
                           )}
                           <a
-                            href={getGoogleMapsUrl(detailsOrder.address?.latitude, detailsOrder.address?.longitude, fullCustAddress)}
+                            href={getGoogleMapsUrl(
+                              detailsOrder.address?.latitude,
+                              detailsOrder.address?.longitude,
+                              fullCustAddress,
+                            )}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-bold bg-card hover:bg-muted text-foreground border border-border px-3 py-1 rounded-xl transition-colors shadow-2xs"
@@ -1990,17 +2199,21 @@ function DeliveryDashboard() {
                       </div>
 
                       <div>
-                        <div className="font-bold text-base text-foreground">
-                          {custName}
-                        </div>
+                        <div className="font-bold text-base text-foreground">{custName}</div>
                         <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                          {detailsOrder.address?.full_address || detailsOrder.address?.street_address || detailsOrder.address?.line1 || "Customer Address"}
+                          {detailsOrder.address?.full_address ||
+                            detailsOrder.address?.street_address ||
+                            detailsOrder.address?.line1 ||
+                            "Customer Address"}
                           {detailsOrder.address?.city ? `, ${detailsOrder.address.city}` : ""}
-                          {detailsOrder.address?.pincode ? ` (${detailsOrder.address.pincode})` : ""}
+                          {detailsOrder.address?.pincode
+                            ? ` (${detailsOrder.address.pincode})`
+                            : ""}
                         </div>
                         {detailsOrder.address?.landmark && (
                           <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 px-2 py-0.5 rounded-md">
-                            <MapPin className="h-3 w-3 text-rose-600 shrink-0" /> Landmark: {detailsOrder.address.landmark}
+                            <MapPin className="h-3 w-3 text-rose-600 shrink-0" /> Landmark:{" "}
+                            {detailsOrder.address.landmark}
                           </div>
                         )}
                         {custPhone && (
@@ -2008,12 +2221,18 @@ function DeliveryDashboard() {
                             📱 Phone: <span className="font-mono font-bold">{custPhone}</span>
                           </div>
                         )}
-                        {(detailsOrder.delivery_note || detailsOrder.orders?.[0]?.delivery_note) && (
+                        {(detailsOrder.delivery_note ||
+                          detailsOrder.orders?.[0]?.delivery_note) && (
                           <div className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 rounded-xl p-2.5 flex items-start gap-2">
                             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                             <div>
-                              <strong className="block text-[11px] uppercase tracking-wider text-amber-800 dark:text-amber-300">Customer Delivery Instructions:</strong>
-                              <span className="mt-0.5 block">{detailsOrder.delivery_note || detailsOrder.orders?.[0]?.delivery_note}</span>
+                              <strong className="block text-[11px] uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                Customer Delivery Instructions:
+                              </strong>
+                              <span className="mt-0.5 block">
+                                {detailsOrder.delivery_note ||
+                                  detailsOrder.orders?.[0]?.delivery_note}
+                              </span>
                             </div>
                           </div>
                         )}
@@ -2027,7 +2246,8 @@ function DeliveryDashboard() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Package className="h-4 w-4 text-primary" /> Items to Deliver ({detailsOrder.items?.length || 0})
+                    <Package className="h-4 w-4 text-primary" /> Items to Deliver (
+                    {detailsOrder.items?.length || 0})
                   </h4>
                 </div>
 
@@ -2050,13 +2270,18 @@ function DeliveryDashboard() {
                           {item.product_name}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Quantity: <span className="font-semibold text-foreground">{item.quantity}</span>
-                          {item.selected_unit || item.unit ? ` (${item.selected_unit || item.unit})` : ""}
+                          Quantity:{" "}
+                          <span className="font-semibold text-foreground">{item.quantity}</span>
+                          {item.selected_unit || item.unit
+                            ? ` (${item.selected_unit || item.unit})`
+                            : ""}
                           {item.unit_price ? ` · ₹${item.unit_price} each` : ""}
                         </div>
                       </div>
                       <div className="text-right font-bold text-sm text-foreground shrink-0">
-                        ₹{item.total_price || (item.unit_price ? item.unit_price * item.quantity : 0)}
+                        ₹
+                        {item.total_price ||
+                          (item.unit_price ? item.unit_price * item.quantity : 0)}
                       </div>
                     </div>
                   ))}
@@ -2065,12 +2290,24 @@ function DeliveryDashboard() {
 
               {/* Doorstep Payment Collection & Status Box */}
               {(() => {
-                const isModalCod = String(detailsOrder.payment_method || "").toUpperCase() === "COD";
-                const isModalPaid = String(detailsOrder.payment_status || "").toUpperCase() === "PAID";
-                const modalAdv = Number(detailsOrder.advance_paid ?? detailsOrder.payment?.amount ?? detailsOrder.advance ?? 0);
+                const isModalCod =
+                  String(detailsOrder.payment_method || "").toUpperCase() === "COD";
+                const isModalPaid =
+                  String(detailsOrder.payment_status || "").toUpperCase() === "PAID";
+                const modalAdv = Number(
+                  detailsOrder.advance_paid ??
+                    detailsOrder.payment?.amount ??
+                    detailsOrder.advance ??
+                    0,
+                );
                 const modalTot = Number(detailsOrder.total_amount || detailsOrder.total || 0);
-                const modalIsPartial = !isModalCod && isModalPaid && modalAdv > 0 && modalAdv < modalTot;
-                const modalBal = modalIsPartial ? Math.max(0, Math.round((modalTot - modalAdv) * 100) / 100) : (isModalCod ? modalTot : 0);
+                const modalIsPartial =
+                  !isModalCod && isModalPaid && modalAdv > 0 && modalAdv < modalTot;
+                const modalBal = modalIsPartial
+                  ? Math.max(0, Math.round((modalTot - modalAdv) * 100) / 100)
+                  : isModalCod
+                    ? modalTot
+                    : 0;
 
                 if (isModalPaid && !modalIsPartial) {
                   return (
@@ -2080,7 +2317,9 @@ function DeliveryDashboard() {
                         <span>Order Payment Completed: ₹{modalTot.toFixed(2)}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {isModalCod ? "Cash payment was collected and confirmed." : "Order is fully prepaid online. Do not collect any money from the customer."}
+                        {isModalCod
+                          ? "Cash payment was collected and confirmed."
+                          : "Order is fully prepaid online. Do not collect any money from the customer."}
                       </p>
                     </div>
                   );
@@ -2121,7 +2360,7 @@ function DeliveryDashboard() {
                           }}
                           className="flex-1 h-11 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs gap-1.5 shadow-2xs"
                         >
-                          <QrCode className="h-4 w-4 text-emerald-600" /> Open UPI QR Code
+                          <QrCode className="h-4 w-4 text-emerald-600" /> Collect Online / QR
                         </Button>
                       </div>
                     </div>
@@ -2163,7 +2402,7 @@ function DeliveryDashboard() {
                           }}
                           className="flex-1 h-11 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs gap-1.5 shadow-2xs"
                         >
-                          <QrCode className="h-4 w-4 text-emerald-600" /> Open UPI QR Code
+                          <QrCode className="h-4 w-4 text-emerald-600" /> Collect Online / QR
                         </Button>
                       </div>
                     </div>
@@ -2181,10 +2420,16 @@ function DeliveryDashboard() {
 
                 {(() => {
                   const subItems = detailsOrder.sub_orders || [];
-                  const itemsSubtotal = Number(detailsOrder.items_subtotal ?? detailsOrder.subtotal ?? 0) || subItems.reduce((s: number, so: any) => s + Number(so.items_subtotal ?? 0), 0);
-                  const discount = Number(detailsOrder.discount ?? 0) || subItems.reduce((s: number, so: any) => s + Number(so.discount ?? 0), 0);
+                  const itemsSubtotal =
+                    Number(detailsOrder.items_subtotal ?? detailsOrder.subtotal ?? 0) ||
+                    subItems.reduce((s: number, so: any) => s + Number(so.items_subtotal ?? 0), 0);
+                  const discount =
+                    Number(detailsOrder.discount ?? 0) ||
+                    subItems.reduce((s: number, so: any) => s + Number(so.discount ?? 0), 0);
                   const deliveryFee = Number(detailsOrder.delivery_fee ?? 0);
-                  const tax = Number(detailsOrder.tax ?? 0) || subItems.reduce((s: number, so: any) => s + Number(so.tax ?? 0), 0);
+                  const tax =
+                    Number(detailsOrder.tax ?? 0) ||
+                    subItems.reduce((s: number, so: any) => s + Number(so.tax ?? 0), 0);
                   const platformFee = Number(detailsOrder.platform_fee ?? 0);
                   const grandTotal = Number(detailsOrder.total_amount ?? detailsOrder.total ?? 0);
 
@@ -2192,7 +2437,9 @@ function DeliveryDashboard() {
                     <>
                       <div className="flex justify-between text-muted-foreground font-medium">
                         <span>Items Subtotal</span>
-                        <span className="font-bold text-foreground">₹{itemsSubtotal.toFixed(2)}</span>
+                        <span className="font-bold text-foreground">
+                          ₹{itemsSubtotal.toFixed(2)}
+                        </span>
                       </div>
                       {discount > 0 && (
                         <div className="flex justify-between text-primary font-medium">
@@ -2213,12 +2460,19 @@ function DeliveryDashboard() {
                       {platformFee > 0 && (
                         <div className="flex justify-between text-muted-foreground font-medium">
                           <span>Platform Fee</span>
-                          <span className="font-bold text-foreground">₹{platformFee.toFixed(2)}</span>
+                          <span className="font-bold text-foreground">
+                            ₹{platformFee.toFixed(2)}
+                          </span>
                         </div>
                       )}
                       <div className="border-t border-border pt-2 flex justify-between font-black text-sm text-foreground">
                         <span>Total Order Amount</span>
-                        <span>₹{(grandTotal || (itemsSubtotal + deliveryFee + tax + platformFee - discount)).toFixed(2)}</span>
+                        <span>
+                          ₹
+                          {(
+                            grandTotal || itemsSubtotal + deliveryFee + tax + platformFee - discount
+                          ).toFixed(2)}
+                        </span>
                       </div>
                     </>
                   );
@@ -2230,9 +2484,14 @@ function DeliveryDashboard() {
                       Per Store Charges
                     </div>
                     {detailsOrder.sub_orders.map((so: any, soIdx: number) => (
-                      <div key={so.id || soIdx} className="bg-muted/40 border border-border rounded-lg p-2 space-y-1">
+                      <div
+                        key={so.id || soIdx}
+                        className="bg-muted/40 border border-border rounded-lg p-2 space-y-1"
+                      >
                         <div className="flex justify-between font-bold text-foreground">
-                          <span className="truncate pr-2">{so.vendor?.business_name || `Store ${soIdx + 1}`}</span>
+                          <span className="truncate pr-2">
+                            {so.vendor?.business_name || `Store ${soIdx + 1}`}
+                          </span>
                           <span className="shrink-0">₹{Number(so.total ?? 0).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-muted-foreground text-[11px]">
@@ -2263,7 +2522,9 @@ function DeliveryDashboard() {
                 )}
 
                 <div className="pt-1 flex justify-between text-emerald-600 font-black text-[13px]">
-                  <span className="flex items-center gap-1"><Bike className="h-3.5 w-3.5" /> Your Delivery Earning</span>
+                  <span className="flex items-center gap-1">
+                    <Bike className="h-3.5 w-3.5" /> Your Delivery Earning
+                  </span>
                   <span>+₹{Number(detailsOrder.delivery_fee ?? 0).toFixed(2)}</span>
                 </div>
               </div>
@@ -2272,7 +2533,8 @@ function DeliveryDashboard() {
               <div className="rounded-2xl bg-muted/60 border border-border p-3.5 flex items-start gap-2.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Doorstep Verification:</strong> Ask the customer for the 6-digit Delivery OTP upon handing over the package to mark this order as completed.
+                  <strong>Doorstep Verification:</strong> Ask the customer for the 6-digit Delivery
+                  OTP upon handing over the package to mark this order as completed.
                 </span>
               </div>
 
@@ -2315,219 +2577,345 @@ function DeliveryDashboard() {
           }
         }}
       >
-        <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-sm rounded-3xl p-6 text-center space-y-4 max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold flex items-center justify-center gap-2">
               <QrCode className="h-5 w-5 text-emerald-600" />
-              Collect UPI / QR Payment
+              Collect Online / QR Payment
             </DialogTitle>
             <DialogDescription className="text-center text-xs text-muted-foreground">
-              Customer scans the dynamic QR with GPay, PhonePe, Paytm, or any UPI app. Payment auto-verifies immediately!
+              Customer can scan the dynamic QR, pay via WhatsApp/SMS link, or pay directly from the
+              VegaMart App.
             </DialogDescription>
           </DialogHeader>
 
-          {upiQrModalOrder && (() => {
-            const latestOrder = (myDeliveries || []).find((o: any) => o.id === upiQrModalOrder?.id) || upiQrModalOrder;
-            const isAlreadyPaid = String(latestOrder?.payment_status || "").toUpperCase() === "PAID";
+          {upiQrModalOrder &&
+            (() => {
+              const latestOrder =
+                (myDeliveries || []).find((o: any) => o.id === upiQrModalOrder?.id) ||
+                upiQrModalOrder;
+              const isAlreadyPaid =
+                String(latestOrder?.payment_status || "").toUpperCase() === "PAID";
 
-            const advAmount = Number(latestOrder.advance_paid ?? latestOrder.payment?.amount ?? latestOrder.advance ?? 0);
-            const totAmount = Number(latestOrder.total_amount || latestOrder.total || 0);
-            const isCod = String(latestOrder.payment_method || "").toUpperCase() === "COD";
-            const isPartialAdvance = !isCod && isAlreadyPaid && advAmount > 0 && advAmount < totAmount;
-            const balAmount = isPartialAdvance ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100) : totAmount;
-            const amt = Number(balAmount > 0 ? balAmount : totAmount).toFixed(2);
-            const ordNo = latestOrder.order_number || latestOrder.id;
-            const vpa = publicSettings?.["platform.upi_id"] || "vegamart@upi";
-            const platformName = publicSettings?.["platform.name"] || "VegaMart";
-            const upiUri = `upi://pay?pa=${vpa}&pn=${encodeURIComponent(platformName)}&am=${amt}&tr=${ordNo}&tn=${encodeURIComponent(`Order_${ordNo}`)}&cu=INR`;
-            // Must strictly use upiUri so PhonePe, GPay, Paytm, and BHIM in-app scanners parse the payment intent instantly
-            const activeQrValue = upiUri;
+              const advAmount = Number(
+                latestOrder.advance_paid ?? latestOrder.payment?.amount ?? latestOrder.advance ?? 0,
+              );
+              const totAmount = Number(latestOrder.total_amount || latestOrder.total || 0);
+              const isCod = String(latestOrder.payment_method || "").toUpperCase() === "COD";
+              const isPartialAdvance =
+                !isCod && isAlreadyPaid && advAmount > 0 && advAmount < totAmount;
+              const balAmount = isPartialAdvance
+                ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100)
+                : totAmount;
+              const amt = Number(balAmount > 0 ? balAmount : totAmount).toFixed(2);
+              const ordNo = latestOrder.order_number || latestOrder.id;
 
-            if (paymentCompletedSuccess || (isAlreadyPaid && !isPartialAdvance)) {
-              return (
-                <div className="space-y-4 py-3 text-center animate-in zoom-in-95 duration-300">
-                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center mx-auto border-2 border-emerald-500 shadow-md">
-                    <CheckCircle2 className="h-10 w-10 text-emerald-600 animate-bounce" />
+              // Customer Contact Information
+              const custPhoneRaw =
+                latestOrder?.customer?.phone ||
+                latestOrder?.address?.phone ||
+                dynamicQrData?.customer_phone ||
+                "";
+              const cleanPhone = custPhoneRaw
+                ? String(custPhoneRaw).replace(/\D/g, "").slice(-10)
+                : "";
+              const customerName =
+                dynamicQrData?.customer_name || latestOrder?.customer?.name || "Customer";
+
+              // Payment link resolution:
+              // 1. Dynamic live Razorpay link (short_url e.g. https://rzp.io/rzp/...)
+              // 2. Fallback to customer order tracking / online payment URL
+              const origin = typeof window !== "undefined" ? window.location.origin : "";
+              const fallbackOrderUrl = latestOrder?.id
+                ? `${origin}/orders/${latestOrder.id}/track`
+                : "";
+              const paymentUrl = dynamicQrData?.short_url || fallbackOrderUrl;
+
+              // Dynamic QR strictly encodes the real live payment URL
+              const activeQrValue = paymentUrl;
+
+              // Share message
+              const shareMessage = `Hello ${customerName}! Please pay ₹${amt} for your VegaMart Order #${ordNo}.\n\nPay online securely via UPI (Google Pay, PhonePe, Paytm), Cards, or NetBanking here:\n${paymentUrl}\n\n(You can also pay directly inside your VegaMart App under My Orders)`;
+
+              const handleWhatsAppShare = () => {
+                if (!paymentUrl) {
+                  toast.error("Payment link is still generating. Please wait a moment.");
+                  return;
+                }
+                const encoded = encodeURIComponent(shareMessage);
+                const url = cleanPhone
+                  ? `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encoded}`
+                  : `https://api.whatsapp.com/send?text=${encoded}`;
+                window.open(url, "_blank");
+              };
+
+              const handleSmsShare = () => {
+                if (!paymentUrl) {
+                  toast.error("Payment link is still generating. Please wait a moment.");
+                  return;
+                }
+                const encoded = encodeURIComponent(shareMessage);
+                const url = cleanPhone
+                  ? `sms:+91${cleanPhone}?body=${encoded}`
+                  : `sms:?body=${encoded}`;
+                window.open(url, "_blank");
+              };
+
+              const handleCopyLink = () => {
+                if (!paymentUrl) {
+                  toast.error("Payment link is still generating. Please wait a moment.");
+                  return;
+                }
+                navigator.clipboard.writeText(paymentUrl);
+                setCopiedUpi(true);
+                toast.success("Payment link copied to clipboard!");
+                setTimeout(() => setCopiedUpi(false), 2000);
+              };
+
+              const handleNativeShare = async () => {
+                if (!paymentUrl) {
+                  toast.error("Payment link is still generating. Please wait a moment.");
+                  return;
+                }
+                if (typeof navigator !== "undefined" && navigator.share) {
+                  try {
+                    await navigator.share({
+                      title: `VegaMart Payment - Order #${ordNo}`,
+                      text: shareMessage,
+                      url: paymentUrl,
+                    });
+                    toast.success("Payment link shared!");
+                  } catch (e: any) {
+                    if (e.name !== "AbortError") {
+                      handleCopyLink();
+                    }
+                  }
+                } else {
+                  handleSmsShare();
+                }
+              };
+
+              if (paymentCompletedSuccess || (isAlreadyPaid && !isPartialAdvance)) {
+                return (
+                  <div className="space-y-4 py-3 text-center animate-in zoom-in-95 duration-300">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center mx-auto border-2 border-emerald-500 shadow-md">
+                      <CheckCircle2 className="h-10 w-10 text-emerald-600 animate-bounce" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+                        Payment Received!
+                      </div>
+                      <div className="text-2xl font-black text-emerald-600 tabular-nums">
+                        ₹{amt}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Order #{ordNo} is verified and marked as <strong>PAID</strong>. Auto-closing
+                        in 3 seconds...
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
+                      onClick={() => {
+                        setUpiQrModalOrder(null);
+                        setPaymentCompletedSuccess(false);
+                        refetchDeliveries();
+                        refetchRequests();
+                        queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+                      }}
+                    >
+                      Done / Next Step
+                    </Button>
                   </div>
-                  <div className="space-y-1">
-                    <div className="text-lg font-black text-emerald-700 dark:text-emerald-300">
-                      Payment Received!
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {/* Order Amount Banner */}
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1">
+                    <div className="text-xs text-muted-foreground font-semibold">
+                      {isPartialAdvance ? "Balance Amount to Collect" : "Amount to Collect"}
                     </div>
-                    <div className="text-2xl font-black text-emerald-600 tabular-nums">
-                      ₹{amt}
+                    <div className="text-3xl font-black text-emerald-600 tabular-nums">₹{amt}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono flex items-center justify-center gap-2">
+                      <span>Order #{ordNo}</span>
+                      {cleanPhone && <span>• Customer: +91 {cleanPhone}</span>}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Order #{ordNo} is verified and marked as <strong>PAID</strong>. Auto-closing in 3 seconds...
+                  </div>
+
+                  {/* DYNAMIC QR CODE DISPLAY */}
+                  <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
+                    <div className="flex items-center justify-between gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 px-1">
+                      <span className="flex items-center gap-1.5">
+                        <QrCode className="h-4 w-4 text-emerald-600" />
+                        Dynamic Payment QR
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300/60 shadow-2xs">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-600"></span>
+                        </span>
+                        Auto-Detecting
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center">
+                      {dynamicQrLoading ? (
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                          <span className="text-[11px] font-medium text-muted-foreground">
+                            Generating payment link...
+                          </span>
+                        </div>
+                      ) : activeQrValue ? (
+                        <QRCodeSVG
+                          value={activeQrValue}
+                          size={200}
+                          level="M"
+                          includeMargin={false}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <div className="text-xs text-muted-foreground">Unable to generate QR</div>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-muted-foreground font-medium">
+                      Customer scans with <strong>Google Pay, PhonePe, Paytm</strong>, or Phone
+                      Camera to pay.
+                    </div>
+                  </div>
+
+                  {/* DIRECT SHARABLE LINK ACTIONS */}
+                  <div className="rounded-2xl border border-border bg-card p-3.5 space-y-3 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Share2 className="h-3.5 w-3.5 text-emerald-600" />
+                        Share Payment Link Directly
+                      </span>
+                      {cleanPhone && (
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                          +91 {cleanPhone}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Sharable Link Display & Copy */}
+                    <div className="flex items-center gap-1.5 p-1.5 bg-muted/60 rounded-xl border border-border/70 text-xs">
+                      <span className="text-[11px] font-mono text-muted-foreground truncate flex-1 px-1.5 select-all">
+                        {paymentUrl || "Generating payment link..."}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 px-2 text-[11px] font-bold shrink-0 gap-1 rounded-lg"
+                        onClick={handleCopyLink}
+                      >
+                        {copiedUpi ? (
+                          <Check className="h-3 w-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                        {copiedUpi ? "Copied" : "Copy"}
+                      </Button>
+                    </div>
+
+                    {/* Quick Share Buttons */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs"
+                        onClick={handleWhatsAppShare}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        WhatsApp Link
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-xl font-bold text-xs gap-1.5"
+                        onClick={handleNativeShare}
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                        Share / SMS
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* CUSTOMER APP IN-APP PAYMENT GUIDANCE */}
+                  <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3 text-left space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs font-bold text-blue-700 dark:text-blue-300">
+                      <Smartphone className="h-4 w-4 text-blue-600 shrink-0" />
+                      <span>Pay inside VegaMart Customer App</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Customer can also open their own{" "}
+                      <strong>VegaMart App → My Orders → Order #{ordNo}</strong> and tap{" "}
+                      <strong className="text-foreground">"Pay Online"</strong>.
+                    </p>
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 pt-0.5">
+                      <CheckCircle2 className="h-3 w-3 shrink-0" />
+                      Auto-detects when customer pays anywhere
+                    </div>
+                  </div>
+
+                  {/* MANUAL CONFIRM CASH FALLBACK */}
+                  <div className="space-y-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-11 rounded-2xl border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold text-xs shadow-xs gap-2"
+                      onClick={() => handleConfirmCashPayment(latestOrder)}
+                      disabled={confirmCashMutation.isPending}
+                    >
+                      {confirmCashMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      )}
+                      Confirm Payment Received (₹{amt})
+                    </Button>
+
+                    <p className="text-[10px] text-muted-foreground leading-relaxed px-2">
+                      Paid via QR, WhatsApp link, or inside customer app? This screen verifies{" "}
+                      <strong>automatically</strong>. Tap above only if customer pays in Cash.
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
-                    onClick={() => {
-                      setUpiQrModalOrder(null);
-                      setPaymentCompletedSuccess(false);
-                      refetchDeliveries();
-                      refetchRequests();
-                      queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
-                    }}
-                  >
-                    Done / Next Step
-                  </Button>
+
+                  {/* MODAL ACTION BUTTONS */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 rounded-xl font-bold text-xs gap-1.5"
+                      onClick={() => {
+                        refetchDeliveries();
+                        refetchRequests();
+                        queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+                        toast.info("Checking latest payment status...");
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Check Status
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 rounded-xl font-bold text-xs"
+                      onClick={() => {
+                        setUpiQrModalOrder(null);
+                        setDynamicQrData(null);
+                        setPaymentCompletedSuccess(false);
+                      }}
+                    >
+                      Close
+                    </Button>
+                  </div>
                 </div>
               );
-            }
-
-            return (
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1">
-                  <div className="text-xs text-muted-foreground font-semibold">
-                    {isPartialAdvance ? "Balance Amount to Collect" : "Amount to Collect"}
-                  </div>
-                  <div className="text-3xl font-black text-emerald-600 tabular-nums">
-                    ₹{amt}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground font-mono">
-                    Order #{ordNo}
-                  </div>
-                </div>
-
-                {/* LIVE UPI SCANNER / QR DISPLAY */}
-                <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
-                  <div className="flex items-center justify-between gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 px-1">
-                    <span className="flex items-center gap-1.5">
-                      <QrCode className="h-4 w-4 text-emerald-600" />
-                      Doorstep UPI QR
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300/60 shadow-2xs">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-600"></span>
-                      </span>
-                      Auto-Detecting
-                    </span>
-                  </div>
-
-                  <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center">
-                    {dynamicQrLoading ? (
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-                        <span className="text-[11px] font-medium text-muted-foreground">
-                          Preparing QR...
-                        </span>
-                      </div>
-                    ) : (
-                      <QRCodeSVG
-                        value={activeQrValue}
-                        size={200}
-                        level="M"
-                        includeMargin={false}
-                        className="w-full h-full object-contain"
-                      />
-                    )}
-                  </div>
-
-                  <div className="text-[11px] text-muted-foreground font-medium">
-                    Customer can scan using <strong>Google Pay, PhonePe, Paytm, BHIM</strong>, or any UPI app.
-                  </div>
-
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-background border text-[11px] font-mono text-muted-foreground shadow-2xs">
-                    <span>UPI ID: <strong className="text-foreground">{vpa}</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(vpa);
-                        setCopiedUpi(true);
-                        toast.success("UPI ID copied to clipboard!");
-                        setTimeout(() => setCopiedUpi(false), 2000);
-                      }}
-                      className="text-emerald-600 hover:text-emerald-500 ml-1 p-0.5 transition-colors"
-                      title="Copy UPI ID"
-                    >
-                      {copiedUpi ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                    </button>
-                  </div>
-
-                  {dynamicQrData?.short_url && (
-                    <div className="pt-1 flex items-center justify-center gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2.5 text-[11px] text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 gap-1 rounded-lg font-medium"
-                        onClick={() => {
-                          navigator.clipboard.writeText(dynamicQrData.short_url);
-                          toast.success("Razorpay payment link copied!");
-                        }}
-                      >
-                        <Copy className="h-3 w-3" /> Copy Razorpay Link
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2.5 text-[11px] text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 gap-1 rounded-lg font-medium"
-                        onClick={() => {
-                          const text = encodeURIComponent(`Please pay ₹${amt} for VegaMart Order #${ordNo}: ${dynamicQrData.short_url}`);
-                          window.open(`https://wa.me/?text=${text}`, "_blank");
-                        }}
-                      >
-                        <Share2 className="h-3 w-3" /> WhatsApp Link
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-11 rounded-2xl border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold text-xs shadow-xs gap-2"
-                    onClick={() => handleConfirmCashPayment(latestOrder)}
-                    disabled={confirmCashMutation.isPending}
-                  >
-                    {confirmCashMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    )}
-                    Confirm Payment Received (₹{amt})
-                  </Button>
-
-                  <p className="text-[10px] text-muted-foreground leading-relaxed px-2">
-                    Customer can scan via PhonePe/GPay/Paytm. Tap above once customer pays, or if paid via Razorpay link, it confirms <strong>automatically</strong>.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 rounded-xl font-bold text-xs gap-1.5"
-                    onClick={() => {
-                      refetchDeliveries();
-                      refetchRequests();
-                      queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
-                      toast.info("Checking latest payment status...");
-                    }}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" /> Check Status
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 rounded-xl font-bold text-xs"
-                    onClick={() => {
-                      setUpiQrModalOrder(null);
-                      setDynamicQrData(null);
-                      setPaymentCompletedSuccess(false);
-                    }}
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-            );
-          })()}
+            })()}
         </DialogContent>
       </Dialog>
     </div>

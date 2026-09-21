@@ -13,6 +13,7 @@ import {
   CreditCard,
   Banknote,
   Clock,
+  Receipt,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PullToRefresh } from "@/components/system/pull-to-refresh";
@@ -22,7 +23,12 @@ import { toast } from "sonner";
 
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
-import { getDeliveryOptionInfo, getPaymentMethodInfo, getOrderStatusInfo } from "@/lib/order-helpers";
+import {
+  getDeliveryOptionInfo,
+  getPaymentMethodInfo,
+  getOrderStatusInfo,
+} from "@/lib/order-helpers";
+import { OrderInvoiceModal } from "@/components/orders/OrderInvoiceModal";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +85,7 @@ function OrdersList() {
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
   const [refundTarget, setRefundTarget] = useState<any | null>(null);
   const [refundReason, setRefundReason] = useState("");
+  const [invoiceOrder, setInvoiceOrder] = useState<any | null>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, isAuthenticated, isGuest, role, isLoading: authLoading } = useAuth();
@@ -140,7 +147,8 @@ function OrdersList() {
     queryFn: () => api.get<Record<string, any>>("/settings/public"),
     staleTime: 60_000,
   });
-  const publicSettings: Record<string, any> = (publicSettingsRes?.data as any)?.data ?? (publicSettingsRes?.data as any) ?? {};
+  const publicSettings: Record<string, any> =
+    (publicSettingsRes?.data as any)?.data ?? (publicSettingsRes?.data as any) ?? {};
   const isVegaMartFleetEnabled = publicSettings["platform.vegamart_delivery_enabled"] !== false;
 
   const allOrders = res?.data || [];
@@ -230,14 +238,22 @@ function OrdersList() {
                   o.delivery_partner_id ||
                   o.delivery_partner ||
                   statusLower !== "pending" ||
-                  (o.sub_orders && o.sub_orders.some((s: any) => {
-                    const sStatus = String(s.status || "").toUpperCase();
-                    return Boolean(s.delivery_partner_id) || (sStatus !== "PENDING" && sStatus !== "CANCELLED");
-                  })) ||
-                  (o.orders && o.orders.some((s: any) => {
-                    const sStatus = String(s.status || "").toUpperCase();
-                    return Boolean(s.delivery_partner_id) || (sStatus !== "PENDING" && sStatus !== "CANCELLED");
-                  }))
+                  (o.sub_orders &&
+                    o.sub_orders.some((s: any) => {
+                      const sStatus = String(s.status || "").toUpperCase();
+                      return (
+                        Boolean(s.delivery_partner_id) ||
+                        (sStatus !== "PENDING" && sStatus !== "CANCELLED")
+                      );
+                    })) ||
+                  (o.orders &&
+                    o.orders.some((s: any) => {
+                      const sStatus = String(s.status || "").toUpperCase();
+                      return (
+                        Boolean(s.delivery_partner_id) ||
+                        (sStatus !== "PENDING" && sStatus !== "CANCELLED")
+                      );
+                    })),
                 );
                 const canCancel = statusLower === "pending" && !isAccepted;
                 const canRefund = statusLower === "delivered";
@@ -266,7 +282,7 @@ function OrdersList() {
                   o.payment_status,
                   Number(o.total_amount || o.total || 0),
                   dInfo.id === "self_pickup",
-                  o.payment?.amount != null ? Number(o.payment.amount) : null
+                  o.payment?.amount != null ? Number(o.payment.amount) : null,
                 );
                 const DIcon = dInfo.icon;
                 const PIcon = pInfo.icon;
@@ -281,32 +297,49 @@ function OrdersList() {
                           <h3 className="font-bold text-base">
                             Order #{o.order_number || o.id.slice(0, 8)}
                           </h3>
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${sInfo.badgeBg}`}>
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${sInfo.badgeBg}`}
+                          >
                             {sInfo.badge}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}>
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${dInfo.colorClass}`}
+                          >
                             <DIcon className="h-3 w-3" />
                             {dInfo.shortLabel}
                           </span>
-                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}>
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${pInfo.colorClass}`}
+                          >
                             <PIcon className="h-3 w-3" />
                             {pInfo.shortLabel}
                           </span>
                           {pInfo.isPartialAdvance && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border bg-teal-50 text-teal-800 border-teal-200">
-                              Advance Paid: ₹{pInfo.advancePaid.toFixed(2)} · Bal: ₹{pInfo.balanceAmount.toFixed(2)}
+                              Advance Paid: ₹{pInfo.advancePaid.toFixed(2)} · Bal: ₹
+                              {pInfo.balanceAmount.toFixed(2)}
                             </span>
                           )}
-                          {(o.eta_minutes != null || o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time) && (
+                          {(o.eta_minutes != null ||
+                            o.estimated_delivery_time ||
+                            o.eta ||
+                            o.vendor?.estimated_delivery_time) && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border text-emerald-800 bg-emerald-50 border-emerald-200">
                               <Clock className="h-3 w-3 text-emerald-600" />
-                              {o.eta_minutes != null ? `Delivery Boy ने ${o.eta_minutes} मिनट का time दिया है — Estimated Delivery: ${o.eta_minutes} Minutes` : (o.estimated_delivery_time || o.eta || o.vendor?.estimated_delivery_time)}
+                              {o.eta_minutes != null
+                                ? `Delivery Boy ने ${o.eta_minutes} मिनट का time दिया है — Estimated Delivery: ${o.eta_minutes} Minutes`
+                                : o.estimated_delivery_time ||
+                                  o.eta ||
+                                  o.vendor?.estimated_delivery_time}
                             </span>
                           )}
                           <span className="text-xs text-muted-foreground ml-1 font-semibold">
-                            Total: <strong className="text-foreground">₹{o.total_amount || o.total}</strong>
+                            Total:{" "}
+                            <strong className="text-foreground">
+                              ₹{o.total_amount || o.total}
+                            </strong>
                           </span>
                         </div>
                       </div>
@@ -357,21 +390,31 @@ function OrdersList() {
                       </div>
                     )}
 
-                    {(o.otp_code || (o as any).delivery_otp) && o.status !== "DELIVERED" && o.status !== "CANCELLED" && (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-3">
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-bold text-rose-700">Delivery OTP</div>
-                          <div className="text-[11px] text-muted-foreground leading-snug">
-                            Share this 6-digit code with your delivery partner to receive your order.
+                    {(o.otp_code || (o as any).delivery_otp) &&
+                      o.status !== "DELIVERED" &&
+                      o.status !== "CANCELLED" && (
+                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-3">
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-bold text-rose-700">Delivery OTP</div>
+                            <div className="text-[11px] text-muted-foreground leading-snug">
+                              Share this 6-digit code with your delivery partner to receive your
+                              order.
+                            </div>
+                          </div>
+                          <div className="shrink-0 bg-rose-600 text-white font-black text-xl tracking-[0.2em] px-4 py-2 rounded-xl shadow-sm">
+                            {o.otp_code || (o as any).delivery_otp}
                           </div>
                         </div>
-                        <div className="shrink-0 bg-rose-600 text-white font-black text-xl tracking-[0.2em] px-4 py-2 rounded-xl shadow-sm">
-                          {o.otp_code || (o as any).delivery_otp}
-                        </div>
-                      </div>
-                    )}
+                      )}
 
-                    <div className="pt-3 border-t flex items-center justify-end gap-2">
+                    <div className="pt-3 border-t flex items-center justify-end gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceOrder(o)}
+                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 transition-colors shadow-2xs"
+                      >
+                        <Receipt className="h-3.5 w-3.5 text-emerald-600" /> Invoice
+                      </button>
                       {canCancel && (
                         <button
                           onClick={() => setCancelTarget(o)}
@@ -480,6 +523,15 @@ function OrdersList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Customer Tax Invoice & Bill Modal */}
+      {invoiceOrder && (
+        <OrderInvoiceModal
+          order={invoiceOrder}
+          isOpen={!!invoiceOrder}
+          onClose={() => setInvoiceOrder(null)}
+        />
+      )}
     </div>
   );
 }

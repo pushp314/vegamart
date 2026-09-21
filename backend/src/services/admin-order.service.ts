@@ -8,6 +8,7 @@ import { auditService } from "./audit.service";
 import { NotFoundError, ApiError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { parseDateParam } from "../utils/time";
+import { generateInvoiceNumber } from "../utils/order";
 import * as orderRepo from "../repositories/order.repository";
 import {
   assertOrderTransition,
@@ -179,6 +180,8 @@ export const adminOrderService = {
           total_amount: true,
           delivery_fee: true,
           tax: true,
+          platform_fee: true,
+          additional_charges: true,
           payment_method: true,
           payment_status: true,
           created_at: true,
@@ -194,6 +197,10 @@ export const adminOrderService = {
           },
           orders: {
             select: {
+              id: true,
+              order_number: true,
+              invoice_number: true,
+              discount: true,
               status: true,
               delivery_note: true,
               eta_minutes: true,
@@ -211,6 +218,8 @@ export const adminOrderService = {
                   method: true,
                   amount: true,
                   status: true,
+                  razorpay_order_id: true,
+                  razorpay_payment_id: true,
                   refund_amount: true,
                   refund_status: true,
                 },
@@ -218,7 +227,10 @@ export const adminOrderService = {
               items: {
                 select: {
                   product_name: true,
+                  unit: true,
                   quantity: true,
+                  unit_price: true,
+                  total_price: true,
                   image_url: true,
                   status: true,
                   product: {
@@ -296,15 +308,21 @@ export const adminOrderService = {
           m.orders.map((o) => o.status)
         );
 
+        const masterDiscount = m.orders.reduce((sum, o) => sum + Number(o.discount || 0), 0);
+        const invoiceNumber = firstOrder?.invoice_number || generateInvoiceNumber(m.order_number);
+
         return {
           id: m.id,
           order_number: m.order_number,
+          invoice_number: invoiceNumber,
           status: effectiveStatus,
           raw_master_status: m.status,
           total: Number(m.total_amount),
           delivery_fee: Number(m.delivery_fee),
           tax: Number(m.tax),
-          discount: 0,
+          discount: masterDiscount,
+          platform_fee: Number(m.platform_fee || 0),
+          additional_charges: m.additional_charges || [],
           payment_method: m.payment_method,
           payment_status: m.payment_status,
           delivery_note: firstOrder?.delivery_note,
@@ -325,6 +343,8 @@ export const adminOrderService = {
                 method: firstOrder.payment.method,
                 amount: Number(firstOrder.payment.amount),
                 status: firstOrder.payment.status,
+                razorpay_order_id: firstOrder.payment.razorpay_order_id || null,
+                razorpay_payment_id: firstOrder.payment.razorpay_payment_id || null,
                 refund_amount: firstOrder.payment.refund_amount ? Number(firstOrder.payment.refund_amount) : null,
                 refund_status: firstOrder.payment.refund_status,
               }
@@ -332,7 +352,10 @@ export const adminOrderService = {
           item_count: items.length,
           items: items.map((i) => ({
             product_name: i.product_name,
+            unit: i.unit,
             quantity: i.quantity,
+            unit_price: Number(i.unit_price),
+            total_price: Number(i.total_price),
             image_url: i.image_url || i.product?.images?.[0]?.url || null,
             status: i.status,
           })),
@@ -362,6 +385,7 @@ export const adminOrderService = {
           },
         },
         address: true,
+        payment: true,
         orders: {
           include: {
             vendor: true,
@@ -413,10 +437,16 @@ export const adminOrderService = {
       const vendorEarnings = o.total.toNumber() - commission;
       
       return {
+        id: o.id,
         order_number: o.order_number,
+        invoice_number: o.invoice_number || generateInvoiceNumber(o.order_number),
         status: o.status,
         vendor: o.vendor,
         total: o.total.toNumber(),
+        items_subtotal: o.items_subtotal ? o.items_subtotal.toNumber() : 0,
+        delivery_fee: o.delivery_fee ? o.delivery_fee.toNumber() : 0,
+        tax: o.tax ? o.tax.toNumber() : 0,
+        discount: o.discount ? o.discount.toNumber() : 0,
         commission,
         vendorEarnings,
         eta_minutes: o.eta_minutes ?? null,
@@ -492,10 +522,15 @@ export const adminOrderService = {
       mOrder.orders.map((o) => o.status)
     );
 
+    const activePayment = mOrder.payment || firstOrder?.payment;
+    const masterDiscount = mOrder.orders.reduce((sum, o) => sum + Number(o.discount || 0), 0);
+    const invoiceNumber = firstOrder?.invoice_number || generateInvoiceNumber(mOrder.order_number);
+    const activeCouponCode = (firstOrder as any)?.coupon?.code || (firstOrder as any)?.coupon_id || (mOrder as any).coupon_code || null;
+
     return {
       id: mOrder.id,
       order_number: mOrder.order_number,
-      invoice_number: firstOrder?.invoice_number,
+      invoice_number: invoiceNumber,
       status: effectiveStatus,
       raw_master_status: mOrder.status,
       total: Number(mOrder.total_amount),
@@ -504,7 +539,8 @@ export const adminOrderService = {
       tax: Number(mOrder.tax),
       platform_fee: Number(mOrder.platform_fee || 0),
       additional_charges: mOrder.additional_charges || [],
-      discount: 0,
+      discount: masterDiscount,
+      coupon_code: activeCouponCode,
       payment_method: mOrder.payment_method,
       payment_status: mOrder.payment_status,
       delivery_note: firstOrder?.delivery_note,
@@ -525,12 +561,16 @@ export const adminOrderService = {
       delivery_partner: masterPartner,
       address: mOrder.address,
       sub_orders: subOrders, // Store-wise breakdown
-      payment: firstOrder?.payment
+      payment: activePayment
         ? {
-            id: firstOrder.payment.id,
-            method: firstOrder.payment.method,
-            amount: Number(firstOrder.payment.amount),
-            status: firstOrder.payment.status,
+            id: activePayment.id,
+            method: activePayment.method,
+            amount: Number(activePayment.amount),
+            status: activePayment.status,
+            razorpay_order_id: activePayment.razorpay_order_id || null,
+            razorpay_payment_id: activePayment.razorpay_payment_id || null,
+            refund_amount: activePayment.refund_amount ? Number(activePayment.refund_amount) : null,
+            refund_status: activePayment.refund_status || null,
           }
         : null,
       items: items.map((i: any) => ({
@@ -881,7 +921,9 @@ export const adminOrderService = {
           where: { id: masterId },
           data: { status: mappedMasterStatus },
         });
-      } catch (e) {}
+      } catch {
+        // Best-effort update of masterOrder status
+      }
     }
 
     return lastUpdated || subOrders[0];

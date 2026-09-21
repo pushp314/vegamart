@@ -43,6 +43,8 @@ import {
   ShieldCheck,
   ExternalLink,
   Clock,
+  Receipt,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -50,10 +52,13 @@ import {
   getPaymentMethodInfo,
   getOrderStatusInfo,
 } from "@/lib/order-helpers";
+import { OrderInvoiceModal } from "@/components/orders/OrderInvoiceModal";
 
 interface Order {
   id: string;
   order_number: string;
+  invoice_number?: string;
+  coupon_code?: string;
   status: string;
   total: number;
   total_amount?: number;
@@ -143,6 +148,7 @@ export function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
 
   const vendorIdFromUrl = new URLSearchParams(window.location.search).get("vendor_id");
   const [vendorId] = useState(vendorIdFromUrl || "");
@@ -336,7 +342,9 @@ export function AdminOrders() {
                               )}
                               {(order as any).eta_minutes != null && (
                                 <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 w-fit flex items-center gap-1 mt-0.5">
-                                  <Clock className="h-2.5 w-2.5" /> Delivery Boy ने {(order as any).eta_minutes} मिनट का time दिया है — Estimated Delivery: {(order as any).eta_minutes} Minutes
+                                  <Clock className="h-2.5 w-2.5" /> Delivery Boy ने{" "}
+                                  {(order as any).eta_minutes} मिनट का time दिया है — Estimated
+                                  Delivery: {(order as any).eta_minutes} Minutes
                                 </span>
                               )}
                             </div>
@@ -463,9 +471,14 @@ export function AdminOrders() {
       <Dialog open={!!selectedOrder} onOpenChange={(o) => !o && setSelectedOrder(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <div className="flex items-center justify-between gap-2 pr-6">
-              <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                Order #{detail?.order_number || detail?.id.slice(0, 8)}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pr-6">
+              <DialogTitle className="text-xl font-bold flex flex-wrap items-center gap-2">
+                <span>Order #{detail?.order_number || detail?.id.slice(0, 8)}</span>
+                {detail?.invoice_number && (
+                  <span className="text-xs font-mono font-bold text-muted-foreground bg-muted border border-border px-2 py-0.5 rounded-md">
+                    Inv: {detail.invoice_number}
+                  </span>
+                )}
                 {detail && (
                   <Badge
                     className={`${getOrderStatusInfo(detail.status).badgeBg} font-bold text-xs`}
@@ -474,6 +487,18 @@ export function AdminOrders() {
                   </Badge>
                 )}
               </DialogTitle>
+              {detail && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setInvoiceModalOpen(true)}
+                  className="h-8 gap-1.5 text-xs font-bold border-emerald-500/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 w-fit shrink-0"
+                >
+                  <Receipt className="h-3.5 w-3.5 text-emerald-600" />
+                  View / Print Tax Invoice
+                </Button>
+              )}
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
               {detail?.created_at
@@ -583,7 +608,10 @@ export function AdminOrders() {
                           variant="outline"
                           className="h-8 text-xs font-bold border-blue-200 text-blue-700 hover:bg-blue-50"
                           disabled={updateStatusMutation.isPending}
-                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "CONFIRMED" })}
+                          onClick={() =>
+                            detail?.id &&
+                            updateStatusMutation.mutate({ orderId: detail.id, status: "CONFIRMED" })
+                          }
                         >
                           Confirm
                         </Button>
@@ -592,7 +620,10 @@ export function AdminOrders() {
                           variant="outline"
                           className="h-8 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                           disabled={updateStatusMutation.isPending}
-                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "PREPARING" })}
+                          onClick={() =>
+                            detail?.id &&
+                            updateStatusMutation.mutate({ orderId: detail.id, status: "PREPARING" })
+                          }
                         >
                           Preparing
                         </Button>
@@ -601,7 +632,13 @@ export function AdminOrders() {
                           variant="outline"
                           className="h-8 text-xs font-bold border-amber-200 text-amber-700 hover:bg-amber-50"
                           disabled={updateStatusMutation.isPending}
-                          onClick={() => detail?.id && updateStatusMutation.mutate({ orderId: detail.id, status: "OUT_FOR_DELIVERY" })}
+                          onClick={() =>
+                            detail?.id &&
+                            updateStatusMutation.mutate({
+                              orderId: detail.id,
+                              status: "OUT_FOR_DELIVERY",
+                            })
+                          }
                         >
                           Out for Delivery
                         </Button>
@@ -610,8 +647,16 @@ export function AdminOrders() {
                           className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
                           disabled={updateStatusMutation.isPending}
                           onClick={() => {
-                            if (detail?.id && window.confirm("Are you sure you want to FORCE DELIVER this order without customer OTP verification? This action will mark all items delivered and process payouts.")) {
-                              updateStatusMutation.mutate({ orderId: detail.id, status: "DELIVERED" });
+                            if (
+                              detail?.id &&
+                              window.confirm(
+                                "Are you sure you want to FORCE DELIVER this order without customer OTP verification? This action will mark all items delivered and process payouts.",
+                              )
+                            ) {
+                              updateStatusMutation.mutate({
+                                orderId: detail.id,
+                                status: "DELIVERED",
+                              });
                             }
                           }}
                         >
@@ -623,8 +668,14 @@ export function AdminOrders() {
                           className="h-8 text-xs font-bold border-rose-200 text-rose-700 hover:bg-rose-50"
                           disabled={updateStatusMutation.isPending}
                           onClick={() => {
-                            if (detail?.id && window.confirm("Are you sure you want to cancel this order as admin?")) {
-                              updateStatusMutation.mutate({ orderId: detail.id, status: "CANCELLED" });
+                            if (
+                              detail?.id &&
+                              window.confirm("Are you sure you want to cancel this order as admin?")
+                            ) {
+                              updateStatusMutation.mutate({
+                                orderId: detail.id,
+                                status: "CANCELLED",
+                              });
                             }
                           }}
                         >
@@ -670,7 +721,8 @@ export function AdminOrders() {
                           {(detail as any).eta_minutes != null && (
                             <div className="text-[11px] font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800 flex items-center gap-1 w-fit">
                               <Clock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                              Delivery Boy ने {(detail as any).eta_minutes} मिनट का time दिया है — Estimated Delivery: {(detail as any).eta_minutes} Minutes
+                              Delivery Boy ने {(detail as any).eta_minutes} मिनट का time दिया है —
+                              Estimated Delivery: {(detail as any).eta_minutes} Minutes
                             </div>
                           )}
                         </div>
@@ -931,8 +983,15 @@ export function AdminOrders() {
                       {(() => {
                         const calculatedSubtotal = (detail.items || [])
                           .filter((i: any) => i.status !== "rejected")
-                          .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
-                        const itemsSubtotal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(detail.items_subtotal || 0);
+                          .reduce(
+                            (sum: number, i: any) =>
+                              sum + Number(i.unit_price) * Number(i.quantity),
+                            0,
+                          );
+                        const itemsSubtotal =
+                          calculatedSubtotal > 0
+                            ? calculatedSubtotal
+                            : Number(detail.items_subtotal || 0);
 
                         let addCharges: any[] = [];
                         if (Array.isArray(detail.additional_charges)) {
@@ -947,9 +1006,7 @@ export function AdminOrders() {
                           <div className="bg-muted/30 p-4 border-t border-border space-y-1.5 text-sm">
                             <div className="flex justify-between text-muted-foreground">
                               <span>Accepted Items Subtotal</span>
-                              <span className="tabular-nums">
-                                ₹{itemsSubtotal.toFixed(2)}
-                              </span>
+                              <span className="tabular-nums">₹{itemsSubtotal.toFixed(2)}</span>
                             </div>
                             {Number(detail.delivery_fee) > 0 && (
                               <div className="flex justify-between text-muted-foreground">
@@ -962,26 +1019,50 @@ export function AdminOrders() {
                             {Number(detail.tax) > 0 && (
                               <div className="flex justify-between text-muted-foreground">
                                 <span>Taxes</span>
-                                <span className="tabular-nums">+ ₹{Number(detail.tax).toFixed(2)}</span>
+                                <span className="tabular-nums">
+                                  + ₹{Number(detail.tax).toFixed(2)}
+                                </span>
                               </div>
                             )}
                             {Number(detail.platform_fee) > 0 && (
                               <div className="flex justify-between text-muted-foreground">
                                 <span>Platform Fee</span>
-                                <span className="tabular-nums">+ ₹{Number(detail.platform_fee).toFixed(2)}</span>
+                                <span className="tabular-nums">
+                                  + ₹{Number(detail.platform_fee).toFixed(2)}
+                                </span>
                               </div>
                             )}
                             {addCharges.map((ch: any, cIdx: number) => (
-                              <div key={cIdx} className="flex justify-between text-muted-foreground">
+                              <div
+                                key={cIdx}
+                                className="flex justify-between text-muted-foreground"
+                              >
                                 <span>{ch.name || "Extra Charge"}</span>
-                                <span className="tabular-nums">+ ₹{Number(ch.amount || 0).toFixed(2)}</span>
+                                <span className="tabular-nums">
+                                  + ₹{Number(ch.amount || 0).toFixed(2)}
+                                </span>
                               </div>
                             ))}
                             {Number(detail.discount) > 0 && (
                               <div className="flex justify-between text-emerald-600 font-medium">
-                                <span>Discount</span>
+                                <span className="flex items-center gap-1">
+                                  Coupon Discount
+                                  {detail.coupon_code && (
+                                    <span className="text-[10px] uppercase font-mono px-1 bg-emerald-100 text-emerald-800 rounded">
+                                      {detail.coupon_code}
+                                    </span>
+                                  )}
+                                </span>
                                 <span className="tabular-nums">
                                   - ₹{Number(detail.discount).toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                            {Number(detail.payment?.refund_amount ?? 0) > 0 && (
+                              <div className="flex justify-between text-rose-600 font-medium">
+                                <span>Refund for Rejected Item(s)</span>
+                                <span className="tabular-nums font-bold">
+                                  - ₹{Number(detail.payment?.refund_amount ?? 0).toFixed(2)}
                                 </span>
                               </div>
                             )}
@@ -1012,6 +1093,17 @@ export function AdminOrders() {
                                 </div>
                               </div>
                             )}
+                            <div className="pt-2 border-t border-border/60">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setInvoiceModalOpen(true)}
+                                className="w-full h-9 rounded-xl border-emerald-500/30 bg-emerald-50/50 hover:bg-emerald-100/60 text-emerald-800 dark:text-emerald-300 font-bold text-xs gap-2"
+                              >
+                                <Receipt className="h-4 w-4 text-emerald-600" />
+                                View / Print Official Tax Invoice &amp; Slip
+                              </Button>
+                            </div>
                           </div>
                         );
                       })()}
@@ -1023,6 +1115,15 @@ export function AdminOrders() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Official Tax Invoice & Bill Modal */}
+      {detail && (
+        <OrderInvoiceModal
+          order={detail}
+          isOpen={invoiceModalOpen}
+          onClose={() => setInvoiceModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

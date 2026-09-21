@@ -683,10 +683,28 @@ export const paymentService = {
             });
           }
         }
+
+        if (paymentLink?.short_url && userIdOwner) {
+          await notificationService.payment(
+            userIdOwner,
+            `Payment link for Order #${orderNumber}`,
+            `Your delivery partner requested payment of ₹${amountToCharge.toFixed(2)}. Tap to pay online: ${paymentLink.short_url}`,
+            {
+              order_id: order.id,
+              order_number: String(orderNumber),
+              payment_url: paymentLink.short_url,
+              amount: amountToCharge,
+            }
+          ).catch(() => {});
+        }
       } catch (err: any) {
         log.warn(`[payments] Could not create dynamic Razorpay payment link: ${err?.message}`);
       }
     }
+
+    const customerPhone = (order as any).customer?.phone || (order as any).address?.phone || null;
+    const customerName = (order as any).customer?.name || "Customer";
+    const fallbackUrl = `${env.CLIENT_URL || "http://localhost:3000"}/orders/${order.id}/track`;
 
     return {
       order_id: order.id,
@@ -694,9 +712,11 @@ export const paymentService = {
       amount: amountToCharge,
       currency: "INR",
       payment_link_id: paymentLink?.id || null,
-      short_url: paymentLink?.short_url || null,
+      short_url: paymentLink?.short_url || fallbackUrl,
       razorpay_order_id: paymentLink?.order_id || null,
       status: paymentLink?.status || "created",
+      customer_phone: customerPhone,
+      customer_name: customerName,
     };
   },
 

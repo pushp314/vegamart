@@ -23,6 +23,8 @@ import {
   Sparkles,
   KeyRound,
   ShieldCheck,
+  Receipt,
+  Printer,
 } from "lucide-react";
 import {
   Dialog,
@@ -36,6 +38,7 @@ import {
   getPaymentMethodInfo,
   getOrderStatusInfo,
 } from "@/lib/order-helpers";
+import { OrderInvoiceModal } from "@/components/orders/OrderInvoiceModal";
 
 type VendorOrdersSearch = {
   highlight?: string;
@@ -58,6 +61,7 @@ function VendorOrdersPage() {
   const [otpInput, setOtpInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState(highlight || "");
+  const [invoiceOrder, setInvoiceOrder] = useState<any | null>(null);
 
   useEffect(() => {
     if (highlight) {
@@ -381,11 +385,13 @@ function VendorOrdersPage() {
                 };
 
               let available = statusFlow[currentStatus?.toUpperCase()] || [];
-              const isMultiStore = Boolean(orderData?.master_order?._count?.orders && orderData.master_order._count.orders > 1);
+              const isMultiStore = Boolean(
+                orderData?.master_order?._count?.orders && orderData.master_order._count.orders > 1,
+              );
               const hasAssignedDeliveryPartner = Boolean(
                 orderData?.delivery_partner_id ||
                 orderData?.delivery_partner ||
-                orderData?.master_order?.delivery_partner_id
+                orderData?.master_order?.delivery_partner_id,
               );
               if (isMultiStore || hasAssignedDeliveryPartner) {
                 // If it's a multi-store route or a delivery partner is assigned, the delivery partner handles final delivery
@@ -417,8 +423,13 @@ function VendorOrdersPage() {
             );
             const effectiveOrderTotal = Number(
               o.total ||
-              o.master_order?.total_amount ||
-              (itemsSubtotalVal + deliveryFeeVal + taxVal + platformFeeVal + additionalChargesSum - discountVal),
+                o.master_order?.total_amount ||
+                itemsSubtotalVal +
+                  deliveryFeeVal +
+                  taxVal +
+                  platformFeeVal +
+                  additionalChargesSum -
+                  discountVal,
             );
 
             const pInfo = getPaymentMethodInfo(
@@ -468,9 +479,16 @@ function VendorOrdersPage() {
                       #{o.order_number?.slice(-4) || o.id.slice(0, 4)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-sm text-foreground truncate uppercase">
-                        Order #{o.order_number || `ORD-${o.id.slice(0, 6)}`}
-                      </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-sm text-foreground truncate uppercase">
+                          Order #{o.order_number || `ORD-${o.id.slice(0, 6)}`}
+                        </h3>
+                        {o.invoice_number && (
+                          <span className="text-[10.5px] font-mono font-bold text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded">
+                            Inv: {o.invoice_number}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {new Date(o.created_at || Date.now()).toLocaleString()}
                       </p>
@@ -478,6 +496,15 @@ function VendorOrdersPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceOrder(o)}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
+                      title="Print / View Tax Invoice & Packing Slip"
+                    >
+                      <Receipt className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Print Slip</span>
+                    </button>
                     <div className="text-right">
                       <div className="font-display text-lg font-black text-emerald-600">
                         ₹{Number(o.total || 0).toLocaleString("en-IN")}
@@ -644,10 +671,14 @@ function VendorOrdersPage() {
                             ? `(${o.delivery_partner.vehicle_number})`
                             : ""}
                         </div>
-                        {(o.eta_minutes != null || (o.delivery_partner as any).eta_minutes != null) && (
+                        {(o.eta_minutes != null ||
+                          (o.delivery_partner as any).eta_minutes != null) && (
                           <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 dark:text-blue-300 bg-blue-100 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
                             <Clock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                            Delivery Boy ने {o.eta_minutes || (o.delivery_partner as any).eta_minutes} मिनट का time दिया है — Estimated Delivery: {o.eta_minutes || (o.delivery_partner as any).eta_minutes} Minutes
+                            Delivery Boy ने{" "}
+                            {o.eta_minutes || (o.delivery_partner as any).eta_minutes} मिनट का time
+                            दिया है — Estimated Delivery:{" "}
+                            {o.eta_minutes || (o.delivery_partner as any).eta_minutes} Minutes
                           </div>
                         )}
                       </div>
@@ -662,15 +693,17 @@ function VendorOrdersPage() {
                       </a>
                     )}
                   </div>
-                ) : dInfo.id !== "self_pickup" && o.status !== "CANCELLED" && o.status !== "REFUNDED" ? (
+                ) : dInfo.id !== "self_pickup" &&
+                  o.status !== "CANCELLED" &&
+                  o.status !== "REFUNDED" ? (
                   <div className="rounded-2xl bg-muted/20 border border-border/50 p-3 text-xs flex items-center gap-2.5 text-muted-foreground">
                     <Bike className="h-4 w-4 opacity-50 shrink-0" />
                     <span className="font-medium">
-                      Assigned Delivery Partner: <strong className="font-bold text-foreground">Not assigned</strong>
+                      Assigned Delivery Partner:{" "}
+                      <strong className="font-bold text-foreground">Not assigned</strong>
                     </span>
                   </div>
                 ) : null}
-
 
                 {/* Items & Summary */}
                 {Array.isArray(o.items) && o.items.length > 0 && (
@@ -792,8 +825,23 @@ function VendorOrdersPage() {
                       )}
                       {discountVal > 0 && (
                         <div className="flex justify-between text-emerald-600 font-medium">
-                          <span>Discount</span>
+                          <span className="flex items-center gap-1">
+                            Discount
+                            {(o.coupon?.code || o.coupon_code || o.master_order?.coupon_code) && (
+                              <span className="text-[10px] uppercase font-mono px-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded border border-emerald-300/40">
+                                {o.coupon?.code || o.coupon_code || o.master_order?.coupon_code}
+                              </span>
+                            )}
+                          </span>
                           <span>- ₹{discountVal.toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {Number(o.payment?.refund_amount ?? 0) > 0 && (
+                        <div className="flex justify-between text-rose-600 font-medium">
+                          <span>Refund for Rejected Item(s)</span>
+                          <span>
+                            - ₹{Number(o.payment?.refund_amount ?? 0).toLocaleString("en-IN")}
+                          </span>
                         </div>
                       )}
                       <div className="flex justify-between font-bold text-foreground pt-1.5 border-t border-border/50 mt-1 text-sm">
@@ -801,6 +849,28 @@ function VendorOrdersPage() {
                         <span className="text-emerald-600">
                           ₹{effectiveOrderTotal.toLocaleString("en-IN")}
                         </span>
+                      </div>
+                      {pInfo.isPartialAdvance && (
+                        <div className="pt-2 border-t border-border/50 space-y-1 text-xs">
+                          <div className="flex justify-between font-semibold text-emerald-700 dark:text-emerald-300">
+                            <span>Advance Paid Online ({o.payment?.method || "UPI/Card"}):</span>
+                            <span>- ₹{pInfo.advancePaid.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-amber-800 dark:text-amber-300">
+                            <span>Balance Due at Store / Delivery:</span>
+                            <span className="text-sm">₹{pInfo.balanceAmount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="pt-2 border-t border-border/50">
+                        <button
+                          type="button"
+                          onClick={() => setInvoiceOrder(o)}
+                          className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900 border border-emerald-300/50 dark:border-emerald-800 py-2 rounded-xl transition-colors shadow-2xs"
+                        >
+                          <Receipt className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>Print Packing Slip &amp; Tax Invoice</span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -864,15 +934,16 @@ function VendorOrdersPage() {
         </div>
       )}
 
-
-
       {/* Delivery OTP Verification Dialog */}
-      <Dialog open={!!otpTarget} onOpenChange={(open) => {
-        if (!open) {
-          setOtpTarget(null);
-          setOtpInput("");
-        }
-      }}>
+      <Dialog
+        open={!!otpTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOtpTarget(null);
+            setOtpInput("");
+          }
+        }}
+      >
         <DialogContent className="rounded-3xl border-border max-w-sm">
           <DialogHeader>
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 mb-1">
@@ -882,7 +953,9 @@ function VendorOrdersPage() {
               Verify Delivery OTP
             </DialogTitle>
             <DialogDescription className="text-xs text-center leading-relaxed">
-              Ask the customer for the 6-digit verification code shown on their live tracking screen to complete handover of order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}.
+              Ask the customer for the 6-digit verification code shown on their live tracking screen
+              to complete handover of order #{otpTarget?.order_number || otpTarget?.id?.slice(0, 6)}
+              .
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-3">
@@ -897,7 +970,8 @@ function VendorOrdersPage() {
             />
             <div className="rounded-xl bg-muted/40 border border-border/50 p-2.5 text-center">
               <p className="text-[11px] text-muted-foreground leading-snug">
-                🔒 Delivery can only be completed with the customer's OTP to ensure proof of delivery.
+                🔒 Delivery can only be completed with the customer's OTP to ensure proof of
+                delivery.
               </p>
             </div>
             <div className="flex gap-2">
@@ -998,6 +1072,16 @@ function VendorOrdersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Vendor Packing Slip & Tax Invoice Modal */}
+      {invoiceOrder && (
+        <OrderInvoiceModal
+          order={invoiceOrder}
+          isOpen={!!invoiceOrder}
+          onClose={() => setInvoiceOrder(null)}
+          isVendorSlip={true}
+        />
+      )}
     </div>
   );
 }
