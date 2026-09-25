@@ -239,6 +239,8 @@ function DeliveryDashboard() {
   const [upiQrModalOrder, setUpiQrModalOrder] = useState<any | null>(null);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [dynamicQrLoading, setDynamicQrLoading] = useState(false);
+  const [doorstepPaymentTab, setDoorstepPaymentTab] = useState<"upi" | "razorpay">("upi");
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false);
   const [dynamicQrData, setDynamicQrData] = useState<{
     short_url?: string;
     payment_link_id?: string;
@@ -250,6 +252,9 @@ function DeliveryDashboard() {
     customer_phone?: string | null;
     customer_name?: string | null;
     fallback_url?: string;
+    upi_id?: string;
+    upi_string?: string;
+    is_razorpay_active?: boolean;
   } | null>(null);
   const [paymentCompletedSuccess, setPaymentCompletedSuccess] = useState(false);
 
@@ -484,6 +489,32 @@ function DeliveryDashboard() {
 
     return () => clearInterval(pollInterval);
   }, [upiQrModalOrder?.id, paymentCompletedSuccess]);
+
+  const handleManualCheckStatus = async () => {
+    if (!upiQrModalOrder?.id || checkingPaymentStatus) return;
+    setCheckingPaymentStatus(true);
+    try {
+      const res = await api.get<any>(`/payments/${upiQrModalOrder.id}/status`);
+      if (res.success && res.data?.paid) {
+        setPaymentCompletedSuccess(true);
+        toast.success("🎉 Payment verified & received via Razorpay!");
+        refetchDeliveries();
+        refetchRequests();
+        queryClient.invalidateQueries({ queryKey: ["myDeliveries"] });
+        queryClient.invalidateQueries({ queryKey: ["deliveryRequests"] });
+        setTimeout(() => {
+          setUpiQrModalOrder(null);
+          setPaymentCompletedSuccess(false);
+        }, 3000);
+      } else {
+        toast.info("Payment not detected yet. If customer completed payment, please wait 3 seconds and retry.");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Could not check payment status.");
+    } finally {
+      setCheckingPaymentStatus(false);
+    }
+  };
 
   // Availability toggle — persisted to backend
   const availabilityMutation = useMutation({
@@ -2687,17 +2718,21 @@ function DeliveryDashboard() {
               const customerName =
                 dynamicQrData?.customer_name || latestOrder?.customer?.name || "Customer";
 
-              // Payment link resolution:
-              // 1. Dynamic live Razorpay link (short_url e.g. https://rzp.io/rzp/...)
-              // 2. Fallback to customer order tracking / online payment URL
+              // 1. Genuine NPCI UPI protocol string for instant scanning with PhonePe / GPay / Paytm
+              const activeUpiId =
+                dynamicQrData?.upi_id ||
+                publicSettings?.["platform.upi_id"] ||
+                (partner as any)?.upi_id
+              const cleanOrdNo = String(ordNo).replace(/[^a-zA-Z0-9_-]/g, "");
+              const fallbackUpiString = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent("VegaMart")}&am=${amt}&cu=INR&tn=${encodeURIComponent(`Order_${cleanOrdNo}`)}`;
+              const activeUpiString = dynamicQrData?.upi_string || fallbackUpiString;
+
+              // 2. Dynamic live Razorpay link (short_url e.g. https://rzp.io/rzp/...)
               const origin = typeof window !== "undefined" ? window.location.origin : "";
               const fallbackOrderUrl = latestOrder?.id
                 ? `${origin}/orders/${latestOrder.id}/track`
                 : "";
               const paymentUrl = dynamicQrData?.short_url || fallbackOrderUrl;
-
-              // Dynamic QR strictly encodes the real live payment URL
-              const activeQrValue = paymentUrl;
 
               // Share message
               const shareMessage = `Hello ${customerName}! Please pay ₹${amt} for your VegaMart Order #${ordNo}.\n\nPay online securely via UPI (Google Pay, PhonePe, Paytm), Cards, or NetBanking here:\n${paymentUrl}\n\n(You can also pay directly inside your VegaMart App under My Orders)`;
@@ -2809,112 +2844,250 @@ function DeliveryDashboard() {
                     </div>
                   </div>
 
-                  {/* DYNAMIC QR CODE DISPLAY */}
-                  <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
-                    <div className="flex items-center justify-between gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 px-1">
-                      <span className="flex items-center gap-1.5">
-                        <QrCode className="h-4 w-4 text-emerald-600" />
-                        Dynamic Payment QR
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300/60 shadow-2xs">
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-600"></span>
-                        </span>
-                        Auto-Detecting
-                      </span>
-                    </div>
-
-                    <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center overflow-hidden">
-                      {dynamicQrLoading ? (
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-                          <span className="text-[11px] font-medium text-muted-foreground">
-                            Generating Dynamic QR...
-                          </span>
-                        </div>
-                      ) : dynamicQrData?.qr_image_url ? (
-                        <img
-                          src={dynamicQrData.qr_image_url}
-                          alt="Razorpay Dynamic UPI QR"
-                          className="w-full h-full object-contain"
-                        />
-                      ) : activeQrValue ? (
-                        <QRCodeSVG
-                          value={activeQrValue}
-                          size={200}
-                          level="M"
-                          includeMargin={false}
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <div className="text-xs text-muted-foreground">Unable to generate QR</div>
-                      )}
-                    </div>
-
-                    <div className="text-[11px] text-muted-foreground font-medium">
-                      Customer scans with <strong>Google Pay, PhonePe, Paytm</strong>, or Phone
-                      Camera to pay.
-                    </div>
+                  {/* TAB SWITCHER: UPI Apps Scanner vs Razorpay Online Auto-Detect */}
+                  <div className="grid grid-cols-2 p-1 bg-muted/80 rounded-2xl text-xs font-semibold border border-border">
+                    <button
+                      type="button"
+                      onClick={() => setDoorstepPaymentTab("upi")}
+                      className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                        doorstepPaymentTab === "upi"
+                          ? "bg-white dark:bg-card text-emerald-700 dark:text-emerald-400 shadow-xs font-bold border border-emerald-500/20"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Smartphone className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>UPI Apps (Scanner)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDoorstepPaymentTab("razorpay")}
+                      className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                        doorstepPaymentTab === "razorpay"
+                          ? "bg-white dark:bg-card text-blue-700 dark:text-blue-400 shadow-xs font-bold border border-blue-500/20"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <CreditCard className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Razorpay (Auto-Detect)</span>
+                    </button>
                   </div>
 
-                  {/* DIRECT SHARABLE LINK ACTIONS */}
-                  <div className="rounded-2xl border border-border bg-card p-3.5 space-y-3 text-left">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Share2 className="h-3.5 w-3.5 text-emerald-600" />
-                        Share Payment Link Directly
-                      </span>
-                      {cleanPhone && (
-                        <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                          +91 {cleanPhone}
+                  {/* TAB 1: DIRECT UPI SCANNER (Google Pay, PhonePe, Paytm, CRED, BHIM) */}
+                  {doorstepPaymentTab === "upi" && (
+                    <div className="rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/30 space-y-3 text-center transition-all animate-in fade-in zoom-in duration-200">
+                      <div className="flex items-center justify-between gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 px-1">
+                        <span className="flex items-center gap-1.5">
+                          <QrCode className="h-4 w-4 text-emerald-600" />
+                          Scan with Any UPI App
                         </span>
-                      )}
-                    </div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300/60 shadow-2xs">
+                          Instant Scan
+                        </span>
+                      </div>
 
-                    {/* Sharable Link Display & Copy */}
-                    <div className="flex items-center gap-1.5 p-1.5 bg-muted/60 rounded-xl border border-border/70 text-xs">
-                      <span className="text-[11px] font-mono text-muted-foreground truncate flex-1 px-1.5 select-all">
-                        {paymentUrl || "Generating payment link..."}
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="h-7 px-2 text-[11px] font-bold shrink-0 gap-1 rounded-lg"
-                        onClick={handleCopyLink}
-                      >
-                        {copiedUpi ? (
-                          <Check className="h-3 w-3 text-emerald-600" />
+                      <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center overflow-hidden">
+                        {dynamicQrLoading ? (
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              Generating UPI QR...
+                            </span>
+                          </div>
+                        ) : activeUpiString ? (
+                          <QRCodeSVG
+                            value={activeUpiString}
+                            size={200}
+                            level="M"
+                            includeMargin={false}
+                            className="w-full h-full object-contain"
+                          />
                         ) : (
-                          <Copy className="h-3 w-3" />
+                          <div className="text-xs text-muted-foreground">Unable to generate QR</div>
                         )}
-                        {copiedUpi ? "Copied" : "Copy"}
-                      </Button>
-                    </div>
+                      </div>
 
-                    {/* Quick Share Buttons */}
-                    <div className="grid grid-cols-2 gap-2">
+                      {/* Supported UPI Apps */}
+                      <div className="text-[11px] text-muted-foreground font-medium flex items-center justify-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-foreground text-[10px]">Open Scanner in:</span>
+                        <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-semibold">GPay</span>
+                        <span className="bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 px-1.5 py-0.5 rounded text-[10px] font-semibold">PhonePe</span>
+                        <span className="bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-1.5 py-0.5 rounded text-[10px] font-semibold">Paytm</span>
+                        <span className="bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-300 px-1.5 py-0.5 rounded text-[10px] font-semibold">BHIM / CRED</span>
+                      </div>
+
+                      {/* UPI ID display with Copy */}
+                      <div className="flex items-center justify-between p-2 bg-background/80 rounded-xl border border-emerald-500/20 text-xs">
+                        <div className="text-left font-mono truncate mr-2">
+                          <span className="text-[10px] text-muted-foreground block font-sans">UPI ID</span>
+                          <span className="text-xs font-bold text-foreground truncate">{activeUpiId}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="h-7 px-2 text-[11px] font-bold shrink-0 gap-1 rounded-lg"
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeUpiId);
+                            setCopiedUpi(true);
+                            toast.success("UPI ID copied to clipboard!");
+                            setTimeout(() => setCopiedUpi(false), 2000);
+                          }}
+                        >
+                          {copiedUpi ? (
+                            <Check className="h-3 w-3 text-emerald-600" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                          {copiedUpi ? "Copied" : "Copy"}
+                        </Button>
+                      </div>
+
+                      {/* Confirm Button for Direct UPI */}
                       <Button
                         type="button"
-                        className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs"
-                        onClick={handleWhatsAppShare}
+                        className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md gap-2"
+                        onClick={() => handleConfirmCashPayment(latestOrder)}
+                        disabled={confirmCashMutation.isPending}
                       >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        WhatsApp Link
+                        {confirmCashMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        Confirm UPI Received (₹{amt})
                       </Button>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Customer scanned with Google Pay / PhonePe? Tap above after payment completes.
+                      </p>
+                    </div>
+                  )}
 
+                  {/* TAB 2: RAZORPAY ONLINE & AUTO-DETECT */}
+                  {doorstepPaymentTab === "razorpay" && (
+                    <div className="space-y-3 transition-all animate-in fade-in zoom-in duration-200">
+                      {/* Razorpay Online Link QR */}
+                      <div className="rounded-2xl bg-blue-500/10 p-4 border border-blue-500/30 space-y-3 text-center">
+                        <div className="flex items-center justify-between gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 px-1">
+                          <span className="flex items-center gap-1.5">
+                            <QrCode className="h-4 w-4 text-blue-600" />
+                            Razorpay Payment Link & QR
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-100 dark:bg-blue-950 px-2 py-0.5 rounded-full border border-blue-300/60 shadow-2xs">
+                            <span className="relative flex h-1.5 w-1.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600"></span>
+                            </span>
+                            Auto-Detecting
+                          </span>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-2xl border border-blue-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center overflow-hidden">
+                          {dynamicQrLoading ? (
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                              <span className="text-[11px] font-medium text-muted-foreground">
+                                Generating Payment Link...
+                              </span>
+                            </div>
+                          ) : dynamicQrData?.qr_image_url ? (
+                            <img
+                              src={dynamicQrData.qr_image_url}
+                              alt="Razorpay Dynamic UPI QR"
+                              className="w-full h-full object-contain"
+                            />
+                          ) : paymentUrl ? (
+                            <QRCodeSVG
+                              value={paymentUrl}
+                              size={200}
+                              level="M"
+                              includeMargin={false}
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <div className="text-xs text-muted-foreground">Unable to generate QR</div>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] text-muted-foreground font-medium">
+                          Customer scans with <strong>Phone Camera / Google Lens</strong>, or open link sent below. Screen <strong>auto-detects</strong> when paid!
+                        </div>
+                      </div>
+
+                      {/* Direct Sharable Link Actions */}
+                      <div className="rounded-2xl border border-border bg-card p-3.5 space-y-3 text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <Share2 className="h-3.5 w-3.5 text-blue-600" />
+                            Send Link to Customer Phone
+                          </span>
+                          {cleanPhone && (
+                            <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              +91 {cleanPhone}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Sharable Link Display & Copy */}
+                        <div className="flex items-center gap-1.5 p-1.5 bg-muted/60 rounded-xl border border-border/70 text-xs">
+                          <span className="text-[11px] font-mono text-muted-foreground truncate flex-1 px-1.5 select-all">
+                            {paymentUrl || "Generating payment link..."}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 px-2 text-[11px] font-bold shrink-0 gap-1 rounded-lg"
+                            onClick={handleCopyLink}
+                          >
+                            {copiedUpi ? (
+                              <Check className="h-3 w-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                            {copiedUpi ? "Copied" : "Copy"}
+                          </Button>
+                        </div>
+
+                        {/* Quick Share Buttons */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            type="button"
+                            className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs"
+                            onClick={handleWhatsAppShare}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            WhatsApp Link
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-9 rounded-xl font-bold text-xs gap-1.5"
+                            onClick={handleNativeShare}
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                            Share / SMS
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Manual Status Check Button */}
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-9 rounded-xl font-bold text-xs gap-1.5"
-                        onClick={handleNativeShare}
+                        className="w-full h-10 rounded-xl font-bold text-xs gap-1.5 border-blue-500/30 text-blue-700 dark:text-blue-300 hover:bg-blue-500/10"
+                        onClick={handleManualCheckStatus}
+                        disabled={checkingPaymentStatus}
                       >
-                        <Share2 className="h-3.5 w-3.5" />
-                        Share / SMS
+                        {checkingPaymentStatus ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5 text-blue-600" />
+                        )}
+                        Check Online Payment Status Now
                       </Button>
                     </div>
-                  </div>
+                  )}
 
                   {/* CUSTOMER APP IN-APP PAYMENT GUIDANCE */}
                   <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3 text-left space-y-1.5">
@@ -2947,12 +3120,11 @@ function DeliveryDashboard() {
                       ) : (
                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       )}
-                      Confirm Payment Received (₹{amt})
+                      Confirm Cash Payment Received (₹{amt})
                     </Button>
 
                     <p className="text-[10px] text-muted-foreground leading-relaxed px-2">
-                      Paid via QR, WhatsApp link, or inside customer app? This screen verifies{" "}
-                      <strong>automatically</strong>. Tap above only if customer pays in Cash.
+                      Online link or app payment? This screen verifies <strong>automatically</strong>. Tap above only if customer pays in Cash.
                     </p>
                   </div>
 

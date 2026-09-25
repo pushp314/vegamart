@@ -10,6 +10,8 @@ import prisma from "../database/prisma";
 import * as paymentRepo from "../repositories/payment.repository";
 import * as orderRepo from "../repositories/order.repository";
 import * as transactionRepo from "../repositories/transaction.repository";
+import * as settingsRepo from "../repositories/settings.repository";
+import { SETTING_KEYS } from "../constants/settings";
 import { findById as findOrderById, findMasterOrderById, updateMasterOrderStatus } from "../repositories/order.repository";
 import { MasterOrderStatus } from "@prisma/client";
 import { razorpayGateway } from "../payments/razorpay.gateway";
@@ -793,6 +795,31 @@ export const paymentService = {
     const customerName = (order as any).customer?.name || "Customer";
     const fallbackUrl = `${env.CLIENT_URL || "http://localhost:3000"}/orders/${order.id}/track`;
 
+    // Resolve active UPI ID (delivery partner UPI or platform default UPI)
+    let activeUpiId = "vegamart@upi";
+    try {
+      if (isAssignedDelivery && _req.user?.id) {
+        const dp = await prisma.deliveryProfile.findUnique({
+          where: { user_id: _req.user.id },
+          select: { upi_id: true },
+        });
+        if (dp?.upi_id && dp.upi_id.trim()) {
+          activeUpiId = dp.upi_id.trim();
+        }
+      }
+      if (activeUpiId === "vegamart@upi") {
+        const platformUpiSetting = await settingsRepo.getByKey(SETTING_KEYS.PLATFORM_UPI_ID);
+        if (platformUpiSetting?.value && typeof platformUpiSetting.value === "string") {
+          activeUpiId = platformUpiSetting.value.trim();
+        }
+      }
+    } catch (e: any) {
+      log.debug(`[payments] Could not resolve custom UPI ID: ${e?.message}`);
+    }
+
+    const cleanOrderNo = String(orderNumber).replace(/[^a-zA-Z0-9_-]/g, "");
+    const upiString = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent("VegaMart")}&am=${amountToCharge.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Order_${cleanOrderNo}`)}`;
+
     return {
       order_id: order.id,
       order_number: orderNumber,
@@ -806,6 +833,9 @@ export const paymentService = {
       status: qrCode?.status || paymentLink?.status || "created",
       customer_phone: customerPhone,
       customer_name: customerName,
+      upi_id: activeUpiId,
+      upi_string: upiString,
+      is_razorpay_active: !!(paymentLink?.short_url || qrCode?.image_url),
     };
   },
 
