@@ -166,6 +166,69 @@ export const razorpayGateway = {
     return request<any>(`/payment_links/${linkId}`);
   },
 
+  async createQrCode(input: {
+    amountPaise: number;
+    name: string;
+    description?: string;
+    notes?: Record<string, string>;
+    usage?: "single_use" | "multiple_use";
+    fixedAmount?: boolean;
+    closeBy?: number;
+    customerId?: string;
+  }): Promise<{
+    id: string;
+    entity: string;
+    type: string;
+    name: string;
+    usage: string;
+    status: string;
+    image_url: string;
+    payment_amount: number;
+    payments_amount_received: number;
+    payments_count_received: number;
+    notes?: Record<string, string>;
+    close_by?: number;
+  }> {
+    return request<any>("/payments/qr_codes", {
+      method: "POST",
+      body: {
+        type: "upi_qr",
+        name: input.name,
+        usage: input.usage || "single_use",
+        fixed_amount: input.fixedAmount ?? true,
+        payment_amount: input.amountPaise,
+        description: input.description,
+        customer_id: input.customerId,
+        close_by: input.closeBy,
+        notes: input.notes,
+      },
+    });
+  },
+
+  async fetchQrCode(qrCodeId: string): Promise<{
+    id: string;
+    status: string;
+    image_url: string;
+    payment_amount: number;
+    payments_amount_received: number;
+    payments_count_received: number;
+    notes?: Record<string, string>;
+  }> {
+    return request<any>(`/payments/qr_codes/${qrCodeId}`);
+  },
+
+  async fetchQrCodePayments(qrCodeId: string): Promise<{
+    entity: string;
+    count: number;
+    items: RazorpayPayment[];
+  }> {
+    return request<any>(`/payments/qr_codes/${qrCodeId}/payments`);
+  },
+
+  async closeQrCode(qrCodeId: string): Promise<{ id: string; status: string }> {
+    return request<any>(`/payments/qr_codes/${qrCodeId}/close`, { method: "POST" });
+  },
+
   async refundPayment(paymentId: string, input: { amountPaise?: number; notes?: string } = {}): Promise<{ id: string; status: string }> {
     const body: Record<string, unknown> = {};
     if (input.amountPaise !== undefined) body.amount = input.amountPaise;

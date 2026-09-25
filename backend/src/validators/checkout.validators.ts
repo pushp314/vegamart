@@ -6,6 +6,8 @@ export const checkoutPreviewSchema = z.object({
   address_id: z.string().uuid().optional(),
   coupon_code: z.string().trim().min(1).max(50).optional(),
   delivery_slot: z.string().trim().max(60).optional(),
+  delivery_option: z.string().trim().max(50).optional(),
+  payment_method: z.string().trim().max(50).optional(),
   items: z
     .array(
       z.object({
@@ -22,6 +24,7 @@ export const placeOrderSchema = z.object({
   address_id: z.string().uuid("address_id must be a valid UUID."),
   coupon_code: z.string().trim().min(1).max(50).optional(),
   delivery_slot: z.string().trim().max(60).optional(),
+  delivery_option: z.string().trim().max(50).optional(),
   payment_method: paymentMethodEnum.default("RAZORPAY"),
   payment_type: z.enum(["FULL", "ADVANCE"]).default("FULL").optional(),
   idempotency_key: z.string().trim().min(8).max(120).optional(),
@@ -30,6 +33,7 @@ export const placeOrderSchema = z.object({
 export const createOrderFromCartSchema = z.object({
   address_id: z.string().uuid("address_id must be a valid UUID."),
   coupon_code: z.string().trim().min(1).max(50).optional(),
+  delivery_option: z.string().trim().max(50).optional(),
   payment_method: z
     .enum(["upi", "card", "cod", "RAZORPAY", "COD"])
     .default("RAZORPAY")

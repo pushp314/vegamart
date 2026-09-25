@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import {
   CreditCard,
@@ -19,6 +19,7 @@ import {
   Plus,
   Percent,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
@@ -63,6 +64,7 @@ function Checkout() {
 
   const [payment, setPayment] = useState("upi");
   const [paymentType, setPaymentType] = useState<"FULL" | "ADVANCE">("FULL");
+  const [showChargesDropdown, setShowChargesDropdown] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>("delivery_partner");
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
@@ -185,117 +187,117 @@ function Checkout() {
   const DELIVERY_OPTIONS: CheckoutDeliveryOption[] = [
     ...(isRoamingVendor
       ? [
-          {
-            id: "vendor_comes_to_me",
-            label: "Vendor comes to me",
-            desc: "Moving street cart arrives at your door",
-            icon: "🛒",
-            eta: `~${vendorEta || "15-20 mins"}`,
-            advancePct: 0,
-            minOrder: 0,
-            fee: 0,
-            onlinePaymentEnabled: true,
-            codEnabled: true,
-            fullPaymentEnabled: true,
-            advancePaymentEnabled: false,
-          },
-        ]
+        {
+          id: "vendor_comes_to_me",
+          label: "Vendor comes to me",
+          desc: "Moving street cart arrives at your door",
+          icon: "🛒",
+          eta: `~${vendorEta || "15-20 mins"}`,
+          advancePct: 0,
+          minOrder: 0,
+          fee: 0,
+          onlinePaymentEnabled: true,
+          codEnabled: true,
+          fullPaymentEnabled: true,
+          advancePaymentEnabled: false,
+        },
+      ]
       : []),
     ...(bookingConfig.enabled
       ? [
-          {
-            id: "booking",
-            label: "Advance Booking",
-            desc: `Advance scheduled booking${bookingConfig.advance_payment_enabled ? ` (${bookingConfig.advance_percentage}% upfront)` : ""}`,
-            icon: "📅",
-            eta: `~${bookingConfig.estimated_time || "1-2 days"}`,
-            advancePct: Number(bookingConfig.advance_percentage) || 20,
-            minOrder: Number(bookingConfig.min_order) || 0,
-            fee: 0,
-            onlinePaymentEnabled: bookingConfig.online_payment_enabled !== false,
-            codEnabled: Boolean(bookingConfig.cod_enabled),
-            fullPaymentEnabled: bookingConfig.full_payment_enabled !== false,
-            advancePaymentEnabled: Boolean(bookingConfig.advance_payment_enabled),
-          },
-        ]
+        {
+          id: "booking",
+          label: "Advance Booking",
+          desc: `Advance scheduled booking${bookingConfig.advance_payment_enabled ? ` (${bookingConfig.advance_percentage}% upfront)` : ""}`,
+          icon: "📅",
+          eta: `~${bookingConfig.estimated_time || "1-2 days"}`,
+          advancePct: Number(bookingConfig.advance_percentage) || 20,
+          minOrder: Number(bookingConfig.min_order) || 0,
+          fee: 0,
+          onlinePaymentEnabled: bookingConfig.online_payment_enabled !== false,
+          codEnabled: Boolean(bookingConfig.cod_enabled),
+          fullPaymentEnabled: bookingConfig.full_payment_enabled !== false,
+          advancePaymentEnabled: Boolean(bookingConfig.advance_payment_enabled),
+        },
+      ]
       : []),
     ...(selfPickupConfig.enabled
       ? [
-          {
-            id: "self_pickup",
-            label: "Self Pickup",
-            desc: `Collect at store counter${selfPickupConfig.advance_payment_enabled ? ` (${selfPickupConfig.advance_percentage}% upfront)` : ""}`,
-            icon: "🚶",
-            eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
-            advancePct: Number(selfPickupConfig.advance_percentage) || 10,
-            minOrder: Number(selfPickupConfig.min_order) || 0,
-            fee: 0,
-            onlinePaymentEnabled: selfPickupConfig.online_payment_enabled !== false,
-            codEnabled: selfPickupConfig.cod_enabled !== false,
-            fullPaymentEnabled: selfPickupConfig.full_payment_enabled !== false,
-            advancePaymentEnabled: Boolean(selfPickupConfig.advance_payment_enabled),
-          },
-        ]
+        {
+          id: "self_pickup",
+          label: "Self Pickup",
+          desc: `Collect at store counter${selfPickupConfig.advance_payment_enabled ? ` (${selfPickupConfig.advance_percentage}% upfront)` : ""}`,
+          icon: "🚶",
+          eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
+          advancePct: Number(selfPickupConfig.advance_percentage) || 10,
+          minOrder: Number(selfPickupConfig.min_order) || 0,
+          fee: 0,
+          onlinePaymentEnabled: selfPickupConfig.online_payment_enabled !== false,
+          codEnabled: selfPickupConfig.cod_enabled !== false,
+          fullPaymentEnabled: selfPickupConfig.full_payment_enabled !== false,
+          advancePaymentEnabled: Boolean(selfPickupConfig.advance_payment_enabled),
+        },
+      ]
       : []),
     ...(shopDeliveryConfig.enabled
       ? [
-          {
-            id: "shop_delivery",
-            label: "Shop Direct Delivery",
-            desc: `Delivered by store staff (₹${shopDeliveryConfig.delivery_fee})`,
-            icon: "🏪",
-            eta: `~${shopDeliveryConfig.estimated_time || vendorEta}`,
-            advancePct: Number(shopDeliveryConfig.advance_percentage) || 20,
-            minOrder: Number(shopDeliveryConfig.min_order) || 0,
-            fee: Number(shopDeliveryConfig.delivery_fee) || 0,
-            onlinePaymentEnabled: shopDeliveryConfig.online_payment_enabled !== false,
-            codEnabled: shopDeliveryConfig.cod_enabled !== false,
-            fullPaymentEnabled: shopDeliveryConfig.full_payment_enabled !== false,
-            advancePaymentEnabled: Boolean(shopDeliveryConfig.advance_payment_enabled),
-          },
-        ]
+        {
+          id: "shop_delivery",
+          label: "Shop Direct Delivery",
+          desc: `Delivered by store staff (₹${shopDeliveryConfig.delivery_fee})`,
+          icon: "🏪",
+          eta: `~${shopDeliveryConfig.estimated_time || vendorEta}`,
+          advancePct: Number(shopDeliveryConfig.advance_percentage) || 20,
+          minOrder: Number(shopDeliveryConfig.min_order) || 0,
+          fee: Number(shopDeliveryConfig.delivery_fee) || 0,
+          onlinePaymentEnabled: shopDeliveryConfig.online_payment_enabled !== false,
+          codEnabled: shopDeliveryConfig.cod_enabled !== false,
+          fullPaymentEnabled: shopDeliveryConfig.full_payment_enabled !== false,
+          advancePaymentEnabled: Boolean(shopDeliveryConfig.advance_payment_enabled),
+        },
+      ]
       : []),
     ...(isVegaMartFleetEnabled && hasActiveDeliveryPartners && deliveryPartnerConfig.enabled !== false
       ? [
-          {
-            id: "delivery_partner",
-            label: "VegaMart Home Delivery",
-            desc: `Express rider delivery (₹${adminDeliveryFee})`,
-            icon: "🏍️",
-            eta: `~${platformDeliveryEta || vendorEta}`,
-            advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
-            minOrder: Number(adminMinOrder) || 0,
-            fee:
-              adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold
-                ? 0
-                : Number(adminDeliveryFee) || 30,
-            onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
-            codEnabled: deliveryPartnerConfig.cod_enabled !== false,
-            fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
-            advancePaymentEnabled: Boolean(deliveryPartnerConfig.advance_payment_enabled),
-          },
-        ]
-      : []),
-  ];
-
-  // When multi-vendor cart with consolidated VegaMart delivery, show only delivery_partner option
-  const consolidatedOptions: CheckoutDeliveryOption[] = isConsolidatedDelivery
-    ? [
         {
           id: "delivery_partner",
           label: "VegaMart Home Delivery",
-          desc: `All stores picked up by VegaMart rider (₹${consolidatedDeliveryFee === 0 ? "Free" : consolidatedDeliveryFee})`,
+          desc: `Express rider delivery (₹${adminDeliveryFee})`,
           icon: "🏍️",
           eta: `~${platformDeliveryEta || vendorEta}`,
           advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
           minOrder: Number(adminMinOrder) || 0,
-          fee: consolidatedDeliveryFee,
+          fee:
+            adminFreeDeliveryThreshold > 0 && subtotal >= adminFreeDeliveryThreshold
+              ? 0
+              : Number(adminDeliveryFee) || 30,
           onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
           codEnabled: deliveryPartnerConfig.cod_enabled !== false,
           fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
           advancePaymentEnabled: Boolean(deliveryPartnerConfig.advance_payment_enabled),
         },
       ]
+      : []),
+  ];
+
+  // When multi-vendor cart with consolidated VegaMart delivery, show only delivery_partner option
+  const consolidatedOptions: CheckoutDeliveryOption[] = isConsolidatedDelivery
+    ? [
+      {
+        id: "delivery_partner",
+        label: "VegaMart Home Delivery",
+        desc: `All stores picked up by VegaMart rider (₹${consolidatedDeliveryFee === 0 ? "Free" : consolidatedDeliveryFee})`,
+        icon: "🏍️",
+        eta: `~${platformDeliveryEta || vendorEta}`,
+        advancePct: Number(deliveryPartnerConfig.advance_percentage) || 20,
+        minOrder: Number(adminMinOrder) || 0,
+        fee: consolidatedDeliveryFee,
+        onlinePaymentEnabled: deliveryPartnerConfig.online_payment_enabled !== false,
+        codEnabled: deliveryPartnerConfig.cod_enabled !== false,
+        fullPaymentEnabled: deliveryPartnerConfig.full_payment_enabled !== false,
+        advancePaymentEnabled: Boolean(deliveryPartnerConfig.advance_payment_enabled),
+      },
+    ]
     : DELIVERY_OPTIONS;
 
   const effectiveOptions: CheckoutDeliveryOption[] =
@@ -304,21 +306,21 @@ function Checkout() {
         ? consolidatedOptions
         : DELIVERY_OPTIONS
       : [
-          {
-            id: "self_pickup",
-            label: "Self Pickup",
-            desc: "Store pickup",
-            icon: "🚶",
-            eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
-            advancePct: 10,
-            minOrder: 0,
-            fee: 0,
-            onlinePaymentEnabled: true,
-            codEnabled: true,
-            fullPaymentEnabled: true,
-            advancePaymentEnabled: true,
-          },
-        ];
+        {
+          id: "self_pickup",
+          label: "Self Pickup",
+          desc: "Store pickup",
+          icon: "🚶",
+          eta: `Ready in ~${selfPickupConfig.estimated_time || "15 mins"}`,
+          advancePct: 10,
+          minOrder: 0,
+          fee: 0,
+          onlinePaymentEnabled: true,
+          codEnabled: true,
+          fullPaymentEnabled: true,
+          advancePaymentEnabled: true,
+        },
+      ];
 
   useEffect(() => {
     if (effectiveOptions.length > 0) {
@@ -408,9 +410,9 @@ function Checkout() {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return Math.round(R * c * 10) / 10;
   }
@@ -650,6 +652,7 @@ function Checkout() {
       payment_type: paymentType,
       coupon_code: appliedCoupon || undefined,
       delivery_slot: selectedOptionObj.label,
+      delivery_option: selectedOptionObj.id,
       items: items.map((item) => ({
         product_id: item.product.id,
         quantity: item.quantity,
@@ -784,8 +787,143 @@ function Checkout() {
     displayTax = tax + (displayDeliveryFee * taxRatePercent) / 100;
   }
 
-  const additionalChargesTotal =
-    summary?.additional_charges?.reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0;
+  const isAdvanceBooking = selectedOptionObj.id === "booking";
+  const isCod = payment === "cod";
+  const isOnline = !isCod;
+
+  const configuredFees: any[] = useMemo(() => {
+    const raw = publicSettings?.["platform.customer_fees_config"];
+    if (!raw) return [];
+    try {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [publicSettings]);
+
+  const computedCharges = useMemo<Array<{ id: string; key: string; name: string; amount: number }>>(() => {
+    const storeCount = uniqueVendorIds.size || 1;
+
+    if (configuredFees.length > 0) {
+      const activeList: { id: string; key: string; name: string; amount: number }[] = [];
+      for (const fee of configuredFees) {
+        const isEnabled = fee.enabled !== false && fee.is_active !== false;
+        if (!isEnabled) continue;
+
+        const feeName = fee.name || fee.title || "Extra Charge";
+        const feeType = String(fee.type || "FIXED").toUpperCase();
+        const feeAmount = Number(fee.amount || 0);
+
+        if (fee.min_order_amount && subtotal < fee.min_order_amount) {
+          if (fee.key !== "SMALL_ORDER_FEE") continue;
+        } else if (fee.key === "SMALL_ORDER_FEE" && subtotal >= fee.min_order_amount) {
+          continue;
+        }
+
+        let calculatedAmount =
+          feeType === "PERCENTAGE" ? (subtotal * feeAmount) / 100 : feeAmount;
+        if (
+          feeType === "PERCENTAGE" &&
+          fee.max_cap &&
+          fee.max_cap > 0 &&
+          calculatedAmount > fee.max_cap
+        ) {
+          calculatedAmount = fee.max_cap;
+        }
+
+        let finalAmount = 0;
+        switch (fee.key) {
+          case "SELF_PICKUP_FEE":
+            if (isSelfPickup) finalAmount = calculatedAmount;
+            break;
+          case "ADVANCE_BOOKING_FEE":
+            if (isAdvanceBooking) finalAmount = calculatedAmount;
+            break;
+          case "COD_FEE":
+            if (isCod) finalAmount = calculatedAmount;
+            break;
+          case "PAYMENT_PROCESSING_FEE":
+            if (isOnline) finalAmount = calculatedAmount;
+            break;
+          case "MULTI_STORE_PURCHASE_FEE":
+            if (storeCount > 1) finalAmount = calculatedAmount * (storeCount - 1);
+            break;
+          case "DISTANCE_DELIVERY_FEE":
+          case "EXTRA_DISTANCE_FEE":
+            if (!isSelfPickup && typeof deliveryDistanceKm === "number" && deliveryDistanceKm > 0) {
+              const freeKm = fee.conditions?.free_radius_km || 0;
+              const extraKm = Math.max(0, deliveryDistanceKm - freeKm);
+              if (extraKm > 0) finalAmount = extraKm * calculatedAmount;
+            }
+            break;
+          case "SCHEDULED_DELIVERY_FEE":
+            if (isAdvanceBooking) finalAmount = calculatedAmount;
+            break;
+          case "CANCELLATION_FEE":
+          case "RE_DELIVERY_FEE":
+            finalAmount = 0;
+            break;
+          default:
+            finalAmount = calculatedAmount;
+            break;
+        }
+
+        finalAmount = Math.round(finalAmount * 100) / 100;
+        if (finalAmount > 0) {
+          activeList.push({
+            id: fee.key,
+            key: fee.key,
+            name: feeName,
+            amount: finalAmount,
+          });
+        }
+      }
+      return activeList;
+    }
+
+    if (summary?.additional_charges && summary.additional_charges.length > 0) {
+      return summary.additional_charges
+        .filter((c: any) => {
+          const key = String(c.key || "").toUpperCase();
+          const name = String(c.name || "").toLowerCase();
+          if (key === "SELF_PICKUP_FEE" || name.includes("self pickup")) {
+            return isSelfPickup;
+          }
+          if (key === "ADVANCE_BOOKING_FEE" || name.includes("advance booking")) {
+            return isAdvanceBooking;
+          }
+          if (key === "COD_FEE" || name.includes("cash on delivery") || name.includes("cod")) {
+            return isCod;
+          }
+          return true;
+        })
+        .map((c: any) => ({
+          id: String(c.id || c.name || Math.random()),
+          key: String(c.key || ""),
+          name: String(c.name || "Fee"),
+          amount: Number(c.amount || 0),
+        }));
+    }
+
+    return [];
+  }, [
+    configuredFees,
+    summary?.additional_charges,
+    isSelfPickup,
+    isAdvanceBooking,
+    isCod,
+    isOnline,
+    subtotal,
+    uniqueVendorIds.size,
+    deliveryDistanceKm,
+  ]);
+
+  const additionalChargesTotal = computedCharges.reduce(
+    (sum: number, c: any) => sum + Number(c.amount),
+    0,
+  );
+  const totalExtraCharges = displayDeliveryFee + displayTax + additionalChargesTotal;
   const finalOrderTotal = Math.max(
     0,
     subtotal + displayDeliveryFee + displayTax + additionalChargesTotal - discount,
@@ -902,18 +1040,16 @@ function Checkout() {
                         key={a.id}
                         type="button"
                         onClick={() => setSelectedAddressId(a.id)}
-                        className={`w-full flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
-                          active
+                        className={`w-full flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${active
                             ? "border-primary bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
                             : "border-border hover:border-primary/40 bg-card"
-                        }`}
+                          }`}
                       >
                         <span
-                          className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-xl ${
-                            active
+                          className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-xl ${active
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted text-foreground"
-                          }`}
+                            }`}
                         >
                           <MapPin className="h-3.5 w-3.5" />
                         </span>
@@ -933,9 +1069,8 @@ function Checkout() {
                           </p>
                         </div>
                         <span
-                          className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
-                            active ? "border-primary bg-primary" : "border-border"
-                          }`}
+                          className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${active ? "border-primary bg-primary" : "border-border"
+                            }`}
                         >
                           {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                         </span>
@@ -1033,11 +1168,10 @@ function Checkout() {
                       key={opt.id}
                       type="button"
                       onClick={() => setSelectedOptionId(opt.id)}
-                      className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
-                        active
+                      className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${active
                           ? "border-primary bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs ring-2 ring-primary/20"
                           : "border-border hover:border-primary/40 bg-card"
-                      } ${!meetsMin ? "opacity-90" : ""}`}
+                        } ${!meetsMin ? "opacity-90" : ""}`}
                     >
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <span className="text-xl shrink-0">{opt.icon}</span>
@@ -1049,11 +1183,10 @@ function Checkout() {
                           )}
                           {opt.minOrder > 0 && (
                             <span
-                              className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md ${
-                                meetsMin
+                              className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md ${meetsMin
                                   ? "bg-muted text-muted-foreground"
                                   : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                              }`}
+                                }`}
                             >
                               Min ₹{opt.minOrder}
                             </span>
@@ -1102,11 +1235,10 @@ function Checkout() {
                     <button
                       type="button"
                       onClick={() => setPaymentType("FULL")}
-                      className={`flex flex-col rounded-xl border p-3 text-left transition-all ${
-                        paymentType === "FULL"
+                      className={`flex flex-col rounded-xl border p-3 text-left transition-all ${paymentType === "FULL"
                           ? "border-primary bg-primary/10 shadow-xs ring-2 ring-primary/20"
                           : "border-border hover:border-primary/40 bg-card"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-foreground">
@@ -1129,11 +1261,10 @@ function Checkout() {
                     <button
                       type="button"
                       onClick={() => setPaymentType("ADVANCE")}
-                      className={`flex flex-col rounded-xl border p-3 text-left transition-all ${
-                        paymentType === "ADVANCE"
+                      className={`flex flex-col rounded-xl border p-3 text-left transition-all ${paymentType === "ADVANCE"
                           ? "border-purple-600 bg-purple-500/10 shadow-xs ring-2 ring-purple-500/20"
                           : "border-border hover:border-purple-500/40 bg-card"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-foreground">
@@ -1192,18 +1323,16 @@ function Checkout() {
                         key={p.v}
                         type="button"
                         onClick={() => setPayment(p.v)}
-                        className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${
-                          active
+                        className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${active
                             ? "border-primary bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
                             : "border-border hover:border-primary/40 bg-card"
-                        }`}
+                          }`}
                       >
                         <span
-                          className={`grid h-9 w-9 place-items-center rounded-xl ${
-                            active
+                          className={`grid h-9 w-9 place-items-center rounded-xl ${active
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted text-foreground"
-                          }`}
+                            }`}
                         >
                           <Icon className="h-4 w-4" />
                         </span>
@@ -1212,9 +1341,8 @@ function Checkout() {
                           <div className="text-[11px] text-muted-foreground">{p.desc}</div>
                         </div>
                         <span
-                          className={`grid h-5 w-5 place-items-center rounded-full border ${
-                            active ? "border-primary bg-primary" : "border-border"
-                          }`}
+                          className={`grid h-5 w-5 place-items-center rounded-full border ${active ? "border-primary bg-primary" : "border-border"
+                            }`}
                         >
                           {active && <span className="h-2 w-2 rounded-full bg-white" />}
                         </span>
@@ -1326,39 +1454,71 @@ function Checkout() {
                 </span>
               </div>
 
-              <dl className="space-y-2 text-xs">
-                <div className="flex justify-between">
+              <div className="space-y-2.5 text-xs">
+                <div className="flex justify-between items-center py-0.5">
                   <span className="text-muted-foreground">Item Subtotal</span>
                   <span className="font-semibold tabular-nums">₹{subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Delivery Fee</span>
-                  <span className="font-semibold tabular-nums text-emerald-700">
-                    {displayDeliveryFee === 0 ? "FREE" : `₹${displayDeliveryFee.toFixed(2)}`}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Taxes & Charges (GST)</span>
-                  <span className="font-semibold tabular-nums">₹{displayTax.toFixed(2)}</span>
-                </div>
-                {summary?.additional_charges &&
-                  summary.additional_charges.length > 0 &&
-                  summary.additional_charges.map((charge: any) => (
-                    <div key={charge.id} className="flex justify-between">
-                      <span className="text-muted-foreground">{charge.name}</span>
-                      <span className="font-semibold tabular-nums">
-                        ₹{Number(charge.amount).toFixed(2)}
+
+                {/* Collapsible Dropdown for Taxes, Delivery & Extra Charges */}
+                <div className="rounded-2xl border border-border/70 bg-muted/20 overflow-hidden transition-all duration-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowChargesDropdown((prev) => !prev)}
+                    className="w-full flex items-center justify-between p-2.5 text-left text-xs hover:bg-muted/40 transition-colors focus:outline-none"
+                    aria-expanded={showChargesDropdown}
+                  >
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <span>Taxes &amp; Other Charges</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        ({1 + (displayDeliveryFee > 0 ? 1 : 0) + computedCharges.length} items)
                       </span>
                     </div>
-                  ))}
+                    <div className="flex items-center gap-1.5 font-semibold tabular-nums">
+                      <span>
+                        {totalExtraCharges === 0 ? "FREE" : `₹${totalExtraCharges.toFixed(2)}`}
+                      </span>
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${
+                          showChargesDropdown ? "rotate-180 text-foreground" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {showChargesDropdown && (
+                    <div className="px-3 pb-3 pt-1 border-t border-border/40 space-y-2 text-xs animate-in fade-in-50 duration-150">
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Delivery Fee</span>
+                        <span className="font-medium text-foreground tabular-nums">
+                          {displayDeliveryFee === 0 ? "FREE" : `₹${displayDeliveryFee.toFixed(2)}`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Taxes &amp; Charges (GST)</span>
+                        <span className="font-medium text-foreground tabular-nums">
+                          ₹{displayTax.toFixed(2)}
+                        </span>
+                      </div>
+                      {computedCharges.map((charge: { id: string; name: string; amount: number }) => (
+                        <div key={charge.id} className="flex justify-between text-muted-foreground">
+                          <span>{charge.name}</span>
+                          <span className="font-medium text-foreground tabular-nums">
+                            ₹{Number(charge.amount).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {discount > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-semibold">
+                  <div className="flex justify-between items-center text-emerald-700 font-semibold py-0.5">
                     <span>Coupon Discount</span>
                     <span>-₹{discount.toFixed(2)}</span>
                   </div>
                 )}
-              </dl>
+              </div>
 
               <div className="pt-3 border-t space-y-2">
                 <div className="flex items-center justify-between">

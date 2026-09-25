@@ -5,7 +5,8 @@ export interface FeeContext {
   numberOfStores: number;
   deliveryDistanceKm?: number;
   deliverySlot?: string;
-  paymentMethod?: string; // e.g. "COD", "RAZORPAY"
+  deliveryOption?: string; // e.g. "self_pickup", "booking", "delivery_partner", "shop_delivery"
+  paymentMethod?: string; // e.g. "COD", "RAZORPAY", "UPI", "card"
   totalWeightKg?: number; // if available in future
   isRaining?: boolean;
   isPeakHour?: boolean;
@@ -13,7 +14,24 @@ export interface FeeContext {
 
 export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
   let totalPlatformFee = 0;
-  const additionalCharges: { name: string; amount: number; type?: string }[] = [];
+  const additionalCharges: { key?: string; name: string; amount: number; type?: string }[] = [];
+
+  const opt = (context.deliveryOption || "").toLowerCase();
+  const slot = (context.deliverySlot || "").toLowerCase();
+  const isSelfPickup =
+    opt === "self_pickup" ||
+    slot.includes("self") ||
+    slot.includes("pickup") ||
+    slot.includes("takeaway") ||
+    slot.includes("counter");
+  const isAdvanceBooking =
+    opt === "booking" ||
+    slot.includes("advance") ||
+    slot.includes("book");
+  const isCod =
+    String(context.paymentMethod || "").toUpperCase() === "COD";
+  const isOnlinePayment =
+    context.paymentMethod ? !isCod : false;
 
   for (const fee of configs) {
     const isEnabled = fee.enabled !== false && (fee as any).is_active !== false;
@@ -48,6 +66,30 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
     let finalAmount = 0;
 
     switch (fee.key) {
+      case "SELF_PICKUP_FEE":
+        if (isSelfPickup) {
+          finalAmount = calculatedAmount;
+        }
+        break;
+
+      case "ADVANCE_BOOKING_FEE":
+        if (isAdvanceBooking) {
+          finalAmount = calculatedAmount;
+        }
+        break;
+
+      case "COD_FEE":
+        if (isCod) {
+          finalAmount = calculatedAmount;
+        }
+        break;
+
+      case "PAYMENT_PROCESSING_FEE":
+        if (isOnlinePayment) {
+          finalAmount = calculatedAmount;
+        }
+        break;
+
       case "MULTI_STORE_PURCHASE_FEE":
         if (context.numberOfStores > 1) {
           finalAmount = calculatedAmount * (context.numberOfStores - 1);
@@ -55,19 +97,15 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
         break;
 
       case "DISTANCE_DELIVERY_FEE":
-        if (context.deliveryDistanceKm && fee.conditions?.free_radius_km) {
-          const extraKm = Math.max(0, context.deliveryDistanceKm - fee.conditions.free_radius_km);
-          if (extraKm > 0) {
-            finalAmount = extraKm * calculatedAmount;
+        if (!isSelfPickup) {
+          if (context.deliveryDistanceKm && fee.conditions?.free_radius_km) {
+            const extraKm = Math.max(0, context.deliveryDistanceKm - fee.conditions.free_radius_km);
+            if (extraKm > 0) {
+              finalAmount = extraKm * calculatedAmount;
+            }
+          } else if (context.deliveryDistanceKm) {
+            finalAmount = calculatedAmount * Math.ceil(context.deliveryDistanceKm);
           }
-        } else if (context.deliveryDistanceKm) {
-           finalAmount = calculatedAmount * Math.ceil(context.deliveryDistanceKm);
-        }
-        break;
-
-      case "COD_FEE":
-        if (context.paymentMethod === "COD") {
-          finalAmount = calculatedAmount;
         }
         break;
 
@@ -86,9 +124,14 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
         break;
 
       case "SCHEDULED_DELIVERY_FEE":
-        if (context.deliverySlot && !context.deliverySlot.toLowerCase().includes("standard") && !context.deliverySlot.toLowerCase().includes("asap")) {
+        if (isAdvanceBooking || (context.deliverySlot && !context.deliverySlot.toLowerCase().includes("standard") && !context.deliverySlot.toLowerCase().includes("asap"))) {
           finalAmount = calculatedAmount;
         }
+        break;
+
+      case "CANCELLATION_FEE":
+      case "RE_DELIVERY_FEE":
+        finalAmount = 0;
         break;
 
       default:
@@ -102,9 +145,10 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
     if (finalAmount > 0) {
       totalPlatformFee += finalAmount;
       additionalCharges.push({
+        key: fee.key,
         name: feeName,
         amount: finalAmount,
-        type: feeType
+        type: feeType,
       });
     }
   }

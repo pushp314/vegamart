@@ -265,20 +265,38 @@ export const paymentService = {
 
     if (event === "payment_link.paid") {
       const plinkEntity = (payload.payload as any)?.payment_link?.entity;
-      const rzpOrderId = plinkEntity?.order_id || paymentEntity?.order_id;
-      if (rzpOrderId) {
-        const payment = await paymentRepo.findByRazorpayOrderId(rzpOrderId);
-        if (payment && payment.status !== "PAID") {
-          const simulatedEntity = {
-            id: paymentEntity?.id || `plink_pay_${Date.now()}`,
-            order_id: rzpOrderId,
-            amount: plinkEntity?.amount || payment.amount.toNumber() * 100,
-            currency: "INR",
-            status: "captured",
-            method: "upi",
-          };
-          await this.handlePaymentCaptured(simulatedEntity as never);
-        }
+      const rzpOrderId = plinkEntity?.order_id || (paymentEntity as any)?.order_id;
+      const notesOrderId = plinkEntity?.notes?.order_id || (paymentEntity as any)?.notes?.order_id;
+      const isMaster = plinkEntity?.notes?.is_master === "true" || (paymentEntity as any)?.notes?.is_master === "true";
+
+      let payment = rzpOrderId ? await paymentRepo.findByRazorpayOrderId(rzpOrderId) : null;
+      if (!payment && notesOrderId) {
+        payment = isMaster ? await paymentRepo.findByMasterOrderId(notesOrderId) : await paymentRepo.findByOrderId(notesOrderId);
+      }
+      if (payment && payment.status !== "PAID") {
+        await this.finalizePaymentAsPaid({
+          payment,
+          razorpayPaymentId: paymentEntity?.id || plinkEntity?.id || `plink_pay_${Date.now()}`,
+          gatewayResponse: { payment_link: plinkEntity, payment: paymentEntity },
+          source: "webhook:payment_link.paid",
+        });
+      }
+    }
+
+    if (event === "qr_code.credited") {
+      const qrEntity = (payload.payload as any)?.qr_code?.entity;
+      const qrPaymentEntity = (payload.payload as any)?.payment?.entity;
+      const notesOrderId = qrEntity?.notes?.order_id || qrPaymentEntity?.notes?.order_id;
+      const isMaster = qrEntity?.notes?.is_master === "true" || qrPaymentEntity?.notes?.is_master === "true";
+
+      let payment = notesOrderId ? (isMaster ? await paymentRepo.findByMasterOrderId(notesOrderId) : await paymentRepo.findByOrderId(notesOrderId)) : null;
+      if (payment && payment.status !== "PAID") {
+        await this.finalizePaymentAsPaid({
+          payment,
+          razorpayPaymentId: qrPaymentEntity?.id || qrEntity?.id || `qr_pay_${Date.now()}`,
+          gatewayResponse: { qr_code: qrEntity, payment: qrPaymentEntity },
+          source: "webhook:qr_code.credited",
+        });
       }
     }
 
@@ -290,96 +308,112 @@ export const paymentService = {
     return { handled: event };
   },
 
-  async handlePaymentCaptured(entity: CapturedPaymentEntity): Promise<void> {
-    const razorpayOrderId = entity.order_id;
-    if (!razorpayOrderId) return;
-
-    const payment = await paymentRepo.findByRazorpayOrderId(razorpayOrderId);
-    if (!payment) return;
+  async finalizePaymentAsPaid(params: {
+    payment: any;
+    razorpayPaymentId: string;
+    gatewayResponse?: any;
+    source?: string;
+  }): Promise<void> {
+    const { payment, razorpayPaymentId, gatewayResponse, source } = params;
+    if (!payment || payment.status === "PAID") return;
 
     let order: any = null;
     let isMaster = false;
     if (payment.master_order_id) {
-        order = await prisma.masterOrder.findUnique({ where: { id: payment.master_order_id }, include: { orders: { include: { vendor: true, items: true, customer: true } }, customer: true } });
-        isMaster = true;
+      order = await prisma.masterOrder.findUnique({
+        where: { id: payment.master_order_id },
+        include: { orders: { include: { vendor: true, items: true, customer: true } }, customer: true },
+      });
+      isMaster = true;
     } else if (payment.order_id) {
-        order = await prisma.order.findUnique({ where: { id: payment.order_id }, include: { vendor: true, items: true, customer: true } });
+      order = await prisma.order.findUnique({
+        where: { id: payment.order_id },
+        include: { vendor: true, items: true, customer: true },
+      });
     }
 
     if (!order) return;
 
-    assertCapturedPayment(entity, payment);
-
     const claimed = await paymentRepo.claimAsPaid(payment.id, {
-      razorpay_payment_id: entity.id,
-      gateway_response: entity as never,
-      webhook_events: { captured: true },
+      razorpay_payment_id: razorpayPaymentId,
+      gateway_response: gatewayResponse as never,
+      webhook_events: { captured: true, source: source || "gateway" },
     });
     if (claimed === 0) return;
 
     const amountPaid = payment.amount.toNumber();
 
     if (isMaster) {
-        await prisma.masterOrder.update({
-            where: { id: order.id },
-            data: { payment_status: "PAID", payment_method: "RAZORPAY", status: order.status === "PENDING" ? "ACCEPTED" : undefined }
+      await prisma.masterOrder.update({
+        where: { id: order.id },
+        data: {
+          payment_status: "PAID",
+          payment_method: "RAZORPAY",
+          status: order.status === "PENDING" ? "ACCEPTED" : undefined,
+        },
+      });
+
+      for (const subOrder of order.orders) {
+        await prisma.order.update({
+          where: { id: subOrder.id },
+          data: { payment_status: "PAID", payment_method: "RAZORPAY" },
         });
-        
-        for (const subOrder of order.orders) {
-            await prisma.order.update({ where: { id: subOrder.id }, data: { payment_status: "PAID", payment_method: "RAZORPAY" } });
-            if (subOrder.status === "PENDING" || subOrder.status === "CONFIRMED") {
-                await orderRepo.updateOrderStatus(subOrder.id, {
-                    status: "CONFIRMED",
-                    note: "Payment confirmed via webhook.",
-                    actorType: "system",
-                });
-            }
-            if (subOrder.vendor?.user_id) {
-               await realtime.publishVendorOrder(subOrder.vendor_id, {
-                 order_id: subOrder.id,
-                 order_number: subOrder.order_number,
-                 total: Number(subOrder.total),
-                 items_count: subOrder.items?.length ?? 0,
-                 customer_name: subOrder.customer?.name ?? undefined,
-                 customer_phone: subOrder.customer?.phone ?? undefined,
-                 payment_method: "RAZORPAY",
-                 items: subOrder.items?.map((it: any) => ({
-                   name: it.product_name,
-                   quantity: it.quantity,
-                   price: Number(it.total_price),
-                 })) || [],
-                 created_at: new Date().toISOString(),
-               });
-               await payoutService.settleVendorOrderEarnings(subOrder.id, entity.id || "").catch(() => {});
-            }
-        }
-    } else {
-        await orderRepo.updateOrder(order.id, { payment_status: "PAID" });
-        if (order.status === "PENDING" || order.status === "CONFIRMED") {
-          await orderRepo.updateOrderStatus(order.id, {
+        if (subOrder.status === "PENDING" || subOrder.status === "CONFIRMED") {
+          await orderRepo.updateOrderStatus(subOrder.id, {
             status: "CONFIRMED",
-            note: "Payment confirmed via webhook.",
+            note: "Payment confirmed via Razorpay.",
             actorType: "system",
           });
         }
-        if (order.vendor?.user_id) {
-           await realtime.publishVendorOrder(order.vendor_id, {
-             order_id: order.id,
-             order_number: order.order_number,
-             total: amountPaid,
-             items_count: order.items?.length ?? 0,
-             customer_name: order.customer?.name ?? undefined,
-             customer_phone: order.customer?.phone ?? undefined,
-             payment_method: "RAZORPAY",
-             items: order.items?.map((it: any) => ({
-               name: it.product_name,
-               quantity: it.quantity,
-               price: Number(it.total_price),
-             })),
-             created_at: new Date().toISOString(),
-           });
-           await payoutService.settleVendorOrderEarnings(order.id, entity.id || "").catch(() => {});
+        if (subOrder.vendor?.user_id) {
+          await realtime.publishVendorOrder(subOrder.vendor_id, {
+            order_id: subOrder.id,
+            order_number: subOrder.order_number,
+            total: Number(subOrder.total),
+            items_count: subOrder.items?.length ?? 0,
+            customer_name: subOrder.customer?.name ?? undefined,
+            customer_phone: subOrder.customer?.phone ?? undefined,
+            payment_method: "RAZORPAY",
+            items: subOrder.items?.map((it: any) => ({
+              name: it.product_name,
+              quantity: it.quantity,
+              price: Number(it.total_price),
+            })) || [],
+            created_at: new Date().toISOString(),
+          });
+          await payoutService.settleVendorOrderEarnings(subOrder.id, razorpayPaymentId).catch(() => {});
         }
+      }
+    } else {
+      await orderRepo.updateOrder(order.id, {
+        payment_status: "PAID",
+        payment_method: "RAZORPAY",
+      });
+      if (order.status === "PENDING" || order.status === "CONFIRMED") {
+        await orderRepo.updateOrderStatus(order.id, {
+          status: "CONFIRMED",
+          note: "Payment confirmed via Razorpay.",
+          actorType: "system",
+        });
+      }
+      if (order.vendor?.user_id) {
+        await realtime.publishVendorOrder(order.vendor_id, {
+          order_id: order.id,
+          order_number: order.order_number,
+          total: amountPaid,
+          items_count: order.items?.length ?? 0,
+          customer_name: order.customer?.name ?? undefined,
+          customer_phone: order.customer?.phone ?? undefined,
+          payment_method: "RAZORPAY",
+          items: order.items?.map((it: any) => ({
+            name: it.product_name,
+            quantity: it.quantity,
+            price: Number(it.total_price),
+          })),
+          created_at: new Date().toISOString(),
+        });
+        await payoutService.settleVendorOrderEarnings(order.id, razorpayPaymentId).catch(() => {});
+      }
     }
 
     await transactionRepo.create({
@@ -389,8 +423,8 @@ export const paymentService = {
       type: "DEBIT",
       amount: amountPaid,
       status: "success",
-      reference: entity.id ?? null,
-      metadata: { razorpay_order_id: razorpayOrderId, source: "webhook" },
+      reference: razorpayPaymentId,
+      metadata: { source: source || "razorpay" },
     });
 
     await notificationService.orderStatus(
@@ -399,10 +433,30 @@ export const paymentService = {
       "Order confirmed",
       `Your payment of ₹${amountPaid.toFixed(2)} for order ${order.order_number} has been verified and confirmed.`,
       { order_id: order.id }
-    );
+    ).catch(() => {});
 
-    await notificationService.payment(order.user_id, "Payment successful", `Your payment of ₹${amountPaid.toFixed(2)} for ${order.order_number} was successful.`, {
-      order_id: order.id,
+    await notificationService.payment(
+      order.user_id,
+      "Payment successful",
+      `Your payment of ₹${amountPaid.toFixed(2)} for ${order.order_number} was successful.`,
+      { order_id: order.id }
+    ).catch(() => {});
+  },
+
+  async handlePaymentCaptured(entity: CapturedPaymentEntity): Promise<void> {
+    const razorpayOrderId = entity.order_id;
+    if (!razorpayOrderId) return;
+
+    const payment = await paymentRepo.findByRazorpayOrderId(razorpayOrderId);
+    if (!payment) return;
+
+    assertCapturedPayment(entity, payment);
+
+    await this.finalizePaymentAsPaid({
+      payment,
+      razorpayPaymentId: entity.id || `pay_${Date.now()}`,
+      gatewayResponse: entity,
+      source: "webhook:payment.captured",
     });
   },
 
@@ -644,8 +698,27 @@ export const paymentService = {
     const amountToCharge = isPartialAdvance ? Math.max(0, totAmount - advAmount) : totAmount;
     const amountPaise = Math.max(100, Math.round(amountToCharge * 100));
 
+    let qrCode: any = null;
     let paymentLink: any = null;
     if (razorpayGateway.isConfigured()) {
+      try {
+        qrCode = await razorpayGateway.createQrCode({
+          amountPaise,
+          name: `Vegamart Order #${orderNumber}`,
+          description: `Vegamart Order #${orderNumber}`,
+          usage: "single_use",
+          fixedAmount: true,
+          closeBy: Math.floor(Date.now() / 1000) + 7200,
+          notes: {
+            order_id: order.id,
+            order_number: String(orderNumber),
+            is_master: isMasterOrder ? "true" : "false",
+          },
+        });
+      } catch (qrErr: any) {
+        log.debug(`[payments] Razorpay Dynamic QR not available/active: ${qrErr?.message}`);
+      }
+
       try {
         paymentLink = await razorpayGateway.createPaymentLink({
           amountPaise,
@@ -664,41 +737,55 @@ export const paymentService = {
           },
           upi_link: true,
         });
+      } catch (linkErr: any) {
+        log.warn(`[payments] Could not create dynamic Razorpay payment link: ${linkErr?.message}`);
+      }
 
-        if (paymentLink?.order_id) {
-          if (existingPayment) {
-            await paymentRepo.updatePayment(existingPayment.id, {
-              razorpay_order_id: paymentLink.order_id,
-              amount: amountToCharge as any,
-              method: "RAZORPAY" as never,
-              status: "PENDING",
-            });
-          } else {
-            await paymentRepo.createForOrder({
-              order_id: isMasterOrder ? undefined : order.id,
-              master_order_id: isMasterOrder ? order.id : undefined,
-              amount: amountToCharge,
-              method: "RAZORPAY",
-              razorpay_order_id: paymentLink.order_id,
-            });
+      const gwResponse = {
+        qr_code_id: qrCode?.id || null,
+        qr_image_url: qrCode?.image_url || null,
+        payment_link_id: paymentLink?.id || null,
+        payment_link_url: paymentLink?.short_url || null,
+      };
+
+      if (existingPayment) {
+        await paymentRepo.updatePayment(existingPayment.id, {
+          razorpay_order_id: paymentLink?.order_id || existingPayment.razorpay_order_id || null,
+          amount: amountToCharge as any,
+          method: "RAZORPAY" as never,
+          status: "PENDING",
+          gateway_response: gwResponse as any,
+        });
+      } else {
+        await paymentRepo.createForOrder({
+          order_id: isMasterOrder ? undefined : order.id,
+          master_order_id: isMasterOrder ? order.id : undefined,
+          amount: amountToCharge,
+          method: "RAZORPAY",
+          razorpay_order_id: paymentLink?.order_id || null,
+        });
+        const created = isMasterOrder
+          ? await paymentRepo.findByMasterOrderId(order.id)
+          : await paymentRepo.findByOrderId(order.id);
+        if (created) {
+          await paymentRepo.updatePayment(created.id, {
+            gateway_response: gwResponse as any,
+          });
+        }
+      }
+
+      if (paymentLink?.short_url && userIdOwner) {
+        await notificationService.payment(
+          userIdOwner,
+          `Payment link for Order #${orderNumber}`,
+          `Your delivery partner requested payment of ₹${amountToCharge.toFixed(2)}. Tap to pay online: ${paymentLink.short_url}`,
+          {
+            order_id: order.id,
+            order_number: String(orderNumber),
+            payment_url: paymentLink.short_url,
+            amount: amountToCharge,
           }
-        }
-
-        if (paymentLink?.short_url && userIdOwner) {
-          await notificationService.payment(
-            userIdOwner,
-            `Payment link for Order #${orderNumber}`,
-            `Your delivery partner requested payment of ₹${amountToCharge.toFixed(2)}. Tap to pay online: ${paymentLink.short_url}`,
-            {
-              order_id: order.id,
-              order_number: String(orderNumber),
-              payment_url: paymentLink.short_url,
-              amount: amountToCharge,
-            }
-          ).catch(() => {});
-        }
-      } catch (err: any) {
-        log.warn(`[payments] Could not create dynamic Razorpay payment link: ${err?.message}`);
+        ).catch(() => {});
       }
     }
 
@@ -713,8 +800,10 @@ export const paymentService = {
       currency: "INR",
       payment_link_id: paymentLink?.id || null,
       short_url: paymentLink?.short_url || fallbackUrl,
+      qr_code_id: qrCode?.id || null,
+      qr_image_url: qrCode?.image_url || null,
       razorpay_order_id: paymentLink?.order_id || null,
-      status: paymentLink?.status || "created",
+      status: qrCode?.status || paymentLink?.status || "created",
       customer_phone: customerPhone,
       customer_name: customerName,
     };
@@ -736,23 +825,88 @@ export const paymentService = {
       ? await paymentRepo.findByMasterOrderId(order.id)
       : await paymentRepo.findByOrderId(order.id);
 
-    if (existingPayment?.razorpay_order_id && razorpayGateway.isConfigured()) {
-      try {
-        const rzpPayments = await razorpayGateway.fetchOrderPayments(existingPayment.razorpay_order_id);
-        const successful = rzpPayments?.items?.find((p: any) => p.status === "captured");
-        if (successful) {
-          await this.handlePaymentCaptured(successful as never);
-          return {
-            paid: true,
-            payment_status: "PAID",
-            order_id: order.id,
-            order_number: orderNumber,
-            amount: orderTotal,
-            razorpay_payment_id: successful.id,
-          };
+    const gwResponse = existingPayment?.gateway_response as any;
+    const qrCodeId = gwResponse?.qr_code_id;
+    const paymentLinkId = gwResponse?.payment_link_id;
+
+    if (existingPayment && razorpayGateway.isConfigured()) {
+      // 1. Polling: check dynamic QR code if generated
+      if (qrCodeId) {
+        try {
+          const qrDetails = await razorpayGateway.fetchQrCode(qrCodeId);
+          if (qrDetails && (qrDetails.payments_amount_received > 0 || qrDetails.payments_count_received > 0 || qrDetails.status === "closed")) {
+            const qrPayments = await razorpayGateway.fetchQrCodePayments(qrCodeId);
+            const successful = qrPayments?.items?.find((p: any) => p.status === "captured") || qrPayments?.items?.[0];
+            await this.finalizePaymentAsPaid({
+              payment: existingPayment,
+              razorpayPaymentId: successful?.id || qrCodeId,
+              gatewayResponse: { qr_code: qrDetails, payment: successful },
+              source: "polling:qr_code",
+            });
+            return {
+              paid: true,
+              payment_status: "PAID",
+              order_id: order.id,
+              order_number: orderNumber,
+              amount: orderTotal,
+              razorpay_payment_id: successful?.id || qrCodeId,
+            };
+          }
+        } catch (err: any) {
+          log.debug(`[payments] Polling QR code error: ${err?.message}`);
         }
-      } catch (err: any) {
-        log.debug(`[payments] Polling Razorpay order error: ${err?.message}`);
+      }
+
+      // 2. Polling: check Razorpay payment link if generated
+      if (paymentLinkId) {
+        try {
+          const plink = await razorpayGateway.fetchPaymentLink(paymentLinkId);
+          if (plink && (plink.status === "paid" || (plink.amount_paid && plink.amount_paid > 0))) {
+            const successful = plink.payments?.[0];
+            await this.finalizePaymentAsPaid({
+              payment: existingPayment,
+              razorpayPaymentId: successful?.id || plink.id,
+              gatewayResponse: { payment_link: plink, payment: successful },
+              source: "polling:payment_link",
+            });
+            return {
+              paid: true,
+              payment_status: "PAID",
+              order_id: order.id,
+              order_number: orderNumber,
+              amount: orderTotal,
+              razorpay_payment_id: successful?.id || plink.id,
+            };
+          }
+        } catch (err: any) {
+          log.debug(`[payments] Polling payment link error: ${err?.message}`);
+        }
+      }
+
+      // 3. Polling: check standard Razorpay order if razorpay_order_id exists
+      if (existingPayment.razorpay_order_id) {
+        try {
+          const rzpPayments = await razorpayGateway.fetchOrderPayments(existingPayment.razorpay_order_id);
+          const successful = rzpPayments?.items?.find((p: any) => p.status === "captured");
+          if (successful) {
+            await this.finalizePaymentAsPaid({
+              payment: existingPayment,
+              razorpayPaymentId: successful.id,
+              gatewayResponse: successful,
+              source: "polling:razorpay_order",
+            });
+            return {
+              paid: true,
+              payment_status: "PAID",
+              order_id: order.id,
+              order_number: orderNumber,
+              amount: orderTotal,
+              razorpay_payment_id: successful.id,
+            };
+          }
+        } catch (err: any) {
+          log.debug(`[payments] Polling Razorpay order error: ${err?.message}`);
+        }
       }
     }
 

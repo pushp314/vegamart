@@ -242,6 +242,8 @@ function DeliveryDashboard() {
   const [dynamicQrData, setDynamicQrData] = useState<{
     short_url?: string;
     payment_link_id?: string;
+    qr_code_id?: string;
+    qr_image_url?: string;
     amount?: number;
     status?: string;
     order_number?: string;
@@ -1294,13 +1296,15 @@ function DeliveryDashboard() {
                                 const totAmount = Number(
                                   o.total_amount || o.total || o.payment?.amount || 0,
                                 );
+                                const isCod = String(o.payment_method || "").toUpperCase() === "COD";
                                 const isPartialAdvance =
                                   !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
                                 const balAmount = isPartialAdvance
                                   ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100)
                                   : isCod
                                     ? totAmount
-                                    : 0;
+                                    : (!isPaid ? totAmount : 0);
+                                const amtToCollect = isPartialAdvance ? balAmount : (!isPaid ? totAmount : 0);
 
                                 if (isPaid && !isPartialAdvance) {
                                   return (
@@ -1316,62 +1320,51 @@ function DeliveryDashboard() {
                                   );
                                 }
 
-                                if (isCod) {
-                                  return (
-                                    <div className="mt-2 space-y-2">
-                                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <div className="font-black text-sm text-amber-600">
-                                          Collect Cash/UPI: ₹{totAmount.toFixed(2)}
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleConfirmCashPayment(o);
-                                            }}
-                                            disabled={confirmCashMutation.isPending}
-                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:text-amber-300 px-2.5 py-1 rounded-lg transition-colors border border-amber-300/40"
-                                          >
-                                            <Banknote className="h-3 w-3" /> Confirm Cash
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setUpiQrModalOrder(o);
-                                            }}
-                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors border border-emerald-300/40"
-                                          >
-                                            <QrCode className="h-3 w-3" /> Collect Online / QR
-                                          </button>
-                                        </div>
-                                      </div>
-                                      {o.status !== "OUT_FOR_DELIVERY" && (
-                                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                          <Info className="h-3 w-3" />
-                                          Collect payment, then tap "Start Customer Delivery" → use
-                                          OTP at doorstep.
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                }
-                                if (isPartialAdvance) {
-                                  return (
-                                    <div className="mt-2 space-y-0.5">
-                                      <div className="font-black text-sm text-amber-600">
-                                        Collect Balance: ₹{balAmount.toFixed(2)}
-                                      </div>
-                                      <div className="text-[11px] text-teal-700 font-bold">
-                                        (Advance ₹{advAmount.toFixed(2)} paid online)
-                                      </div>
-                                    </div>
-                                  );
-                                }
                                 return (
-                                  <div className="mt-2 font-black text-sm text-emerald-600">
-                                    Paid online in full: ₹{totAmount.toFixed(2)}
+                                  <div className="mt-2 space-y-2">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <div>
+                                        <div className="font-black text-sm text-amber-600">
+                                          {isPartialAdvance
+                                            ? `Collect Balance: ₹${balAmount.toFixed(2)}`
+                                            : `Collect Cash/UPI: ₹${totAmount.toFixed(2)}`}
+                                        </div>
+                                        {isPartialAdvance && (
+                                          <div className="text-[10px] text-teal-700 font-bold">
+                                            (Advance ₹{advAmount.toFixed(2)} paid online)
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleConfirmCashPayment(o);
+                                          }}
+                                          disabled={confirmCashMutation.isPending}
+                                          className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:text-amber-300 px-2.5 py-1 rounded-lg transition-colors border border-amber-300/40"
+                                        >
+                                          <Banknote className="h-3 w-3" /> Confirm Cash
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setUpiQrModalOrder(o);
+                                          }}
+                                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors border border-emerald-300/40 shadow-xs"
+                                        >
+                                          <QrCode className="h-3 w-3" /> Collect Online / QR
+                                        </button>
+                                      </div>
+                                    </div>
+                                    {o.status !== "OUT_FOR_DELIVERY" && (
+                                      <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                        <Info className="h-3 w-3" />
+                                        Collect payment, then tap "Start Delivery" → use OTP at doorstep.
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })()}
@@ -1790,6 +1783,78 @@ function DeliveryDashboard() {
             <p className="text-sm text-muted-foreground">
               Ask the customer for the 6-digit OTP to confirm delivery.
             </p>
+
+            {selectedOrder && (() => {
+              const latest = (myDeliveries || []).find((o: any) => o.id === selectedOrder.id) || selectedOrder;
+              const isPaid = String(latest.payment_status || "").toUpperCase() === "PAID";
+              const advAmount = Number(latest.advance_paid ?? latest.payment?.amount ?? 0);
+              const totAmount = Number(latest.total_amount || latest.total || latest.payment?.amount || 0);
+              const isCod = String(latest.payment_method || "").toUpperCase() === "COD";
+              const isPartialAdvance = !isCod && isPaid && advAmount > 0 && advAmount < totAmount;
+              const balAmount = isPartialAdvance
+                ? Math.max(0, Math.round((totAmount - advAmount) * 100) / 100)
+                : isCod
+                  ? totAmount
+                  : (!isPaid ? totAmount : 0);
+              const amtToCollect = isPartialAdvance ? balAmount : (!isPaid ? totAmount : 0);
+
+              if (amtToCollect > 0) {
+                return (
+                  <div className="rounded-2xl border border-amber-300/80 bg-amber-50 dark:bg-amber-950/40 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Banknote className="h-4 w-4 text-amber-600" />
+                        <div>
+                          <div className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">
+                            Payment Pending at Doorstep
+                          </div>
+                          <div className="text-base font-black text-amber-600 dark:text-amber-400 tabular-nums">
+                            Collect: ₹{amtToCollect.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                        {isPartialAdvance ? "Balance" : "COD"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setOtpModalOpen(false);
+                          setUpiQrModalOrder(latest);
+                        }}
+                        className="h-9 rounded-xl border-emerald-400/60 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs gap-1.5 shadow-2xs"
+                      >
+                        <QrCode className="h-3.5 w-3.5 text-emerald-600" />
+                        Collect via QR
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleConfirmCashPayment(latest)}
+                        disabled={confirmCashMutation.isPending}
+                        className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-amber-200/80 hover:bg-amber-300 text-amber-900 shadow-2xs"
+                      >
+                        <Banknote className="h-3.5 w-3.5" />
+                        Confirm Cash
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2.5 flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Order is fully paid (₹{totAmount.toFixed(2)}). Ask customer for OTP below.</span>
+                </div>
+              );
+            })()}
 
             {selectedOrder && selectedOrder.status !== "OUT_FOR_DELIVERY" && (
               <div className="rounded-xl p-3 text-xs flex items-start gap-2 border bg-amber-50 border-amber-200 text-amber-800">
@@ -2760,14 +2825,20 @@ function DeliveryDashboard() {
                       </span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center">
+                    <div className="bg-white p-3 rounded-2xl border border-emerald-400/40 shadow-inner w-56 h-56 mx-auto flex items-center justify-center overflow-hidden">
                       {dynamicQrLoading ? (
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                           <span className="text-[11px] font-medium text-muted-foreground">
-                            Generating payment link...
+                            Generating Dynamic QR...
                           </span>
                         </div>
+                      ) : dynamicQrData?.qr_image_url ? (
+                        <img
+                          src={dynamicQrData.qr_image_url}
+                          alt="Razorpay Dynamic UPI QR"
+                          className="w-full h-full object-contain"
+                        />
                       ) : activeQrValue ? (
                         <QRCodeSVG
                           value={activeQrValue}

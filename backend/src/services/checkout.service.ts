@@ -81,8 +81,8 @@ export function getDeliveryOptionConfig(
 }
 
 function computeDeliveryFee(
-  vendorSubtotal: number, 
-  globalFreeDeliveryThreshold: number, 
+  vendorSubtotal: number,
+  globalFreeDeliveryThreshold: number,
   globalDeliveryFee: number,
   vendorFreeDeliveryMinOrder: number | null,
   vendorDeliveryFee: number
@@ -274,7 +274,7 @@ export const checkoutService = {
         { code: "MULTI_STORE_DISABLED" }
       );
     }
-    
+
     const maxStores = Number(settings[SETTING_KEYS.MAX_STORES_PER_ORDER] ?? 5);
     if (groups.length > maxStores) {
       throw new ApiError(
@@ -287,7 +287,7 @@ export const checkoutService = {
     // Detect multi-vendor + VegaMart delivery consolidation
     const vegamartDeliveryEnabled = isBooleanSettingEnabled(settings[SETTING_KEYS.VEGAMART_DELIVERY_ENABLED], true);
     const deliveriesActive = isBooleanSettingEnabled(settings[SETTING_KEYS.DELIVERIES_ACTIVE], true);
-    
+
     // Check if there are eligible delivery partners
     const eligiblePartnerCount = await countEligibleDeliveryPartners(prisma);
     const hasActiveDeliveryPartners = vegamartDeliveryEnabled && deliveriesActive && eligiblePartnerCount > 0;
@@ -362,13 +362,13 @@ export const checkoutService = {
       const vendorDeliveryFee = isConsolidatedDelivery
         ? 0
         : computeOptionDeliveryFee(
-            input.delivery_slot,
-            group.subtotal,
-            deliveryConfigs,
-            globalFreeDeliveryThreshold,
-            globalDeliveryFee,
-            vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null
-          );
+          input.delivery_slot,
+          group.subtotal,
+          deliveryConfigs,
+          globalFreeDeliveryThreshold,
+          globalDeliveryFee,
+          vendor.free_delivery_min_order ? vendor.free_delivery_min_order.toNumber() : null
+        );
 
       let effectiveMinOrder = 0;
       const slotRaw = (input.delivery_slot || "").toLowerCase();
@@ -507,6 +507,13 @@ export const checkoutService = {
       }
     }
 
+    const slotRaw = (input.delivery_slot || "").toLowerCase();
+    const optRaw = ((input as any).delivery_option || "").toLowerCase();
+    const isSelfPickup = optRaw === "self_pickup" || slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway") || slotRaw.includes("counter");
+    if (isSelfPickup) {
+      deliveryFee = 0;
+    }
+
     deliveryFee = Math.round(deliveryFee * 100) / 100;
 
     let discount = 0;
@@ -546,9 +553,8 @@ export const checkoutService = {
 
     let isVegaMartDelivery = isConsolidatedDelivery;
     if (!isConsolidatedDelivery && input.delivery_slot) {
-      const slotRaw = input.delivery_slot.toLowerCase();
       if (!slotRaw.includes("self") && !slotRaw.includes("pickup") && !slotRaw.includes("takeaway") &&
-          !slotRaw.includes("shop") && !slotRaw.includes("direct") && !slotRaw.includes("book")) {
+        !slotRaw.includes("shop") && !slotRaw.includes("direct") && !slotRaw.includes("book")) {
         isVegaMartDelivery = true;
       }
     }
@@ -566,29 +572,31 @@ export const checkoutService = {
       (settings[SETTING_KEYS.CUSTOMER_FEES_CONFIG] as string) ||
       (settings[SETTING_KEYS.PLATFORM_CHECKOUT_CHARGES] as string) ||
       (settings["platform.checkout_charges"] as string);
-    
+
     if (rawCharges) {
       try {
         const parsedCharges = JSON.parse(rawCharges);
         if (Array.isArray(parsedCharges)) {
           // Compute distance if possible (approximate via user address vs vendor if single vendor, or skip for now)
           let distanceKm = 0; // Can be enhanced later
-          
+
           const feeContext = {
             cartTotal: itemsSubtotal,
             numberOfStores: summaryGroups.length,
             deliveryDistanceKm: distanceKm,
             deliverySlot: input.delivery_slot,
+            deliveryOption: (input as any).delivery_option,
             paymentMethod: (input as any).payment_method // e.g. COD or ONLINE
           };
 
           const feeResult = computeCustomerFees(parsedCharges, feeContext);
           platformFeeTotal = feeResult.totalPlatformFee;
-          
+
           // Map to match the existing expected structure if needed
           for (const c of feeResult.additionalCharges) {
             additionalCharges.push({
               id: String(Date.now()) + Math.random().toString(36).substring(7),
+              key: c.key,
               name: c.name,
               amount: c.amount,
               type: c.type || "FIXED"
@@ -833,36 +841,36 @@ export const checkoutService = {
     const dailyLimits = await Promise.all(
       computations.map((c) =>
         membershipPlanService
-            .getMyMembership(c.group.vendor_id)
-            .then((membership) => membership?.plan?.daily_order_limit ?? 5)
-            .catch(() => 5)
+          .getMyMembership(c.group.vendor_id)
+          .then((membership) => membership?.plan?.daily_order_limit ?? 5)
+          .catch(() => 5)
       )
     );
 
     // Gateway intents are created before the transaction
     let masterAmountToCharge = summary.total;
     if (summary.groups.length === 1 && summary.groups[0]?.delivery_configs) {
-       const configs = summary.groups[0].delivery_configs;
-       if (configs) {
-         const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, configs);
-         const optConfig = deliveryInfo.config;
-         if (paymentMethod === "RAZORPAY" && paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
-           const advancePct = optConfig.advance_percentage || 20;
-           masterAmountToCharge = advancePct <= 0 || advancePct >= 100 ? summary.total : Math.max(1, Math.round(summary.total * (advancePct / 100) * 100) / 100);
-         }
-       }
+      const configs = summary.groups[0].delivery_configs;
+      if (configs) {
+        const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, configs);
+        const optConfig = deliveryInfo.config;
+        if (paymentMethod === "RAZORPAY" && paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
+          const advancePct = optConfig.advance_percentage || 20;
+          masterAmountToCharge = advancePct <= 0 || advancePct >= 100 ? summary.total : Math.max(1, Math.round(summary.total * (advancePct / 100) * 100) / 100);
+        }
+      }
     }
     if (masterAmountToCharge > 0 && masterAmountToCharge < 1) { masterAmountToCharge = 1; }
 
     const masterOrderNumber = generateOrderNumber();
     let gatewayOrder: any;
     if (paymentMethod === "RAZORPAY" && masterAmountToCharge > 0) {
-        gatewayOrder = await razorpayGateway.createOrder({
-            amountPaise: Math.round(masterAmountToCharge * 100),
-            currency: DEFAULT_CURRENCY,
-            receipt: masterOrderNumber,
-            notes: { order_number: masterOrderNumber, user_id: userId, delivery_slot: input.delivery_slot || "", payment_type: paymentType }
-        });
+      gatewayOrder = await razorpayGateway.createOrder({
+        amountPaise: Math.round(masterAmountToCharge * 100),
+        currency: DEFAULT_CURRENCY,
+        receipt: masterOrderNumber,
+        notes: { order_number: masterOrderNumber, user_id: userId, delivery_slot: input.delivery_slot || "", payment_type: paymentType }
+      });
     }
 
     const serializedOrders: Array<{ order: SerializedOrder; payment: SerializedPayment }> = [];
@@ -882,19 +890,19 @@ export const checkoutService = {
         }
 
         const masterOrder = await tx.masterOrder.create({
-            data: {
-                order_number: masterOrderNumber,
-                user_id: userId,
-                address_id: address.id,
-                total_amount: summary.total,
-                delivery_fee: summary.delivery_fee,
-                tax: summary.tax,
-                platform_fee: summary.platform_fee || 0,
-                additional_charges: summary.additional_charges || [],
-                status: "PENDING",
-                payment_method: paymentMethod,
-                payment_status: "PENDING",
-            }
+          data: {
+            order_number: masterOrderNumber,
+            user_id: userId,
+            address_id: address.id,
+            total_amount: summary.total,
+            delivery_fee: summary.delivery_fee,
+            tax: summary.tax,
+            platform_fee: summary.platform_fee || 0,
+            additional_charges: summary.additional_charges || [],
+            status: "PENDING",
+            payment_method: paymentMethod,
+            payment_status: "PENDING",
+          }
         });
         outMasterOrderId = masterOrder.id;
 
@@ -996,25 +1004,25 @@ export const checkoutService = {
 
           serializedOrders.push(serializeOrder(updated, {} as any));
         }
-        
+
         let payment;
         if (paymentMethod === "RAZORPAY") {
           payment = await paymentRepo.createForOrder({
-             master_order_id: masterOrder.id,
-             amount: masterAmountToCharge,
-             method: "RAZORPAY",
-             razorpay_order_id: gatewayOrder?.id,
+            master_order_id: masterOrder.id,
+            amount: masterAmountToCharge,
+            method: "RAZORPAY",
+            razorpay_order_id: gatewayOrder?.id,
           }, tx);
         } else {
           payment = await paymentRepo.createForOrder({
-             master_order_id: masterOrder.id,
-             amount: summary.total,
-             method: "COD",
+            master_order_id: masterOrder.id,
+            amount: summary.total,
+            method: "COD",
           }, tx);
         }
 
         for (let i = 0; i < serializedOrders.length; i++) {
-            serializedOrders[i]!.payment = payment as any;
+          serializedOrders[i]!.payment = payment as any;
         }
 
         // Atomic inventory reservation: the conditional guard aborts the whole
@@ -1105,7 +1113,7 @@ export const checkoutService = {
               is_available: product.is_available,
             });
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
 
@@ -1364,19 +1372,19 @@ export const checkoutService = {
     await prisma.$transaction(async (tx) => {
       const masterOrderNumber = generateOrderNumber();
       const masterOrder = await tx.masterOrder.create({
-          data: {
-              order_number: masterOrderNumber,
-              user_id: userId,
-              address_id: address.id,
-              total_amount: summary.total,
-              delivery_fee: summary.delivery_fee,
-              tax: summary.tax,
-              platform_fee: summary.platform_fee || 0,
-              additional_charges: summary.additional_charges || [],
-              status: "ACCEPTED",
-              payment_method: "RAZORPAY",
-              payment_status: "PAID",
-          }
+        data: {
+          order_number: masterOrderNumber,
+          user_id: userId,
+          address_id: address.id,
+          total_amount: summary.total,
+          delivery_fee: summary.delivery_fee,
+          tax: summary.tax,
+          platform_fee: summary.platform_fee || 0,
+          additional_charges: summary.additional_charges || [],
+          status: "ACCEPTED",
+          payment_method: "RAZORPAY",
+          payment_status: "PAID",
+        }
       });
       outMasterOrderId = masterOrder.id;
       const sharedOtp = generateDeliveryOtp();
@@ -1441,29 +1449,29 @@ export const checkoutService = {
 
       let masterAmountToCharge = summary.total;
       if (summary.groups.length === 1 && summary.groups[0]?.delivery_configs) {
-         const configs = summary.groups[0].delivery_configs;
-         if (configs) {
-           const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, configs);
-           const optConfig = deliveryInfo.config;
-           if (paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
-             const advancePct = optConfig.advance_percentage || 20;
-             masterAmountToCharge = advancePct <= 0 || advancePct >= 100 ? summary.total : Math.max(1, Math.round(summary.total * (advancePct / 100) * 100) / 100);
-           }
-         }
+        const configs = summary.groups[0].delivery_configs;
+        if (configs) {
+          const deliveryInfo = getDeliveryOptionConfig(input.delivery_slot, configs);
+          const optConfig = deliveryInfo.config;
+          if (paymentType === "ADVANCE" && optConfig.advance_payment_enabled) {
+            const advancePct = optConfig.advance_percentage || 20;
+            masterAmountToCharge = advancePct <= 0 || advancePct >= 100 ? summary.total : Math.max(1, Math.round(summary.total * (advancePct / 100) * 100) / 100);
+          }
+        }
       }
       if (masterAmountToCharge > 0 && masterAmountToCharge < 1) { masterAmountToCharge = 1; }
 
       const paymentRecord = await paymentRepo.createForOrder({
-         master_order_id: masterOrder.id,
-         amount: masterAmountToCharge,
-         method: "RAZORPAY",
-         razorpay_order_id: verifiedPayment.razorpay_order_id,
+        master_order_id: masterOrder.id,
+        amount: masterAmountToCharge,
+        method: "RAZORPAY",
+        razorpay_order_id: verifiedPayment.razorpay_order_id,
       }, tx);
 
       await paymentRepo.claimAsPaid(paymentRecord.id, { razorpay_payment_id: verifiedPayment.razorpay_payment_id, razorpay_signature: verifiedPayment.razorpay_signature });
 
       for (let i = 0; i < serializedOrders.length; i++) {
-          serializedOrders[i]!.payment = { ...paymentRecord, status: "PAID" } as any;
+        serializedOrders[i]!.payment = { ...paymentRecord, status: "PAID" } as any;
       }
 
       const reservationItems = computations.flatMap((c) =>
@@ -1499,7 +1507,7 @@ export const checkoutService = {
               is_available: product.is_available,
             });
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       await notificationService.orderStatus(

@@ -21,6 +21,7 @@ export const initiateCheckoutPaymentSchema = z.object({
   payment_method: z.string().optional(),
   payment_type: z.enum(["FULL", "ADVANCE"]).default("FULL").optional(),
   delivery_slot: z.string().trim().max(60).optional(),
+  delivery_option: z.string().trim().max(50).optional(),
   items: z
     .array(
       z.object({
