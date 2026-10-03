@@ -2529,6 +2529,48 @@ function DeliveryDashboard() {
                   const platformFee = Number(detailsOrder.platform_fee ?? 0);
                   const grandTotal = Number(detailsOrder.total_amount ?? detailsOrder.total ?? 0);
 
+                  let additionalCharges: any[] = [];
+                  const rawAddCharges =
+                    detailsOrder.additional_charges || detailsOrder.master_order?.additional_charges;
+                  if (Array.isArray(rawAddCharges)) {
+                    additionalCharges = rawAddCharges;
+                  } else if (typeof rawAddCharges === "string") {
+                    try {
+                      additionalCharges = JSON.parse(rawAddCharges);
+                    } catch {}
+                  }
+
+                  const filteredAddCharges = additionalCharges.filter((c: any) => {
+                    const key = String(c.key || "").toUpperCase();
+                    const name = String(c.name || c.title || "").toLowerCase();
+                    if (
+                      platformFee > 0 &&
+                      (key === "PLATFORM_FEE" ||
+                        key === "HANDLING_PACKAGING_FEE" ||
+                        name.includes("platform fee") ||
+                        name.includes("handling fee"))
+                    ) {
+                      return false;
+                    }
+                    return true;
+                  });
+
+                  const addChargesTotal = filteredAddCharges.reduce(
+                    (acc: number, c: any) => acc + Number(c.amount || 0),
+                    0,
+                  );
+
+                  const computedTotal = Math.max(
+                    0,
+                    itemsSubtotal + deliveryFee + tax + platformFee + addChargesTotal - discount,
+                  );
+                  const totalToDisplay =
+                    grandTotal > 0 && Math.abs(grandTotal - computedTotal) < 0.01
+                      ? grandTotal
+                      : computedTotal > 0
+                        ? computedTotal
+                        : grandTotal;
+
                   return (
                     <>
                       <div className="flex justify-between text-muted-foreground font-medium">
@@ -2555,20 +2597,26 @@ function DeliveryDashboard() {
                       )}
                       {platformFee > 0 && (
                         <div className="flex justify-between text-muted-foreground font-medium">
-                          <span>Platform Fee</span>
+                          <span>Platform / Handling Fee</span>
                           <span className="font-bold text-foreground">
                             ₹{platformFee.toFixed(2)}
                           </span>
                         </div>
                       )}
+                      {filteredAddCharges.map((c: any, cIdx: number) => (
+                        <div
+                          key={cIdx}
+                          className="flex justify-between text-muted-foreground font-medium"
+                        >
+                          <span>{c.name || c.title || "Extra Charge"}</span>
+                          <span className="font-bold text-foreground">
+                            +₹{Number(c.amount || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
                       <div className="border-t border-border pt-2 flex justify-between font-black text-sm text-foreground">
                         <span>Total Order Amount</span>
-                        <span>
-                          ₹
-                          {(
-                            grandTotal || itemsSubtotal + deliveryFee + tax + platformFee - discount
-                          ).toFixed(2)}
-                        </span>
+                        <span>₹{totalToDisplay.toFixed(2)}</span>
                       </div>
                     </>
                   );

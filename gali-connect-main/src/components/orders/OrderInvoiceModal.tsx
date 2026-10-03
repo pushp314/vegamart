@@ -149,16 +149,41 @@ export function OrderInvoiceModal({
     } catch {}
   }
 
-  const addChargesTotal = additionalCharges.reduce(
+  const filteredAdditionalCharges = additionalCharges.filter((c: any) => {
+    const key = String(c.key || "").toUpperCase();
+    const name = String(c.name || c.title || "").toLowerCase();
+    if (
+      platformFee > 0 &&
+      (key === "PLATFORM_FEE" ||
+        key === "HANDLING_PACKAGING_FEE" ||
+        name.includes("platform fee") ||
+        name.includes("handling fee"))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const addChargesTotal = filteredAdditionalCharges.reduce(
     (acc: number, c: any) => acc + Number(c.amount || 0),
     0,
   );
-  const totalAmount = Number(
+  const computedTotal = Math.max(
+    0,
+    itemsSubtotal + deliveryFee + tax + platformFee + addChargesTotal - discount,
+  );
+  const rawTotal = Number(
     order.total ||
       order.total_amount ||
       order.master_order?.total_amount ||
-      itemsSubtotal + deliveryFee + tax + platformFee + addChargesTotal - discount,
+      0,
   );
+  const totalAmount =
+    rawTotal > 0 && Math.abs(rawTotal - computedTotal) < 0.01
+      ? rawTotal
+      : computedTotal > 0
+        ? computedTotal
+        : rawTotal;
 
   // Delivery type & helpers
   const isSelfPickup =
@@ -539,7 +564,7 @@ export function OrderInvoiceModal({
                 </div>
               )}
 
-              {additionalCharges.map((ch: any, idx: number) => (
+              {filteredAdditionalCharges.map((ch: any, idx: number) => (
                 <div
                   key={idx}
                   className="flex justify-between text-muted-foreground print:text-gray-700"

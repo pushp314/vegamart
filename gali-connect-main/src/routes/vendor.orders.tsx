@@ -417,20 +417,40 @@ function VendorOrdersPage() {
               : Array.isArray(o.master_order?.additional_charges)
                 ? o.master_order.additional_charges
                 : [];
-            const additionalChargesSum = additionalChargesArr.reduce(
+            const filteredAdditionalCharges = additionalChargesArr.filter((ch: any) => {
+              const key = String(ch.key || "").toUpperCase();
+              const name = String(ch.name || ch.title || "").toLowerCase();
+              if (
+                platformFeeVal > 0 &&
+                (key === "PLATFORM_FEE" ||
+                  key === "HANDLING_PACKAGING_FEE" ||
+                  name.includes("platform fee") ||
+                  name.includes("handling fee"))
+              ) {
+                return false;
+              }
+              return true;
+            });
+            const additionalChargesSum = filteredAdditionalCharges.reduce(
               (acc: number, ch: any) => acc + Number(ch.amount || 0),
               0,
             );
-            const effectiveOrderTotal = Number(
-              o.total ||
-                o.master_order?.total_amount ||
-                itemsSubtotalVal +
-                  deliveryFeeVal +
-                  taxVal +
-                  platformFeeVal +
-                  additionalChargesSum -
-                  discountVal,
+            const computedBreakdownTotal = Math.max(
+              0,
+              itemsSubtotalVal +
+                deliveryFeeVal +
+                taxVal +
+                platformFeeVal +
+                additionalChargesSum -
+                discountVal,
             );
+            const rawOrderTotal = Number(o.total || o.master_order?.total_amount || 0);
+            const effectiveOrderTotal =
+              rawOrderTotal > 0 && Math.abs(rawOrderTotal - computedBreakdownTotal) < 0.01
+                ? rawOrderTotal
+                : computedBreakdownTotal > 0
+                  ? computedBreakdownTotal
+                  : rawOrderTotal;
 
             const pInfo = getPaymentMethodInfo(
               o.payment_method,
@@ -811,7 +831,7 @@ function VendorOrdersPage() {
                           <span>+ ₹{platformFeeVal.toLocaleString("en-IN")}</span>
                         </div>
                       )}
-                      {additionalChargesArr.map((ch: any, idx: number) => (
+                      {filteredAdditionalCharges.map((ch: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-muted-foreground">
                           <span>{ch.name || ch.title || "Extra Charge"}</span>
                           <span>+ ₹{Number(ch.amount || 0).toLocaleString("en-IN")}</span>

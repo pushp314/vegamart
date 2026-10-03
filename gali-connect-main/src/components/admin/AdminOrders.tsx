@@ -1002,6 +1002,43 @@ export function AdminOrders() {
                           } catch {}
                         }
 
+                        const platformFee = Number(detail.platform_fee || 0);
+                        const filteredAddCharges = addCharges.filter((ch: any) => {
+                          const key = String(ch.key || "").toUpperCase();
+                          const name = String(ch.name || ch.title || "").toLowerCase();
+                          if (
+                            platformFee > 0 &&
+                            (key === "PLATFORM_FEE" ||
+                              key === "HANDLING_PACKAGING_FEE" ||
+                              name.includes("platform fee") ||
+                              name.includes("handling fee"))
+                          ) {
+                            return false;
+                          }
+                          return true;
+                        });
+
+                        const addChargesTotal = filteredAddCharges.reduce(
+                          (acc: number, c: any) => acc + Number(c.amount || 0),
+                          0,
+                        );
+                        const computedTotal = Math.max(
+                          0,
+                          itemsSubtotal +
+                            Number(detail.delivery_fee || 0) +
+                            Number(detail.tax || 0) +
+                            platformFee +
+                            addChargesTotal -
+                            Number(detail.discount || 0),
+                        );
+                        const rawOrderTotal = Number(detail.total || detail.total_amount || 0);
+                        const totalToDisplay =
+                          rawOrderTotal > 0 && Math.abs(rawOrderTotal - computedTotal) < 0.01
+                            ? rawOrderTotal
+                            : computedTotal > 0
+                              ? computedTotal
+                              : rawOrderTotal;
+
                         return (
                           <div className="bg-muted/30 p-4 border-t border-border space-y-1.5 text-sm">
                             <div className="flex justify-between text-muted-foreground">
@@ -1024,15 +1061,15 @@ export function AdminOrders() {
                                 </span>
                               </div>
                             )}
-                            {Number(detail.platform_fee) > 0 && (
+                            {platformFee > 0 && (
                               <div className="flex justify-between text-muted-foreground">
-                                <span>Platform Fee</span>
+                                <span>Platform / Handling Fee</span>
                                 <span className="tabular-nums">
-                                  + ₹{Number(detail.platform_fee).toFixed(2)}
+                                  + ₹{platformFee.toFixed(2)}
                                 </span>
                               </div>
                             )}
-                            {addCharges.map((ch: any, cIdx: number) => (
+                            {filteredAddCharges.map((ch: any, cIdx: number) => (
                               <div
                                 key={cIdx}
                                 className="flex justify-between text-muted-foreground"
@@ -1069,7 +1106,7 @@ export function AdminOrders() {
                             <div className="flex justify-between items-center font-bold text-base pt-2 border-t border-border/50">
                               <span>Total Order Amount</span>
                               <span className="text-foreground font-black text-lg">
-                                ₹{Number(detail.total || detail.total_amount || 0).toFixed(2)}
+                                ₹{totalToDisplay.toFixed(2)}
                               </span>
                             </div>
                             {modalPInfo.isPartialAdvance && (

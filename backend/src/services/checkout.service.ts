@@ -608,8 +608,9 @@ export const checkoutService = {
       }
     }
 
+    const additionalChargesTotal = additionalCharges.reduce((sum, c) => sum + Number(c.amount || 0), 0);
     const tax = Math.round(totalTax * 100) / 100;
-    const total = Math.round((itemsSubtotal + deliveryFee - discount + tax + platformFeeTotal) * 100) / 100;
+    const total = Math.round((itemsSubtotal + deliveryFee - discount + tax + platformFeeTotal + additionalChargesTotal) * 100) / 100;
 
     return {
       groups: summaryGroups,
@@ -832,7 +833,8 @@ export const checkoutService = {
         : 0;
       const groupTax = Math.round((groupTaxRaw + deliveryTax) * 100) / 100;
       const groupPlatformFee = idx === 0 ? Number(summary.platform_fee || 0) : 0;
-      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax + groupPlatformFee) * 100) / 100;
+      const groupAdditionalCharges = idx === 0 ? (summary.additional_charges || []).reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0) : 0;
+      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax + groupPlatformFee + groupAdditionalCharges) * 100) / 100;
       return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, groupPlatformFee, orderNumber: generateOrderNumber() };
     });
 
@@ -1362,7 +1364,8 @@ export const checkoutService = {
         : 0;
       const groupTax = Math.round((groupTaxRaw + deliveryTax) * 100) / 100;
       const groupPlatformFee = idx === 0 ? Number(summary.platform_fee || 0) : 0;
-      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax + groupPlatformFee) * 100) / 100;
+      const groupAdditionalCharges = idx === 0 ? (summary.additional_charges || []).reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0) : 0;
+      const groupTotal = Math.round((groupSubtotal + effectiveDeliveryFee - groupDiscount + groupTax + groupPlatformFee + groupAdditionalCharges) * 100) / 100;
       return { group: { ...group, delivery_fee: effectiveDeliveryFee }, groupDiscount, groupTax, groupTotal, groupPlatformFee, orderNumber: generateOrderNumber() };
     });
 

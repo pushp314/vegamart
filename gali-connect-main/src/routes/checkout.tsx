@@ -808,7 +808,9 @@ function Checkout() {
     if (configuredFees.length > 0) {
       const activeList: { id: string; key: string; name: string; amount: number }[] = [];
       for (const fee of configuredFees) {
-        const isEnabled = fee.enabled !== false && fee.is_active !== false;
+        const isEnabled =
+          (fee.enabled === true || fee.is_active === true) &&
+          Number(fee.amount || 0) > 0;
         if (!isEnabled) continue;
 
         const feeName = fee.name || fee.title || "Extra Charge";

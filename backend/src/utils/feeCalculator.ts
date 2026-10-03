@@ -34,7 +34,9 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
     context.paymentMethod ? !isCod : false;
 
   for (const fee of configs) {
-    const isEnabled = fee.enabled !== false && (fee as any).is_active !== false;
+    const isEnabled =
+      (fee.enabled === true || (fee as any).is_active === true) &&
+      Number(fee.amount || 0) > 0;
     if (!isEnabled) continue;
 
     const feeName = fee.name || (fee as any).title || "Extra Charge";
@@ -135,7 +137,7 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
         break;
 
       default:
-        // By default, if enabled, apply the amount (e.g. PLATFORM_FEE, SERVICE_CHARGE)
+        // By default, if explicitly enabled and amount > 0, apply the amount (e.g. PLATFORM_FEE, SERVICE_CHARGE)
         finalAmount = calculatedAmount;
         break;
     }
@@ -143,13 +145,16 @@ export function computeCustomerFees(configs: FeeConfig[], context: FeeContext) {
     finalAmount = Math.round(finalAmount * 100) / 100;
 
     if (finalAmount > 0) {
-      totalPlatformFee += finalAmount;
-      additionalCharges.push({
-        key: fee.key,
-        name: feeName,
-        amount: finalAmount,
-        type: feeType,
-      });
+      if (fee.key === "PLATFORM_FEE" || fee.key === "HANDLING_PACKAGING_FEE") {
+        totalPlatformFee += finalAmount;
+      } else {
+        additionalCharges.push({
+          key: fee.key,
+          name: feeName,
+          amount: finalAmount,
+          type: feeType,
+        });
+      }
     }
   }
 

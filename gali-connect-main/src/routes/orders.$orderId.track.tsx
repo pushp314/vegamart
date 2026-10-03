@@ -344,9 +344,53 @@ function OrderIdTrackingPage() {
         : 0),
   );
   const deliveryFee = Number(order?.delivery_fee ?? 0);
-  const tax = Number(order?.tax ?? order?.platform_fee ?? 0);
+  const tax = Number(order?.tax ?? 0);
   const discount = Number(order?.discount ?? 0);
-  const totalAmount = Number(order?.total_amount ?? order?.total ?? 0);
+  const rawTotalAmount = Number(order?.total_amount ?? order?.total ?? 0);
+  const platformFee = Number(order?.platform_fee ?? 0);
+
+  const additionalChargesArr: any[] = Array.isArray(order?.additional_charges)
+    ? order.additional_charges
+    : typeof order?.additional_charges === "string"
+      ? (() => {
+          try {
+            return JSON.parse(order.additional_charges);
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+  const filteredAdditionalCharges = additionalChargesArr.filter((charge: any) => {
+    const key = String(charge.key || "").toUpperCase();
+    const name = String(charge.name || charge.title || "").toLowerCase();
+    if (
+      platformFee > 0 &&
+      (key === "PLATFORM_FEE" ||
+        key === "HANDLING_PACKAGING_FEE" ||
+        name.includes("platform fee") ||
+        name.includes("handling fee"))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const additionalChargesTotal = filteredAdditionalCharges.reduce(
+    (sum: number, c: any) => sum + Number(c.amount || 0),
+    0,
+  );
+
+  const computedOrderTotal = Math.max(
+    0,
+    itemsSubtotal + deliveryFee + tax + platformFee + additionalChargesTotal - discount,
+  );
+  const totalAmount =
+    rawTotalAmount > 0 && Math.abs(rawTotalAmount - computedOrderTotal) < 0.01
+      ? rawTotalAmount
+      : computedOrderTotal > 0
+        ? computedOrderTotal
+        : rawTotalAmount;
   const isPaymentUnpaid =
     !!order &&
     ((order?.payment_status === "PENDING" && order?.payment_method !== "COD") ||
@@ -1459,24 +1503,22 @@ function OrderIdTrackingPage() {
                     <span className="tabular-nums font-semibold">₹{tax.toFixed(2)}</span>
                   </div>
                 )}
-                {Number(order.platform_fee || 0) > 0 && (
+                {platformFee > 0 && (
                   <div className="flex justify-between">
                     <span>Platform / Handling Fee</span>
                     <span className="tabular-nums font-semibold">
-                      ₹{Number(order.platform_fee).toFixed(2)}
+                      ₹{platformFee.toFixed(2)}
                     </span>
                   </div>
                 )}
-                {order.additional_charges &&
-                  order.additional_charges.length > 0 &&
-                  order.additional_charges.map((charge: any, idx: number) => (
-                    <div key={idx} className="flex justify-between">
-                      <span>{charge.name || charge.title || "Extra Charge"}</span>
-                      <span className="tabular-nums font-semibold">
-                        ₹{Number(charge.amount).toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
+                {filteredAdditionalCharges.map((charge: any, idx: number) => (
+                  <div key={idx} className="flex justify-between">
+                    <span>{charge.name || charge.title || "Extra Charge"}</span>
+                    <span className="tabular-nums font-semibold">
+                      ₹{Number(charge.amount || 0).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
 
                 {discount > 0 && (
                   <div className="flex justify-between text-emerald-600 font-medium">
