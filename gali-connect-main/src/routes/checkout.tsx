@@ -1477,9 +1477,15 @@ function Checkout() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 font-semibold tabular-nums">
-                      <span>
-                        {totalExtraCharges === 0 ? "FREE" : `₹${totalExtraCharges.toFixed(2)}`}
-                      </span>
+                      {showChargesDropdown ? (
+                        <span>
+                          {totalExtraCharges === 0 ? "FREE" : `₹${totalExtraCharges.toFixed(2)}`}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-normal text-muted-foreground">
+                          View details
+                        </span>
+                      )}
                       <ChevronDown
                         className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${
                           showChargesDropdown ? "rotate-180 text-foreground" : ""
@@ -1510,6 +1516,12 @@ function Checkout() {
                           </span>
                         </div>
                       ))}
+                      <div className="pt-2 border-t border-border/40 flex justify-between font-semibold text-foreground">
+                        <span>Total Taxes &amp; Other Charges</span>
+                        <span className="tabular-nums">
+                          {totalExtraCharges === 0 ? "FREE" : `₹${totalExtraCharges.toFixed(2)}`}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
