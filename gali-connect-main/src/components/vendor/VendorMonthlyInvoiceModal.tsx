@@ -60,7 +60,7 @@ export function VendorMonthlyInvoiceModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-3xl rounded-3xl border-border bg-card p-6 max-h-[92vh] overflow-y-auto print:max-h-none print:p-0 print:border-none print:shadow-none">
+      <DialogContent className="sm:max-w-3xl rounded-3xl border-border bg-card p-6 max-h-[92vh] overflow-y-auto print:max-h-none print:p-0 print:border-none print:shadow-none print:static print:transform-none print:left-auto print:top-auto print:w-full print:bg-white print:text-black">
         <DialogHeader className="print:hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

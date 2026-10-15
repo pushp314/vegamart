@@ -787,10 +787,30 @@ export const deliveryService = {
                 is_open: true,
               },
             },
-            items: true,
+            items: {
+              include: {
+                product: {
+                  select: {
+                    images: {
+                      select: { url: true, is_primary: true },
+                      orderBy: { sort_order: "asc" },
+                    },
+                  },
+                },
+              },
+            },
           }
         },
       }
+    });
+
+    const mapItemWithImage = (it: any) => ({
+      ...it,
+      image_url:
+        it.image_url ||
+        it.product?.images?.find((img: any) => img.is_primary)?.url ||
+        it.product?.images?.[0]?.url ||
+        null,
     });
 
     // ── MULTI-VENDOR OR VEGAMART DELIVERY ────────────────────────────
@@ -803,12 +823,13 @@ export const deliveryService = {
     });
 
     return eligibleRows.map((m: any) => {
-      const items = m.orders.flatMap((o: any) => o.items);
+      const items = m.orders.flatMap((o: any) => (o.items || []).map(mapItemWithImage));
       const vendors = m.orders.map((o: any) => o.vendor);
       
       return {
         id: m.id,
         order_number: m.order_number,
+        product_image: items[0]?.image_url || null,
         status: m.status,
         delivery_fee: m.delivery_fee,
         items_subtotal: m.total_amount,
@@ -830,7 +851,7 @@ export const deliveryService = {
            vendor: o.vendor,
            total: o.total,
            delivery_note: o.delivery_note,
-           items: o.items,
+           items: (o.items || []).map(mapItemWithImage),
         })),
         customer: m.customer,
         user: m.customer,
@@ -871,15 +892,35 @@ export const deliveryService = {
                 is_open: true,
               },
             },
-            items: true,
+            items: {
+              include: {
+                product: {
+                  select: {
+                    images: {
+                      select: { url: true, is_primary: true },
+                      orderBy: { sort_order: "asc" },
+                    },
+                  },
+                },
+              },
+            },
             payment: { select: { amount: true, method: true, status: true, gateway_response: true } },
           }
         },
       }
     });
 
+    const mapItemWithImage = (it: any) => ({
+      ...it,
+      image_url:
+        it.image_url ||
+        it.product?.images?.find((img: any) => img.is_primary)?.url ||
+        it.product?.images?.[0]?.url ||
+        null,
+    });
+
     return rows.map((m: any) => {
-      const items = m.orders.flatMap((o: any) => o.items);
+      const items = m.orders.flatMap((o: any) => (o.items || []).map(mapItemWithImage));
       const vendors = m.orders.map((o: any) => o.vendor);
       const itemsSubtotal = m.orders.reduce((sum: number, o: any) => sum + Number(o.items_subtotal ?? 0), 0);
       const itemDiscount = m.orders.reduce((sum: number, o: any) => sum + Number(o.discount ?? 0), 0);
@@ -888,6 +929,7 @@ export const deliveryService = {
       return {
         id: m.id,
         order_number: m.order_number,
+        product_image: items[0]?.image_url || null,
         status: m.status,
         delivery_fee: m.delivery_fee,
         items_subtotal: itemsSubtotal,
@@ -914,7 +956,7 @@ export const deliveryService = {
            tax: Number(o.tax ?? 0),
            total: o.total,
            delivery_note: o.delivery_note,
-           items: o.items,
+           items: (o.items || []).map(mapItemWithImage),
         })),
         customer: m.customer,
         user: m.customer,

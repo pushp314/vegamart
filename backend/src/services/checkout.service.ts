@@ -470,6 +470,11 @@ export const checkoutService = {
           quantity: item.quantity,
           unit_price: item.price_snapshot.toNumber(),
           line_total: item.price_snapshot.toNumber() * item.quantity,
+          image_url:
+            (item.product as any).images?.find((img: any) => img.is_primary)?.url ||
+            (item.product as any).images?.[0]?.url ||
+            (item.product as any).image_url ||
+            null,
           tax_rate: (() => {
             const prodTax = (item.product as any).tax_rate != null ? Number((item.product as any).tax_rate) : null;
             const vendorTax = (vendor as any).tax_rate != null ? Number((vendor as any).tax_rate) : null;

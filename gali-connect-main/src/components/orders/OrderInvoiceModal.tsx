@@ -45,7 +45,85 @@ export function OrderInvoiceModal({
   if (!order) return null;
 
   const handlePrint = () => {
-    window.print();
+    try {
+      if (!printRef.current) {
+        window.print();
+        return;
+      }
+      const printContent = printRef.current.innerHTML;
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "none";
+      iframe.style.zIndex = "-9999";
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc) {
+        window.print();
+        return;
+      }
+
+      // Collect all stylesheets and style elements
+      const styles = Array.from(document.querySelectorAll("link[rel='stylesheet'], style"))
+        .map((el) => el.outerHTML)
+        .join("\n");
+
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${title || (isVendorSlip ? "Packing Slip" : "Tax Invoice")} - #${ordNo}</title>
+            ${styles}
+            <style>
+              @page {
+                size: auto;
+                margin: 10mm 12mm;
+              }
+              html, body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              table { width: 100% !important; border-collapse: collapse !important; }
+              tr, td, th { break-inside: avoid !important; page-break-inside: avoid !important; }
+            </style>
+          </head>
+          <body class="bg-white text-black p-4">
+            <div class="space-y-6 text-black">
+              ${printContent}
+            </div>
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          window.print();
+        } finally {
+          setTimeout(() => {
+            try {
+              document.body.removeChild(iframe);
+            } catch {}
+          }, 2000);
+        }
+      }, 350);
+    } catch {
+      window.print();
+    }
   };
 
   const handleCopyLink = () => {
@@ -210,7 +288,7 @@ export function OrderInvoiceModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden bg-background text-foreground max-h-[92vh] flex flex-col border border-border shadow-2xl print:max-h-none print:h-auto print:border-none print:shadow-none print:p-0 print:static print:w-full">
+      <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden bg-background text-foreground max-h-[92vh] flex flex-col border border-border shadow-2xl print:max-h-none print:h-auto print:border-none print:shadow-none print:p-0 print:static print:transform-none print:left-auto print:top-auto print:w-full print:bg-white print:text-black">
         {/* Modal Top Actions Bar (Hidden when printing) */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden">
           <div className="flex items-center gap-2">

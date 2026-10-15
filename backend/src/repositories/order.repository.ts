@@ -325,6 +325,24 @@ export async function createMasterOrder(input: CreateMasterOrderInput, db: DbCli
 }
 
 export async function createOrder(input: CreateOrderInput, db: DbClient = prisma): Promise<OrderRow> {
+  const itemsWithoutImage = input.items.filter((item) => !item.image_url);
+  const productImageMap: Record<string, string> = {};
+  if (itemsWithoutImage.length > 0) {
+    try {
+      const pImages = await db.productImage.findMany({
+        where: { product_id: { in: itemsWithoutImage.map((it) => it.product_id) } },
+        orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+      });
+      for (const img of pImages) {
+        if (!productImageMap[img.product_id]) {
+          productImageMap[img.product_id] = img.url;
+        }
+      }
+    } catch (_err) {
+      // fallback gracefully if productImage query fails
+    }
+  }
+
   const row = await db.order.create({
     data: {
       master_order_id: input.master_order_id,
@@ -349,7 +367,7 @@ export async function createOrder(input: CreateOrderInput, db: DbClient = prisma
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.total_price,
-          image_url: item.image_url ?? null,
+          image_url: item.image_url || productImageMap[item.product_id] || null,
         })),
       },
     },

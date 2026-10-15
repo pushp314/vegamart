@@ -167,11 +167,20 @@ function getGoogleMapsUrl(lat?: number | null, lng?: number | null, query?: stri
 }
 
 function OrderThumb({ order }: { order: any }) {
-  return order.product_image ? (
+  const [imgError, setImgError] = useState(false);
+  const imgUrl =
+    order?.product_image ||
+    order?.items?.[0]?.image_url ||
+    order?.items?.[0]?.image ||
+    order?.items?.[0]?.product_image ||
+    order?.items?.[0]?.product?.images?.[0]?.url;
+
+  return imgUrl && !imgError ? (
     <img
-      src={order.product_image}
-      alt={order.items?.[0]?.product_name || "Order item"}
+      src={imgUrl}
+      alt={order?.items?.[0]?.product_name || "Order item"}
       className="h-12 w-12 rounded-xl object-cover border border-border bg-white shrink-0"
+      onError={() => setImgError(true)}
     />
   ) : (
     <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center border border-border shrink-0">
@@ -1536,22 +1545,43 @@ function DeliveryDashboard() {
                                         <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                                           Items to collect ({sub.items.length}):
                                         </div>
-                                        {sub.items.map((it: any, i: number) => (
-                                          <div
-                                            key={it.id || i}
-                                            className="flex justify-between items-center text-xs bg-muted/30 px-2.5 py-1.5 rounded-lg"
-                                          >
-                                            <span className="font-semibold text-foreground truncate pr-2">
-                                              • {it.product_name}{" "}
-                                              <span className="text-muted-foreground font-normal">
-                                                × {it.quantity} {it.selected_unit || it.unit || ""}
+                                        {sub.items.map((it: any, i: number) => {
+                                          const itImg =
+                                            it.image_url ||
+                                            it.image ||
+                                            it.product_image ||
+                                            it.product?.images?.[0]?.url;
+                                          return (
+                                            <div
+                                              key={it.id || i}
+                                              className="flex justify-between items-center text-xs bg-muted/30 px-2.5 py-1.5 rounded-lg"
+                                            >
+                                              <span className="font-semibold text-foreground truncate pr-2 flex items-center gap-2">
+                                                {itImg ? (
+                                                  <img
+                                                    src={itImg}
+                                                    alt={it.product_name}
+                                                    className="h-6 w-6 rounded-md object-cover border border-border shrink-0"
+                                                    onError={(e) => {
+                                                      e.currentTarget.style.display = "none";
+                                                    }}
+                                                  />
+                                                ) : (
+                                                  <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                )}
+                                                <span className="truncate">
+                                                  {it.product_name}{" "}
+                                                  <span className="text-muted-foreground font-normal">
+                                                    × {it.quantity} {it.selected_unit || it.unit || ""}
+                                                  </span>
+                                                </span>
                                               </span>
-                                            </span>
-                                            <span className="font-bold text-muted-foreground shrink-0">
-                                              ₹{it.total_price || it.unit_price * it.quantity}
-                                            </span>
-                                          </div>
-                                        ))}
+                                              <span className="font-bold text-muted-foreground shrink-0">
+                                                ₹{it.total_price || it.unit_price * it.quantity}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     )}
 
@@ -2147,27 +2177,48 @@ function DeliveryDashboard() {
                                 Items to Pick Up from this Store ({sub.items.length}):
                               </div>
                               <div className="space-y-1 bg-card rounded-xl p-2.5 border border-border/60">
-                                {sub.items.map((it: any, itIdx: number) => (
-                                  <div
-                                    key={it.id || itIdx}
-                                    className="flex justify-between items-center text-xs"
-                                  >
-                                    <div className="truncate min-w-0 pr-2">
-                                      <span className="font-semibold text-foreground">
-                                        {it.product_name}
-                                      </span>
-                                      <span className="text-muted-foreground text-[11px]">
-                                        {" "}
-                                        × {it.quantity} {it.selected_unit || it.unit || ""}
+                                {sub.items.map((it: any, itIdx: number) => {
+                                  const itImg =
+                                    it.image_url ||
+                                    it.image ||
+                                    it.product_image ||
+                                    it.product?.images?.[0]?.url;
+                                  return (
+                                    <div
+                                      key={it.id || itIdx}
+                                      className="flex justify-between items-center text-xs"
+                                    >
+                                      <div className="flex items-center gap-2 truncate min-w-0 pr-2">
+                                        {itImg ? (
+                                          <img
+                                            src={itImg}
+                                            alt={it.product_name}
+                                            className="h-6 w-6 rounded-md object-cover border border-border shrink-0"
+                                            onError={(e) => {
+                                              e.currentTarget.style.display = "none";
+                                            }}
+                                          />
+                                        ) : (
+                                          <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                        )}
+                                        <div className="truncate">
+                                          <span className="font-semibold text-foreground">
+                                            {it.product_name}
+                                          </span>
+                                          <span className="text-muted-foreground text-[11px]">
+                                            {" "}
+                                            × {it.quantity} {it.selected_unit || it.unit || ""}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <span className="font-bold shrink-0">
+                                        ₹
+                                        {it.total_price ||
+                                          (it.unit_price ? it.unit_price * it.quantity : 0)}
                                       </span>
                                     </div>
-                                    <span className="font-bold shrink-0">
-                                      ₹
-                                      {it.total_price ||
-                                        (it.unit_price ? it.unit_price * it.quantity : 0)}
-                                    </span>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
@@ -2348,19 +2399,37 @@ function DeliveryDashboard() {
                 </div>
 
                 <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden">
-                  {(detailsOrder.items || []).map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="p-3.5 flex items-center gap-3">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.product_name}
-                          className="h-12 w-12 rounded-xl object-cover border border-border bg-muted shrink-0"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                  {(detailsOrder.items || []).map((item: any, idx: number) => {
+                    const itemImage =
+                      item.image_url ||
+                      item.image ||
+                      item.product_image ||
+                      item.product_image_url ||
+                      item.product?.images?.[0]?.url ||
+                      item.product?.image_url;
+
+                    return (
+                      <div key={item.id || idx} className="p-3.5 flex items-center gap-3">
+                        {itemImage ? (
+                          <img
+                            src={itemImage}
+                            alt={item.product_name}
+                            className="h-12 w-12 rounded-xl object-cover border border-border bg-muted shrink-0"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = "none";
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.classList.remove("hidden");
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className={`h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0 ${
+                            itemImage ? "hidden" : ""
+                          }`}
+                        >
                           <Package className="h-5 w-5 text-muted-foreground" />
                         </div>
-                      )}
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-sm truncate text-foreground">
                           {item.product_name}
@@ -2380,7 +2449,8 @@ function DeliveryDashboard() {
                           (item.unit_price ? item.unit_price * item.quantity : 0)}
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               </div>
 

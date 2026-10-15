@@ -1,5 +1,4 @@
-@import "tailwindcss" source(none);
-@source "../src";
+@import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -243,3 +242,61 @@
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 }
+
+@media print {
+  @page {
+    margin: 10mm 12mm;
+    size: auto;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When any radix dialog/modal is open, hide the background application */
+  body:has([data-radix-portal]) > *:not([data-radix-portal]) {
+    display: none !important;
+  }
+
+  /* Hide backdrop overlay */
+  [data-radix-dialog-overlay] {
+    display: none !important;
+  }
+
+  /* Reset dialog container so it prints as standard full page without offsets or shadows */
+  [data-radix-dialog-content] {
+    position: static !important;
+    transform: none !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Avoid awkward page break splits */
+  tr,
+  td,
+  th,
+  table,
+  .rounded-2xl,
+  .rounded-xl {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
