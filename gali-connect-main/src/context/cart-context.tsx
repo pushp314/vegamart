@@ -291,6 +291,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         tax?: number;
         discount?: number;
         total?: number;
+        coupon?: any;
       }>("/checkout/preview", {
         coupon_code: appliedCoupon ?? undefined,
         items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
@@ -298,6 +299,33 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     enabled: canPreview,
   });
   const preview = previewRes?.data?.data;
+
+  // Keep applied coupon synchronized with authoritative server calculations
+  useEffect(() => {
+    if (previewRes.data?.data) {
+      const p = previewRes.data.data;
+      if (p.coupon) {
+        setCouponDiscount(Number(p.discount ?? 0));
+        setAppliedCouponData({
+          code: p.coupon.code,
+          type: p.coupon.type,
+          discount: Number(p.discount ?? 0),
+        });
+      }
+    }
+  }, [previewRes.data]);
+
+  // If cart changes drop below coupon criteria (e.g. min order), automatically remove it and inform the user
+  useEffect(() => {
+    if (appliedCoupon && previewRes.isError) {
+      const errorMsg =
+        (previewRes.error as any)?.message || "Coupon is no longer applicable to your cart";
+      setAppliedCoupon(null);
+      setAppliedCouponData(null);
+      setCouponDiscount(0);
+      toast.warning(errorMsg);
+    }
+  }, [appliedCoupon, previewRes.isError, previewRes.error]);
 
   const localSubtotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const subtotal = preview ? Number(preview.items_subtotal ?? localSubtotal) : localSubtotal;

@@ -532,6 +532,9 @@ export const checkoutService = {
       const freeDelivery = result.coupon.type === "FREE_DELIVERY";
       if (freeDelivery) {
         deliveryFee = 0;
+        for (const g of summaryGroups) {
+          g.delivery_fee = 0;
+        }
       }
       couponInfo = { id: result.coupon.id, code: result.coupon.code, type: result.coupon.type, discount };
     }
@@ -827,9 +830,12 @@ export const checkoutService = {
         groupTaxRaw += (itemTaxable * (itemEffectiveTax ?? 0)) / 100;
       }
       // When consolidated delivery, assign the full delivery fee to first order only
-      const effectiveDeliveryFee = summary.is_consolidated_delivery
-        ? (idx === 0 ? summary.delivery_fee : 0)
-        : group.delivery_fee;
+      const isFreeDelivery = summary.coupon?.type === "FREE_DELIVERY";
+      const effectiveDeliveryFee = isFreeDelivery
+        ? 0
+        : summary.is_consolidated_delivery
+          ? (idx === 0 ? summary.delivery_fee : 0)
+          : group.delivery_fee;
       const isVegaMartDelivery = summary.is_consolidated_delivery || (
         input.delivery_slot && !["self", "pickup", "takeaway", "shop", "direct", "book"].some(s => input.delivery_slot!.toLowerCase().includes(s))
       );
@@ -1359,10 +1365,13 @@ export const checkoutService = {
         const itemEffectiveTax = item.tax_rate ?? summary.tax_rate ?? TAX_RATE_PERCENT;
         groupTaxRaw += (itemTaxable * (itemEffectiveTax ?? 0)) / 100;
       }
-      // When consolidated delivery, assign the full delivery fee to first order only
-      const effectiveDeliveryFee = summary.is_consolidated_delivery
-        ? (idx === 0 ? summary.delivery_fee : 0)
-        : group.delivery_fee;
+      // When free delivery coupon is applied, delivery fee is zeroed for all suborders
+      const isFreeDelivery = summary.coupon?.type === "FREE_DELIVERY";
+      const effectiveDeliveryFee = isFreeDelivery
+        ? 0
+        : summary.is_consolidated_delivery
+          ? (idx === 0 ? summary.delivery_fee : 0)
+          : group.delivery_fee;
       const isVegaMartDelivery = summary.is_consolidated_delivery || (
         input.delivery_slot && !["self", "pickup", "takeaway", "shop", "direct", "book"].some(s => input.delivery_slot!.toLowerCase().includes(s))
       );
@@ -1498,7 +1507,12 @@ export const checkoutService = {
         const targetIndex = discountedIndex >= 0 ? discountedIndex : 0;
         const targetOrderId = serializedOrders[targetIndex]?.order.id;
         if (targetOrderId) {
-          await couponRepo.claimUsage(summary.coupon.id, targetOrderId, userId, summary.discount, tx);
+          const claimed = await couponRepo.claimUsage(summary.coupon.id, targetOrderId, userId, summary.discount, tx);
+          if (!claimed) {
+            throw new ApiError(HttpStatus.BAD_REQUEST, "Coupon usage limit has been reached. Please try again.", {
+              code: "COUPON_EXHAUSTED",
+            });
+          }
         }
       }
     });
