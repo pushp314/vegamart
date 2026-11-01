@@ -22,6 +22,12 @@ export interface CartItem {
   selectedVariant?: string;
 }
 
+export interface AppliedCouponInfo {
+  code: string;
+  type: "PERCENTAGE" | "FIXED" | "FREE_DELIVERY";
+  discount: number;
+}
+
 interface CartContextType {
   items: CartItem[];
   vendorId: string | null;
@@ -34,6 +40,8 @@ interface CartContextType {
   total: number;
   itemCount: number;
   appliedCoupon: string | null;
+  appliedCouponData: AppliedCouponInfo | null;
+  isFreeDelivery: boolean;
   addToCart: (product: Product, quantity?: number, variantLabel?: string) => void;
   updateQuantity: (id: string, qty: number) => void;
   removeItem: (id: string) => void;
@@ -48,6 +56,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+  const [appliedCouponData, setAppliedCouponData] = useState<AppliedCouponInfo | null>(null);
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
 
   // Store Change Modal State
@@ -194,6 +203,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       },
     ]);
     setAppliedCoupon(null);
+    setAppliedCouponData(null);
     setCouponDiscount(0);
     toast.success(`Cart cleared & added ${pendingItem.product.name}`);
     setPendingItem(null);
@@ -223,22 +233,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = () => {
     setItems([]);
     setAppliedCoupon(null);
+    setAppliedCouponData(null);
     setCouponDiscount(0);
   };
 
   const applyCoupon = async (code: string) => {
     try {
-      const res = await api.post<CouponValidation>("/coupons/validate", {
-        code,
+      const cleanCode = code.trim().toUpperCase();
+      const res = await api.post<any>("/coupons/validate", {
+        code: cleanCode,
         items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
       });
       if (!res.success || !res.data) {
         throw new Error(res.error?.message || "Invalid or expired coupon code");
       }
       const coupon = res.data;
-      setAppliedCoupon(code);
+      setAppliedCoupon(cleanCode);
+      const couponType = (coupon as any).type || (coupon.discount === 0 ? "FREE_DELIVERY" : "PERCENTAGE");
+      setAppliedCouponData({
+        code: cleanCode,
+        type: couponType,
+        discount: coupon.discount || 0,
+      });
       setCouponDiscount(coupon.discount || 0);
-      return { success: true, message: "Coupon applied successfully" };
+      return {
+        success: true,
+        message:
+          couponType === "FREE_DELIVERY"
+            ? "Free Delivery coupon applied!"
+            : `Coupon applied! Saved ₹${Number(coupon.discount || 0).toFixed(2)}`,
+      };
     } catch (err: any) {
       return { success: false, message: err.message || "Failed to apply coupon" };
     }
@@ -246,11 +270,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const removeCoupon = () => {
     setAppliedCoupon(null);
+    setAppliedCouponData(null);
     setCouponDiscount(0);
   };
 
-  const { isAuthenticated, isGuest, user } = useAuth();
-  const canPreview = !!isAuthenticated && !isGuest && user?.role === "customer" && items.length > 0;
+  const { isAuthenticated, isGuest } = useAuth();
+  const canPreview = !!isAuthenticated && !isGuest && items.length > 0;
 
   // Authoritative totals come from the backend checkout preview endpoint, which
   // applies the exact same per-vendor delivery fee / free-delivery threshold /
@@ -292,13 +317,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const settingsFreeThreshold = (settings["platform.free_delivery_threshold"] as number) || 0;
   const freeDeliveryThreshold = vendorFreeThreshold ?? settingsFreeThreshold;
   const baseDeliveryFee = vendorFee ?? settingsDeliveryFee;
-  const deliveryFee = preview
-    ? Number(preview.delivery_fee ?? 0)
-    : subtotal > 0
-      ? freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold
-        ? 0
-        : baseDeliveryFee
-      : 0;
+  const isFreeDelivery = appliedCouponData?.type === "FREE_DELIVERY" || (preview as any)?.coupon?.type === "FREE_DELIVERY";
+  const deliveryFee = isFreeDelivery
+    ? 0
+    : preview
+      ? Number(preview.delivery_fee ?? 0)
+      : subtotal > 0
+        ? freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold
+          ? 0
+          : baseDeliveryFee
+        : 0;
   const rawAdminTax = settings["platform.tax_rate_percent"];
   const taxRatePercent =
     rawAdminTax !== undefined && rawAdminTax !== null && rawAdminTax !== ""
@@ -337,6 +365,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         total,
         itemCount,
         appliedCoupon,
+        appliedCouponData,
+        isFreeDelivery,
         addToCart,
         updateQuantity,
         removeItem,

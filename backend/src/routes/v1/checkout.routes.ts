@@ -10,8 +10,8 @@ import { checkoutPreviewSchema, createOrderFromCartSchema, placeOrderSchema } fr
 
 const router = Router();
 
-router.post("/checkout/preview", apiLimiter, authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ body: checkoutPreviewSchema }), previewCheckout);
-router.post("/checkout", apiLimiter, authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ body: placeOrderSchema }), placeOrder);
-router.post("/orders", apiLimiter, authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ body: createOrderFromCartSchema }), createOrderFromCart);
+router.post("/checkout/preview", apiLimiter, authenticate, blockGuest, requireRole(ROLES.CUSTOMER, ROLES.ADMIN, ROLES.SUPER_ADMIN), validate({ body: checkoutPreviewSchema }), previewCheckout);
+router.post("/checkout", apiLimiter, authenticate, blockGuest, requireRole(ROLES.CUSTOMER, ROLES.ADMIN, ROLES.SUPER_ADMIN), validate({ body: placeOrderSchema }), placeOrder);
+router.post("/orders", apiLimiter, authenticate, blockGuest, requireRole(ROLES.CUSTOMER, ROLES.ADMIN, ROLES.SUPER_ADMIN), validate({ body: createOrderFromCartSchema }), createOrderFromCart);
 
 export default router;

@@ -63,8 +63,17 @@ export const listCoupons = asyncHandler(async (req: Request, res: Response) => {
 export const listAvailableCoupons = asyncHandler(async (_req: Request, res: Response) => {
   const rows = await couponRepo.listAvailableForCustomer(new Date());
   return sendSuccess(res, rows.map(c => ({
+    id: c.id,
     code: c.code,
-    desc: c.type === "PERCENTAGE" ? `Flat ${Number(c.value)}% OFF` : c.type === "FIXED" ? `Flat ₹${Number(c.value)} OFF` : "Free Delivery",
+    type: c.type,
+    value: Number(c.value),
+    min_order_value: c.min_order_value ? Number(c.min_order_value) : null,
+    max_discount: c.max_discount ? Number(c.max_discount) : null,
+    desc: c.type === "PERCENTAGE"
+      ? `${Number(c.value)}% OFF${c.max_discount ? ` (up to ₹${Number(c.max_discount)})` : ""}`
+      : c.type === "FIXED"
+        ? `Flat ₹${Number(c.value)} OFF`
+        : "Free Delivery",
   })));
 });
 
