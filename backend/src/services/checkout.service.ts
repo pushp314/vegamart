@@ -947,7 +947,7 @@ export const checkoutService = {
               user_id: userId,
               vendor_id: group.vendor_id,
               address_id: address.id,
-              coupon_id: summary.coupon?.id ?? null,
+              coupon_id: (summary.coupon && (groupDiscount > 0 || summary.coupon.type === "FREE_DELIVERY" || computations.length === 1)) ? summary.coupon.id : null,
               coupon_discount: 0,
               items_subtotal: group.items_subtotal,
               delivery_fee: group.delivery_fee,
@@ -1047,9 +1047,11 @@ export const checkoutService = {
         // Coupon claim in the same transaction: an exhausted coupon rolls back the
         // whole checkout (orders, reservations, counters) atomically.
         if (summary.coupon) {
-          const firstOrderId = serializedOrders[0]?.order.id;
-          const claimed = firstOrderId
-            ? await couponRepo.claimUsage(summary.coupon.id, firstOrderId, userId, summary.discount, tx)
+          const discountedIndex = computations.findIndex((c) => c.groupDiscount > 0);
+          const targetIndex = discountedIndex >= 0 ? discountedIndex : 0;
+          const targetOrderId = serializedOrders[targetIndex]?.order.id;
+          const claimed = targetOrderId
+            ? await couponRepo.claimUsage(summary.coupon.id, targetOrderId, userId, summary.discount, tx)
             : false;
           if (!claimed) {
             throw new ApiError(HttpStatus.BAD_REQUEST, "Coupon usage limit has been reached. Please try again.", {
@@ -1410,7 +1412,7 @@ export const checkoutService = {
             user_id: userId,
             vendor_id: group.vendor_id,
             address_id: address.id,
-            coupon_id: summary.coupon?.id ?? null,
+            coupon_id: (summary.coupon && (groupDiscount > 0 || summary.coupon.type === "FREE_DELIVERY" || computations.length === 1)) ? summary.coupon.id : null,
             coupon_discount: groupDiscount,
             items_subtotal: group.items_subtotal,
             delivery_fee: group.delivery_fee,
@@ -1492,9 +1494,11 @@ export const checkoutService = {
       await inventoryRepo.reserveAvailable(reservationItems, tx);
 
       if (summary.coupon) {
-        const firstOrderId = serializedOrders[0]?.order.id;
-        if (firstOrderId) {
-          await couponRepo.claimUsage(summary.coupon.id, firstOrderId, userId, summary.discount, tx);
+        const discountedIndex = computations.findIndex((c) => c.groupDiscount > 0);
+        const targetIndex = discountedIndex >= 0 ? discountedIndex : 0;
+        const targetOrderId = serializedOrders[targetIndex]?.order.id;
+        if (targetOrderId) {
+          await couponRepo.claimUsage(summary.coupon.id, targetOrderId, userId, summary.discount, tx);
         }
       }
     });

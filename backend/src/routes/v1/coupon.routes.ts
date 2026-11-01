@@ -8,6 +8,7 @@ import {
   listCoupons,
   listAvailableCoupons,
   listVendorCoupons,
+  testCoupon,
   updateCoupon,
   updateVendorCoupon,
   validateCoupon,
@@ -21,21 +22,23 @@ import {
   couponIdParamsSchema,
   createCouponSchema,
   listCouponsQuerySchema,
+  testCouponSchema,
   updateCouponSchema,
   validateCouponSchema,
 } from "../../validators/coupon.validators";
 
 const router = Router();
 
-// Customer: view available active coupons
-router.get("/coupons/available", authenticate, blockGuest, requireRole(ROLES.CUSTOMER), listAvailableCoupons);
+// Customer & Admin: view available active coupons
+router.get("/coupons/available", authenticate, blockGuest, requireRole(ROLES.CUSTOMER, ROLES.ADMIN, ROLES.SUPER_ADMIN), listAvailableCoupons);
 
-// Customer: validate a code against the cart
-router.post("/coupons/validate", authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ body: validateCouponSchema }), validateCoupon);
+// Customer & Admin: validate a code against the cart
+router.post("/coupons/validate", authenticate, blockGuest, requireRole(ROLES.CUSTOMER, ROLES.ADMIN, ROLES.SUPER_ADMIN), validate({ body: validateCouponSchema }), validateCoupon);
 
 // Admin-only coupon management
 router.get("/coupons", authenticate, requirePermission(PERMISSIONS.COUPONS_READ), validate({ query: listCouponsQuerySchema }), listCoupons);
 router.post("/coupons", authenticate, requirePermission(PERMISSIONS.COUPONS_CREATE), validate({ body: createCouponSchema }), createCoupon);
+router.post("/coupons/test", authenticate, requirePermission(PERMISSIONS.COUPONS_READ), validate({ body: testCouponSchema }), testCoupon);
 router.patch("/coupons/:coupon_id", authenticate, requirePermission(PERMISSIONS.COUPONS_UPDATE), validate({ params: couponIdParamsSchema, body: updateCouponSchema }), updateCoupon);
 router.delete("/coupons/:coupon_id", authenticate, requirePermission(PERMISSIONS.COUPONS_DELETE), validate({ params: couponIdParamsSchema }), deleteCoupon);
 

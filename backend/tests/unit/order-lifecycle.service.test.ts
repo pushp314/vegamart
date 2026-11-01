@@ -22,6 +22,10 @@ jest.mock("../../src/services/earning.service", () => ({
   reverseOrderEarnings: jest.fn(),
 }));
 
+jest.mock("../../src/repositories/coupon.repository", () => ({
+  releaseUsage: jest.fn(),
+}));
+
 jest.mock("../../src/database/prisma", () => ({
   __esModule: true,
   default: { $transaction: jest.fn() },

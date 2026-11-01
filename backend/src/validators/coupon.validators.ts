@@ -63,5 +63,12 @@ export const validateCouponSchema = z.object({
     .optional(),
 }).strict();
 
+export const testCouponSchema = z.object({
+  code: z.string().trim().min(1, "code is required.").max(50),
+  order_value: z.coerce.number().min(0).optional().default(500),
+}).strict();
+
 export type CreateCouponBody = z.infer<typeof createCouponSchema>;
 export type UpdateCouponBody = z.infer<typeof updateCouponSchema>;
+export type TestCouponBody = z.infer<typeof testCouponSchema>;
+

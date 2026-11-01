@@ -5,13 +5,14 @@ jest.mock("../../src/database/prisma", () => ({
   default: {
     $queryRaw: jest.fn(),
     coupon: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    couponUsage: { findUnique: jest.fn(), delete: jest.fn() },
   },
 }));
 
 import prisma from "../../src/database/prisma";
-import { listAvailableForCustomer } from "../../src/repositories/coupon.repository";
+import { listAvailableForCustomer, releaseUsage, softDelete } from "../../src/repositories/coupon.repository";
 
-const db = prisma as jest.Mocked<typeof prisma> & { $queryRaw: jest.Mock };
+const db = prisma as any;
 
 const rawRow = {
   id: "c1",
@@ -68,3 +69,48 @@ describe("coupon repository — listAvailableForCustomer", () => {
     });
   });
 });
+
+describe("coupon repository — softDelete", () => {
+  it("renames code and sets deleted_at to allow reuse of the code", async () => {
+    db.coupon.findUnique.mockResolvedValue({ code: "WELCOME10" });
+    db.coupon.update.mockResolvedValue({});
+
+    await softDelete("c1");
+
+    expect(db.coupon.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: expect.objectContaining({
+        is_active: false,
+        code: expect.stringContaining("WELCOME10_del_"),
+      }),
+    });
+  });
+});
+
+describe("coupon repository — releaseUsage", () => {
+  it("deletes CouponUsage and decrements used_count when usage exists", async () => {
+    db.couponUsage.findUnique.mockResolvedValue({ id: "cu-1", coupon_id: "c1" });
+    db.couponUsage.delete.mockResolvedValue({});
+    db.coupon.update.mockResolvedValue({});
+
+    const released = await releaseUsage("order-1");
+
+    expect(released).toBe(true);
+    expect(db.couponUsage.delete).toHaveBeenCalledWith({ where: { id: "cu-1" } });
+    expect(db.coupon.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { used_count: { decrement: 1 } },
+    });
+  });
+
+  it("returns false when no CouponUsage exists for the order", async () => {
+    db.couponUsage.findUnique.mockResolvedValue(null);
+
+    const released = await releaseUsage("order-99");
+
+    expect(released).toBe(false);
+    expect(db.couponUsage.delete).not.toHaveBeenCalled();
+    expect(db.coupon.update).not.toHaveBeenCalled();
+  });
+});
+

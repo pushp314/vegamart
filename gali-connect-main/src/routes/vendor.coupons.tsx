@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Ticket, Lock, Plus } from "lucide-react";
+import { Loader2, Ticket, Lock, Plus, Trash2 } from "lucide-react";
 import { CreateCouponModal } from "@/components/vendor/CreateCouponModal";
 
 export const Route = createFileRoute("/vendor/coupons")({
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/vendor/coupons")({
 });
 
 function VendorCouponsPage() {
+  const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const { data: dashboardRes, isLoading: isDashboardLoading } = useQuery({
@@ -26,6 +28,25 @@ function VendorCouponsPage() {
     queryKey: ["vendorCoupons"],
     queryFn: () => api.get<any>("/vendors/me/coupons"),
     enabled: hasBusinessPlan,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/vendors/me/coupons/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vendorCoupons"] });
+      toast.success("Coupon deleted successfully");
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to delete coupon"),
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      api.patch(`/vendors/me/coupons/${id}`, { is_active }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vendorCoupons"] });
+      toast.success("Coupon status updated");
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to update coupon"),
   });
 
   const isLoading = isDashboardLoading || (hasBusinessPlan && isCouponsLoading);
@@ -122,6 +143,42 @@ function VendorCouponsPage() {
                       {new Date(coupon.valid_until).toLocaleDateString()}
                     </span>
                   </div>
+                  {coupon.max_discount != null && Number(coupon.max_discount) > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Max Cap:</span>
+                      <span className="font-bold text-foreground">₹{coupon.max_discount}</span>
+                    </div>
+                  )}
+                  {coupon.min_order_value != null && Number(coupon.min_order_value) > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Min Order:</span>
+                      <span className="font-bold text-foreground">₹{coupon.min_order_value}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="pt-3 mt-3 border-t flex items-center justify-between">
+                  <button
+                    onClick={() => toggleActiveMutation.mutate({ id: coupon.id, is_active: !coupon.is_active })}
+                    disabled={toggleActiveMutation.isPending}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                      coupon.is_active
+                        ? "text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                        : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    }`}
+                  >
+                    {coupon.is_active ? "Deactivate" : "Activate"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm("Are you sure you want to delete this coupon?")) {
+                        deleteMutation.mutate(coupon.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    Delete
+                  </button>
                 </div>
               </CardContent>
             </Card>

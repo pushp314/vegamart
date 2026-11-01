@@ -5,7 +5,7 @@ import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
 
 export const getOffers = asyncHandler(async (_req: Request, res: Response) => {
-  const { rows } = await couponRepo.listCoupons({ isActive: true }, 0, 10);
+  const rows = await couponRepo.listAvailableForCustomer(new Date());
   
   const offers = rows.map((coupon, i) => {
     let title = coupon.code;

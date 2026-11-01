@@ -5,6 +5,7 @@ import prisma from "../database/prisma";
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
 import * as productRepo from "../repositories/product.repository";
+import * as couponRepo from "../repositories/coupon.repository";
 import { paymentService } from "./payment.service";
 import { realtime } from "../realtime/realtime";
 import { reverseOrderEarnings } from "./earning.service";
@@ -181,6 +182,7 @@ export async function cancelOrderLifecycle(params: OrderLifecycleParams): Promis
     }
 
     await inventoryRepo.releaseQuantityForOrder(order.id, tx);
+    await couponRepo.releaseUsage(order.id, tx);
     return true;
   });
 

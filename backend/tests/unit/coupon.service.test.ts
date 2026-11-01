@@ -131,6 +131,14 @@ describe("coupon service", () => {
     expect(discount).toBe(100);
   });
 
+  it("does not cap percentage discount when max_discount is null or 0", () => {
+    const discountNull = couponService.computeDiscount(makeCoupon({ max_discount: null }), 5000);
+    expect(discountNull).toBe(500); // 10% of 5000 = 500
+
+    const discountZero = couponService.computeDiscount(makeCoupon({ max_discount: dec(0) }), 5000);
+    expect(discountZero).toBe(500); // 0 max_discount should not cap to 0
+  });
+
   it("computes a fixed discount", () => {
     const discount = couponService.computeDiscount(makeCoupon({ type: "FIXED", value: dec(50) }), 5000);
     expect(discount).toBe(50);
@@ -276,4 +284,64 @@ describe("coupon service", () => {
     expect(result.discount).toBe(100);
     expect(result.group_discounts).toEqual({ v1: 100 });
   });
+
+  describe("testCoupon diagnostic", () => {
+    it("reports not found when coupon does not exist", async () => {
+      repo.findByCode.mockResolvedValue(null);
+      const res = await couponService.testCoupon("UNKNOWN", 500);
+      expect(res.found).toBe(false);
+      expect(res.is_working).toBe(false);
+      expect(res.checks[0]?.passed).toBe(false);
+    });
+
+    it("evaluates a working coupon correctly and computes discount", async () => {
+      repo.findByCode.mockResolvedValue(
+        makeCoupon({
+          code: "SAVE20",
+          type: "PERCENTAGE",
+          value: dec(20),
+          min_order_value: dec(200),
+          max_discount: dec(50),
+          is_active: true,
+        })
+      );
+      const res = await couponService.testCoupon("SAVE20", 500);
+      expect(res.found).toBe(true);
+      expect(res.is_working).toBe(true);
+      expect(res.calculated_discount).toBe(50); // 20% of 500 = 100, capped at 50
+      expect(res.final_amount).toBe(450);
+      expect(res.checks.every((c) => c.passed)).toBe(true);
+    });
+
+    it("flags an inactive coupon as not working", async () => {
+      repo.findByCode.mockResolvedValue(
+        makeCoupon({
+          code: "OFF",
+          is_active: false,
+        })
+      );
+      const res = await couponService.testCoupon("OFF", 500);
+      expect(res.found).toBe(true);
+      expect(res.is_working).toBe(false);
+      const activeCheck = res.checks.find((c) => c.name === "Active Status");
+      expect(activeCheck?.passed).toBe(false);
+    });
+
+    it("flags order value below minimum order value", async () => {
+      repo.findByCode.mockResolvedValue(
+        makeCoupon({
+          code: "BIGSPENDER",
+          min_order_value: dec(1000),
+          is_active: true,
+        })
+      );
+      const res = await couponService.testCoupon("BIGSPENDER", 200);
+      expect(res.found).toBe(true);
+      expect(res.is_working).toBe(false);
+      const minCheck = res.checks.find((c) => c.name === "Minimum Order Value");
+      expect(minCheck?.passed).toBe(false);
+      expect(res.calculated_discount).toBe(0);
+    });
+  });
 });
+

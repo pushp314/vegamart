@@ -259,3 +259,19 @@ export const validateCoupon = asyncHandler(async (req: Request, res: Response) =
     valid: true,
   });
 });
+
+/**
+ * @swagger
+ * /coupons/test:
+ *   post:
+ *     summary: Run a comprehensive diagnostic test on a coupon (admin)
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Coupons]
+ */
+export const testCoupon = asyncHandler(async (req: Request, res: Response) => {
+  const { code, order_value } = req.body as { code: string; order_value?: number };
+  const result = await couponService.testCoupon(code, order_value ?? 500);
+  return sendSuccess(res, result);
+});
+

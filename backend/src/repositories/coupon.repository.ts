@@ -214,11 +214,44 @@ export async function updateCoupon(id: string, data: Prisma.CouponUpdateInput): 
 }
 
 export async function softDelete(id: string): Promise<void> {
+  const existing = await prisma.coupon.findUnique({ where: { id }, select: { code: true } });
+  const suffix = `_del_${Date.now()}`;
+  const newCode = existing ? (existing.code.slice(0, 50 - suffix.length) + suffix) : undefined;
   await prisma.coupon.update({
     where: { id },
-    data: { deleted_at: new Date(), is_active: false },
+    data: {
+      deleted_at: new Date(),
+      is_active: false,
+      ...(newCode ? { code: newCode } : {}),
+    },
   });
 }
+
+/**
+ * Reverts a claimed coupon usage when an order is cancelled or refunded.
+ * Deletes the CouponUsage row and decrements the coupon's used_count, restoring
+ * the customer's per_user_limit and the coupon's overall usage quota.
+ */
+export async function releaseUsage(orderId: string, db: DbClient = prisma): Promise<boolean> {
+  if (!db || !db.couponUsage) {
+    return false;
+  }
+  const usage = await db.couponUsage.findUnique({
+    where: { order_id: orderId },
+  });
+  if (!usage) {
+    return false;
+  }
+  await db.couponUsage.delete({
+    where: { id: usage.id },
+  });
+  await db.coupon.update({
+    where: { id: usage.coupon_id },
+    data: { used_count: { decrement: 1 } },
+  });
+  return true;
+}
+
 
 async function runClaim(
   db: DbClient,

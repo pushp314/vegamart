@@ -77,8 +77,8 @@ export const couponService = {
       code: input.code.toUpperCase(),
       type: input.type,
       value: input.value,
-      max_discount: input.max_discount ?? null,
-      min_order_value: input.min_order_value ?? null,
+      max_discount: (input.max_discount && input.max_discount > 0) ? input.max_discount : null,
+      min_order_value: (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null,
       usage_limit: input.usage_limit ?? 0,
       per_user_limit: input.per_user_limit ?? 1,
       valid_from: input.valid_from,
@@ -109,8 +109,8 @@ export const couponService = {
     if (input.code !== undefined) data.code = input.code.toUpperCase();
     if (input.type !== undefined) data.type = input.type;
     if (input.value !== undefined) data.value = input.value;
-    if (input.max_discount !== undefined) data.max_discount = input.max_discount;
-    if (input.min_order_value !== undefined) data.min_order_value = input.min_order_value;
+    if (input.max_discount !== undefined) data.max_discount = (input.max_discount && input.max_discount > 0) ? input.max_discount : null;
+    if (input.min_order_value !== undefined) data.min_order_value = (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null;
     if (input.usage_limit !== undefined) data.usage_limit = input.usage_limit;
     if (input.per_user_limit !== undefined) data.per_user_limit = input.per_user_limit;
     if (input.valid_from !== undefined) data.valid_from = input.valid_from;
@@ -145,8 +145,8 @@ export const couponService = {
       code: input.code.toUpperCase(),
       type: input.type,
       value: input.value,
-      max_discount: input.max_discount ?? null,
-      min_order_value: input.min_order_value ?? null,
+      max_discount: (input.max_discount && input.max_discount > 0) ? input.max_discount : null,
+      min_order_value: (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null,
       usage_limit: input.usage_limit ?? 0,
       per_user_limit: input.per_user_limit ?? 1,
       valid_from: input.valid_from,
@@ -179,8 +179,8 @@ export const couponService = {
     if (input.code !== undefined) data.code = input.code.toUpperCase();
     if (input.type !== undefined) data.type = input.type;
     if (input.value !== undefined) data.value = input.value;
-    if (input.max_discount !== undefined) data.max_discount = input.max_discount;
-    if (input.min_order_value !== undefined) data.min_order_value = input.min_order_value;
+    if (input.max_discount !== undefined) data.max_discount = (input.max_discount && input.max_discount > 0) ? input.max_discount : null;
+    if (input.min_order_value !== undefined) data.min_order_value = (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null;
     if (input.usage_limit !== undefined) data.usage_limit = input.usage_limit;
     if (input.per_user_limit !== undefined) data.per_user_limit = input.per_user_limit;
     if (input.valid_from !== undefined) data.valid_from = input.valid_from;
@@ -249,7 +249,7 @@ export const couponService = {
 
     const { eligibleSubtotal, vendorSubtotals } = this.computeEligibility(coupon, cart);
 
-    if (coupon.min_order_value !== null && eligibleSubtotal < coupon.min_order_value.toNumber()) {
+    if (coupon.min_order_value !== null && coupon.min_order_value.toNumber() > 0 && eligibleSubtotal < coupon.min_order_value.toNumber()) {
       throw new ApiError(HttpStatus.BAD_REQUEST, `Minimum order value for this coupon is ₹${coupon.min_order_value.toFixed(2)}.`, { code: "MIN_ORDER_VALUE" });
     }
 
@@ -346,9 +346,131 @@ export const couponService = {
     } else {
       discount = coupon.value.toNumber();
     }
-    if (coupon.max_discount !== null) {
+    if (coupon.max_discount !== null && coupon.max_discount.toNumber() > 0) {
       discount = Math.min(discount, coupon.max_discount.toNumber());
     }
     return Math.round(Math.min(discount, subtotal) * 100) / 100;
+  },
+
+  /**
+   * Diagnostic test for admins to verify if a coupon is working, why it might
+   * fail, and the exact discount it produces for a given order value.
+   */
+  async testCoupon(code: string, orderValue: number = 500) {
+    const coupon = await couponRepo.findByCode(code.toUpperCase());
+    if (!coupon) {
+      return {
+        found: false,
+        code: code.toUpperCase(),
+        is_working: false,
+        summary_message: `Coupon "${code.toUpperCase()}" does not exist in the database.`,
+        checks: [
+          { name: "Existence", passed: false, message: "Coupon code not found in database.", severity: "error" },
+        ],
+      };
+    }
+
+    const now = new Date();
+    const checks: Array<{ name: string; passed: boolean; message: string; severity: "error" | "warning" | "success" }> = [];
+
+    // 1. Found in DB
+    checks.push({ name: "Existence", passed: true, message: `Found coupon code "${coupon.code}".`, severity: "success" });
+
+    // 2. Active status
+    if (!coupon.is_active) {
+      checks.push({ name: "Active Status", passed: false, message: "Coupon is currently deactivated (Inactive).", severity: "error" });
+    } else {
+      checks.push({ name: "Active Status", passed: true, message: "Coupon is Active.", severity: "success" });
+    }
+
+    // 3. Validity Window
+    if (now < coupon.valid_from) {
+      checks.push({ name: "Validity Window", passed: false, message: `Coupon is not valid yet (starts ${new Date(coupon.valid_from).toLocaleDateString()}).`, severity: "error" });
+    } else if (now > coupon.valid_until) {
+      checks.push({ name: "Validity Window", passed: false, message: `Coupon expired on ${new Date(coupon.valid_until).toLocaleDateString()}.`, severity: "error" });
+    } else {
+      checks.push({ name: "Validity Window", passed: true, message: `Valid until ${new Date(coupon.valid_until).toLocaleDateString()}.`, severity: "success" });
+    }
+
+    // 4. Usage limit
+    if (coupon.usage_limit > 0 && coupon.used_count >= coupon.usage_limit) {
+      checks.push({ name: "Usage Limit", passed: false, message: `Coupon usage limit reached (${coupon.used_count} of ${coupon.usage_limit} used).`, severity: "error" });
+    } else if (coupon.usage_limit > 0) {
+      checks.push({ name: "Usage Limit", passed: true, message: `${coupon.used_count} of ${coupon.usage_limit} claims used (${coupon.usage_limit - coupon.used_count} remaining).`, severity: "success" });
+    } else {
+      checks.push({ name: "Usage Limit", passed: true, message: `Unlimited global uses allowed (${coupon.used_count} redeemed so far).`, severity: "success" });
+    }
+
+    // 5. Min Order Value
+    const minOrder = coupon.min_order_value ? coupon.min_order_value.toNumber() : 0;
+    if (minOrder > 0 && orderValue < minOrder) {
+      checks.push({ name: "Minimum Order Value", passed: false, message: `Simulated order ₹${orderValue} is below the required minimum ₹${minOrder}.`, severity: "error" });
+    } else if (minOrder > 0) {
+      checks.push({ name: "Minimum Order Value", passed: true, message: `Order value ₹${orderValue} meets minimum order threshold of ₹${minOrder}.`, severity: "success" });
+    } else {
+      checks.push({ name: "Minimum Order Value", passed: true, message: "No minimum order requirement (applies to any cart amount).", severity: "success" });
+    }
+
+    // 6. Restrictions
+    const vendorRestrictions = parseCsv(coupon.applies_to_vendor_ids);
+    const productRestrictions = parseCsv(coupon.applies_to_product_ids);
+    const categoryRestrictions = parseCsv(coupon.applies_to_category_ids);
+    const hasRestrictions = vendorRestrictions.length > 0 || productRestrictions.length > 0 || categoryRestrictions.length > 0;
+    if (hasRestrictions) {
+      checks.push({
+        name: "Restrictions",
+        passed: true,
+        message: `Restricted to: ${[
+          vendorRestrictions.length ? `${vendorRestrictions.length} vendor(s)` : null,
+          productRestrictions.length ? `${productRestrictions.length} product(s)` : null,
+          categoryRestrictions.length ? `${categoryRestrictions.length} category(ies)` : null,
+        ].filter(Boolean).join(", ")}.`,
+        severity: "warning",
+      });
+    } else {
+      checks.push({ name: "Restrictions", passed: true, message: "Store-wide (applies to all products & stores).", severity: "success" });
+    }
+
+    const isFreeDelivery = coupon.type === "FREE_DELIVERY";
+    const allCriticalPassed = checks.every((c) => c.passed);
+    // Calculate discount for simulated order only if eligible
+    const discount = allCriticalPassed ? this.computeDiscount(coupon, orderValue) : 0;
+
+    let summary_message = "";
+    if (!allCriticalPassed) {
+      const failed = checks.filter((c) => !c.passed).map((c) => c.message).join(" ");
+      summary_message = `Issue detected: ${failed}`;
+    } else if (isFreeDelivery) {
+      summary_message = `Coupon "${coupon.code}" is 100% WORKING! Waives delivery fee for qualifying orders.`;
+    } else {
+      summary_message = `Coupon "${coupon.code}" is 100% WORKING! Gives ₹${discount.toFixed(2)} discount on a ₹${orderValue.toFixed(2)} order.`;
+    }
+
+    return {
+      found: true,
+      code: coupon.code,
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        type: coupon.type,
+        value: Number(coupon.value),
+        max_discount: coupon.max_discount ? Number(coupon.max_discount) : null,
+        min_order_value: coupon.min_order_value ? Number(coupon.min_order_value) : null,
+        usage_limit: coupon.usage_limit,
+        per_user_limit: coupon.per_user_limit,
+        used_count: coupon.used_count,
+        valid_from: coupon.valid_from,
+        valid_until: coupon.valid_until,
+        is_active: coupon.is_active,
+        created_by_vendor_id: coupon.created_by_vendor_id,
+      },
+      test_order_value: orderValue,
+      calculated_discount: discount,
+      final_amount: Math.max(0, orderValue - discount),
+      is_free_delivery: isFreeDelivery,
+      is_working: allCriticalPassed,
+      summary_message,
+      checks,
+    };
   },
 };
