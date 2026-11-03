@@ -130,9 +130,16 @@ export type Coupon = {
   min_order_value: number | null;
   usage_limit: number;
   per_user_limit: number;
+  used_count?: number;
   valid_from: string;
   valid_until: string;
   is_active: boolean;
+  applies_to_vendor_ids?: string | null;
+  applies_to_product_ids?: string | null;
+  applies_to_category_ids?: string | null;
+  created_by_vendor_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 /** Shape returned by POST /coupons/validate. */

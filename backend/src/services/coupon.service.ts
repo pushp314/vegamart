@@ -100,17 +100,35 @@ export const couponService = {
     const existing = await this.assertVendorOwns(vendorId, id);
     if (input.code && input.code.toUpperCase() !== existing.code) {
       const dup = await couponRepo.findByCode(input.code.toUpperCase());
-      if (dup) {
+      if (dup && dup.id !== id) {
         throw new ApiError(HttpStatus.CONFLICT, "Coupon code already exists.", { code: "CONFLICT" });
       }
+    }
+
+    const effectiveType = input.type ?? existing.type;
+    const effectiveValidFrom = input.valid_from ?? existing.valid_from;
+    const effectiveValidUntil = input.valid_until ?? existing.valid_until;
+    if (effectiveValidUntil <= effectiveValidFrom) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Expiry date (valid_until) must be after start date (valid_from).", { code: "INVALID_DATE_RANGE" });
     }
 
     const data: Record<string, unknown> = {};
     if (input.code !== undefined) data.code = input.code.toUpperCase();
     if (input.type !== undefined) data.type = input.type;
-    if (input.value !== undefined) data.value = input.value;
-    if (input.max_discount !== undefined) data.max_discount = (input.max_discount && input.max_discount > 0) ? input.max_discount : null;
-    if (input.min_order_value !== undefined) data.min_order_value = (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null;
+
+    if (effectiveType === "FREE_DELIVERY") {
+      data.value = 0;
+      data.max_discount = null;
+    } else {
+      if (input.value !== undefined) data.value = input.value;
+      if (input.max_discount !== undefined) {
+        data.max_discount = (input.max_discount && input.max_discount > 0) ? input.max_discount : null;
+      }
+    }
+
+    if (input.min_order_value !== undefined) {
+      data.min_order_value = (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null;
+    }
     if (input.usage_limit !== undefined) data.usage_limit = input.usage_limit;
     if (input.per_user_limit !== undefined) data.per_user_limit = input.per_user_limit;
     if (input.valid_from !== undefined) data.valid_from = input.valid_from;
@@ -170,17 +188,35 @@ export const couponService = {
     }
     if (input.code && input.code.toUpperCase() !== existing.code) {
       const dup = await couponRepo.findByCode(input.code.toUpperCase());
-      if (dup) {
+      if (dup && dup.id !== id) {
         throw new ApiError(HttpStatus.CONFLICT, "Coupon code already exists.", { code: "CONFLICT" });
       }
+    }
+
+    const effectiveType = input.type ?? existing.type;
+    const effectiveValidFrom = input.valid_from ?? existing.valid_from;
+    const effectiveValidUntil = input.valid_until ?? existing.valid_until;
+    if (effectiveValidUntil <= effectiveValidFrom) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Expiry date (valid_until) must be after start date (valid_from).", { code: "INVALID_DATE_RANGE" });
     }
 
     const data: Record<string, unknown> = {};
     if (input.code !== undefined) data.code = input.code.toUpperCase();
     if (input.type !== undefined) data.type = input.type;
-    if (input.value !== undefined) data.value = input.value;
-    if (input.max_discount !== undefined) data.max_discount = (input.max_discount && input.max_discount > 0) ? input.max_discount : null;
-    if (input.min_order_value !== undefined) data.min_order_value = (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null;
+
+    if (effectiveType === "FREE_DELIVERY") {
+      data.value = 0;
+      data.max_discount = null;
+    } else {
+      if (input.value !== undefined) data.value = input.value;
+      if (input.max_discount !== undefined) {
+        data.max_discount = (input.max_discount && input.max_discount > 0) ? input.max_discount : null;
+      }
+    }
+
+    if (input.min_order_value !== undefined) {
+      data.min_order_value = (input.min_order_value && input.min_order_value > 0) ? input.min_order_value : null;
+    }
     if (input.usage_limit !== undefined) data.usage_limit = input.usage_limit;
     if (input.per_user_limit !== undefined) data.per_user_limit = input.per_user_limit;
     if (input.valid_from !== undefined) data.valid_from = input.valid_from;

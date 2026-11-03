@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Product, Vendor, CouponValidation } from "@/types";
-import { api } from "@/lib/api";
+import { api, formatErrorMessage } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
 import { Store, AlertTriangle, Trash2, ArrowRight } from "lucide-react";
@@ -284,8 +284,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // guests, who cannot call the preview endpoint.
   const previewRes = useQuery({
     queryKey: ["checkout-preview", items, appliedCoupon],
-    queryFn: () =>
-      api.post<{
+    queryFn: async () => {
+      const res = await api.post<{
         items_subtotal?: number;
         delivery_fee?: number;
         tax?: number;
@@ -295,15 +295,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }>("/checkout/preview", {
         coupon_code: appliedCoupon ?? undefined,
         items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
-      }),
+      });
+      if (!res.success) {
+        throw new Error(formatErrorMessage(res.error, "Preview failed"));
+      }
+      return res.data;
+    },
     enabled: canPreview,
+    retry: false,
   });
-  const preview = previewRes?.data?.data;
+  const preview = previewRes?.data;
 
   // Keep applied coupon synchronized with authoritative server calculations
   useEffect(() => {
-    if (previewRes.data?.data) {
-      const p = previewRes.data.data;
+    if (previewRes.data) {
+      const p = previewRes.data;
       if (p.coupon) {
         setCouponDiscount(Number(p.discount ?? 0));
         setAppliedCouponData({
@@ -311,9 +317,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           type: p.coupon.type,
           discount: Number(p.discount ?? 0),
         });
+      } else if (!appliedCoupon) {
+        setCouponDiscount(0);
+        setAppliedCouponData(null);
       }
     }
-  }, [previewRes.data]);
+  }, [previewRes.data, appliedCoupon]);
 
   // If cart changes drop below coupon criteria (e.g. min order), automatically remove it and inform the user
   useEffect(() => {

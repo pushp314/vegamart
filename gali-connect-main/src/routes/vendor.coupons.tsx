@@ -14,6 +14,7 @@ export const Route = createFileRoute("/vendor/coupons")({
 function VendorCouponsPage() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
 
   const { data: dashboardRes, isLoading: isDashboardLoading } = useQuery({
     queryKey: ["vendorDashboard"],
@@ -97,14 +98,24 @@ function VendorCouponsPage() {
           <p className="text-sm text-muted-foreground">Manage your store's promotional codes.</p>
         </div>
         <button
-          onClick={() => setIsCreateOpen(true)}
+          onClick={() => {
+            setEditingCoupon(null);
+            setIsCreateOpen(true);
+          }}
           className="flex items-center gap-2 rounded-xl bg-amber-500 text-slate-950 px-4 py-2 text-sm font-bold shadow-md hover:bg-amber-400"
         >
           <Plus className="h-4 w-4" /> Create Coupon
         </button>
       </div>
 
-      <CreateCouponModal open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+      <CreateCouponModal
+        open={isCreateOpen}
+        onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) setEditingCoupon(null);
+        }}
+        coupon={editingCoupon}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {coupons.length > 0 ? (
@@ -157,17 +168,28 @@ function VendorCouponsPage() {
                   )}
                 </div>
                 <div className="pt-3 mt-3 border-t flex items-center justify-between">
-                  <button
-                    onClick={() => toggleActiveMutation.mutate({ id: coupon.id, is_active: !coupon.is_active })}
-                    disabled={toggleActiveMutation.isPending}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                      coupon.is_active
-                        ? "text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                        : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                    }`}
-                  >
-                    {coupon.is_active ? "Deactivate" : "Activate"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingCoupon(coupon);
+                        setIsCreateOpen(true);
+                      }}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-border hover:bg-muted transition-colors text-foreground"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => toggleActiveMutation.mutate({ id: coupon.id, is_active: !coupon.is_active })}
+                      disabled={toggleActiveMutation.isPending}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                        coupon.is_active
+                          ? "text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                          : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                      }`}
+                    >
+                      {coupon.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                  </div>
                   <button
                     onClick={() => {
                       if (confirm("Are you sure you want to delete this coupon?")) {

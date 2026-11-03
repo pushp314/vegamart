@@ -343,5 +343,60 @@ describe("coupon service", () => {
       expect(res.calculated_discount).toBe(0);
     });
   });
+
+  describe("coupon update", () => {
+    it("updates coupon code and values successfully", async () => {
+      const existing = makeCoupon({ id: "c1", code: "OLD10" });
+      repo.findById.mockResolvedValue(existing);
+      repo.findByCode.mockResolvedValue(null);
+      repo.updateCoupon.mockResolvedValue(makeCoupon({ id: "c1", code: "NEW20", value: dec(20) }));
+
+      const res = await couponService.update("c1", { code: "NEW20", value: 20 }, mockReq);
+      expect(repo.updateCoupon).toHaveBeenCalledWith("c1", expect.objectContaining({ code: "NEW20", value: 20 }));
+      expect(res.code).toBe("NEW20");
+    });
+
+    it("throws 409 when updating to a code taken by another coupon", async () => {
+      repo.findById.mockResolvedValue(makeCoupon({ id: "c1", code: "OLD10" }));
+      repo.findByCode.mockResolvedValue(makeCoupon({ id: "c2", code: "TAKEN" }));
+
+      await expect(couponService.update("c1", { code: "TAKEN" }, mockReq)).rejects.toMatchObject({
+        statusCode: 409,
+      });
+    });
+
+    it("allows updating other fields without conflict when code is unchanged", async () => {
+      repo.findById.mockResolvedValue(makeCoupon({ id: "c1", code: "SAME10" }));
+      repo.findByCode.mockResolvedValue(makeCoupon({ id: "c1", code: "SAME10" }));
+      repo.updateCoupon.mockResolvedValue(makeCoupon({ id: "c1", code: "SAME10", value: dec(15) }));
+
+      await couponService.update("c1", { code: "SAME10", value: 15 }, mockReq);
+      expect(repo.updateCoupon).toHaveBeenCalledWith("c1", expect.objectContaining({ code: "SAME10", value: 15 }));
+    });
+
+    it("resets value to 0 and clears max_discount when updating type to FREE_DELIVERY", async () => {
+      repo.findById.mockResolvedValue(makeCoupon({ id: "c1", type: "PERCENTAGE", value: dec(20), max_discount: dec(100) }));
+      repo.updateCoupon.mockResolvedValue(makeCoupon({ id: "c1", type: "FREE_DELIVERY", value: dec(0), max_discount: null }));
+
+      await couponService.update("c1", { type: "FREE_DELIVERY" }, mockReq);
+      expect(repo.updateCoupon).toHaveBeenCalledWith(
+        "c1",
+        expect.objectContaining({ type: "FREE_DELIVERY", value: 0, max_discount: null })
+      );
+    });
+
+    it("throws 400 when updated valid_until is before valid_from", async () => {
+      repo.findById.mockResolvedValue(
+        makeCoupon({ id: "c1", valid_from: new Date("2026-11-01"), valid_until: new Date("2026-12-01") })
+      );
+
+      await expect(
+        couponService.update("c1", { valid_until: new Date("2026-10-01") }, mockReq)
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: "INVALID_DATE_RANGE",
+      });
+    });
+  });
 });
 

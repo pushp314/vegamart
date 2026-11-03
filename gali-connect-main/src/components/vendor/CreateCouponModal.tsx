@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Ticket } from "lucide-react";
-import { api } from "@/lib/api";
+import { Loader2, Ticket, Pencil } from "lucide-react";
+import { api, formatErrorMessage } from "@/lib/api";
 
 interface CreateCouponModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  coupon?: any | null;
 }
 
 const COUPON_TYPES = [
@@ -17,6 +18,14 @@ const COUPON_TYPES = [
   { value: "FIXED", label: "Fixed Amount (₹)" },
   { value: "FREE_DELIVERY", label: "Free Delivery" },
 ];
+
+function formatDateTimeLocal(dateString?: string | null): string {
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const defaultForm = {
   code: "",
@@ -30,52 +39,86 @@ const defaultForm = {
   valid_until: "",
 };
 
-export function CreateCouponModal({ open, onOpenChange }: CreateCouponModalProps) {
+export function CreateCouponModal({ open, onOpenChange, coupon }: CreateCouponModalProps) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(defaultForm);
+  const isEditing = Boolean(coupon?.id);
+
+  useEffect(() => {
+    if (coupon) {
+      setForm({
+        code: coupon.code || "",
+        type: coupon.type || "PERCENTAGE",
+        value: coupon.type === "FREE_DELIVERY" ? "0" : String(coupon.value ?? ""),
+        max_discount: coupon.max_discount != null && Number(coupon.max_discount) > 0 ? String(coupon.max_discount) : "",
+        min_order_value: coupon.min_order_value != null && Number(coupon.min_order_value) > 0 ? String(coupon.min_order_value) : "",
+        usage_limit: coupon.usage_limit && coupon.usage_limit > 0 ? String(coupon.usage_limit) : "",
+        per_user_limit: coupon.per_user_limit ? String(coupon.per_user_limit) : "1",
+        valid_from: formatDateTimeLocal(coupon.valid_from),
+        valid_until: formatDateTimeLocal(coupon.valid_until),
+      });
+    } else {
+      setForm(defaultForm);
+    }
+  }, [coupon, open]);
 
   const setField = (key: keyof typeof defaultForm, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const mutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.post("/vendors/me/coupons", data),
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = isEditing
+        ? await api.patch(`/vendors/me/coupons/${coupon.id}`, data)
+        : await api.post("/vendors/me/coupons", data);
+      if (!res.success) {
+        throw new Error(formatErrorMessage(res.error, isEditing ? "Failed to update coupon" : "Failed to create coupon"));
+      }
+      return res.data;
+    },
     onSuccess: () => {
-      toast.success("Coupon created successfully");
+      toast.success(isEditing ? "Coupon updated successfully" : "Coupon created successfully");
       queryClient.invalidateQueries({ queryKey: ["vendorCoupons"] });
       setForm(defaultForm);
       onOpenChange(false);
     },
-    onError: (error: { message?: string }) => {
-      toast.error(error?.message || "Failed to create coupon");
+    onError: (error: any) => {
+      toast.error(error?.message || (isEditing ? "Failed to update coupon" : "Failed to create coupon"));
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.code.trim()) {
+    const cleanCode = form.code.trim().toUpperCase();
+    if (!cleanCode) {
       toast.error("Coupon code is required");
       return;
     }
-    if (form.value === "" || form.value === undefined) {
-      toast.error("Discount value is required");
-      return;
+
+    let val = 0;
+    if (form.type !== "FREE_DELIVERY") {
+      if (form.value === "" || form.value === undefined || isNaN(Number(form.value)) || Number(form.value) <= 0) {
+        toast.error("Valid discount value is required");
+        return;
+      }
+      val = Number(form.value);
     }
-    if (!form.valid_from || !form.valid_until) {
-      toast.error("Validity dates are required");
-      return;
-    }
-    if (new Date(form.valid_until) <= new Date(form.valid_from)) {
-      toast.error("Valid until must be after valid from");
-      return;
+
+    if (form.valid_from && form.valid_until) {
+      if (new Date(form.valid_until) <= new Date(form.valid_from)) {
+        toast.error("Valid until must be after valid from");
+        return;
+      }
     }
 
     const payload: Record<string, unknown> = {
-      code: form.code.trim().toUpperCase(),
+      code: cleanCode,
       type: form.type,
-      value: Number(form.value),
-      valid_from: new Date(form.valid_from).toISOString(),
-      valid_until: new Date(form.valid_until).toISOString(),
-      max_discount: form.max_discount ? Number(form.max_discount) : null,
+      value: val,
+      valid_from: form.valid_from ? new Date(form.valid_from).toISOString() : new Date(Date.now() - 60000).toISOString(),
+      valid_until: form.valid_until
+        ? new Date(form.valid_until).toISOString()
+        : new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+      max_discount: form.type === "PERCENTAGE" && form.max_discount ? Number(form.max_discount) : null,
       min_order_value: form.min_order_value ? Number(form.min_order_value) : null,
       usage_limit: form.usage_limit ? Number(form.usage_limit) : 0,
       per_user_limit: form.per_user_limit ? Number(form.per_user_limit) : 1,
@@ -88,7 +131,15 @@ export function CreateCouponModal({ open, onOpenChange }: CreateCouponModalProps
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Ticket className="h-5 w-5 text-amber-500" /> Create Coupon
+            {isEditing ? (
+              <>
+                <Pencil className="h-5 w-5 text-amber-500" /> Edit Coupon: {coupon?.code}
+              </>
+            ) : (
+              <>
+                <Ticket className="h-5 w-5 text-amber-500" /> Create Coupon
+              </>
+            )}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
@@ -128,16 +179,22 @@ export function CreateCouponModal({ open, onOpenChange }: CreateCouponModalProps
                   ? "Discount (%) *"
                   : form.type === "FIXED"
                     ? "Discount (₹) *"
-                    : "Discount (optional)"}
+                    : "Delivery Benefit"}
               </label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.value}
-                onChange={(e) => setField("value", e.target.value)}
-                placeholder={form.type === "FREE_DELIVERY" ? "0" : "e.g. 10"}
-              />
+              {form.type === "FREE_DELIVERY" ? (
+                <div className="h-10 px-3 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/30 flex items-center text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  🚚 100% Free Delivery (₹0 Fee)
+                </div>
+              ) : (
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.value}
+                  onChange={(e) => setField("value", e.target.value)}
+                  placeholder={form.type === "PERCENTAGE" ? "e.g. 10 for 10%" : "e.g. 50 for ₹50"}
+                />
+              )}
             </div>
           </div>
 
@@ -237,8 +294,10 @@ export function CreateCouponModal({ open, onOpenChange }: CreateCouponModalProps
             >
               {mutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Creating...
+                  <Loader2 className="h-4 w-4 animate-spin" /> {isEditing ? "Saving..." : "Creating..."}
                 </>
+              ) : isEditing ? (
+                "Save Changes"
               ) : (
                 "Create Coupon"
               )}
