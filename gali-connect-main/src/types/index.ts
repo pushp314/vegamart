@@ -1,5 +1,41 @@
 export type VendorStatus = "pending" | "approved" | "rejected" | "suspended";
 
+export type DayOfWeek =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export interface StoreDaySchedule {
+  isOpen: boolean;
+  open: string;
+  close: string;
+}
+
+export interface StoreScheduleConfig {
+  timezone?: string;
+  useSameHours?: boolean;
+  defaultOpen?: string;
+  defaultClose?: string;
+  days: Record<DayOfWeek, StoreDaySchedule>;
+}
+
+export interface StoreAvailability {
+  isOpen: boolean;
+  reason: "MANUAL" | "SCHEDULE" | "FORCE_OPEN" | "FORCE_CLOSE" | "TEMPORARY_CLOSE";
+  statusText: string;
+  displayMessage: string;
+  nextOpenTime: string | null;
+  nextCloseTime: string | null;
+  autoScheduleEnabled: boolean;
+  manualOverrideStatus?: string | null;
+  manualOverrideUntil?: string | null;
+  todaySchedule?: StoreDaySchedule | null;
+}
+
 export type VendorProfile = {
   vendor_id: string;
   description?: string;
@@ -20,6 +56,11 @@ export type VendorProfile = {
   rating: number;
   review_count: number;
   is_open: boolean;
+  auto_schedule_enabled?: boolean;
+  store_schedule?: StoreScheduleConfig;
+  manual_override_status?: string | null;
+  manual_override_until?: string | null;
+  store_availability?: StoreAvailability;
   provides_delivery?: boolean;
   phone?: string;
   owner_name: string;
@@ -54,6 +95,11 @@ export type Vendor = {
   profile?: VendorProfile;
   provides_delivery?: boolean;
   is_open?: boolean;
+  auto_schedule_enabled?: boolean;
+  store_schedule?: StoreScheduleConfig;
+  manual_override_status?: string | null;
+  manual_override_until?: string | null;
+  store_availability?: StoreAvailability;
   distance_km?: number;
   eta_min?: number;
   free_delivery_min_order?: number;

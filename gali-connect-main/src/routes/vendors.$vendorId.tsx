@@ -17,6 +17,8 @@ import {
   AlertTriangle,
   Bike,
   ChevronDown,
+  Search,
+  X,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -153,18 +155,35 @@ function VendorDetail() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const PAGE_SIZE = 100;
+
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const {
     data: productsRes,
     isLoading,
     isFetching: isFetchingMore,
   } = useQuery({
-    queryKey: ["products", { vendor_id: vendor.id }, page],
-    queryFn: () =>
-      api.get<Product[]>(
-        `/products?vendor_id=${vendor.id}&per_page=${PAGE_SIZE}&page=${page}`,
-      ),
+    queryKey: ["products", { vendor_id: vendor.id, q: debouncedSearch }, page],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("vendor_id", vendor.id);
+      params.set("per_page", String(PAGE_SIZE));
+      params.set("page", String(page));
+      if (debouncedSearch) {
+        params.set("q", debouncedSearch);
+      }
+      return api.get<Product[]>(`/products?${params.toString()}`);
+    },
     placeholderData: (previousData) => previousData,
   });
 
@@ -237,7 +256,16 @@ function VendorDetail() {
   const phone = profile.phone || (vendor as any).phone || null;
   const isRoaming =
     profile.vendor_type === "roaming" || profile.roaming === true || profile.roaming === "true";
-  const isOpen = profile.is_open ?? (vendor as any)?.is_open ?? true;
+  const availability = (vendor as any)?.store_availability || (profile as any)?.store_availability;
+  const isOpen = availability ? availability.isOpen : (profile.is_open ?? (vendor as any)?.is_open ?? true);
+  const closedMessage = availability?.displayMessage || (
+    availability?.nextOpenTime
+      ? `This store is currently closed. Opens at ${availability.nextOpenTime}.`
+      : "This store is currently closed."
+  );
+  const openMessage = availability?.nextCloseTime
+    ? `Closes at ${availability.nextCloseTime}`
+    : "Accepting Orders";
 
   // Fetch daily location for this vendor (must be after isRoaming declaration)
   const { data: dailyLocRes } = useQuery({
@@ -331,8 +359,8 @@ function VendorDetail() {
                 ? "🟢 LIVE ROAMING CART"
                 : "🔴 CART OFFLINE"
               : isOpen
-                ? "🟢 STORE OPEN NOW"
-                : "🔴 STORE CLOSED"}
+                ? `🟢 STORE OPEN NOW${availability?.nextCloseTime ? ` • Closes at ${availability.nextCloseTime}` : ""}`
+                : `🔴 STORE CLOSED${availability?.nextOpenTime ? ` • Opens at ${availability.nextOpenTime}` : ""}`}
           </span>
         </div>
 
@@ -433,6 +461,15 @@ function VendorDetail() {
                       profile.delivery_configs?.estimated_delivery_time ||
                       "20-30 mins"}
                   </span>
+
+                  {availability?.todaySchedule && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+                      <Clock className="h-3 w-3 text-emerald-600" />{" "}
+                      {availability.todaySchedule.is_closed
+                        ? "Closed Today"
+                        : `${availability.todaySchedule.open_time} - ${availability.todaySchedule.close_time}`}
+                    </span>
+                  )}
 
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
                     <Bike className="h-3 w-3 text-emerald-600" /> Max {deliveryRadiusKm} km Radius
@@ -568,13 +605,48 @@ function VendorDetail() {
 
         {/* Available Products Catalog */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          {/* Store Closed Warning Banner */}
+          {!isOpen && (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-800 dark:text-rose-200 flex items-center gap-3 shadow-xs">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600" />
+              <div>
+                <p className="text-sm font-bold">{closedMessage}</p>
+                <p className="text-xs text-rose-700/80 dark:text-rose-300/80">
+                  You can browse the catalogue, but ordering and checkout are currently disabled until the store reopens.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="font-display text-xl font-black text-foreground flex items-center gap-2">
               <Store className="h-5 w-5 text-emerald-600" /> Available Catalog & Menu
             </h2>
             <span className="text-xs font-bold text-muted-foreground">
-              {showcase.length} items available
+              {showcase.length} {showcase.length === 1 ? "item" : "items"} available
             </span>
+          </div>
+
+          {/* Dedicated Vendor-Scoped Product Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products in this store..."
+              className="w-full rounded-2xl border border-border bg-card pl-10 pr-10 py-3 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {pinnedProductId && showcase[0]?.id === pinnedProductId && (
@@ -588,6 +660,21 @@ function VendorDetail() {
           {isLoading ? (
             <div className="rounded-3xl border bg-card p-12 text-center text-sm font-semibold text-muted-foreground">
               Loading store items...
+            </div>
+          ) : debouncedSearch && showcase.length === 0 ? (
+            <div className="rounded-3xl border bg-card p-10 text-center space-y-3">
+              <Search className="h-10 w-10 text-muted-foreground mx-auto opacity-40" />
+              <h3 className="font-bold text-base text-foreground">No products found matching your search</h3>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                No products found matching &ldquo;{searchQuery}&rdquo; in this store. Try checking for typos or searching by a different term.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-bold hover:bg-muted/80 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" /> Clear Search
+              </button>
             </div>
           ) : showcase.length === 0 ? (
             <div className="rounded-3xl border bg-card p-12 text-center space-y-3">
@@ -607,7 +694,16 @@ function VendorDetail() {
                         Selected
                       </span>
                     )}
-                    <ProductCard key={p.id} product={p} />
+                    <ProductCard
+                      key={p.id}
+                      product={{
+                        ...p,
+                        vendor: {
+                          ...(p.vendor || vendor),
+                          is_open: isOpen,
+                        },
+                      }}
+                    />
                   </div>
                 ))}
               </div>

@@ -97,6 +97,7 @@ export function AdminCoupons() {
   const [formMaxDiscount, setFormMaxDiscount] = useState("");
   const [formExpiresAt, setFormExpiresAt] = useState("");
   const [formUsageLimit, setFormUsageLimit] = useState("");
+  const [formPerUserLimit, setFormPerUserLimit] = useState("1");
   const [showGuide, setShowGuide] = useState(false);
 
   // Edit Coupon Modal Form State
@@ -109,6 +110,7 @@ export function AdminCoupons() {
   const [editMaxDiscount, setEditMaxDiscount] = useState("");
   const [editExpiresAt, setEditExpiresAt] = useState("");
   const [editUsageLimit, setEditUsageLimit] = useState("");
+  const [editPerUserLimit, setEditPerUserLimit] = useState("1");
   const [editIsActive, setEditIsActive] = useState(true);
 
   const resetCreateForm = () => {
@@ -119,6 +121,7 @@ export function AdminCoupons() {
     setFormMaxDiscount("");
     setFormExpiresAt("");
     setFormUsageLimit("");
+    setFormPerUserLimit("1");
     setShowGuide(false);
   };
 
@@ -299,6 +302,7 @@ export function AdminCoupons() {
     setEditMaxDiscount(coupon.max_discount != null && Number(coupon.max_discount) > 0 ? String(coupon.max_discount) : "");
     setEditExpiresAt(formatDateTimeLocal(coupon.valid_until));
     setEditUsageLimit(coupon.usage_limit && coupon.usage_limit > 0 ? String(coupon.usage_limit) : "");
+    setEditPerUserLimit(coupon.per_user_limit != null ? String(coupon.per_user_limit) : "1");
     setEditIsActive(coupon.is_active ?? true);
     setIsEditModalOpen(true);
   };
@@ -345,6 +349,7 @@ export function AdminCoupons() {
       min_order_value: formMinOrder ? Number(formMinOrder) : null,
       max_discount: formType === "PERCENTAGE" && formMaxDiscount ? Number(formMaxDiscount) : null,
       usage_limit: formUsageLimit ? Number(formUsageLimit) : 0,
+      per_user_limit: formPerUserLimit !== "" ? Number(formPerUserLimit) : 1,
       valid_from: new Date(Date.now() - 60000).toISOString(),
     };
 
@@ -405,6 +410,7 @@ export function AdminCoupons() {
       min_order_value: editMinOrder ? Number(editMinOrder) : null,
       max_discount: editType === "PERCENTAGE" && editMaxDiscount ? Number(editMaxDiscount) : null,
       usage_limit: editUsageLimit ? Number(editUsageLimit) : 0,
+      per_user_limit: editPerUserLimit !== "" ? Number(editPerUserLimit) : 1,
       is_active: editIsActive,
     };
 
@@ -538,10 +544,16 @@ export function AdminCoupons() {
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>Claims:</span>
+                  <span>Claims (Global):</span>
                   <span className="font-semibold text-foreground">
                     {coupon.used_count || 0}{" "}
                     {coupon.usage_limit > 0 ? `of ${coupon.usage_limit}` : "(Unlimited)"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Per Customer:</span>
+                  <span className="font-semibold text-foreground">
+                    {coupon.per_user_limit > 0 ? `${coupon.per_user_limit} max / user` : "Unlimited"}
                   </span>
                 </div>
               </div>
@@ -1119,28 +1131,29 @@ export function AdminCoupons() {
               </div>
             </div>
 
-            {/* Field 6 & 7: Expires At & Usage Limit */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                    Expires At
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                      Optional
-                    </span>
-                  </label>
-                </div>
-                <Input
-                  type="datetime-local"
-                  value={formExpiresAt}
-                  onChange={(e) => setFormExpiresAt(e.target.value)}
-                  className="bg-background text-xs"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Defaults to 30 days from today if left empty.
-                </p>
+            {/* Field 6: Expires At */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  Expires At
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                    Optional
+                  </span>
+                </label>
               </div>
+              <Input
+                type="datetime-local"
+                value={formExpiresAt}
+                onChange={(e) => setFormExpiresAt(e.target.value)}
+                className="bg-background text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Defaults to 30 days from today if left empty.
+              </p>
+            </div>
 
+            {/* Field 7 & 8: Global Usage Limit & Per Customer Limit */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
@@ -1160,7 +1173,30 @@ export function AdminCoupons() {
                   className="bg-background"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Total times this coupon can be redeemed across all users.
+                  Total times this coupon can be redeemed across all users (0 = unlimited).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                    Per Customer Limit
+                    <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                      Default: 1
+                    </span>
+                  </label>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formPerUserLimit}
+                  onChange={(e) => setFormPerUserLimit(e.target.value)}
+                  placeholder="1 = Once per user (0 = unlimited)"
+                  className="bg-background"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Max claims allowed per customer account (0 = unlimited).
                 </p>
               </div>
             </div>
@@ -1448,26 +1484,27 @@ export function AdminCoupons() {
               </div>
             </div>
 
-            {/* Field 6 & 7: Expires At & Usage Limit */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                  Expires At
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                    Optional
-                  </span>
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={editExpiresAt}
-                  onChange={(e) => setEditExpiresAt(e.target.value)}
-                  className="bg-background text-xs"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Date and time after which the coupon cannot be used.
-                </p>
-              </div>
+            {/* Field 6: Expires At */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                Expires At
+                <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  Optional
+                </span>
+              </label>
+              <Input
+                type="datetime-local"
+                value={editExpiresAt}
+                onChange={(e) => setEditExpiresAt(e.target.value)}
+                className="bg-background text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Date and time after which the coupon cannot be used.
+              </p>
+            </div>
 
+            {/* Field 7 & 8: Global Usage Limit & Per Customer Limit */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
                   Global Usage Limit
@@ -1486,6 +1523,27 @@ export function AdminCoupons() {
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Total redemptions allowed across all users (0 = unlimited).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  Per Customer Limit
+                  <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                    Default: 1
+                  </span>
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editPerUserLimit}
+                  onChange={(e) => setEditPerUserLimit(e.target.value)}
+                  placeholder="1 = Once per user (0 = unlimited)"
+                  className="bg-background"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Max claims allowed per customer account (0 = unlimited).
                 </p>
               </div>
             </div>

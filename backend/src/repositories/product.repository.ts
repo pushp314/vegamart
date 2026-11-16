@@ -187,12 +187,17 @@ export async function listProducts(
     };
   }
   if (filter.q) {
-    where.OR = [
-      { name: { contains: filter.q, mode: "insensitive" } },
-      { slug: { contains: filter.q, mode: "insensitive" } },
-      { description: { contains: filter.q, mode: "insensitive" } },
-      { tag: { contains: filter.q, mode: "insensitive" } },
-    ];
+    const qClean = filter.q.trim();
+    if (qClean) {
+      where.OR = [
+        { name: { contains: qClean, mode: "insensitive" } },
+        { slug: { contains: qClean, mode: "insensitive" } },
+        { description: { contains: qClean, mode: "insensitive" } },
+        { tag: { contains: qClean, mode: "insensitive" } },
+        { search_vector: { contains: qClean, mode: "insensitive" } },
+        { category: { name: { contains: qClean, mode: "insensitive" } } },
+      ];
+    }
   }
 
   const orderBy = buildOrderBy(filter.sort);
@@ -222,12 +227,17 @@ export async function listProductsAdmin(
   if (filter.isFeatured !== undefined) where.is_featured = filter.isFeatured;
   if (filter.isAvailable !== undefined) where.is_available = filter.isAvailable;
   if (filter.q) {
-    where.OR = [
-      { name: { contains: filter.q, mode: "insensitive" } },
-      { slug: { contains: filter.q, mode: "insensitive" } },
-      { description: { contains: filter.q, mode: "insensitive" } },
-      { tag: { contains: filter.q, mode: "insensitive" } },
-    ];
+    const qClean = filter.q.trim();
+    if (qClean) {
+      where.OR = [
+        { name: { contains: qClean, mode: "insensitive" } },
+        { slug: { contains: qClean, mode: "insensitive" } },
+        { description: { contains: qClean, mode: "insensitive" } },
+        { tag: { contains: qClean, mode: "insensitive" } },
+        { search_vector: { contains: qClean, mode: "insensitive" } },
+        { category: { name: { contains: qClean, mode: "insensitive" } } },
+      ];
+    }
   }
 
   const orderBy = buildOrderBy(filter.sort);

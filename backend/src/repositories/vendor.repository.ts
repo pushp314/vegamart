@@ -35,6 +35,10 @@ const baseSelect = {
   rating: true,
   review_count: true,
   is_open: true,
+  auto_schedule_enabled: true,
+  store_schedule: true,
+  manual_override_status: true,
+  manual_override_until: true,
   is_verified: true,
   is_sponsored: true,
   sponsored_until: true,
@@ -107,6 +111,11 @@ export type VendorRow = {
   rating: number;
   review_count: number;
   is_open: boolean;
+  auto_schedule_enabled?: boolean;
+  store_schedule?: any;
+  manual_override_status?: string | null;
+  manual_override_until?: Date | null;
+  store_availability?: any;
   is_verified: boolean;
   is_sponsored: boolean;
   sponsored_until: Date | null;

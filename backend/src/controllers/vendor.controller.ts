@@ -225,8 +225,7 @@ export const updateMyVendor = asyncHandler(async (req: Request, res: Response) =
  *         description: Availability updated.
  */
 export const setVendorAvailability = asyncHandler(async (req: Request, res: Response) => {
-  const { is_open } = req.body as { is_open: boolean };
-  const vendor = await vendorService.setAvailability(req.user!.id, is_open, req);
+  const vendor = await vendorService.setAvailability(req.user!.id, req.body, req);
   return sendSuccess(res, vendor);
 });
 

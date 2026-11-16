@@ -622,6 +622,16 @@ function Checkout() {
   });
 
   const handlePlaceOrder = async () => {
+    if (!isStoreOpen) {
+      const availability = (vendorData as any)?.store_availability;
+      const msg =
+        availability?.displayMessage ||
+        (availability?.nextOpenTime
+          ? `This store is currently closed. Opens at ${availability.nextOpenTime}.`
+          : "This store is currently closed. Cannot place order.");
+      toast.error(msg);
+      return;
+    }
     if (items.length === 0) {
       toast.error("Your cart is empty!");
       return;
@@ -987,7 +997,13 @@ function Checkout() {
                           📦 Combined Order
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            isStoreOpen
+                              ? "text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                              : "text-rose-800 bg-rose-100 dark:bg-rose-950 dark:text-rose-300 border-rose-300 dark:border-rose-800"
+                          }`}
+                        >
                           {isStoreOpen ? "🟢 Open" : "🔴 Closed"}
                         </span>
                       )}
@@ -1017,6 +1033,18 @@ function Checkout() {
                   </div>
                 </div>
               </div>
+
+              {!isConsolidatedDelivery && !isStoreOpen && (
+                <div className="mt-4 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs font-semibold flex items-center gap-2.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>
+                    {(vendorData as any)?.store_availability?.displayMessage ||
+                      ((vendorData as any)?.store_availability?.nextOpenTime
+                        ? `This store is currently closed. Opens at ${(vendorData as any).store_availability.nextOpenTime}.`
+                        : "This store is currently closed and not accepting orders right now.")}
+                  </span>
+                </div>
+              )}
             </section>
 
             {/* Delivery Address */}
@@ -1443,6 +1471,17 @@ function Checkout() {
                         const minOrder = Number(offer.min_order_value || 0);
                         const isEligible = minOrder === 0 || subtotal >= minOrder;
                         const shortfall = minOrder - subtotal;
+                        const offerType = String(offer.type || "").toUpperCase();
+                        const offerVal = Number(offer.value || 0);
+                        const offerMaxDisc = offer.max_discount ? Number(offer.max_discount) : null;
+
+                        const displayDesc = offer.desc || (
+                          offerType === "PERCENTAGE"
+                            ? `${offerVal}% OFF${offerMaxDisc ? ` (up to ₹${offerMaxDisc})` : ""}`
+                            : offerType === "FIXED"
+                              ? `Flat ₹${offerVal} OFF`
+                              : "Free Delivery"
+                        );
 
                         return (
                           <div
@@ -1458,7 +1497,7 @@ function Checkout() {
                                 {offer.code}
                               </div>
                               <div className="text-[11px] font-bold text-foreground leading-tight">
-                                {offer.desc || (offer.type === "FREE_DELIVERY" ? "Free Delivery" : "Special Offer")}
+                                {displayDesc}
                               </div>
                               {minOrder > 0 && (
                                 <div
@@ -1703,7 +1742,11 @@ function Checkout() {
                 Verified &amp; Protected by Razorpay 256-bit SSL
               </div>
 
-              {!isMinOrderMet ? (
+              {!isStoreOpen ? (
+                <div className="hidden md:block text-center p-3 rounded-2xl bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20">
+                  Store is currently closed — ordering disabled
+                </div>
+              ) : !isMinOrderMet ? (
                 <div className="hidden md:block text-center p-3 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-xs font-bold border border-amber-300 dark:border-amber-800">
                   Add ₹{deficitAmount.toFixed(2)} more for {selectedOptionObj.label}
                 </div>
@@ -1725,7 +1768,8 @@ function Checkout() {
                     createOrderMutation.isPending ||
                     isProcessingPayment ||
                     items.length === 0 ||
-                    isOutOfDeliveryRadius
+                    isOutOfDeliveryRadius ||
+                    !isStoreOpen
                   }
                   className="hidden md:flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
@@ -1767,7 +1811,11 @@ function Checkout() {
                 ₹{(payment === "cod" ? finalOrderTotal : upfrontPaymentAmount).toFixed(2)}
               </div>
             </div>
-            {!isMinOrderMet ? (
+            {!isStoreOpen ? (
+              <div className="text-center bg-rose-600 text-white font-bold text-[11px] px-3.5 py-2.5 rounded-2xl shadow-xs">
+                Store Closed
+              </div>
+            ) : !isMinOrderMet ? (
               <div className="text-center bg-amber-400 text-amber-950 font-bold text-[11px] px-3 py-2 rounded-2xl shadow-xs">
                 Min ₹{optionMinOrder} Req.
               </div>
@@ -1786,7 +1834,8 @@ function Checkout() {
                   createOrderMutation.isPending ||
                   isProcessingPayment ||
                   items.length === 0 ||
-                  isOutOfDeliveryRadius
+                  isOutOfDeliveryRadius ||
+                  !isStoreOpen
                 }
                 className="inline-flex items-center gap-2 rounded-2xl bg-white text-emerald-900 font-bold text-xs h-11 px-4 shadow-xs hover:bg-emerald-50 disabled:opacity-50"
               >

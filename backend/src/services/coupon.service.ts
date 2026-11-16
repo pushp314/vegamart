@@ -430,11 +430,18 @@ export const couponService = {
 
     // 4. Usage limit
     if (coupon.usage_limit > 0 && coupon.used_count >= coupon.usage_limit) {
-      checks.push({ name: "Usage Limit", passed: false, message: `Coupon usage limit reached (${coupon.used_count} of ${coupon.usage_limit} used).`, severity: "error" });
+      checks.push({ name: "Global Usage Limit", passed: false, message: `Coupon global usage limit reached (${coupon.used_count} of ${coupon.usage_limit} used).`, severity: "error" });
     } else if (coupon.usage_limit > 0) {
-      checks.push({ name: "Usage Limit", passed: true, message: `${coupon.used_count} of ${coupon.usage_limit} claims used (${coupon.usage_limit - coupon.used_count} remaining).`, severity: "success" });
+      checks.push({ name: "Global Usage Limit", passed: true, message: `${coupon.used_count} of ${coupon.usage_limit} claims used (${coupon.usage_limit - coupon.used_count} remaining).`, severity: "success" });
     } else {
-      checks.push({ name: "Usage Limit", passed: true, message: `Unlimited global uses allowed (${coupon.used_count} redeemed so far).`, severity: "success" });
+      checks.push({ name: "Global Usage Limit", passed: true, message: `Unlimited global uses allowed (${coupon.used_count} redeemed so far).`, severity: "success" });
+    }
+
+    // 4b. Per Customer Limit
+    if (coupon.per_user_limit > 0) {
+      checks.push({ name: "Per Customer Limit", passed: true, message: `Each customer account can claim this coupon up to ${coupon.per_user_limit} time(s).`, severity: "success" });
+    } else {
+      checks.push({ name: "Per Customer Limit", passed: true, message: "Unlimited redemptions allowed per customer account.", severity: "success" });
     }
 
     // 5. Min Order Value

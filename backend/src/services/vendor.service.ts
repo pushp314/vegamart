@@ -40,6 +40,16 @@ import { ROLES } from "../constants/roles";
 import { membershipPlanService } from "./membership-plan.service";
 import { payoutService } from "./payout.service";
 import { subscriptionPaymentService } from "./subscription-payment.service";
+import { calculateStoreAvailability, normalizeStoreSchedule } from "../utils/store-schedule";
+
+export function enrichVendor(vendor: vendorRepo.VendorRow): vendorRepo.VendorRow {
+  const availability = calculateStoreAvailability(vendor);
+  return {
+    ...vendor,
+    is_open: availability.isOpen,
+    store_availability: availability,
+  };
+}
 
 export interface NearbyVendor {
   vendor: Omit<vendorRepo.VendorRow, "latitude" | "longitude">;
@@ -168,7 +178,7 @@ export const vendorService = {
     if (!vendor) {
       throw new ApiError(HttpStatus.NOT_FOUND, "Vendor profile not found.", { code: "NOT_FOUND" });
     }
-    return vendor;
+    return enrichVendor(vendor);
   },
 
   async create(userId: string, input: CreateVendorBody, req: Request): Promise<vendorRepo.VendorRow> {
@@ -307,6 +317,14 @@ export const vendorService = {
     if (input.bank_name !== undefined) data.bank_name = input.bank_name || null;
     if (input.upi_id !== undefined) data.upi_id = input.upi_id || null;
     if (input.payout_enabled !== undefined) data.payout_enabled = input.payout_enabled;
+    if (input.auto_schedule_enabled !== undefined) data.auto_schedule_enabled = input.auto_schedule_enabled;
+    if (input.store_schedule !== undefined) data.store_schedule = normalizeStoreSchedule(input.store_schedule);
+    if (input.manual_override_status !== undefined) {
+      data.manual_override_status = input.manual_override_status === "NONE" ? null : input.manual_override_status;
+    }
+    if (input.manual_override_until !== undefined) {
+      data.manual_override_until = input.manual_override_until ? new Date(input.manual_override_until) : null;
+    }
 
     if (Object.keys(data).length > 0) {
       await vendorRepo.updateVendor(vendor.id, data as never);
@@ -332,24 +350,86 @@ export const vendorService = {
       req
     );
 
-    return updated!;
+    return enrichVendor(updated!);
   },
 
-  async setAvailability(userId: string, isOpen: boolean, req: Request): Promise<vendorRepo.VendorRow> {
+  async setAvailability(
+    userId: string,
+    input:
+      | {
+          is_open?: boolean;
+          auto_schedule_enabled?: boolean;
+          store_schedule?: any;
+          manual_override_status?: "NONE" | "FORCE_OPEN" | "FORCE_CLOSE" | "TEMPORARY_CLOSE" | null;
+          manual_override_minutes?: number;
+          manual_override_until?: Date | string | null;
+        }
+      | boolean,
+    req: Request
+  ): Promise<vendorRepo.VendorRow> {
     const vendor = await this.getMyVendor(userId);
     if (vendor.status !== VendorStatus.APPROVED) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Vendor must be approved before opening.", {
         code: "VENDOR_NOT_APPROVED",
       });
     }
-    const updated = await vendorRepo.updateVendor(vendor.id, { is_open: isOpen });
+
+    const payload: Prisma.VendorProfileUpdateInput & {
+      auto_schedule_enabled?: boolean;
+      store_schedule?: any;
+      manual_override_status?: string | null;
+      manual_override_until?: Date | null;
+    } = {};
+
+    if (typeof input === "boolean") {
+      payload.is_open = input;
+      if (vendor.auto_schedule_enabled) {
+        payload.manual_override_status = input ? "FORCE_OPEN" : "FORCE_CLOSE";
+        payload.manual_override_until = null;
+      }
+    } else {
+      if (input.auto_schedule_enabled !== undefined) {
+        payload.auto_schedule_enabled = input.auto_schedule_enabled;
+      }
+      if (input.store_schedule !== undefined) {
+        payload.store_schedule = normalizeStoreSchedule(input.store_schedule) as any;
+      }
+      if (input.manual_override_status !== undefined) {
+        payload.manual_override_status = input.manual_override_status === "NONE" ? null : input.manual_override_status;
+      }
+      if (input.manual_override_minutes && input.manual_override_minutes > 0) {
+        payload.manual_override_until = new Date(Date.now() + input.manual_override_minutes * 60 * 1000);
+      } else if (input.manual_override_until !== undefined) {
+        payload.manual_override_until = input.manual_override_until ? new Date(input.manual_override_until) : null;
+      }
+
+      if (input.is_open !== undefined) {
+        payload.is_open = input.is_open;
+        if (input.auto_schedule_enabled || vendor.auto_schedule_enabled) {
+          payload.manual_override_status = input.is_open ? "FORCE_OPEN" : "FORCE_CLOSE";
+        }
+      }
+
+      const merged = {
+        ...vendor,
+        ...payload,
+        auto_schedule_enabled: payload.auto_schedule_enabled ?? vendor.auto_schedule_enabled,
+        store_schedule: payload.store_schedule ?? vendor.store_schedule,
+        manual_override_status: payload.manual_override_status !== undefined ? (payload.manual_override_status as string) : vendor.manual_override_status,
+        manual_override_until: payload.manual_override_until !== undefined ? (payload.manual_override_until as Date) : vendor.manual_override_until,
+      };
+      const availability = calculateStoreAvailability(merged as any);
+      payload.is_open = availability.isOpen;
+    }
+
+    const updated = await vendorRepo.updateVendor(vendor.id, payload as Prisma.VendorProfileUpdateInput);
     await cacheService.invalidateNamespace("vendor");
     await cacheService.invalidateNamespace("product");
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.VENDOR_STATUS_TOGGLED, entityType: "vendor", entityId: vendor.id, newValues: { is_open: isOpen } },
+      { userId, action: AUDIT_ACTIONS.VENDOR_STATUS_TOGGLED, entityType: "vendor", entityId: vendor.id, newValues: payload as any },
       req
     );
-    return updated;
+    return enrichVendor(updated);
   },
 
   async setLocation(
@@ -475,11 +555,11 @@ export const vendorService = {
 
     if (!cacheable) {
       const { rows, total } = await load();
-      return { rows, total, page, perPage };
+      return { rows: rows.map(enrichVendor), total, page, perPage };
     }
 
     const cached = await cacheService.remember<{ rows: vendorRepo.VendorRow[]; total: number }>("vendor", key, load);
-    return { rows: cached?.rows ?? [], total: cached?.total ?? 0, page, perPage };
+    return { rows: (cached?.rows ?? []).map(enrichVendor), total: cached?.total ?? 0, page, perPage };
   },
 
   async nearby(
@@ -530,7 +610,7 @@ export const vendorService = {
       }
       return found;
     });
-    return vendor as vendorRepo.VendorRow;
+    return enrichVendor(vendor as vendorRepo.VendorRow);
   },
 
   async getBySlug(slug: string): Promise<vendorRepo.VendorRow> {
@@ -541,7 +621,7 @@ export const vendorService = {
       }
       return found;
     });
-    return vendor as vendorRepo.VendorRow;
+    return enrichVendor(vendor as vendorRepo.VendorRow);
   },
 
   async getMyMembership(userId: string) {
@@ -808,7 +888,6 @@ export const vendorService = {
 
     if (location.is_active) {
       realtime.publishRoamingVendor(vendor.id, location.latitude, location.longitude);
-      // @ts-ignore - Prisma types might be stale in IDE
       const subscribers = await prisma.userSubscription.findMany({
         where: { vendor_id: vendor.id },
       });

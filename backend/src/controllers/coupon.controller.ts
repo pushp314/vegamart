@@ -60,21 +60,30 @@ export const listCoupons = asyncHandler(async (req: Request, res: Response) => {
  *       - bearerAuth: []
  *     tags: [Coupons]
  */
-export const listAvailableCoupons = asyncHandler(async (_req: Request, res: Response) => {
-  const rows = await couponRepo.listAvailableForCustomer(new Date());
-  return sendSuccess(res, rows.map(c => ({
-    id: c.id,
-    code: c.code,
-    type: c.type,
-    value: Number(c.value),
-    min_order_value: c.min_order_value ? Number(c.min_order_value) : null,
-    max_discount: c.max_discount ? Number(c.max_discount) : null,
-    desc: c.type === "PERCENTAGE"
-      ? `${Number(c.value)}% OFF${c.max_discount ? ` (up to ₹${Number(c.max_discount)})` : ""}`
-      : c.type === "FIXED"
-        ? `Flat ₹${Number(c.value)} OFF`
-        : "Free Delivery",
-  })));
+export const listAvailableCoupons = asyncHandler(async (req: Request, res: Response) => {
+  const rows = await couponRepo.listAvailableForCustomer(new Date(), req.user?.id);
+  return sendSuccess(res, rows.map(c => {
+    const type = String(c.type || "").toUpperCase();
+    const val = Number(c.value || 0);
+    const maxDisc = c.max_discount ? Number(c.max_discount) : null;
+    let desc = "Special Offer";
+    if (type === "PERCENTAGE") {
+      desc = `${val}% OFF${maxDisc ? ` (up to ₹${maxDisc})` : ""}`;
+    } else if (type === "FIXED") {
+      desc = `Flat ₹${val} OFF`;
+    } else if (type === "FREE_DELIVERY") {
+      desc = "Free Delivery";
+    }
+    return {
+      id: c.id,
+      code: c.code,
+      type,
+      value: val,
+      min_order_value: c.min_order_value ? Number(c.min_order_value) : null,
+      max_discount: maxDisc,
+      desc,
+    };
+  }));
 });
 
 /**

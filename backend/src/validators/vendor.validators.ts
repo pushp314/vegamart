@@ -115,11 +115,20 @@ export const updateVendorSchema = createVendorSchema.partial().extend({
   subscription_plan: z.string().trim().max(100).optional(),
   gstin: z.string().trim().max(20).optional().nullable(),
   payout_enabled: z.boolean().optional(),
+  auto_schedule_enabled: z.boolean().optional(),
+  store_schedule: z.any().optional(),
+  manual_override_status: z.enum(["NONE", "FORCE_OPEN", "FORCE_CLOSE", "TEMPORARY_CLOSE"]).optional().nullable(),
+  manual_override_until: z.preprocess((val) => (val === "" || val === null ? null : val), z.coerce.date().optional().nullable()),
 });
 
 export const vendorAvailabilitySchema = z.object({
-  is_open: z.boolean(),
-}).strict();
+  is_open: z.boolean().optional(),
+  auto_schedule_enabled: z.boolean().optional(),
+  store_schedule: z.any().optional(),
+  manual_override_status: z.enum(["NONE", "FORCE_OPEN", "FORCE_CLOSE", "TEMPORARY_CLOSE"]).optional().nullable(),
+  manual_override_minutes: z.coerce.number().int().min(1).max(10080).optional(),
+  manual_override_until: z.preprocess((val) => (val === "" || val === null ? null : val), z.coerce.date().optional().nullable()),
+});
 
 export const purchaseMembershipSchema = z.object({
   plan_id: z.string().uuid("plan_id must be a valid UUID."),

@@ -20,6 +20,7 @@ import { findById as findAddressById } from "../repositories/address.repository"
 import { settingsService, countEligibleDeliveryPartners, isBooleanSettingEnabled } from "./settings.service";
 import { SETTING_KEYS } from "../constants/settings";
 import { findById as findVendorById } from "../repositories/vendor.repository";
+import { calculateStoreAvailability } from "../utils/store-schedule";
 import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
@@ -330,11 +331,18 @@ export const checkoutService = {
       if (!vendor) {
         throw new ApiError(HttpStatus.BAD_REQUEST, "One of the vendors is no longer available.", { code: "INVALID_VENDOR" });
       }
-      if (!vendor.is_open) {
+      const availability = calculateStoreAvailability(vendor);
+      if (!availability.isOpen) {
+        const offlineMsg = availability.nextOpenTime
+          ? `${vendor.business_name} is currently closed. Opens at ${availability.nextOpenTime}.`
+          : `${vendor.business_name} is currently offline. You can still save your cart and check out when they are back online.`;
         throw new ApiError(
           HttpStatus.BAD_REQUEST,
-          `${vendor.business_name} is currently offline. You can still save your cart and check out when they are back online.`,
-          { code: "VENDOR_OFFLINE" }
+          offlineMsg,
+          {
+            code: "VENDOR_OFFLINE",
+            details: availability.nextOpenTime ? { next_open_time: availability.nextOpenTime } : undefined,
+          }
         );
       }
 

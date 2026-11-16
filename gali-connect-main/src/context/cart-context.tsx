@@ -141,11 +141,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       product.vendor?.is_open === false;
 
     if (isOutOfStock) {
-      toast.error(
-        product.vendor?.is_open === false
-          ? "Store is currently closed"
-          : `${product.name} is currently out of stock`
-      );
+      if (product.vendor?.is_open === false) {
+        const nextTime = product.vendor?.store_availability?.nextOpenTime;
+        toast.error(
+          nextTime
+            ? `This store is currently closed. Opens at ${nextTime}.`
+            : "This store is currently closed."
+        );
+        return;
+      }
+      toast.error(`${product.name} is currently out of stock`);
       return;
     }
 

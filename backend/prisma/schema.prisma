@@ -454,6 +454,10 @@ model VendorProfile {
   membership_expires_at   DateTime?
   available_from          String?      @db.VarChar(20)
   available_to            String?      @db.VarChar(20)
+  auto_schedule_enabled   Boolean      @default(false)
+  store_schedule          Json?        @default("{}")
+  manual_override_status  String?      @db.VarChar(30)
+  manual_override_until   DateTime?
   roaming                 Boolean      @default(false)
   bank_account_number     String?      @db.VarChar(50)
   bank_ifsc               String?      @db.VarChar(20)

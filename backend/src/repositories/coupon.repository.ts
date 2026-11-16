@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 import prisma from "../database/prisma";
 
@@ -46,8 +46,31 @@ export type CouponRow = {
   updated_at: Date;
 };
 
-function mapRow(row: unknown): CouponRow {
-  return row as CouponRow;
+function mapRow(row: any): CouponRow {
+  if (!row) return row;
+  const rawType = String(row.type || "").toUpperCase();
+  const type: "PERCENTAGE" | "FIXED" | "FREE_DELIVERY" =
+    rawType === "FIXED" ? "FIXED" : rawType === "FREE_DELIVERY" ? "FREE_DELIVERY" : "PERCENTAGE";
+  return {
+    ...row,
+    type,
+    value: row.value instanceof Prisma.Decimal ? row.value : new Prisma.Decimal(row.value ?? 0),
+    max_discount:
+      row.max_discount != null
+        ? row.max_discount instanceof Prisma.Decimal
+          ? row.max_discount
+          : new Prisma.Decimal(row.max_discount)
+        : null,
+    min_order_value:
+      row.min_order_value != null
+        ? row.min_order_value instanceof Prisma.Decimal
+          ? row.min_order_value
+          : new Prisma.Decimal(row.min_order_value)
+        : null,
+    usage_limit: Number(row.usage_limit ?? 0),
+    per_user_limit: Number(row.per_user_limit ?? 1),
+    used_count: Number(row.used_count ?? 0),
+  };
 }
 
 export async function findByCode(code: string): Promise<CouponRow | null> {
@@ -140,7 +163,7 @@ export async function listActiveBetween(from: Date, until: Date): Promise<Coupon
  * `claimUsage` lock remains the authoritative guard against over-consumption;
  * this is a best-effort, up-to-date listing for the checkout coupon picker.
  */
-export async function listAvailableForCustomer(now: Date): Promise<CouponRow[]> {
+export async function listAvailableForCustomer(now: Date, userId?: string): Promise<CouponRow[]> {
   const rows = await prisma.$queryRaw<Array<Record<string, unknown>>>`
     SELECT id, code, type, value, max_discount, min_order_value, usage_limit, per_user_limit,
            used_count, valid_from, valid_until, is_active, applies_to_vendor_ids,
@@ -155,7 +178,31 @@ export async function listAvailableForCustomer(now: Date): Promise<CouponRow[]> 
     ORDER BY valid_until ASC
     LIMIT 20
   `;
-  return rows.map(mapRow);
+  const mapped = rows.map(mapRow);
+  if (!userId) {
+    return mapped;
+  }
+  const couponIds = mapped.filter((c) => c.per_user_limit > 0).map((c) => c.id);
+  if (couponIds.length === 0) {
+    return mapped;
+  }
+  const usages = await prisma.couponUsage.groupBy({
+    by: ["coupon_id"],
+    where: {
+      user_id: userId,
+      coupon_id: { in: couponIds },
+    },
+    _count: { _all: true },
+  });
+  const usageMap = new Map<string, number>();
+  for (const u of usages) {
+    usageMap.set(u.coupon_id, u._count._all);
+  }
+  return mapped.filter((c) => {
+    if (c.per_user_limit <= 0) return true;
+    const userUsed = usageMap.get(c.id) ?? 0;
+    return userUsed < c.per_user_limit;
+  });
 }
 
 export async function countUsages(couponId: string): Promise<number> {

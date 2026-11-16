@@ -13,6 +13,7 @@ import {
   ArrowRight,
   MessageSquare,
   PlayCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, WS_BASE_URL } from "@/lib/api";
@@ -177,7 +178,13 @@ function ProductDetail() {
   const related = (relatedRes?.data || []).filter((p) => p.id !== product.id).slice(0, 4);
   const reviewCount = product.review_count || 0;
 
-  const vendorOffline = vendor?.is_open === false;
+  const availability = (vendor as any)?.store_availability;
+  const vendorOffline = availability ? !availability.isOpen : vendor?.is_open === false;
+  const closedMessage = availability?.displayMessage || (
+    availability?.nextOpenTime
+      ? `This store is currently closed. Opens at ${availability.nextOpenTime}.`
+      : "This store is currently closed."
+  );
   const isOutOfStock =
     product.is_available === false ||
     product.is_active === false ||
@@ -187,8 +194,12 @@ function ProductDetail() {
     !isOutOfStock && typeof product.stock === "number" && product.stock > 0 && product.stock <= 5;
 
   const handleAdd = () => {
+    if (vendorOffline) {
+      toast.error(closedMessage);
+      return;
+    }
     if (isOutOfStock) {
-      toast.error(vendorOffline ? "Store is currently closed" : "Product is out of stock");
+      toast.error("Product is out of stock");
       return;
     }
     addToCart({ ...product, price: unitPrice, mrp: unitMrp }, qty, selectedVariant.unit);
@@ -196,8 +207,12 @@ function ProductDetail() {
   };
 
   const handleBuyNow = () => {
+    if (vendorOffline) {
+      toast.error(closedMessage);
+      return;
+    }
     if (isOutOfStock) {
-      toast.error(vendorOffline ? "Store is currently closed" : "Product is out of stock");
+      toast.error("Product is out of stock");
       return;
     }
     addToCart({ ...product, price: unitPrice, mrp: unitMrp }, qty, selectedVariant.unit);
@@ -482,16 +497,23 @@ function ProductDetail() {
                 onClick={handleAdd}
                 className="inline-flex items-center gap-2 rounded-full border bg-card hover:bg-muted text-foreground text-sm font-bold h-12 px-6 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Plus className="h-4 w-4" /> {isOutOfStock ? "Out of Stock" : "Add to cart"}
+                <Plus className="h-4 w-4" /> {vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Add to cart"}
               </button>
               <button
                 disabled={isOutOfStock}
                 onClick={handleBuyNow}
                 className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-sm font-bold h-12 px-7 shadow-md hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isOutOfStock ? "Out of Stock" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
+                {vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
               </button>
             </div>
+
+            {vendorOffline && (
+              <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-rose-800 dark:text-rose-200 flex items-center gap-2.5 text-xs font-semibold">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{closedMessage}</span>
+              </div>
+            )}
           </section>
 
           {/* Delivery promises */}
@@ -630,14 +652,14 @@ function ProductDetail() {
               onClick={handleAdd}
               className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary font-semibold text-[13px] h-11 px-4 disabled:opacity-50"
             >
-              {isOutOfStock ? "Out of Stock" : "Add"}
+              {vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Add"}
             </button>
             <button
               disabled={isOutOfStock}
               onClick={handleBuyNow}
               className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground font-semibold text-[13px] h-11 px-4 disabled:opacity-50"
             >
-              {isOutOfStock ? "Sold Out" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
+              {vendorOffline ? "Store Closed" : isOutOfStock ? "Sold Out" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
         </div>

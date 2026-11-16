@@ -36,6 +36,7 @@ import { Logo } from "@/components/system/logo";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { VendorBannerCarouselManager } from "./VendorBannerCarouselManager";
+import { StoreTimingSettings } from "./StoreTimingSettings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -372,6 +373,9 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
           Configure tax compliance, delivery rules, and public store contact details.
         </p>
       </div>
+
+      {/* Automated Store Timing & Operating Hours */}
+      <StoreTimingSettings vendorProfile={vendorProfile} />
 
       <form onSubmit={handleSave} className="space-y-6">
         <Card className="rounded-3xl border-border shadow-xl">
