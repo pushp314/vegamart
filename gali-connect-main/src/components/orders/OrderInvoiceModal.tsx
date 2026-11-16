@@ -532,7 +532,7 @@ export function OrderInvoiceModal({
                         </span>
                       </td>
                       <td className="py-2 px-3 text-muted-foreground line-through">
-                        {item.unit || "1 pc"}
+                        {item.selected_unit || item.unit || item.product?.unit || "1 pc"}
                       </td>
                       <td className="py-2 px-3 text-center line-through">{qty}</td>
                       <td className="py-2 px-3 text-right font-mono line-through">

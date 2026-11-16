@@ -118,13 +118,17 @@ interface Order {
   } | null;
   item_count: number;
   items?: {
+    id?: string;
     product_name: string;
+    unit?: string;
+    selected_unit?: string;
     quantity: number;
     unit_price?: number;
     total_price?: number;
     image_url?: string;
     status?: string;
     product?: {
+      unit?: string;
       images?: { url: string }[];
     };
   }[];
@@ -383,8 +387,20 @@ export function AdminOrders() {
                                           <ShoppingBag className="h-3 w-3 text-muted-foreground/60" />
                                         )}
                                       </div>
-                                      <span className="truncate max-w-[110px] font-medium text-foreground">
+                                      <span
+                                        className="truncate max-w-[140px] font-medium text-foreground"
+                                        title={`${i.quantity}x ${i.product_name}${
+                                          i.selected_unit || i.unit || i.product?.unit
+                                            ? ` (${i.selected_unit || i.unit || i.product?.unit})`
+                                            : ""
+                                        }`}
+                                      >
                                         {i.quantity}x {i.product_name}
+                                        {(i.selected_unit || i.unit || i.product?.unit) && (
+                                          <span className="text-muted-foreground text-[10px] ml-1">
+                                            ({i.selected_unit || i.unit || i.product?.unit})
+                                          </span>
+                                        )}
                                       </span>
                                     </div>
                                   );
@@ -952,6 +968,11 @@ export function AdminOrders() {
                                   >
                                     {item.quantity}x {item.product_name}
                                   </p>
+                                  {(item.selected_unit || item.unit || item.product?.unit) && (
+                                    <p className="text-xs text-muted-foreground font-medium">
+                                      ({item.selected_unit || item.unit || item.product?.unit})
+                                    </p>
+                                  )}
                                   <p className="text-xs text-muted-foreground">
                                     ₹{item.unit_price} each
                                   </p>

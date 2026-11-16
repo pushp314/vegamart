@@ -156,7 +156,14 @@ export const paymentService = {
             await prisma.order.update({ where: { id: subOrder.id }, data: { payment_status: "PAID", payment_method: "RAZORPAY" } });
             if (subOrder.status === "PENDING" || subOrder.status === "CONFIRMED") {
                 await prisma.order.update({ where: { id: subOrder.id }, data: { status: "CONFIRMED" } });
+                await orderRepo.updateOrderStatus(subOrder.id, {
+                  status: "CONFIRMED",
+                  note: "Payment confirmed via Razorpay.",
+                  actorType: "customer",
+                  actorId: userId,
+                }).catch(() => {});
             }
+            await payoutService.settleVendorOrderEarnings(subOrder.id, input.razorpay_payment_id).catch(() => {});
             // notification logic for suborder
             if (subOrder.vendor?.user_id) {
                await realtime.publishVendorOrder(subOrder.vendor_id, {
@@ -180,7 +187,14 @@ export const paymentService = {
         await prisma.order.update({ where: { id: order.id }, data: { payment_status: "PAID", payment_method: "RAZORPAY" } });
         if (order.status === "PENDING" || order.status === "CONFIRMED") {
             await prisma.order.update({ where: { id: order.id }, data: { status: "CONFIRMED" } });
+            await orderRepo.updateOrderStatus(order.id, {
+              status: "CONFIRMED",
+              note: "Payment confirmed via Razorpay.",
+              actorType: "customer",
+              actorId: userId,
+            }).catch(() => {});
         }
+        await payoutService.settleVendorOrderEarnings(order.id, input.razorpay_payment_id).catch(() => {});
     }
 
     await transactionRepo.create({

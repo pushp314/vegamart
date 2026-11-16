@@ -1337,9 +1337,9 @@ function OrderIdTrackingPage() {
                                         >
                                           {item.quantity}x {item.product_name || item.name}
                                         </span>
-                                        {item.unit && (
+                                        {(item.selected_unit || item.unit || item.product?.unit) && (
                                           <span className="text-muted-foreground text-[11px]">
-                                            ({item.unit})
+                                            ({item.selected_unit || item.unit || item.product?.unit})
                                           </span>
                                         )}
                                       </div>
@@ -1434,9 +1434,9 @@ function OrderIdTrackingPage() {
                                   >
                                     {item.quantity}x {item.product_name || item.name}
                                   </span>
-                                  {item.unit && (
+                                  {(item.selected_unit || item.unit || item.product?.unit) && (
                                     <span className="text-muted-foreground text-[11px]">
-                                      ({item.unit})
+                                      ({item.selected_unit || item.unit || item.product?.unit})
                                     </span>
                                   )}
                                 </div>

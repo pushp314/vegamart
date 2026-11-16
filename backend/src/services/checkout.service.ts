@@ -34,6 +34,8 @@ import { cartFromItems } from "../utils/cart";
 import type { CheckoutPreviewBody, CreateOrderFromCartBody, PlaceOrderBody } from "../validators/checkout.validators";
 
 import { normalizeDeliveryConfigs, type VendorDeliveryConfigs } from "./vendor.service";
+import log from "../config/logger";
+import { payoutService } from "./payout.service";
 
 interface VendorGroup {
   vendor_id: string;
@@ -1427,6 +1429,8 @@ export const checkoutService = {
             delivery_fee: group.delivery_fee,
             tax: groupTax,
             total: groupTotal,
+            status: "CONFIRMED",
+            payment_status: "PAID",
             payment_method: "RAZORPAY",
             delivery_note: deliverySlotLabel,
             items: group.items.map((item) => ({
@@ -1446,12 +1450,25 @@ export const checkoutService = {
         const updated = await orderRepo.updateOrder(
           order.id,
           {
+            status: "CONFIRMED",
+            payment_status: "PAID",
             discount: groupDiscount,
             tax: groupTax,
             total: groupTotal,
             invoice_number: generateInvoiceNumber(orderNumber),
             otp_code: sharedOtp,
             otp_expires_at: new Date(Date.now() + DELIVERY_OTP_TTL_MINUTES * 60 * 1000),
+          },
+          tx
+        );
+
+        await orderRepo.updateOrderStatus(
+          order.id,
+          {
+            status: "CONFIRMED",
+            note: "Order placed and payment confirmed online via Razorpay.",
+            actorType: "customer",
+            actorId: userId,
           },
           tx
         );
@@ -1482,6 +1499,7 @@ export const checkoutService = {
 
       const paymentRecord = await paymentRepo.createForOrder({
         master_order_id: masterOrder.id,
+        order_id: computations.length === 1 ? serializedOrders[0]?.order.id : undefined,
         amount: masterAmountToCharge,
         method: "RAZORPAY",
         razorpay_order_id: verifiedPayment.razorpay_order_id,
@@ -1579,6 +1597,10 @@ export const checkoutService = {
             price: it.unit_price,
           })),
           created_at: new Date().toISOString(),
+        });
+
+        payoutService.settleVendorOrderEarnings(entry.order.id, verifiedPayment.razorpay_payment_id).catch((e) => {
+          log.warn(`[checkout] Could not settle vendor earnings for order ${entry.order.id}: ${String(e)}`);
         });
       }
     }

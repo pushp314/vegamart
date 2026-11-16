@@ -226,8 +226,10 @@ export const adminOrderService = {
               },
               items: {
                 select: {
+                  id: true,
                   product_name: true,
                   unit: true,
+                  selected_unit: true,
                   quantity: true,
                   unit_price: true,
                   total_price: true,
@@ -235,6 +237,7 @@ export const adminOrderService = {
                   status: true,
                   product: {
                     select: {
+                      unit: true,
                       images: {
                         select: { url: true },
                         take: 1,
@@ -350,9 +353,11 @@ export const adminOrderService = {
               }
             : null,
           item_count: items.length,
-          items: items.map((i) => ({
+          items: items.map((i: any) => ({
+            id: i.id,
             product_name: i.product_name,
-            unit: i.unit,
+            unit: i.unit || i.product?.unit || null,
+            selected_unit: i.selected_unit || i.unit || i.product?.unit || null,
             quantity: i.quantity,
             unit_price: Number(i.unit_price),
             total_price: Number(i.total_price),
@@ -403,6 +408,7 @@ export const adminOrderService = {
                   select: {
                     id: true,
                     name: true,
+                    unit: true,
                     images: {
                       select: { url: true },
                       take: 1,
@@ -462,13 +468,14 @@ export const adminOrderService = {
                 : null,
             }
           : null,
-        items: o.items.map(i => ({
+        items: o.items.map((i: any) => ({
           id: i.id,
           quantity: i.quantity,
           unit_price: Number(i.unit_price),
           total_price: Number(i.total_price),
           product_name: i.product_name,
-          unit: i.unit,
+          unit: i.unit || i.product?.unit || null,
+          selected_unit: i.selected_unit || i.unit || i.product?.unit || null,
           image_url: i.image_url || i.product?.images?.[0]?.url || null,
           status: i.status,
         }))
@@ -579,7 +586,8 @@ export const adminOrderService = {
         unit_price: Number(i.unit_price),
         total_price: Number(i.total_price),
         product_name: i.product_name,
-        unit: i.unit,
+        unit: i.unit || i.product?.unit || null,
+        selected_unit: i.selected_unit || i.unit || i.product?.unit || null,
         image_url: i.image_url || i.product?.images?.[0]?.url || null,
         status: i.status,
       })),

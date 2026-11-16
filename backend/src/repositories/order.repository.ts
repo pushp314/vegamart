@@ -262,6 +262,22 @@ export const detailSelect = {
       tax: true,
       platform_fee: true,
       additional_charges: true,
+      payment_status: true,
+      payment_method: true,
+      payment: {
+        select: {
+          id: true,
+          razorpay_order_id: true,
+          razorpay_payment_id: true,
+          method: true,
+          amount: true,
+          status: true,
+          refund_id: true,
+          refund_amount: true,
+          refund_status: true,
+          created_at: true,
+        },
+      },
       _count: {
         select: { orders: true }
       }
@@ -281,6 +297,8 @@ export interface CreateOrderInput {
   delivery_fee: number;
   tax: number;
   total: number;
+  status?: string;
+  payment_status?: string;
   payment_method: string;
   delivery_note?: string | null;
   items: Array<{
@@ -357,6 +375,8 @@ export async function createOrder(input: CreateOrderInput, db: DbClient = prisma
       tax: input.tax,
       total: input.total,
       payment_method: input.payment_method as Prisma.OrderCreateInput["payment_method"],
+      ...(input.status ? { status: input.status as Prisma.OrderCreateInput["status"] } : {}),
+      ...(input.payment_status ? { payment_status: input.payment_status as Prisma.OrderCreateInput["payment_status"] } : {}),
       delivery_note: input.delivery_note ?? null,
       items: {
         create: input.items.map((item) => ({
@@ -378,8 +398,16 @@ export async function createOrder(input: CreateOrderInput, db: DbClient = prisma
 
 function mapOrderDetail(row: any): OrderDetail | null {
   if (!row) return null;
+  const payment = row.payment || row.master_order?.payment || null;
+  const effectivePaymentStatus =
+    row.payment_status === "PAID" || row.master_order?.payment_status === "PAID" || payment?.status === "PAID"
+      ? "PAID"
+      : row.payment_status;
+
   return {
     ...row,
+    payment_status: effectivePaymentStatus,
+    payment,
     items: (row.items || []).map((item: any) => ({
       id: item.id,
       product_id: item.product_id,
@@ -430,7 +458,11 @@ export async function listOrders(
     where.NOT = {
       status: "PENDING",
       payment_method: "RAZORPAY",
-      payment_status: "PENDING",
+      payment_status: { in: ["PENDING", "FAILED"] },
+      OR: [
+        { master_order_id: null },
+        { master_order: { payment_status: { not: "PAID" } } },
+      ],
     };
   }
   if (filter.status) {

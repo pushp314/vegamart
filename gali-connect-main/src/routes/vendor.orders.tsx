@@ -772,9 +772,9 @@ function VendorOrdersPage() {
                                     {item.product_name || item.name || item.product?.name || "Item"}
                                   </span>
                                 </span>
-                                {item.unit && (
+                                {(item.selected_unit || item.unit || item.product?.unit) && (
                                   <span className="text-[10px] text-muted-foreground">
-                                    ({item.unit})
+                                    ({item.selected_unit || item.unit || item.product?.unit})
                                   </span>
                                 )}
                                 {isRejected && (
@@ -1045,6 +1045,9 @@ function VendorOrdersPage() {
               Are you sure you cannot fulfill{" "}
               <strong className="text-foreground">
                 {rejectTarget?.item?.product_name || rejectTarget?.item?.name}
+                {rejectTarget?.item?.selected_unit || rejectTarget?.item?.unit || rejectTarget?.item?.product?.unit
+                  ? ` (${rejectTarget.item.selected_unit || rejectTarget.item.unit || rejectTarget.item.product?.unit})`
+                  : ""}
               </strong>
               ?
             </DialogDescription>

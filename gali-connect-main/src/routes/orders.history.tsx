@@ -203,8 +203,10 @@ function OrderHistoryPage() {
                               isRej ? "opacity-40 border-rose-300" : "border-border"
                             }`}
                             title={`${it.quantity}x ${it.product_name || it.name}${
-                              isRej ? " (Rejected)" : ""
-                            }`}
+                              it.selected_unit || it.unit || it.product?.unit
+                                ? ` (${it.selected_unit || it.unit || it.product?.unit})`
+                                : ""
+                            }${isRej ? " (Rejected)" : ""}`}
                           >
                             {itImg ? (
                               <img
