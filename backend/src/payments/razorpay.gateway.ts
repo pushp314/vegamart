@@ -514,4 +514,118 @@ export const razorpayGateway = {
       city,
     };
   },
+
+  /**
+   * Fetch settlements (withdrawals) from Razorpay into merchant bank account.
+   */
+  async fetchSettlements(options?: { count?: number; skip?: number; from?: number; to?: number }): Promise<{
+    entity: string;
+    count: number;
+    items: Array<{
+      id: string;
+      entity: string;
+      amount: number;
+      status: string;
+      fees: number;
+      tax: number;
+      utr: string;
+      created_at: number;
+      currency?: string;
+    }>;
+    has_more?: boolean;
+  }> {
+    const params = new URLSearchParams();
+    if (options?.count) params.set("count", String(options.count));
+    if (options?.skip) params.set("skip", String(options.skip));
+    if (options?.from) params.set("from", String(options.from));
+    if (options?.to) params.set("to", String(options.to));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return request<{
+      entity: string;
+      count: number;
+      items: Array<{
+        id: string;
+        entity: string;
+        amount: number;
+        status: string;
+        fees: number;
+        tax: number;
+        utr: string;
+        created_at: number;
+        currency?: string;
+      }>;
+      has_more?: boolean;
+    }>(`/settlements${qs}`);
+  },
+
+  /**
+   * Fetch single settlement detail with breakdown.
+   */
+  async fetchSettlementById(id: string): Promise<any> {
+    return request<any>(`/settlements/${id}`);
+  },
+
+  /**
+   * Fetch live customer payments collected via Razorpay.
+   */
+  async fetchPayments(options?: { count?: number; skip?: number; from?: number; to?: number }): Promise<{
+    entity: string;
+    count: number;
+    items: any[];
+    has_more?: boolean;
+  }> {
+    const params = new URLSearchParams();
+    if (options?.count) params.set("count", String(options.count));
+    if (options?.skip) params.set("skip", String(options.skip));
+    if (options?.from) params.set("from", String(options.from));
+    if (options?.to) params.set("to", String(options.to));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return request<{
+      entity: string;
+      count: number;
+      items: any[];
+      has_more?: boolean;
+    }>(`/payments${qs}`);
+  },
+
+  /**
+   * Check on-demand instant settlement availability and limits.
+   */
+  async fetchOnDemandFeatures(): Promise<{
+    allowed: boolean;
+    max_amount?: number;
+    min_amount?: number;
+    instant_settlement_enabled?: boolean;
+    message?: string;
+  }> {
+    try {
+      const res = await request<any>("/settlements/ondemand/features");
+      return {
+        allowed: res.allowed ?? false,
+        max_amount: res.max_amount,
+        min_amount: res.min_amount,
+        instant_settlement_enabled: res.instant_settlement_enabled,
+      };
+    } catch {
+      return { allowed: false, message: "On-demand settlements not enabled on standard gateway plan" };
+    }
+  },
+
+  /**
+   * Create an instant on-demand settlement / withdrawal to merchant bank.
+   */
+  async createOnDemandSettlement(input: {
+    amountPaise?: number;
+    settle_full_balance?: boolean;
+    description?: string;
+  }): Promise<any> {
+    return request<any>("/settlements/ondemand", {
+      method: "POST",
+      body: {
+        amount: input.amountPaise,
+        settle_full_balance: input.settle_full_balance ?? true,
+        description: input.description || "On-demand withdrawal by Admin",
+      },
+    });
+  },
 };

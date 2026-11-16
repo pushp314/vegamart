@@ -161,6 +161,13 @@ import {
 
 import { productIdParamsSchema } from "../../validators/product.validators";
 
+import {
+  getRazorpayOverview,
+  listRazorpaySettlements,
+  listRazorpayPayments,
+  triggerRazorpaySettlement,
+} from "../../controllers/admin-razorpay.controller";
+
 const router = Router();
 
 router.use(adminLimiter, authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN));
@@ -217,6 +224,12 @@ router.get("/payouts/export-csv", exportPayoutsCsv);
 // Delivery Cash-in-Hand Settlements
 router.get("/payouts/cash-settlements", listCashSettlements);
 router.post("/payouts/cash-settlements/:id/review", validate({ body: cashSettlementReviewSchema }), reviewCashSettlement);
+
+// Razorpay Merchant Account Balance & Withdrawals (Settlements)
+router.get("/razorpay/overview", getRazorpayOverview);
+router.get("/razorpay/settlements", listRazorpaySettlements);
+router.get("/razorpay/payments", listRazorpayPayments);
+router.post("/razorpay/settlement/instant", triggerRazorpaySettlement);
 
 // Customer Disputes & Refunds Hub
 router.get("/disputes", getDisputesQueue);

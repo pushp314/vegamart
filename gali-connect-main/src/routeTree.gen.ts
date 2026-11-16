@@ -56,6 +56,7 @@ import { Route as AdminNotificationsRouteImport } from './routes/admin/notificat
 import { Route as AdminOrdersRouteImport } from './routes/admin/orders'
 import { Route as AdminPayoutsRouteImport } from './routes/admin/payouts'
 import { Route as AdminProductsRouteImport } from './routes/admin/products'
+import { Route as AdminRazorpayRouteImport } from './routes/admin/razorpay'
 import { Route as AdminRefundsRouteImport } from './routes/admin/refunds'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
@@ -322,6 +323,11 @@ const AdminProductsRoute = AdminProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminRazorpayRoute = AdminRazorpayRouteImport.update({
+  id: '/razorpay',
+  path: '/razorpay',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminRefundsRoute = AdminRefundsRouteImport.update({
   id: '/refunds',
   path: '/refunds',
@@ -520,6 +526,7 @@ export interface FileRoutesByFullPath {
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/razorpay': typeof AdminRazorpayRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -597,6 +604,7 @@ export interface FileRoutesByTo {
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/razorpay': typeof AdminRazorpayRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -676,6 +684,7 @@ export interface FileRoutesById {
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/razorpay': typeof AdminRazorpayRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -757,6 +766,7 @@ export interface FileRouteTypes {
     | '/admin/orders'
     | '/admin/payouts'
     | '/admin/products'
+    | '/admin/razorpay'
     | '/admin/refunds'
     | '/admin/reports'
     | '/admin/settings'
@@ -834,6 +844,7 @@ export interface FileRouteTypes {
     | '/admin/orders'
     | '/admin/payouts'
     | '/admin/products'
+    | '/admin/razorpay'
     | '/admin/refunds'
     | '/admin/reports'
     | '/admin/settings'
@@ -912,6 +923,7 @@ export interface FileRouteTypes {
     | '/admin/orders'
     | '/admin/payouts'
     | '/admin/products'
+    | '/admin/razorpay'
     | '/admin/refunds'
     | '/admin/reports'
     | '/admin/settings'
@@ -1314,6 +1326,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProductsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/razorpay': {
+      id: '/admin/razorpay'
+      path: '/razorpay'
+      fullPath: '/admin/razorpay'
+      preLoaderRoute: typeof AdminRazorpayRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/refunds': {
       id: '/admin/refunds'
       path: '/refunds'
@@ -1543,6 +1562,7 @@ interface AdminRouteRouteChildren {
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminProductsRoute: typeof AdminProductsRoute
+  AdminRazorpayRoute: typeof AdminRazorpayRoute
   AdminRefundsRoute: typeof AdminRefundsRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -1569,6 +1589,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminOrdersRoute: AdminOrdersRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminProductsRoute: AdminProductsRoute,
+  AdminRazorpayRoute: AdminRazorpayRoute,
   AdminRefundsRoute: AdminRefundsRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminSettingsRoute: AdminSettingsRoute,

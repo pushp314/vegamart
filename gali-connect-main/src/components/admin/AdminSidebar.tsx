@@ -13,6 +13,7 @@ import {
   FileBarChart,
   ClipboardList,
   Banknote,
+  Wallet,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
@@ -33,7 +34,9 @@ export type AdminTab =
   | "support_tickets"
   | "audit_logs"
   | "settings"
-  | "faqs";
+  | "faqs"
+  | "payouts"
+  | "razorpay";
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -54,6 +57,7 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
     { id: "cms", label: "CMS & Marketing", icon: ClipboardList },
     { id: "reports", label: "Reports", icon: FileBarChart },
     { id: "payouts", label: "Vendor Payouts", icon: Banknote },
+    { id: "razorpay", label: "Razorpay Finance", icon: Wallet },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "audit_logs", label: "Audit Logs", icon: RotateCcw },
     { id: "refunds", label: "Refunds", icon: RotateCcw },

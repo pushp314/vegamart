@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
@@ -270,7 +271,14 @@ export function AdminPayouts() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            to="/admin/razorpay"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs px-3.5 h-9 shadow-sm hover:bg-blue-700 transition-colors"
+          >
+            <Wallet className="h-3.5 w-3.5" /> Razorpay Balance &amp; Bank Withdrawals
+          </Link>
+
           <Button
             variant="outline"
             size="sm"

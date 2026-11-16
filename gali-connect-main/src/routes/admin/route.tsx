@@ -20,6 +20,7 @@ import {
   HelpCircle,
   Crown,
   BookOpen,
+  Wallet,
 } from "lucide-react";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { MaintenanceAlertModal } from "@/components/admin/MaintenanceAlertModal";
@@ -74,6 +75,7 @@ function AdminLayout() {
       url: "/admin/support-tickets",
     },
     { id: "audit_logs", title: "Audit Logs", icon: FileText, url: "/admin/audit-logs" },
+    { id: "razorpay", title: "Razorpay Finance", icon: Wallet, url: "/admin/razorpay" },
     { id: "payouts", title: "Vendor Payouts", icon: Banknote, url: "/admin/payouts" },
     { id: "refunds", title: "Refunds", icon: Banknote, url: "/admin/refunds" },
     { id: "settings", title: "Settings", icon: Settings, url: "/admin/settings" },
