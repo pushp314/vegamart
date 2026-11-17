@@ -4,6 +4,7 @@ import { cacheService } from "../database/cache";
 
 import prisma from "../database/prisma";
 import { integrationService } from "../services/integration.service";
+import { vendorService } from "../services/vendor.service";
 import { authService } from "../services/auth.service";
 import { adminUserService } from "../services/admin-user.service";
 import { adminVendorService } from "../services/admin-vendor.service";
@@ -152,8 +153,11 @@ export const updateMyProfile = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const toggleAvailabilityAlias = asyncHandler(async (req: Request, res: Response) => {
-  const isOpen = (req.body as { is_open: boolean }).is_open;
-  const data = await integrationService.toggleAvailability(req.user!.id, isOpen, req);
+  const input =
+    typeof (req.body as any)?.is_open === "boolean" && Object.keys(req.body).length === 1
+      ? (req.body as any).is_open
+      : req.body;
+  const data = await vendorService.setAvailability(req.user!.id, input, req);
   return sendSuccess(res, data, { message: "Availability updated." });
 });
 

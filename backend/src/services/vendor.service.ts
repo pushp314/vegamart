@@ -381,32 +381,34 @@ export const vendorService = {
       manual_override_until?: Date | null;
     } = {};
 
-    if (typeof input === "boolean") {
-      payload.is_open = input;
+    const rawInput: any = input === null || input === undefined ? {} : input;
+
+    if (typeof rawInput === "boolean") {
+      payload.is_open = rawInput;
       if (vendor.auto_schedule_enabled) {
-        payload.manual_override_status = input ? "FORCE_OPEN" : "FORCE_CLOSE";
+        payload.manual_override_status = rawInput ? "FORCE_OPEN" : "FORCE_CLOSE";
         payload.manual_override_until = null;
       }
     } else {
-      if (input.auto_schedule_enabled !== undefined) {
-        payload.auto_schedule_enabled = input.auto_schedule_enabled;
+      if (rawInput.auto_schedule_enabled !== undefined) {
+        payload.auto_schedule_enabled = rawInput.auto_schedule_enabled;
       }
-      if (input.store_schedule !== undefined) {
-        payload.store_schedule = normalizeStoreSchedule(input.store_schedule) as any;
+      if (rawInput.store_schedule !== undefined) {
+        payload.store_schedule = normalizeStoreSchedule(rawInput.store_schedule) as any;
       }
-      if (input.manual_override_status !== undefined) {
-        payload.manual_override_status = input.manual_override_status === "NONE" ? null : input.manual_override_status;
+      if (rawInput.manual_override_status !== undefined) {
+        payload.manual_override_status = rawInput.manual_override_status === "NONE" ? null : rawInput.manual_override_status;
       }
-      if (input.manual_override_minutes && input.manual_override_minutes > 0) {
-        payload.manual_override_until = new Date(Date.now() + input.manual_override_minutes * 60 * 1000);
-      } else if (input.manual_override_until !== undefined) {
-        payload.manual_override_until = input.manual_override_until ? new Date(input.manual_override_until) : null;
+      if (rawInput.manual_override_minutes && rawInput.manual_override_minutes > 0) {
+        payload.manual_override_until = new Date(Date.now() + rawInput.manual_override_minutes * 60 * 1000);
+      } else if (rawInput.manual_override_until !== undefined) {
+        payload.manual_override_until = rawInput.manual_override_until ? new Date(rawInput.manual_override_until) : null;
       }
 
-      if (input.is_open !== undefined) {
-        payload.is_open = input.is_open;
-        if (input.auto_schedule_enabled || vendor.auto_schedule_enabled) {
-          payload.manual_override_status = input.is_open ? "FORCE_OPEN" : "FORCE_CLOSE";
+      if (rawInput.is_open !== undefined) {
+        payload.is_open = rawInput.is_open;
+        if (rawInput.auto_schedule_enabled || vendor.auto_schedule_enabled) {
+          payload.manual_override_status = rawInput.is_open ? "FORCE_OPEN" : "FORCE_CLOSE";
         }
       }
 

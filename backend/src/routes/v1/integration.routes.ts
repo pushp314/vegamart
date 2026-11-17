@@ -106,7 +106,6 @@ router.post("/orders/:id/return", authenticate, requireRole(ROLES.CUSTOMER), val
 // ---------------------------------------------------------------------------
 router.post("/vendors/register", authenticate, validate({ body: vendorRegisterSchema }), registerVendor);
 router.delete("/vendors/me", authenticate, requireRole(ROLES.VENDOR), cancelVendorApplication);
-router.put("/vendors/me/availability", authenticate, requireRole(ROLES.VENDOR), toggleAvailabilityAlias);
 router.put("/vendors/me/toggle-availability", authenticate, requireRole(ROLES.VENDOR), toggleAvailabilityAlias);
 router.put("/vendors/me/profile", authenticate, requireRole(ROLES.VENDOR), updateMyProfile);
 router.get("/vendors/me/kyc", authenticate, requireRole(ROLES.VENDOR), getVendorKyc);
