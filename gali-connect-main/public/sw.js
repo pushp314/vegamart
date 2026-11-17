@@ -1,4 +1,4 @@
-const CACHE_NAME = "vegamart-v4";
+const CACHE_NAME = "vegamart-v5";
 const PRECACHE_URLS = [
   "/manifest.webmanifest",
   "/favicon.ico",
@@ -39,6 +39,16 @@ self.addEventListener("fetch", (event) => {
   if (self.location.hostname === "localhost") return;
 
   const url = new URL(request.url);
+
+  // NEVER intercept API endpoints or WebSocket requests — let browser network handle them directly
+  if (
+    url.pathname.startsWith("/api") ||
+    url.pathname.includes("/api/") ||
+    url.hostname.startsWith("api.") ||
+    url.pathname.startsWith("/ws")
+  ) {
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(

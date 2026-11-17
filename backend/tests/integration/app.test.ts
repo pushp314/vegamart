@@ -60,6 +60,12 @@ describe("Phase 1 integration smoke tests", () => {
       .set("Origin", "http://localhost:3000");
     expect(res.status).toBe(200);
     expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+
+    const resWww = await request(app)
+      .get("/api/v1/health")
+      .set("Origin", "https://www.vegamart.in");
+    expect(resWww.status).toBe(200);
+    expect(resWww.headers["access-control-allow-origin"]).toBe("https://www.vegamart.in");
   });
 
   it("rejects a disallowed origin with 403", async () => {

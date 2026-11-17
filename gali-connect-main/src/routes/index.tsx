@@ -356,22 +356,26 @@ function Hero() {
 
   const { data: slidesResponse, isLoading: slidesLoading } = useQuery({
     queryKey: ["hero-slides"],
-    queryFn: () =>
-      api
-        .get<
-          Array<{
-            id: string;
-            title: string;
-            subtitle: string | null;
-            body: string | null;
-            image_url: string | null;
-            link_url: string | null;
-            link_text: string | null;
-            is_active: boolean;
-          }>
-        >("/hero-slides/public")
-        .then((r) => r.data),
-    staleTime: 10 * 1000,
+    queryFn: async () => {
+      const res = await api.get<
+        Array<{
+          id: string;
+          title: string;
+          subtitle: string | null;
+          body: string | null;
+          image_url: string | null;
+          link_url: string | null;
+          link_text: string | null;
+          is_active: boolean;
+        }>
+      >("/hero-slides/public");
+      if (!res.success) {
+        throw new Error(res.error?.message || "Failed to load hero slides");
+      }
+      return res.data;
+    },
+    staleTime: 60 * 1000,
+    retry: 3,
   });
 
   const { data: videoAdsResponse } = useQuery({
@@ -1035,10 +1039,17 @@ function ShopWiseProducts() {
 }
 
 function Categories() {
-  const { data: res } = useQuery({
+  const { data: res, isLoading } = useQuery({
     queryKey: ["publicCategories"],
-    queryFn: () => api.get<any[]>("/categories"),
+    queryFn: async () => {
+      const r = await api.get<any[]>("/categories");
+      if (!r.success) {
+        throw new Error(r.error?.message || "Failed to load categories");
+      }
+      return r;
+    },
     staleTime: 5 * 60 * 1000,
+    retry: 3,
   });
 
   const dbCats = res?.data || [];
@@ -1066,6 +1077,16 @@ function Categories() {
             Live Vendor
           </span>
         </Link>
+        {isLoading && activeCats.length === 0 && (
+          <>
+            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <div key={i} className="flex flex-col items-center gap-1.5 md:gap-2 animate-pulse">
+                <div className="grid aspect-square w-full place-items-center rounded-2xl bg-muted" />
+                <div className="h-3 w-12 rounded bg-muted/60" />
+              </div>
+            ))}
+          </>
+        )}
         {visibleCats.map((c: any) => (
           <Link
             key={c.id}

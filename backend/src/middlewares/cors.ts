@@ -3,15 +3,47 @@ import type { NextFunction, Request, Response } from "express";
 import { env } from "../config";
 import { HttpStatus } from "../utils/httpStatus";
 
-const ALLOWED_ORIGINS = new Set<string>(
-  [
-    env.CLIENT_URL,
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://localhost:8080",
-  ].filter(Boolean)
-);
+const configuredOrigins = [
+  env.CLIENT_URL,
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://localhost:8080",
+].filter(Boolean);
+
+if (env.CLIENT_URL) {
+  try {
+    const url = new URL(env.CLIENT_URL);
+    if (!url.hostname.startsWith("www.")) {
+      configuredOrigins.push(
+        `${url.protocol}//www.${url.hostname}${url.port ? `:${url.port}` : ""}`
+      );
+    } else {
+      configuredOrigins.push(
+        `${url.protocol}//${url.hostname.replace(/^www\./, "")}${url.port ? `:${url.port}` : ""}`
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
+const ALLOWED_ORIGINS = new Set<string>(configuredOrigins);
+
+function isOriginAllowed(origin: string): boolean {
+  if (ALLOWED_ORIGINS.has(origin)) {
+    return true;
+  }
+  try {
+    const parsed = new URL(origin);
+    if (parsed.hostname === "vegamart.in" || parsed.hostname.endsWith(".vegamart.in")) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
 
 const ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
 const ALLOWED_HEADERS = ["Content-Type", "Authorization", "X-Request-ID", "X-API-Key"];
@@ -35,7 +67,7 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction):
     return next();
   }
 
-  if (ALLOWED_ORIGINS.has(origin)) {
+  if (isOriginAllowed(origin)) {
     applyCorsHeaders(res, origin);
 
     if (req.method === "OPTIONS") {

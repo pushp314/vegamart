@@ -3,17 +3,47 @@
  * Features automatic JWT Bearer token header injection and fallback error handling.
  */
 
-export const API_BASE_URL =
-  typeof window === "undefined"
-    ? import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8081/api/v1"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "http://localhost:8081/api/v1"
-        : "/api/v1");
+export const API_BASE_URL = (() => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+
+  if (typeof window !== "undefined") {
+    // 1. Production domain detection: vegamart.in -> api.vegamart.in
+    const hostname = window.location.hostname;
+    if (hostname === "vegamart.in" || hostname.endsWith(".vegamart.in")) {
+      return "https://api.vegamart.in/api/v1";
+    }
+
+    // 2. Explicitly configured non-localhost environment variable
+    if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+      return envUrl;
+    }
+
+    // 3. Localhost development
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return envUrl || "http://localhost:8081/api/v1";
+    }
+
+    // 4. Local network IP development (e.g. testing from mobile phone over Wi-Fi 192.168.x.x)
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+      return `http://${hostname}:8081/api/v1`;
+    }
+
+    return envUrl || "/api/v1";
+  }
+
+  // SSR environment
+  if (envUrl && !envUrl.includes("localhost")) {
+    return envUrl;
+  }
+  return "http://127.0.0.1:8081/api/v1";
+})();
 
 export const WS_BASE_URL = (() => {
-  if (API_BASE_URL.startsWith("http")) {
-    return API_BASE_URL.replace(/^http/, "ws");
+  if (API_BASE_URL.startsWith("https://")) {
+    return API_BASE_URL.replace(/^https:\/\//, "wss://");
+  }
+  if (API_BASE_URL.startsWith("http://")) {
+    return API_BASE_URL.replace(/^http:\/\//, "ws://");
   }
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
