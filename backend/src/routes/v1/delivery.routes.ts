@@ -30,7 +30,7 @@ import {
   submitCashSettlement,
   listMyCashSettlements,
 } from "../../controllers/delivery.controller";
-import { authenticate } from "../../middlewares/auth.middleware";
+import { authenticate, optionalAuthenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
 import { ROLES } from "../../constants/roles";
@@ -185,7 +185,7 @@ router.post(
   confirmCashPayment
 );
 router.post("/delivery/me/kyc", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryKycSchema }), submitDeliveryKyc);
-router.get("/delivery/order/:id/tracking", authenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
-router.get("/delivery/orders/:id/tracking", authenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
+router.get("/delivery/order/:id/tracking", optionalAuthenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
+router.get("/delivery/orders/:id/tracking", optionalAuthenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
 
 export default router;

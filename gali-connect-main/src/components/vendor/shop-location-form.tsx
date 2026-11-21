@@ -191,8 +191,15 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
         <div className="h-[400px] rounded-lg overflow-hidden border border-border relative z-0">
           <MapContainer center={defaultCenter} zoom={13} style={{ height: "100%", width: "100%" }}>
             <TileLayer
-              attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
-              url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url={
+                import.meta.env.VITE_MAP_TILE_URL &&
+                (!import.meta.env.VITE_MAP_TILE_URL.includes("cartocdn.com") ||
+                  import.meta.env.VITE_MAP_TILE_URL.includes("api_key="))
+                  ? import.meta.env.VITE_MAP_TILE_URL
+                  : "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
+              }
+              maxZoom={19}
             />
             <LocationMarker position={position} setPosition={setPosition} />
             {position && <MapUpdater center={position} />}

@@ -20,7 +20,7 @@ function extractRequestContext(req?: Request): { ip: string; userAgent: string; 
   return {
     ip: req.ip ?? (req.headers["x-forwarded-for"] as string) ?? "",
     userAgent: (req.headers["user-agent"] as string) ?? "",
-    requestId: req.requestId ?? "",
+    requestId: (req as any).requestId ?? "",
   };
 }
 

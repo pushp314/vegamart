@@ -1,11 +1,27 @@
-import { useEffect, useState, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  useMap,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { Phone, Navigation, ShieldCheck, RefreshCw, Star } from "lucide-react";
+import {
+  Phone,
+  Navigation,
+  ShieldCheck,
+  RefreshCw,
+  Star,
+  Radio,
+  Clock,
+  Compass,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// Fix standard default icon assets if needed
+// Fix standard default icon assets
 import iconUrl from "leaflet/dist/images/marker-icon.png";
 import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 import shadowUrl from "leaflet/dist/images/marker-shadow.png";
@@ -36,17 +52,26 @@ export interface DriverDetails {
 
 export interface OrderLiveTrackingMapProps {
   driverLocation?: { lat: number; lng: number } | null;
+  snappedLocation?: { lat: number; lng: number } | null;
+  routePoints?: [number, number][];
+  routeIndex?: number;
   pickupLocations?: LocationPoint[];
   deliveryLocation?: LocationPoint | null;
   driverInfo?: DriverDetails | null;
   status?: string;
   etaMinutes?: number | null;
-  lastUpdatedAt?: string | Date | null;
+  etaSeconds?: number | null;
+  heading?: number | null;
+  speedKmh?: number | null;
+  accuracy?: number | null;
+  lastUpdatedAt?: string | Date | number | null;
+  isLive?: boolean;
+  isStale?: boolean;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
 
-// Helper to auto-fit map view to markers
+// Controller to auto-fit map view to markers
 function MapBoundsController({
   points,
   recenterTrigger,
@@ -69,50 +94,122 @@ function MapBoundsController({
   return null;
 }
 
-// Calculate straight-line distance in km (Haversine formula)
-function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 10) / 10;
+// Calculate bearing between two coordinates
+function computeBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLng);
+  return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
 export function OrderLiveTrackingMap({
   driverLocation,
+  snappedLocation,
+  routePoints = [],
+  routeIndex = 0,
   pickupLocations = [],
   deliveryLocation,
   driverInfo,
   status = "out_for_delivery",
   etaMinutes,
+  etaSeconds,
+  heading: incomingHeading,
+  speedKmh,
+  accuracy,
   lastUpdatedAt,
+  isLive = true,
+  isStale: serverStale = false,
   onRefresh,
   isRefreshing,
 }: OrderLiveTrackingMapProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [recenterCounter, setRecenterCounter] = useState(0);
+  const [autoFollow, setAutoFollow] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+
+  // References to keep Leaflet instances without remounting
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const bikeRotatorRef = useRef<HTMLDivElement | null>(null);
+
+  // Animation interpolation state
+  const animRef = useRef<{
+    rafId: number | null;
+    startLat: number;
+    startLng: number;
+    targetLat: number;
+    targetLng: number;
+    startTime: number;
+    duration: number;
+    currentHeading: number;
+  }>({
+    rafId: null,
+    startLat: 0,
+    startLng: 0,
+    targetLat: 0,
+    targetLng: 0,
+    startTime: 0,
+    duration: 3500,
+    currentHeading: 0,
+  });
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Filter valid points
-  const validDriver = driverLocation && driverLocation.lat && driverLocation.lng ? driverLocation : null;
-  const validDelivery = deliveryLocation && deliveryLocation.lat && deliveryLocation.lng ? deliveryLocation : null;
-  const validPickups = pickupLocations.filter((p) => p && p.lat && p.lng);
+  // Compute seconds elapsed since last update
+  useEffect(() => {
+    const updateTicker = () => {
+      if (!lastUpdatedAt) {
+        setSecondsAgo(0);
+        return;
+      }
+      const updateMs =
+        typeof lastUpdatedAt === "number"
+          ? lastUpdatedAt
+          : new Date(lastUpdatedAt).getTime();
+      const diffSec = Math.max(0, Math.floor((Date.now() - updateMs) / 1000));
+      setSecondsAgo(diffSec);
+    };
 
-  // Fallback center coordinates (e.g. Delhi NCR center if no coordinates available yet)
+    updateTicker();
+    const interval = setInterval(updateTicker, 1000);
+    return () => clearInterval(interval);
+  }, [lastUpdatedAt]);
+
+  const isStale = serverStale || secondsAgo > 45;
+
+  // Active target coordinates (favor snapped road position for smooth aesthetics)
+  const targetLat = snappedLocation?.lat ?? driverLocation?.lat ?? null;
+  const targetLng = snappedLocation?.lng ?? driverLocation?.lng ?? null;
+
+  const validDriver =
+    targetLat != null && targetLng != null ? { lat: targetLat, lng: targetLng } : null;
+  const validDelivery =
+    deliveryLocation && deliveryLocation.lat && deliveryLocation.lng
+      ? deliveryLocation
+      : null;
+  const validPickups = useMemo(
+    () => pickupLocations.filter((p) => p && p.lat && p.lng),
+    [pickupLocations]
+  );
+
+  // Fallback center coordinates
   const defaultCenter = useMemo<[number, number]>(() => {
     if (validDriver) return [validDriver.lat, validDriver.lng];
     if (validDelivery) return [validDelivery.lat, validDelivery.lng];
-    if (validPickups.length > 0 && validPickups[0]) return [validPickups[0].lat, validPickups[0].lng];
-    return [28.6139, 77.209];
+    if (validPickups.length > 0 && validPickups[0])
+      return [validPickups[0].lat, validPickups[0].lng];
+    return [12.9716, 77.5946];
   }, [validDriver, validDelivery, validPickups]);
 
   // Points for map bounds fitting
@@ -124,37 +221,58 @@ export function OrderLiveTrackingMap({
     return pts;
   }, [validDriver, validDelivery, validPickups]);
 
-  // Route path coordinates (Driver -> Pickups -> Delivery Destination)
-  const routePolyline = useMemo<[number, number][]>(() => {
-    const pts: [number, number][] = [];
-    if (validDriver) pts.push([validDriver.lat, validDriver.lng]);
-    validPickups.forEach((p) => pts.push([p.lat, p.lng]));
-    if (validDelivery) pts.push([validDelivery.lat, validDelivery.lng]);
-    return pts;
-  }, [validDriver, validPickups, validDelivery]);
+  // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
+  const { pathAhead, pathTrail } = useMemo(() => {
+    if (!routePoints || routePoints.length === 0) {
+      // Fallback straight-line polyline if no road route available
+      const straight: [number, number][] = [];
+      if (validDriver) straight.push([validDriver.lat, validDriver.lng]);
+      validPickups.forEach((p) => straight.push([p.lat, p.lng]));
+      if (validDelivery) straight.push([validDelivery.lat, validDelivery.lng]);
+      return { pathAhead: straight, pathTrail: [] as [number, number][] };
+    }
 
-  // Distance estimate between driver and customer
-  const distanceKm = useMemo(() => {
-    if (validDriver && validDelivery) {
-      return calculateDistanceKm(validDriver.lat, validDriver.lng, validDelivery.lat, validDelivery.lng);
+    const safeIndex = Math.max(0, Math.min(routeIndex, routePoints.length - 1));
+    const trail = routePoints.slice(0, safeIndex + 1);
+
+    const ahead: [number, number][] = [];
+    if (validDriver) {
+      ahead.push([validDriver.lat, validDriver.lng]);
+    }
+    for (let i = safeIndex + 1; i < routePoints.length; i++) {
+      const pt = routePoints[i];
+      if (pt) ahead.push(pt);
+    }
+
+    return { pathAhead: ahead, pathTrail: trail };
+  }, [routePoints, routeIndex, validDriver, validPickups, validDelivery]);
+
+  // Dynamic ETA display formatting
+  const displayEta = useMemo(() => {
+    if (etaSeconds != null && etaSeconds > 0) {
+      const mins = Math.ceil(etaSeconds / 60);
+      return mins <= 1 ? "1 min" : `${mins} mins`;
+    }
+    if (etaMinutes != null && etaMinutes > 0) {
+      return etaMinutes <= 1 ? "1 min" : `${etaMinutes} mins`;
     }
     return null;
-  }, [validDriver, validDelivery]);
+  }, [etaSeconds, etaMinutes]);
 
   // Custom Div Icons for visual excellence
   const driverDivIcon = useMemo(() => {
     return L.divIcon({
-      className: "driver-marker-pin",
+      className: "driver-marker-container",
       html: `
-        <div style="position: relative; display: flex; align-items: center; justify-content: center;">
-          <span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background-color: rgba(16, 185, 129, 0.4); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-          <div style="position: relative; z-index: 10; width: 38px; height: 38px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 9999px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); border: 2px solid #ffffff; font-size: 18px;">
+        <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px;">
+          <span style="position: absolute; width: 48px; height: 48px; border-radius: 9999px; background-color: rgba(16, 185, 129, 0.25); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+          <div class="driver-bike-rotator" style="position: relative; z-index: 10; width: 40px; height: 40px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 9999px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px -2px rgba(5, 150, 105, 0.5); border: 2.5px solid #ffffff; font-size: 20px; transition: transform 0.3s ease-out; will-change: transform;">
             🛵
           </div>
         </div>
       `,
-      iconSize: [38, 38],
-      iconAnchor: [19, 19],
+      iconSize: [48, 48],
+      iconAnchor: [24, 24],
     });
   }, []);
 
@@ -188,6 +306,141 @@ export function OrderLiveTrackingMap({
     });
   }, []);
 
+  // 60 FPS RequestAnimationFrame Movement Interpolation
+  useEffect(() => {
+    if (!validDriver || !markerRef.current) return;
+
+    const anim = animRef.current;
+    const currentLatLng = markerRef.current.getLatLng();
+
+    // Initialize start position on first ping
+    if (anim.startLat === 0 && anim.startLng === 0) {
+      anim.startLat = currentLatLng.lat || validDriver.lat;
+      anim.startLng = currentLatLng.lng || validDriver.lng;
+    } else {
+      anim.startLat = currentLatLng.lat;
+      anim.startLng = currentLatLng.lng;
+    }
+
+    anim.targetLat = validDriver.lat;
+    anim.targetLng = validDriver.lng;
+    anim.startTime = performance.now();
+    anim.duration = 3800; // Smooth 3.8s transition between typical 5s GPS updates
+
+    // Heading calculation: favor incoming GPS heading; if null, calculate forward bearing
+    let targetHeading = incomingHeading;
+    if (
+      targetHeading == null ||
+      isNaN(targetHeading) ||
+      (anim.startLat === anim.targetLat && anim.startLng === anim.targetLng)
+    ) {
+      if (
+        Math.abs(anim.targetLat - anim.startLat) > 0.00001 ||
+        Math.abs(anim.targetLng - anim.startLng) > 0.00001
+      ) {
+        targetHeading = computeBearing(
+          anim.startLat,
+          anim.startLng,
+          anim.targetLat,
+          anim.targetLng
+        );
+      } else {
+        targetHeading = anim.currentHeading;
+      }
+    }
+
+    if (anim.rafId !== null) {
+      cancelAnimationFrame(anim.rafId);
+      anim.rafId = null;
+    }
+
+    // If tab is currently hidden/backgrounded, pause rAF to conserve CPU/battery and snap marker directly
+    if (typeof document !== "undefined" && document.hidden) {
+      markerRef.current.setLatLng([validDriver.lat, validDriver.lng]);
+      anim.startLat = validDriver.lat;
+      anim.startLng = validDriver.lng;
+
+      if (targetHeading != null && !isNaN(targetHeading)) {
+        anim.currentHeading = targetHeading;
+        const markerEl = markerRef.current.getElement();
+        const rotator = (markerEl?.querySelector(".driver-bike-rotator") as HTMLElement | null) ||
+          (document.getElementById("driver-bike-rotator") as HTMLElement | null);
+        if (rotator) {
+          rotator.style.transform = `rotate(${Math.round(targetHeading)}deg)`;
+        }
+      }
+      return;
+    }
+
+    const animate = (currentTime: number) => {
+      // Pause animation if document becomes hidden mid-frame
+      if (typeof document !== "undefined" && document.hidden) {
+        if (markerRef.current) {
+          markerRef.current.setLatLng([anim.targetLat, anim.targetLng]);
+        }
+        anim.startLat = anim.targetLat;
+        anim.startLng = anim.targetLng;
+        anim.rafId = null;
+        return;
+      }
+
+      const elapsed = currentTime - anim.startTime;
+      const progress = Math.min(1, Math.max(0, elapsed / anim.duration));
+
+      // Standard cubic ease-out for natural deceleration
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      const curLat = anim.startLat + (anim.targetLat - anim.startLat) * ease;
+      const curLng = anim.startLng + (anim.targetLng - anim.startLng) * ease;
+
+      if (markerRef.current) {
+        markerRef.current.setLatLng([curLat, curLng]);
+      }
+
+      // Smooth heading rotation ONLY on inner child element (never Leaflet's translate3d marker wrapper)
+      if (targetHeading != null && !isNaN(targetHeading)) {
+        anim.currentHeading = targetHeading;
+        const markerEl = markerRef.current?.getElement();
+        const rotator = (markerEl?.querySelector(".driver-bike-rotator") as HTMLElement | null) ||
+          (document.getElementById("driver-bike-rotator") as HTMLElement | null);
+        if (rotator) {
+          rotator.style.transform = `rotate(${Math.round(targetHeading)}deg)`;
+        }
+      }
+
+      // Smooth pan map if auto-follow is active
+      if (autoFollow && mapRef.current) {
+        mapRef.current.panTo([curLat, curLng], { animate: false });
+      }
+
+      if (progress < 1) {
+        anim.rafId = requestAnimationFrame(animate);
+      } else {
+        anim.rafId = null;
+      }
+    };
+
+    anim.rafId = requestAnimationFrame(animate);
+
+    // Re-sync on tab visibility resume
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden && markerRef.current) {
+        markerRef.current.setLatLng([anim.targetLat, anim.targetLng]);
+        anim.startLat = anim.targetLat;
+        anim.startLng = anim.targetLng;
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (anim.rafId !== null) {
+        cancelAnimationFrame(anim.rafId);
+        anim.rafId = null;
+      }
+    };
+  }, [validDriver?.lat, validDriver?.lng, incomingHeading, autoFollow]);
+
   if (!isMounted) {
     return (
       <div className="rounded-3xl border bg-card overflow-hidden shadow-soft h-80 flex flex-col items-center justify-center gap-3 p-6 text-center">
@@ -197,33 +450,84 @@ export function OrderLiveTrackingMap({
     );
   }
 
+  const envTileUrl = import.meta.env.VITE_MAP_TILE_URL;
+  const mapTileUrl =
+    envTileUrl && (!envTileUrl.includes("cartocdn.com") || envTileUrl.includes("api_key="))
+      ? envTileUrl
+      : "https://tile.openstreetmap.de/{z}/{x}/{y}.png";
+
   return (
     <div className="rounded-3xl border bg-card overflow-hidden shadow-soft flex flex-col">
-      {/* Top Header Bar */}
-      <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900/40 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+      {/* Top Blinkit-style Live Radar Header Bar */}
+      <div className="p-4 bg-emerald-50/90 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900/40 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-3.5 w-3.5">
+            {!isStale && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            )}
+            <span
+              className={`relative inline-flex rounded-full h-3.5 w-3.5 ${
+                isStale ? "bg-amber-500" : "bg-emerald-500"
+              }`}
+            ></span>
           </span>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-black text-emerald-950 dark:text-emerald-100">
-                Live GPS Radar Active
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-foreground">
+                {isStale
+                  ? "Waiting for rider signal…"
+                  : displayEta
+                  ? `Arriving in ~${displayEta}`
+                  : "Live Tracking Active"}
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-extrabold text-[10px] uppercase tracking-wider">
-                {validDriver ? "Rider Connected" : "Awaiting GPS Signal"}
+              <span
+                className={`px-2 py-0.5 rounded-full font-extrabold text-[10px] uppercase tracking-wider ${
+                  isStale
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                    : "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                }`}
+              >
+                {isStale
+                  ? "Signal paused"
+                  : validDriver
+                  ? "60 FPS Live"
+                  : "Awaiting GPS"}
               </span>
             </div>
-            {distanceKm != null && (
-              <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
-                Driver is approx. <span className="font-bold">{distanceKm} km</span> from delivery location
-              </p>
-            )}
+            <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5 mt-0.5">
+              <Clock className="h-3 w-3 inline text-emerald-600 dark:text-emerald-400" />
+              {secondsAgo <= 3
+                ? "Updated just now"
+                : `Updated ${secondsAgo}s ago`}
+              {speedKmh != null && speedKmh > 0 && (
+                <>
+                  <span>•</span>
+                  <span>{Math.round(speedKmh)} km/h</span>
+                </>
+              )}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Follow Rider Toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAutoFollow(!autoFollow)}
+            className={`h-8 px-2.5 text-xs font-bold rounded-xl transition-all ${
+              autoFollow
+                ? "bg-emerald-600 text-white hover:bg-emerald-500 border-emerald-600"
+                : "border-emerald-200 bg-white hover:bg-emerald-50 dark:bg-card dark:border-emerald-900"
+            }`}
+            title={autoFollow ? "Disable Follow Mode" : "Auto-follow Rider"}
+          >
+            <Compass
+              className={`h-3.5 w-3.5 mr-1 ${autoFollow ? "animate-spin" : ""}`}
+            />
+            {autoFollow ? "Following" : "Follow"}
+          </Button>
+
           {onRefresh && (
             <Button
               variant="outline"
@@ -233,7 +537,9 @@ export function OrderLiveTrackingMap({
               className="h-8 px-2.5 text-xs font-bold rounded-xl border-emerald-200 bg-white hover:bg-emerald-100 dark:bg-emerald-900/30 dark:border-emerald-800"
               title="Refresh GPS"
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isRefreshing ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 mr-1 ${isRefreshing ? "animate-spin" : ""}`}
+              />
               Refresh
             </Button>
           )}
@@ -241,7 +547,10 @@ export function OrderLiveTrackingMap({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setRecenterCounter((c) => c + 1)}
+            onClick={() => {
+              setAutoFollow(false);
+              setRecenterCounter((c) => c + 1);
+            }}
             className="h-8 px-2.5 text-xs font-bold rounded-xl border-emerald-200 bg-white hover:bg-emerald-100 dark:bg-emerald-900/30 dark:border-emerald-800"
             title="Recenter Map"
           >
@@ -258,37 +567,67 @@ export function OrderLiveTrackingMap({
           zoom={14}
           scrollWheelZoom={false}
           className="h-full w-full z-0"
+          ref={(m) => {
+            if (m) mapRef.current = m;
+          }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
-            url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url={mapTileUrl}
+            maxZoom={19}
           />
 
-          <MapBoundsController points={allPoints} recenterTrigger={recenterCounter} />
+          <MapBoundsController
+            points={allPoints}
+            recenterTrigger={recenterCounter}
+          />
 
-          {/* Route Polyline (dashed navigation line) */}
-          {routePolyline.length >= 2 && (
+          {/* Shrinking Trail (already travelled route) */}
+          {pathTrail.length >= 2 && (
             <Polyline
-              positions={routePolyline}
-              color="#059669"
-              weight={4}
-              dashArray="6, 8"
-              opacity={0.85}
+              positions={pathTrail}
+              color="#94a3b8"
+              weight={3.5}
+              dashArray="4, 6"
+              opacity={0.5}
             />
           )}
 
-          {/* Driver Vehicle Pin */}
+          {/* Upcoming Road Route Ahead (vibrant emerald line) */}
+          {pathAhead.length >= 2 && (
+            <Polyline
+              positions={pathAhead}
+              color="#059669"
+              weight={5}
+              opacity={0.95}
+              lineCap="round"
+              lineJoin="round"
+            />
+          )}
+
+          {/* Driver Vehicle Pin with 60fps Lerp */}
           {validDriver && (
-            <Marker position={[validDriver.lat, validDriver.lng]} icon={driverDivIcon}>
+            <Marker
+              position={[validDriver.lat, validDriver.lng]}
+              icon={driverDivIcon}
+              ref={(m) => {
+                if (m) markerRef.current = m;
+              }}
+            >
               <Popup>
                 <div className="p-1 space-y-1 text-xs">
                   <div className="font-black text-emerald-700 flex items-center gap-1">
                     🛵 {driverInfo?.name || "Delivery Partner"}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {driverInfo?.vehicle_type || "Vehicle"} {driverInfo?.vehicle_number ? `(${driverInfo.vehicle_number})` : ""}
+                    {driverInfo?.vehicle_type || "Vehicle"}{" "}
+                    {driverInfo?.vehicle_number
+                      ? `(${driverInfo.vehicle_number})`
+                      : ""}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Live GPS Broadcast</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Road-snapped 60fps tracking
+                  </p>
                 </div>
               </Popup>
             </Marker>
@@ -296,14 +635,20 @@ export function OrderLiveTrackingMap({
 
           {/* Store Pickup Pin(s) */}
           {validPickups.map((pickup, idx) => (
-            <Marker key={idx} position={[pickup.lat, pickup.lng]} icon={storeDivIcon}>
+            <Marker
+              key={idx}
+              position={[pickup.lat, pickup.lng]}
+              icon={storeDivIcon}
+            >
               <Popup>
                 <div className="p-1 space-y-0.5 text-xs">
                   <div className="font-bold text-amber-700 flex items-center gap-1">
                     🏪 {pickup.name || "Pickup Location"}
                   </div>
                   {pickup.address && (
-                    <p className="text-[11px] text-muted-foreground max-w-[180px]">{pickup.address}</p>
+                    <p className="text-[11px] text-muted-foreground max-w-[180px]">
+                      {pickup.address}
+                    </p>
                   )}
                 </div>
               </Popup>
@@ -312,14 +657,19 @@ export function OrderLiveTrackingMap({
 
           {/* Customer Drop-off Pin */}
           {validDelivery && (
-            <Marker position={[validDelivery.lat, validDelivery.lng]} icon={destinationDivIcon}>
+            <Marker
+              position={[validDelivery.lat, validDelivery.lng]}
+              icon={destinationDivIcon}
+            >
               <Popup>
                 <div className="p-1 space-y-0.5 text-xs">
                   <div className="font-bold text-rose-700 flex items-center gap-1">
                     🏠 Delivery Address
                   </div>
                   {validDelivery.address && (
-                    <p className="text-[11px] text-muted-foreground max-w-[180px]">{validDelivery.address}</p>
+                    <p className="text-[11px] text-muted-foreground max-w-[180px]">
+                      {validDelivery.address}
+                    </p>
                   )}
                 </div>
               </Popup>
@@ -327,18 +677,23 @@ export function OrderLiveTrackingMap({
           )}
         </MapContainer>
 
-        {/* Floating Signal Status Pill */}
+        {/* Floating Status Pill */}
         <div className="absolute bottom-3 left-3 z-[400] pointer-events-none">
-          <div className="bg-card/95 backdrop-blur-md border border-border px-3 py-1.5 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="bg-card/95 backdrop-blur-md border border-border px-3.5 py-1.5 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                isStale
+                  ? "bg-amber-500"
+                  : "bg-emerald-500 animate-pulse"
+              }`}
+            />
             <span className="text-foreground">
-              {validDriver ? "Rider is en route" : "Waiting for rider location…"}
+              {isStale
+                ? "Waiting for rider signal…"
+                : displayEta
+                ? `En route • Arriving in ~${displayEta}`
+                : "Rider is en route"}
             </span>
-            {etaMinutes != null && (
-              <span className="text-muted-foreground font-normal">
-                • ETA ~{etaMinutes} mins
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -352,15 +707,21 @@ export function OrderLiveTrackingMap({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-black text-foreground">{driverInfo.name}</h4>
+                <h4 className="text-sm font-black text-foreground">
+                  {driverInfo.name}
+                </h4>
                 <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
                   <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                  {driverInfo.rating && driverInfo.rating > 0 ? driverInfo.rating.toFixed(1) : "5.0"}
+                  {driverInfo.rating && driverInfo.rating > 0
+                    ? driverInfo.rating.toFixed(1)
+                    : "5.0"}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
                 {driverInfo.vehicle_type || "Delivery Partner"}
-                {driverInfo.vehicle_number ? ` • ${driverInfo.vehicle_number}` : ""}
+                {driverInfo.vehicle_number
+                  ? ` • ${driverInfo.vehicle_number}`
+                  : ""}
               </p>
             </div>
           </div>

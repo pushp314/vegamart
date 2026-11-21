@@ -44,8 +44,15 @@ export function DeliveryMapModal({
         <div className="flex-1 bg-muted relative">
           <MapContainer center={center} zoom={13} scrollWheelZoom={true} className="h-full w-full">
             <TileLayer
-              attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
-              url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url={
+                import.meta.env.VITE_MAP_TILE_URL &&
+                (!import.meta.env.VITE_MAP_TILE_URL.includes("cartocdn.com") ||
+                  import.meta.env.VITE_MAP_TILE_URL.includes("api_key="))
+                  ? import.meta.env.VITE_MAP_TILE_URL
+                  : "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
+              }
+              maxZoom={19}
             />
 
             <Marker position={[startLocation.lat, startLocation.lng]}>

@@ -15,6 +15,7 @@ import {
 import * as orderRepo from "../repositories/order.repository";
 import * as inventoryRepo from "../repositories/inventory.repository";
 import { completeDelivery, VENDOR_DELIVERY_STATES, verifyDeliveryOtp } from "./order-delivery.service";
+import { trackingService } from "../modules/tracking/tracking.service";
 import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { generateInvoiceNumber } from "../utils/order";
@@ -397,6 +398,7 @@ export const orderService = {
       });
 
       realtime.publishOrderStatus(m.id, "CANCELLED");
+      trackingService.onOrderDeliveredOrCancelled(m.id, "CANCELLED").catch(() => {});
 
       await notificationService.orderStatus(
         userId,

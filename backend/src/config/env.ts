@@ -5,6 +5,11 @@ const booleanFromString = z
   .default("false")
   .transform((v) => v === "true");
 
+const booleanFromStringDefaultTrue = z
+  .enum(["true", "false"])
+  .default("true")
+  .transform((v) => v === "true");
+
 const stringOrEmpty = z.string().optional().default("");
 
 const envSchema = z
@@ -70,6 +75,13 @@ const envSchema = z
     REDIS_URL: stringOrEmpty,
     REDIS_PASSWORD: stringOrEmpty,
     REDIS_PREFIX: z.string().default("gali:"),
+
+    // ── Live Delivery Tracking ──────────────────────────────────────────────
+    LIVE_TRACKING_ENABLED: booleanFromStringDefaultTrue,
+    ROUTING_PROVIDER: z.enum(["ors", "osrm"]).default("osrm"),
+    ORS_API_KEY: stringOrEmpty,
+    OSRM_BASE_URL: z.string().default("https://router.project-osrm.org"),
+    LIVE_TRACKING_REROUTE_LIMIT: z.coerce.number().int().positive().default(5),
 
     CACHE_TTL_SECONDS_DEFAULT: z.coerce.number().int().positive().default(300),
     CACHE_TTL_PRODUCT: z.coerce.number().int().positive().default(300),

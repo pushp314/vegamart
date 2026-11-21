@@ -143,7 +143,12 @@ export type DeliveryKycBody = z.infer<typeof deliveryKycSchema>;
 export const deliveryLocationSchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
-}).strict();
+  accuracy: z.preprocess((val) => (val === null || val === "" ? null : val), z.coerce.number().min(0).max(10000).nullable()).optional(),
+  heading: z.preprocess((val) => (val === null || val === "" ? null : val), z.coerce.number().min(0).max(360).nullable()).optional(),
+  speed: z.preprocess((val) => (val === null || val === "" ? null : val), z.coerce.number().min(0).max(200).nullable()).optional(),
+  capturedAt: z.preprocess((val) => (val === null || val === "" ? null : val), z.union([z.string(), z.number()]).nullable()).optional(),
+  sequence: z.preprocess((val) => (val === null || val === "" ? null : val), z.coerce.number().int().nullable()).optional(),
+});
 
 export type DeliveryLocationBody = z.infer<typeof deliveryLocationSchema>;
 

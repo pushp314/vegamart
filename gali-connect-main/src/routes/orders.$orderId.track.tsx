@@ -37,12 +37,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, WS_BASE_URL, ACCESS_TOKEN_KEY } from "@/lib/api";
-import { OrderLiveTrackingMap } from "@/components/orders/OrderLiveTrackingMap";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
+
+// SSR-Safe Lazy Loading for Leaflet Map
+const OrderLiveTrackingMap = React.lazy(() =>
+  import("@/components/orders/OrderLiveTrackingMap").then((m) => ({
+    default: m.OrderLiveTrackingMap,
+  }))
+);
 import {
   getDeliveryOptionInfo,
   getPaymentMethodInfo,
@@ -76,6 +82,11 @@ function OrderIdTrackingPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [isSwitchingCod, setIsSwitchingCod] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const cancelMutation = useMutation({
     mutationFn: () => api.post(`/orders/${orderId}/cancel`, { reason: cancelReason }),
@@ -163,7 +174,13 @@ function OrderIdTrackingPage() {
     status === "preparing" || status === "packed" || status === "ready_for_pickup";
   const isConfirmed = status === "confirmed" || isPreparing || isOutForDelivery || isDelivered;
 
-  // Live GPS tracking query
+  // Track WebSocket connection state to suppress redundant REST polling
+  const [isWsConnected, setIsWsConnected] = useState(false);
+  const routeVersionRef = useRef<number>(1);
+  const reconnectTimeoutRef = useRef<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // Live GPS tracking query (polled only as fallback when WebSocket is inactive)
   const {
     data: trackingRes,
     refetch: refetchTracking,
@@ -177,54 +194,160 @@ function OrderIdTrackingPage() {
         status === "picked_up" ||
         status === "preparing" ||
         status === "confirmed"),
-    refetchInterval: isOutForDelivery ? 8000 : false,
+    refetchInterval: isWsConnected
+      ? false
+      : isOutForDelivery || status === "picked_up"
+      ? 25000
+      : false,
   });
 
   const trackingData = trackingRes?.data?.data || trackingRes?.data || null;
 
-  // Real-time live coordinates state (updated via WebSocket stream or polling)
-  const [liveDriverLocation, setLiveDriverLocation] = useState<{ lat: number; lng: number } | null>(
-    null,
-  );
+  // Real-time live tracking state (updated via WebSocket stream or fallback REST snapshot)
+  const [liveTrackingState, setLiveTrackingState] = useState<{
+    lat: number | null;
+    lng: number | null;
+    snappedLat: number | null;
+    snappedLng: number | null;
+    heading: number | null;
+    speedKmh: number | null;
+    accuracy: number | null;
+    etaSeconds: number | null;
+    remainingMeters: number | null;
+    routeIndex: number;
+    routeVersion: number;
+    ts: number | null;
+  }>({
+    lat: null,
+    lng: null,
+    snappedLat: null,
+    snappedLng: null,
+    heading: null,
+    speedKmh: null,
+    accuracy: null,
+    etaSeconds: null,
+    remainingMeters: null,
+    routeIndex: 0,
+    routeVersion: 1,
+    ts: null,
+  });
 
-  // Sync initial or polled coordinates into state
+  // Sync initial or polled snapshot data into live state
   useEffect(() => {
     if (trackingData?.current_lat && trackingData?.current_lng) {
-      setLiveDriverLocation({
+      setLiveTrackingState((prev) => ({
+        ...prev,
         lat: Number(trackingData.current_lat),
         lng: Number(trackingData.current_lng),
-      });
-    }
-  }, [trackingData?.current_lat, trackingData?.current_lng]);
+        snappedLat: trackingData.snapped_lat ? Number(trackingData.snapped_lat) : Number(trackingData.current_lat),
+        snappedLng: trackingData.snapped_lng ? Number(trackingData.snapped_lng) : Number(trackingData.current_lng),
+        heading: trackingData.heading != null ? Number(trackingData.heading) : prev.heading,
+        speedKmh: trackingData.speed_kmh != null ? Number(trackingData.speed_kmh) : (trackingData.speed != null ? Number(trackingData.speed) : prev.speedKmh),
+        etaSeconds: trackingData.eta_seconds != null ? Number(trackingData.eta_seconds) : prev.etaSeconds,
+        remainingMeters: trackingData.remaining_meters != null ? Number(trackingData.remaining_meters) : prev.remainingMeters,
+        routeIndex: trackingData.route_index != null ? Number(trackingData.route_index) : prev.routeIndex,
+        routeVersion: trackingData.route?.version != null ? Number(trackingData.route.version) : prev.routeVersion,
+        ts: trackingData.last_updated_at ? new Date(trackingData.last_updated_at).getTime() : Date.now(),
+      }));
 
-  // WebSocket connection to /delivery/order/:order_id/stream
+      if (trackingData.route?.version) {
+        routeVersionRef.current = Math.max(routeVersionRef.current, Number(trackingData.route.version));
+      }
+    }
+  }, [
+    trackingData?.current_lat,
+    trackingData?.current_lng,
+    trackingData?.snapped_lat,
+    trackingData?.snapped_lng,
+    trackingData?.heading,
+    trackingData?.speed_kmh,
+    trackingData?.eta_seconds,
+    trackingData?.route_index,
+    trackingData?.route?.version,
+  ]);
+
+  // WebSocket Ticket Handshake & Auto-Fallback Connection
   useEffect(() => {
     if (typeof window === "undefined" || !orderId || isDelivered) return;
-    const token =
-      typeof localStorage !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY) : null;
-    if (!token) return;
 
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: any = null;
     let cancelled = false;
+    let retryDelay = 1000;
 
-    const connect = () => {
+    const canonicalMasterId =
+      trackingData?.masterOrderId ||
+      trackingData?.master_order_id ||
+      order?.master_order_id ||
+      orderId;
+
+    const connectWs = async () => {
       if (cancelled) return;
+
+      // 1. Fetch single-use WS ticket to avoid token exposure in query params
+      let ticket: string | null = null;
       try {
-        const wsUrl = `${WS_BASE_URL}/delivery/order/${orderId}/stream?token=${encodeURIComponent(token)}`;
-        ws = new WebSocket(wsUrl);
+        const ticketRes = await api.post<{ ticket: string }>("/realtime/ticket");
+        ticket = (ticketRes.data as any)?.ticket || (ticketRes.data as any)?.data?.ticket || null;
+      } catch {
+        // Ticket endpoint unavailable, will fall back to auth token
+      }
+
+      if (cancelled) return;
+
+      const token =
+        typeof localStorage !== "undefined"
+          ? localStorage.getItem(ACCESS_TOKEN_KEY)
+          : null;
+
+      if (!ticket && !token) return;
+
+      try {
+        const wsUrl = ticket
+          ? `${WS_BASE_URL}/delivery/order/${canonicalMasterId}/stream?ticket=${encodeURIComponent(ticket)}`
+          : `${WS_BASE_URL}/delivery/order/${canonicalMasterId}/stream?token=${encodeURIComponent(token!)}`;
+
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          if (cancelled) {
+            ws.close();
+            return;
+          }
+          setIsWsConnected(true);
+          retryDelay = 1000; // Reset exponential backoff on successful connection
+        };
 
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
-            if (msg.type === "location_update" && msg.data?.lat && msg.data?.lng) {
-              setLiveDriverLocation({
-                lat: Number(msg.data.lat),
-                lng: Number(msg.data.lng),
+            if (msg.type === "location_update" && msg.data) {
+              const data = msg.data;
+              setLiveTrackingState({
+                lat: Number(data.lat),
+                lng: Number(data.lng),
+                snappedLat: data.snappedLat != null ? Number(data.snappedLat) : Number(data.lat),
+                snappedLng: data.snappedLng != null ? Number(data.snappedLng) : Number(data.lng),
+                heading: data.heading != null ? Number(data.heading) : null,
+                speedKmh: data.speedKmh != null ? Number(data.speedKmh) : null,
+                accuracy: data.accuracy != null ? Number(data.accuracy) : null,
+                etaSeconds: data.etaSeconds != null ? Number(data.etaSeconds) : null,
+                remainingMeters: data.remainingMeters != null ? Number(data.remainingMeters) : null,
+                routeIndex: data.routeIndex != null ? Number(data.routeIndex) : 0,
+                routeVersion: data.routeVersion != null ? Number(data.routeVersion) : 1,
+                ts: data.ts || Date.now(),
               });
+
+              // If backend updated road route version (e.g. stores picked up or rerouted), refetch road route in background
+              if (data.routeVersion && data.routeVersion > routeVersionRef.current) {
+                routeVersionRef.current = data.routeVersion;
+                refetchTracking();
+              }
             } else if (msg.type === "order_status_update") {
               queryClient.invalidateQueries({ queryKey: ["orderDetail", orderId] });
               queryClient.invalidateQueries({ queryKey: ["orderTracking", orderId] });
+            } else if (msg.type === "tracking:ended") {
+              setIsWsConnected(false);
+              ws.close();
             }
           } catch {
             // Ignore malformed WS payloads
@@ -232,35 +355,53 @@ function OrderIdTrackingPage() {
         };
 
         ws.onclose = () => {
-          if (!cancelled) {
-            reconnectTimeout = setTimeout(connect, 6000);
+          setIsWsConnected(false);
+          wsRef.current = null;
+          if (!cancelled && !isDelivered) {
+            // Exponential backoff reconnect: 1s -> 2s -> 4s -> max 30s
+            reconnectTimeoutRef.current = setTimeout(connectWs, retryDelay);
+            retryDelay = Math.min(30000, retryDelay * 2);
           }
         };
 
         ws.onerror = () => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
+          if (ws.readyState === WebSocket.OPEN) {
             ws.close();
           }
         };
       } catch {
-        if (!cancelled) {
-          reconnectTimeout = setTimeout(connect, 6000);
+        if (!cancelled && !isDelivered) {
+          reconnectTimeoutRef.current = setTimeout(connectWs, retryDelay);
+          retryDelay = Math.min(30000, retryDelay * 2);
         }
       }
     };
 
-    connect();
+    connectWs();
+
+    // Re-sync and re-connect on browser tab focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !isDelivered) {
+        refetchTracking();
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          connectWs();
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (ws) {
-        ws.onclose = null;
-        ws.onerror = null;
-        ws.close();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.close();
+        wsRef.current = null;
       }
     };
-  }, [orderId, isDelivered, queryClient]);
+  }, [orderId, isDelivered, queryClient, refetchTracking, trackingData?.masterOrderId, trackingData?.master_order_id, order?.master_order_id]);
 
   const pickupLocations = useMemo(() => {
     if (trackingData?.pickup_locations && trackingData.pickup_locations.length > 0) {
@@ -773,20 +914,53 @@ function OrderIdTrackingPage() {
             )}
 
             {/* Live GPS Tracking Map */}
-            {(isOutForDelivery ||
-              status === "picked_up" ||
-              (effectiveStatus === "PICKUP_IN_PROGRESS" && !!liveDriverLocation)) && (
-              <OrderLiveTrackingMap
-                driverLocation={liveDriverLocation}
-                pickupLocations={pickupLocations}
-                deliveryLocation={deliveryLocation}
-                driverInfo={driverInfo}
-                status={status}
-                etaMinutes={trackingData?.eta_minutes}
-                lastUpdatedAt={trackingData?.last_updated_at}
-                onRefresh={() => refetchTracking()}
-                isRefreshing={isFetchingTracking}
-              />
+            {isClient &&
+              (isOutForDelivery ||
+                status === "picked_up" ||
+                (effectiveStatus === "PICKUP_IN_PROGRESS" && (!!liveTrackingState.lat || !!trackingData?.current_lat))) && (
+              <Suspense
+                fallback={
+                  <div className="rounded-3xl border bg-card overflow-hidden shadow-soft h-80 flex flex-col items-center justify-center gap-3 p-6 text-center">
+                    <div className="h-10 w-10 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+                    <p className="text-xs font-bold text-muted-foreground">
+                      Loading Live Tracking Map…
+                    </p>
+                  </div>
+                }
+              >
+                <OrderLiveTrackingMap
+                  driverLocation={
+                    liveTrackingState.lat != null && liveTrackingState.lng != null
+                      ? { lat: liveTrackingState.lat, lng: liveTrackingState.lng }
+                      : trackingData?.current_lat && trackingData?.current_lng
+                      ? { lat: Number(trackingData.current_lat), lng: Number(trackingData.current_lng) }
+                      : null
+                  }
+                  snappedLocation={
+                    liveTrackingState.snappedLat != null && liveTrackingState.snappedLng != null
+                      ? { lat: liveTrackingState.snappedLat, lng: liveTrackingState.snappedLng }
+                      : trackingData?.snapped_lat && trackingData?.snapped_lng
+                      ? { lat: Number(trackingData.snapped_lat), lng: Number(trackingData.snapped_lng) }
+                      : null
+                  }
+                  routePoints={trackingData?.route?.points || []}
+                  routeIndex={liveTrackingState.routeIndex || trackingData?.route_index || 0}
+                  pickupLocations={pickupLocations}
+                  deliveryLocation={deliveryLocation}
+                  driverInfo={driverInfo}
+                  status={status}
+                  etaMinutes={trackingData?.eta_minutes}
+                  etaSeconds={liveTrackingState.etaSeconds ?? trackingData?.eta_seconds}
+                  heading={liveTrackingState.heading ?? trackingData?.heading}
+                  speedKmh={liveTrackingState.speedKmh ?? trackingData?.speed_kmh ?? trackingData?.speed}
+                  accuracy={liveTrackingState.accuracy ?? trackingData?.accuracy}
+                  lastUpdatedAt={liveTrackingState.ts || trackingData?.last_updated_at || trackingData?.lastUpdatedAt}
+                  isLive={trackingData?.is_live ?? true}
+                  isStale={trackingData?.isStale ?? false}
+                  onRefresh={() => refetchTracking()}
+                  isRefreshing={isFetchingTracking}
+                />
+              </Suspense>
             )}
 
             {/* Status Timeline */}

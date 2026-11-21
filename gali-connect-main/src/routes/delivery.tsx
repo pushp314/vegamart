@@ -201,6 +201,18 @@ function OrderItemsLine({ order }: { order: any }) {
   );
 }
 
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export const Route = createFileRoute("/delivery")({
   component: DeliveryDashboard,
 });
@@ -266,6 +278,12 @@ function DeliveryDashboard() {
     is_razorpay_active?: boolean;
   } | null>(null);
   const [paymentCompletedSuccess, setPaymentCompletedSuccess] = useState(false);
+  const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+  const [gpsSignalWeak, setGpsSignalWeak] = useState(false);
+  const lastUploadedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastUploadedTsRef = useRef<number>(0);
+  const seqRef = useRef<number>(0);
+  const wakeLockRef = useRef<any>(null);
 
   // Fetch Public Settings for UPI configuration
   const { data: publicSettingsRes } = useQuery({
@@ -338,7 +356,13 @@ function DeliveryDashboard() {
   const myDeliveries = myDeliveriesRes?.data || [];
 
   const completedOrders = myDeliveries.filter((o: any) => o.status?.toUpperCase() === "DELIVERED");
-  const activeOrders = myDeliveries.filter((o: any) => o.status?.toUpperCase() !== "DELIVERED");
+  const activeOrders = myDeliveries.filter(
+    (o: any) =>
+      o.status?.toUpperCase() !== "DELIVERED" &&
+      o.status?.toUpperCase() !== "CANCELLED" &&
+      o.status?.toUpperCase() !== "FAILED"
+  );
+  const hasActiveDeliveries = isOnline && activeOrders.length > 0;
 
   const totalEarnings = completedOrders.reduce(
     (sum: number, o: any) => sum + (o.delivery_fee || 0),
@@ -554,40 +578,160 @@ function DeliveryDashboard() {
     });
   };
 
-  // Real-time GPS location broadcasting to backend (/delivery/location)
+  // Adaptive GPS sampling & Screen Wake Lock during active deliveries
   useEffect(() => {
-    if (!isOnline || typeof window === "undefined" || !("geolocation" in navigator)) return;
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return;
 
-    let lastSent = 0;
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setRiderCoords({ lat, lng });
+    // Tear down immediately when rider goes offline or no active deliveries remain
+    if (!hasActiveDeliveries) {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+      setGpsSignalWeak(false);
+      lastUploadedCoordsRef.current = null;
+      lastUploadedTsRef.current = 0;
+      return;
+    }
 
-        const now = Date.now();
-        // Throttle updates to at most once every 12 seconds to preserve battery & bandwidth
-        if (now - lastSent >= 12000) {
-          lastSent = now;
-          api.put("/delivery/location", { lat, lng }).catch(() => {
-            // Background location update is best-effort
+    const acquireWakeLock = async () => {
+      try {
+        if ("wakeLock" in navigator && !wakeLockRef.current) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request("screen");
+          wakeLockRef.current.addEventListener("release", () => {
+            wakeLockRef.current = null;
           });
         }
-      },
+      } catch (err) {
+        console.debug("Screen Wake Lock not available or rejected:", err);
+      }
+    };
+
+    const releaseWakeLock = () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    };
+
+    acquireWakeLock();
+
+    const sendLocationUpdate = (pos: GeolocationPosition, forceImmediate = false) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy;
+
+      // Always update local coords for UI
+      setRiderCoords({ lat, lng });
+
+      // Client-side drop of readings when accuracy > 50m
+      if (typeof accuracy === "number" && accuracy > 50) {
+        setGpsSignalWeak(true);
+        return;
+      } else {
+        setGpsSignalWeak(false);
+        setGpsPermissionDenied(false);
+      }
+
+      const now = Date.now();
+      const lastCoords = lastUploadedCoordsRef.current;
+      const distMoved = lastCoords
+        ? haversineMeters(lastCoords.lat, lastCoords.lng, lat, lng)
+        : Infinity;
+      const timeElapsed = now - lastUploadedTsRef.current;
+
+      const rawSpeedKmh =
+        typeof pos.coords.speed === "number" && !isNaN(pos.coords.speed) && pos.coords.speed >= 0
+          ? pos.coords.speed * 3.6
+          : distMoved !== Infinity && timeElapsed > 0
+          ? (distMoved / (timeElapsed / 1000)) * 3.6
+          : 0;
+
+      // Adaptive sampling rules:
+      // 1. Moving normally (speed >= 15 km/h or distMoved >= 20m): upload every 5s OR >= 20m moved
+      // 2. Moving slowly (speed < 15 km/h and distMoved >= 10m): upload every 10s
+      // 3. Stationary (< 10m moved): upload heartbeat every 35s
+      let shouldUpload = forceImmediate;
+
+      if (!shouldUpload) {
+        if (distMoved >= 20 || rawSpeedKmh >= 15) {
+          shouldUpload = timeElapsed >= 5000 || distMoved >= 20;
+        } else if (distMoved >= 10 || rawSpeedKmh >= 5) {
+          shouldUpload = timeElapsed >= 10000;
+        } else {
+          shouldUpload = timeElapsed >= 35000;
+        }
+      }
+
+      if (!shouldUpload) return;
+
+      lastUploadedTsRef.current = now;
+      lastUploadedCoordsRef.current = { lat, lng };
+      seqRef.current += 1;
+
+      const payload: Record<string, any> = {
+        lat,
+        lng,
+        sequence: seqRef.current,
+        capturedAt: pos.timestamp || now,
+      };
+      if (typeof accuracy === "number" && !isNaN(accuracy)) {
+        payload.accuracy = Math.round(accuracy * 10) / 10;
+      }
+      if (typeof pos.coords.heading === "number" && !isNaN(pos.coords.heading) && pos.coords.heading >= 0) {
+        payload.heading = Math.round(pos.coords.heading * 10) / 10;
+      }
+      if (typeof rawSpeedKmh === "number" && !isNaN(rawSpeedKmh) && rawSpeedKmh >= 0) {
+        payload.speed = Math.round(rawSpeedKmh * 10) / 10;
+      }
+
+      api.put("/delivery/location", payload).catch(() => {
+        // Location upload is best-effort over flaky mobile networks
+      });
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => sendLocationUpdate(pos),
       (err) => {
+        if (err.code === 1) {
+          setGpsPermissionDenied(true);
+        } else {
+          setGpsSignalWeak(true);
+        }
         console.warn("Rider GPS watch warning:", err.message);
       },
       {
         enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 10000,
-      },
+        timeout: 10000,
+        maximumAge: 3000,
+      }
     );
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        acquireWakeLock();
+        navigator.geolocation.getCurrentPosition(
+          (pos) => sendLocationUpdate(pos, true),
+          (err) => {
+            if (err.code === 1) setGpsPermissionDenied(true);
+          },
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+        );
+      }
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
+      releaseWakeLock();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
-  }, [isOnline]);
+  }, [hasActiveDeliveries]);
 
   // Child routes like the "How to Use" guide are rendered full-screen by the parent.
   // Declared after all hooks so hook order stays stable across renders.
@@ -718,6 +862,20 @@ function DeliveryDashboard() {
           {isOnline ? "ONLINE" : "OFFLINE"}
         </button>
       </div>
+
+      {/* Non-blocking GPS Status Banners */}
+      {hasActiveDeliveries && gpsPermissionDenied && (
+        <div className="mx-4 mt-3 px-4 py-2.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2 shadow-sm animate-in fade-in duration-200">
+          <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+          <span>Location permission is denied. Please enable GPS in browser settings so customers can track deliveries.</span>
+        </div>
+      )}
+      {hasActiveDeliveries && !gpsPermissionDenied && gpsSignalWeak && (
+        <div className="mx-4 mt-3 px-4 py-2.5 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-sky-800 dark:text-sky-300 text-xs font-semibold flex items-center gap-2 shadow-sm animate-in fade-in duration-200">
+          <Navigation className="h-4 w-4 shrink-0 text-sky-600 animate-pulse" />
+          <span>Weak GPS signal (&gt; 50m accuracy). Move outdoors or near a window for better live tracking.</span>
+        </div>
+      )}
 
       <main className="p-4 space-y-6 pb-36">
         {/* RIDER PERFORMANCE STRIP */}

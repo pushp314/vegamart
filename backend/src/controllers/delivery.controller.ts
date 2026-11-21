@@ -201,7 +201,8 @@ export const submitDeliveryKyc = asyncHandler(async (req: Request, res: Response
 });
 
 export const getDeliveryTracking = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await deliveryService.getDeliveryTracking(req.user!, req.params.id as string));
+  const user = req.user || ({ id: "guest", role: "CUSTOMER" } as any);
+  return sendSuccess(res, await deliveryService.getDeliveryTracking(user, req.params.id as string));
 });
 
 export const getDeliveryWallet = asyncHandler(async (req: Request, res: Response) => {

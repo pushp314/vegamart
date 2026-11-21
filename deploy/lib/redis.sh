@@ -40,6 +40,19 @@ configure_redis() {
             echo "requirepass $redis_password" >> "$redis_conf"
         fi
 
+        # Configure memory limit and LRU eviction for 1 vCPU / 4 GB RAM VPS
+        if grep -q "^maxmemory " "$redis_conf"; then
+            sed -i "s/^maxmemory .*/maxmemory 256mb/" "$redis_conf"
+        else
+            echo "maxmemory 256mb" >> "$redis_conf"
+        fi
+
+        if grep -q "^maxmemory-policy " "$redis_conf"; then
+            sed -i "s/^maxmemory-policy .*/maxmemory-policy allkeys-lru/" "$redis_conf"
+        else
+            echo "maxmemory-policy allkeys-lru" >> "$redis_conf"
+        fi
+
         systemctl restart redis-server
         log_success "Redis configured securely."
     else

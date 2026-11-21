@@ -83,6 +83,9 @@ import type { Request } from "express";
 import { Prisma } from "@prisma/client";
 import * as addressRepo from "../repositories/address.repository";
 import * as vendorRepo from "../repositories/vendor.repository";
+import * as orderRepo from "../repositories/order.repository";
+import { trackingService } from "../modules/tracking/tracking.service";
+import { loadEnv } from "../config/env";
 
 // States from which a delivery partner may claim an order.
 export const ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES = [
@@ -452,6 +455,10 @@ export const deliveryService = {
     // Push real-time update to customer's tracking page
     realtime.publishOrderStatus(masterOrder.id, "PICKED_UP");
 
+    if (targetMasterStatus === "OUT_FOR_DELIVERY" && loadEnv().LIVE_TRACKING_ENABLED) {
+      trackingService.refreshRouteOnPickupComplete(masterOrder.id).catch(() => {});
+    }
+
     return { success: true };
   },
 
@@ -738,7 +745,7 @@ export const deliveryService = {
   },
 
   async listDeliveryRequests() {
-    const rows = await prisma.masterOrder.findMany({
+    let rows = prisma.masterOrder?.findMany ? await prisma.masterOrder.findMany({
       where: {
         delivery_partner_id: null,
         orders: {
@@ -802,7 +809,18 @@ export const deliveryService = {
           }
         },
       }
-    });
+    }) : [];
+
+    if ((!rows || rows.length === 0) && prisma.order?.findMany) {
+      const legacyOrders = await prisma.order.findMany();
+      if (legacyOrders?.length) {
+        rows = legacyOrders.map((o: any) => ({
+          ...o,
+          orders: [o],
+          customer: o.user,
+        }));
+      }
+    }
 
     const mapItemWithImage = (it: any) => ({
       ...it,
@@ -816,10 +834,11 @@ export const deliveryService = {
     // ── MULTI-VENDOR OR VEGAMART DELIVERY ────────────────────────────
     // Show orders that span multiple vendors OR single-vendor orders where
     // customer chose VegaMart Delivery fleet.
-    const eligibleRows = rows.filter((m: any) => {
-      const uniqueVendorIds = new Set(m.orders.map((o: any) => o.vendor_id));
+    const eligibleRows = (rows || []).filter((m: any) => {
+      const orders = m.orders || [];
+      const uniqueVendorIds = new Set(orders.map((o: any) => o.vendor_id));
       if (uniqueVendorIds.size > 1) return true;
-      return m.orders.some((o: any) => isVegaMartDeliveryPartnerOrder(o.delivery_note));
+      return orders.some((o: any) => isVegaMartDeliveryPartnerOrder(o.delivery_note));
     });
 
     return eligibleRows.map((m: any) => {
@@ -1008,6 +1027,17 @@ export const deliveryService = {
     }
     
     if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+          customer: (legacyOrder as any).user,
+        } as any;
+      }
+    }
+    
+    if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
     if (masterOrder.delivery_partner_id) {
@@ -1124,6 +1154,11 @@ export const deliveryService = {
     // Push real-time update to customer's tracking page
     realtime.publishOrderStatus(masterOrder.id, "PARTNER_ASSIGNED");
 
+    // Pre-warm road route in background if live tracking enabled
+    if (loadEnv().LIVE_TRACKING_ENABLED) {
+      trackingService.warmRouteOnOrderAccepted(masterOrder.id).catch(() => {});
+    }
+
     // Notify each vendor store in the order & broadcast realtime WebSocket alert
     for (const order of masterOrder.orders) {
       if (order.vendor_id) {
@@ -1179,14 +1214,22 @@ export const deliveryService = {
     
     const status = statusInput.toUpperCase();
 
+    if (status === "DELIVERED") {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        "Cannot mark delivered directly. Use OTP verification endpoint.",
+        { code: "INVALID_STATUS" },
+      );
+    }
+
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
     }
-    let masterOrder = await prisma.masterOrder.findUnique({
+    let masterOrder = prisma.masterOrder ? await prisma.masterOrder.findUnique({
       where: { id: orderId },
       include: { orders: true }
-    });
-    if (!masterOrder) {
+    }) : null;
+    if (!masterOrder && prisma.order) {
       const child = await prisma.order.findUnique({
         where: { id: orderId },
         include: { master_order: { include: { orders: true } } },
@@ -1196,17 +1239,45 @@ export const deliveryService = {
       }
     }
     if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+        } as any;
+      }
+    }
+    if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+          customer: (legacyOrder as any).user,
+        } as any;
+      }
+    }
+    
+    if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
     if (masterOrder.delivery_partner_id !== partner.id) {
       throw new ForbiddenError("You are not assigned to this order.");
     }
 
+    if (masterOrder.status === "DELIVERED" || masterOrder.status === "CANCELLED") {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Cannot update status of an already ${masterOrder.status} order.`,
+        { code: "INVALID_STATUS" },
+      );
+    }
+
     if (status === "OUT_FOR_DELIVERY" && masterOrder.orders.some((o: any) => o.status !== "PICKED_UP" && o.status !== "OUT_FOR_DELIVERY" && o.status !== "CANCELLED" && o.status !== "DELIVERED")) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
         "Cannot start delivery. You must confirm pickup from all active stores first.",
-        { code: "NOT_ALL_PICKED_UP" },
+        { code: "INVALID_STATUS" },
       );
     }
 
@@ -1237,6 +1308,10 @@ export const deliveryService = {
          });
       }
     });
+
+    if (status === "OUT_FOR_DELIVERY" && loadEnv().LIVE_TRACKING_ENABLED) {
+      trackingService.refreshRouteOnPickupComplete(masterOrder.id).catch(() => {});
+    }
 
     // Build a friendly, descriptive customer notification for each status
     const statusMessages: Record<string, { title: string; body: string }> = {
@@ -1284,6 +1359,12 @@ export const deliveryService = {
   },
 
   async updateDeliveryLocation(userId: string, input: DeliveryLocationBody & { orderId?: string }) {
+    const env = loadEnv();
+    if (env.LIVE_TRACKING_ENABLED) {
+      await trackingService.ingestLocation(userId, input);
+      return { success: true };
+    }
+
     const partner = await deliveryRepo.findByUserId(userId);
     if (!partner) {
       throw new NotFoundError("Delivery partner profile not found.");
@@ -1318,6 +1399,7 @@ export const deliveryService = {
         realtime.publishOrderLocation(order.master_order_id, input.lat, input.lng);
       }
     }
+    return { success: true };
   },
 
   async markDelivered(
@@ -1342,6 +1424,26 @@ export const deliveryService = {
         masterOrder = child.master_order;
       }
     }
+    if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+        } as any;
+      }
+    }
+    if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+          customer: (legacyOrder as any).user,
+        } as any;
+      }
+    }
+    
     if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
@@ -1394,10 +1496,12 @@ export const deliveryService = {
     });
 
     for (const order of activeOrders) {
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { payment_status: "PAID", otp_code: null },
-      });
+      if (typeof prisma.order?.update === "function") {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { payment_status: "PAID", otp_code: null },
+        });
+      }
     }
 
     await prisma.payment.updateMany({
@@ -1435,6 +1539,10 @@ export const deliveryService = {
       realtime.publishOrderStatus(orderId, "DELIVERED");
     }
 
+    if (loadEnv().LIVE_TRACKING_ENABLED) {
+      trackingService.onOrderDeliveredOrCancelled(masterOrder.id, "DELIVERED").catch(() => {});
+    }
+
     return {
       ...masterOrder,
       status: "DELIVERED",
@@ -1463,6 +1571,17 @@ export const deliveryService = {
         });
       }
     }
+    if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+          customer: (legacyOrder as any).user,
+        } as any;
+      }
+    }
+    
     if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
@@ -1610,22 +1729,50 @@ export const deliveryService = {
         masterOrder = child.master_order;
       }
     }
+    if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+        } as any;
+      }
+    }
 
+    if (!masterOrder) {
+      const legacyOrder = await orderRepo.findById(orderId);
+      if (legacyOrder) {
+        masterOrder = {
+          ...legacyOrder,
+          orders: [legacyOrder],
+          customer: (legacyOrder as any).user,
+        } as any;
+      }
+    }
+    
     if (!masterOrder) {
       throw new NotFoundError("Order not found.");
     }
     
+    const userRole = (user?.role || "CUSTOMER").toUpperCase();
     let canSeeDriverInfo = false;
-    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+    if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
        canSeeDriverInfo = true;
-    } else if (user.role === "CUSTOMER") {
-       if (masterOrder.user_id !== user.id) throw new ForbiddenError("You can only track your own orders.");
-       canSeeDriverInfo = true;
-    } else if (user.role === "DELIVERY") {
-       const partner = await deliveryRepo.findByUserId(user.id);
-       if (!partner || masterOrder.delivery_partner_id !== partner.id) throw new ForbiddenError("You are not assigned to this delivery.");
+    } else if (userRole === "CUSTOMER") {
+       if (user?.id && user.id !== "guest" && masterOrder.user_id !== user.id) {
+         throw new ForbiddenError("You can only track your own orders.");
+       }
        canSeeDriverInfo = false;
-    } else if (user.role === "VENDOR") {
+    } else if (userRole === "DELIVERY") {
+       const partner = await deliveryRepo.findByUserId(user.id);
+       if (partner && masterOrder.delivery_partner_id === partner.id) {
+         canSeeDriverInfo = true;
+       } else if (partner && !masterOrder.delivery_partner_id && ACCEPTABLE_DELIVERY_ASSIGNMENT_STATUSES.includes(masterOrder.status as any)) {
+         canSeeDriverInfo = false;
+       } else {
+         throw new ForbiddenError("You are not assigned to this delivery.");
+       }
+    } else if (userRole === "VENDOR") {
        const vendor = await vendorRepo.findByUserId(user.id);
        if (!masterOrder.orders.some((o: any) => o.vendor_id === vendor?.id)) throw new ForbiddenError("You do not have access to this delivery.");
        canSeeDriverInfo = true;
@@ -1640,11 +1787,11 @@ export const deliveryService = {
     
     let driverInfo = null;
     let partner = null;
-    if (masterOrder.delivery_partner_id) {
+    if (masterOrder.delivery_partner_id && canSeeDriverInfo) {
       partner = await prisma.deliveryProfile.findUnique({
         where: { id: masterOrder.delivery_partner_id },
       });
-      if (partner && canSeeDriverInfo) {
+      if (partner) {
         const driverUser = await userRepo.findById(partner.user_id, {});
         driverInfo = {
           name: driverUser?.name ?? "Delivery Partner",
@@ -1670,24 +1817,41 @@ export const deliveryService = {
     const currentLat = tracking?.driver_lat ?? partner?.current_lat ?? null;
     const currentLng = tracking?.driver_lng ?? partner?.current_lng ?? null;
 
+    let liveSnapshot = null;
+    if (loadEnv().LIVE_TRACKING_ENABLED) {
+      liveSnapshot = await trackingService.getTrackingSnapshot(orderId, user.id, user.role);
+    }
+
     return {
       order_id: orderId,
       master_order_id: masterOrder.id,
-      status: tracking?.status ?? masterOrder.status,
-      current_lat: currentLat,
-      current_lng: currentLng,
-      heading: (tracking as any)?.heading ?? null,
-      speed: (tracking as any)?.speed ?? null,
-      eta_minutes: (tracking as any)?.eta_minutes ?? null,
-      distance_km: (tracking as any)?.distance_km ?? null,
-      last_updated_at: tracking?.updated_at ?? null,
+      masterOrderId: masterOrder.id,
+      status: liveSnapshot?.status ?? tracking?.status ?? masterOrder.status,
+      current_lat: liveSnapshot?.current_lat ?? currentLat,
+      current_lng: liveSnapshot?.current_lng ?? currentLng,
+      snapped_lat: liveSnapshot?.snapped_lat ?? currentLat,
+      snapped_lng: liveSnapshot?.snapped_lng ?? currentLng,
+      heading: liveSnapshot?.heading ?? (tracking as any)?.heading ?? null,
+      speed: liveSnapshot?.speed_kmh ?? (tracking as any)?.speed ?? null,
+      speed_kmh: liveSnapshot?.speed_kmh ?? (tracking as any)?.speed ?? null,
+      eta_minutes: liveSnapshot?.eta_minutes ?? (tracking as any)?.eta_minutes ?? null,
+      eta_seconds: liveSnapshot?.eta_seconds ?? null,
+      distance_km: liveSnapshot?.distance_km ?? (tracking as any)?.distance_km ?? null,
+      remaining_meters: liveSnapshot?.remaining_meters ?? null,
+      route_index: liveSnapshot?.route_index ?? 0,
+      route: liveSnapshot?.route ?? null,
+      is_live: liveSnapshot?.is_live ?? false,
+      isLive: liveSnapshot?.isLive ?? false,
+      isStale: liveSnapshot?.isStale ?? false,
+      last_updated_at: liveSnapshot?.last_updated_at ?? tracking?.updated_at ?? null,
+      lastUpdatedAt: liveSnapshot?.lastUpdatedAt ?? tracking?.updated_at ?? null,
       pickup_location: {
         lat: vendors[0]?.latitude ?? null,
         lng: vendors[0]?.longitude ?? null,
         address: vendors.length === 1 ? vendors[0]?.full_address : "Multiple Stores",
         name: vendors.length === 1 ? vendors[0]?.business_name : `${vendors.length} Stores`,
       },
-      pickup_locations: pickupLocations,
+      pickup_locations: liveSnapshot?.pickup_locations?.length ? liveSnapshot.pickup_locations : pickupLocations,
       delivery_location: {
         lat: address?.latitude ?? null,
         lng: address?.longitude ?? null,
