@@ -16,34 +16,19 @@ export function MapLayerToggle({ currentLayer, onToggle, className = "" }: MapLa
       type="button"
       onClick={() => onToggle(isSatellite ? "streets" : "satellite")}
       className={`group absolute z-[400] overflow-hidden rounded-xl border-2 border-white/90 bg-white shadow-md backdrop-blur-xs transition-all hover:scale-105 hover:shadow-lg active:scale-95 dark:border-slate-800 dark:bg-slate-900 ${className}`}
-      title={isSatellite ? "Switch to Roads / Street Map" : "Switch to Free Satellite Map"}
+      title={isSatellite ? "Switch to Google Roads / Street Map" : "Switch to Free Google Satellite Map"}
     >
       <div className="relative flex h-14 w-14 flex-col items-center justify-between p-1">
-        {/* Preview thumbnail representing the target layer to switch into */}
+        {/* Preview thumbnail representing the target layer to switch into (Google Maps style) */}
         <div
-          className={`relative h-8 w-12 rounded-md overflow-hidden border shadow-inner transition-all ${
+          className={`relative h-8 w-12 rounded-md overflow-hidden border shadow-inner transition-all bg-cover bg-center ${
             isSatellite
-              ? "bg-[#e5e3df] border-slate-300" // Roads preview thumbnail
-              : "bg-[#1e293b] border-slate-700" // Satellite preview thumbnail
+              ? "border-slate-300 bg-[url('https://mt1.google.com/vt/lyrs=m&x=14717&y=9635&z=14')]"
+              : "border-slate-700 bg-[url('https://mt1.google.com/vt/lyrs=s&x=14717&y=9635&z=14')]"
           }`}
         >
-          {isSatellite ? (
-            /* Mini roads illustration */
-            <div className="absolute inset-0 flex items-center justify-center opacity-85">
-              <div className="absolute h-1 w-full bg-[#fcd34d] rotate-12" />
-              <div className="absolute w-1 h-full bg-white -rotate-12" />
-              <div className="absolute bottom-0.5 right-1 text-[8px]">🛣️</div>
-            </div>
-          ) : (
-            /* Mini satellite illustration */
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-emerald-950 via-slate-900 to-sky-950">
-              <div className="absolute inset-0 bg-[radial-gradient(#10b981_1px,transparent_1px)] opacity-30 [background-size:4px_4px]" />
-              <div className="text-[10px]">🛰️</div>
-            </div>
-          )}
-
           {/* Quick Layers badge icon in top corner */}
-          <div className="absolute top-0.5 left-0.5 rounded-full bg-black/60 p-0.5 text-white backdrop-blur-xs">
+          <div className="absolute top-0.5 left-0.5 rounded-full bg-black/60 p-0.5 text-white backdrop-blur-xs shadow-xs">
             <Layers className="h-2 w-2" />
           </div>
         </div>

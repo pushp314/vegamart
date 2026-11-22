@@ -558,6 +558,8 @@ export const integrationService = {
       pincode: address.pincode,
       latitude: address.latitude,
       longitude: address.longitude,
+      map_url: address.map_url || (address.latitude && address.longitude ? `https://www.google.com/maps?q=${address.latitude},${address.longitude}` : null),
+      exact_location: address.exact_location ?? null,
       is_default: address.is_default,
     };
   },
@@ -577,6 +579,9 @@ export const integrationService = {
       .join(", ");
     const lat = typeof body.latitude === "number" ? body.latitude : (body.latitude ? parseFloat(String(body.latitude)) : null);
     const lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(String(body.longitude)) : null);
+    const mapUrl = typeof body.map_url === "string" ? body.map_url : (lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null);
+    const exactLocation = typeof body.exact_location === "string" ? body.exact_location : null;
+
     const created = await addressService.create(userId, {
       label: typeof body.label === "string" ? body.label : "Home",
       full_address: fullAddress.length > 0 ? fullAddress : (typeof body.full_address === "string" ? body.full_address : "Address"),
@@ -588,6 +593,8 @@ export const integrationService = {
       pincode: typeof body.pincode === "string" ? body.pincode : "",
       latitude: lat && !isNaN(lat) ? lat : null,
       longitude: lng && !isNaN(lng) ? lng : null,
+      map_url: mapUrl,
+      exact_location: exactLocation,
       ...(typeof body.is_default === "boolean" ? { is_default: body.is_default } : {}),
     } as never);
     return this.mapAddress(created, user?.name ?? "");
@@ -616,6 +623,8 @@ export const integrationService = {
       const lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(String(body.longitude)) : null);
       input.longitude = lng && !isNaN(lng) ? lng : null;
     }
+    if (body.map_url !== undefined) input.map_url = typeof body.map_url === "string" ? body.map_url : null;
+    if (body.exact_location !== undefined) input.exact_location = typeof body.exact_location === "string" ? body.exact_location : null;
     const updated = await addressService.update(userId, addressId, input as never);
     return this.mapAddress(updated, user?.name ?? "");
   },

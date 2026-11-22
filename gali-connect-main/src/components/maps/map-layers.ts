@@ -10,23 +10,25 @@ export interface MapLayerConfig {
 }
 
 export const MAP_LAYERS: Record<MapLayerType, MapLayerConfig> = {
-  // Clean Google Maps-style crisp road networks & street names
+  // Free 1:1 Google Maps crisp road networks, colony names, and landmarks
   streets: {
     id: "streets",
     label: "Roads",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-    attribution: '&copy; Esri &mdash; Street Map',
-    maxZoom: 19,
+    url: "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    attribution: '&copy; Google Maps',
+    maxZoom: 20,
+    subdomains: ["0", "1", "2", "3"],
   },
-  // 100% Free High-Resolution Global Satellite Imagery
+  // Free 1:1 Google Maps Satellite Hybrid (satellite photography + street names and road overlays)
   satellite: {
     id: "satellite",
     label: "Satellite",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: '&copy; Esri &mdash; Satellite Imagery',
-    maxZoom: 19,
+    url: "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    attribution: '&copy; Google Maps',
+    maxZoom: 20,
+    subdomains: ["0", "1", "2", "3"],
   },
-  // Standard OpenStreetMap Foundation German CDN fallback
+  // OpenStreetMap CDN fallback
   osm: {
     id: "osm",
     label: "OpenStreetMap",

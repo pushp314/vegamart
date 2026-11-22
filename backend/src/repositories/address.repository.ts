@@ -14,6 +14,8 @@ const baseSelect = {
   country: true,
   latitude: true,
   longitude: true,
+  map_url: true,
+  exact_location: true,
   is_default: true,
   phone: true,
   created_at: true,
@@ -33,6 +35,8 @@ export type AddressRow = {
   country: string;
   latitude: number | null;
   longitude: number | null;
+  map_url: string | null;
+  exact_location: string | null;
   is_default: boolean;
   phone: string | null;
   created_at: Date;
@@ -68,6 +72,8 @@ export async function create(data: {
   country?: string;
   latitude?: number | null;
   longitude?: number | null;
+  map_url?: string | null;
+  exact_location?: string | null;
   phone?: string | null;
   is_default?: boolean;
 }): Promise<AddressRow> {
@@ -83,6 +89,8 @@ export async function create(data: {
       country: data.country ?? "India",
       latitude: data.latitude ?? null,
       longitude: data.longitude ?? null,
+      map_url: data.map_url ?? null,
+      exact_location: data.exact_location ?? null,
       phone: data.phone ?? null,
       is_default: data.is_default ?? false,
     },

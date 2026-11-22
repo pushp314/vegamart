@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, MapPin, Loader2, Navigation, CheckCircle2, LocateFixed } from "lucide-react";
+import { X, MapPin, Loader2, Navigation, CheckCircle2, LocateFixed, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 export interface AddressData {
@@ -14,6 +14,8 @@ export interface AddressData {
   pincode: string;
   latitude?: number | null;
   longitude?: number | null;
+  map_url?: string | null;
+  exact_location?: string | null;
   full_address?: string | null;
   area?: string | null;
   type?: string | null;
@@ -38,6 +40,15 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
   const [pincode, setPincode] = useState(initialData?.pincode || "");
   const [latitude, setLatitude] = useState<number | null>(initialData?.latitude ?? null);
   const [longitude, setLongitude] = useState<number | null>(initialData?.longitude ?? null);
+  const [mapUrl, setMapUrl] = useState<string | null>(
+    initialData?.map_url ??
+      (initialData?.latitude && initialData?.longitude
+        ? `https://www.google.com/maps?q=${initialData.latitude},${initialData.longitude}`
+        : null)
+  );
+  const [exactLocation, setExactLocation] = useState<string | null>(
+    initialData?.exact_location ?? null
+  );
   const [isLocating, setIsLocating] = useState(false);
   const [isDefault, setIsDefault] = useState(initialData?.is_default || false);
   const [saving, setSaving] = useState(false);
@@ -57,6 +68,9 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
         const lng = pos.coords.longitude;
         setLatitude(lat);
         setLongitude(lng);
+
+        const directGmapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+        setMapUrl(directGmapsUrl);
 
         try {
           // Free Nominatim reverse geocoding to auto-fill street, area, city, and pincode
@@ -78,6 +92,11 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
             const stateName = addr.state || "";
             const pincodeVal = addr.postcode || "";
 
+            const fetchedLocStr =
+              data.display_name ||
+              [streetName, areaName, cityName, pincodeVal].filter(Boolean).join(", ");
+            setExactLocation(fetchedLocStr);
+
             if (streetName && (!line1 || line1.length < 5)) {
               setLine1(streetName);
             }
@@ -90,9 +109,11 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
 
             toast.success("📍 Exact GPS location detected & address details auto-filled!");
           } else {
+            setExactLocation(`GPS Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
             toast.success("📍 Exact GPS coordinates pinned!");
           }
         } catch {
+          setExactLocation(`GPS Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
           toast.success("📍 Exact GPS coordinates pinned!");
         } finally {
           setIsLocating(false);
@@ -131,6 +152,8 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
         pincode,
         latitude,
         longitude,
+        map_url: mapUrl,
+        exact_location: exactLocation,
         is_default: isDefault,
       });
       // Parent mutation onSuccess handles the success toast and closing the modal.
@@ -217,6 +240,31 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
               )}
             </button>
           </div>
+
+          {/* Exact Fetched GPS Location Display */}
+          {exactLocation && (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1 text-xs">
+              <div className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Exact Fetched GPS Location (Shared with Delivery Boy):</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed pl-5">
+                {exactLocation}
+              </p>
+              {mapUrl && (
+                <div className="pl-5 pt-0.5">
+                  <a
+                    href={mapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" /> Preview on Google Maps
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Label selector */}
           <div>

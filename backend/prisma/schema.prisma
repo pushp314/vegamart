@@ -848,9 +848,11 @@ model Address {
   state        String    @db.VarChar(100)
   pincode      String    @db.VarChar(10)
   country      String    @default("India") @db.VarChar(60)
-  latitude     Float?    @db.DoublePrecision
-  longitude    Float?    @db.DoublePrecision
-  is_default   Boolean   @default(false)
+  latitude       Float?    @db.DoublePrecision
+  longitude      Float?    @db.DoublePrecision
+  map_url        String?   @db.VarChar(500)
+  exact_location String?   @db.VarChar(500)
+  is_default     Boolean   @default(false)
   phone        String?   @db.VarChar(20)
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt

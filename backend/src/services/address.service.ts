@@ -24,6 +24,8 @@ export const addressService = {
       country: input.country,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
+      map_url: input.map_url ?? (input.latitude && input.longitude ? `https://www.google.com/maps?q=${input.latitude},${input.longitude}` : null),
+      exact_location: input.exact_location ?? null,
       phone: input.phone ?? null,
       is_default: isDefault,
     });

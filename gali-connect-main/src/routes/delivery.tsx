@@ -1454,6 +1454,19 @@ function DeliveryDashboard() {
                                 {o.address?.city ? `, ${o.address.city}` : ""}
                                 {o.address?.pincode ? ` (${o.address.pincode})` : ""}
                               </div>
+                              {o.address?.exact_location && (
+                                <div className="mt-1.5 text-[11px] font-medium text-emerald-950 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl p-2.5 flex items-start gap-2 shadow-2xs">
+                                  <MapPin className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-emerald-800 dark:text-emerald-300 text-[11px] uppercase tracking-wider">
+                                      Exact Fetched Customer Location:
+                                    </div>
+                                    <p className="text-muted-foreground text-[11px] leading-tight mt-0.5">
+                                      {o.address.exact_location}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                               {o.delivery_note && (
                                 <div className="mt-1.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded-xl p-2 flex items-start gap-1.5">
                                   <Info className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
@@ -1473,17 +1486,21 @@ function DeliveryDashboard() {
                                   </a>
                                 )}
                                 <a
-                                  href={getGoogleMapsUrl(
-                                    o.address?.latitude,
-                                    o.address?.longitude,
-                                    `${o.address?.full_address || o.address?.street_address || ""} ${o.address?.city || ""}`,
-                                  )}
+                                  href={
+                                    o.address?.map_url ||
+                                    getGoogleMapsUrl(
+                                      o.address?.latitude,
+                                      o.address?.longitude,
+                                      `${o.address?.full_address || o.address?.street_address || ""} ${o.address?.city || ""}`,
+                                    )
+                                  }
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1 text-[11px] font-bold bg-card hover:bg-muted text-foreground border border-border px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
+                                  className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-xl transition-all shadow-xs"
+                                  title="Open Google Maps Turn-by-Turn GPS Direction"
                                 >
-                                  <Navigation className="h-3 w-3 text-rose-600" /> Navigate
+                                  <Navigation className="h-3.5 w-3.5" /> Open Google Maps Direction
                                 </a>
                               </div>
 

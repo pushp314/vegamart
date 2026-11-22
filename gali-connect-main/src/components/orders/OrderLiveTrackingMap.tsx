@@ -784,7 +784,7 @@ export function OrderLiveTrackingMap({
         </MapContainer>
 
         {/* Floating Status Pill */}
-        <div className="absolute bottom-3 left-3 z-[400] pointer-events-none">
+        <div className="absolute top-3 left-3 z-[400] pointer-events-none">
           <div className="bg-card/95 backdrop-blur-md border border-border px-3.5 py-1.5 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold">
             <span
               className={`h-2.5 w-2.5 rounded-full ${
@@ -803,11 +803,11 @@ export function OrderLiveTrackingMap({
           </div>
         </div>
 
-        {/* Google Maps-style Satellite / Streets toggle thumbnail */}
+        {/* Google Maps-style Satellite / Streets toggle thumbnail (Bottom-Left matching Google Maps) */}
         <MapLayerToggle
           currentLayer={currentLayer}
           onToggle={setCurrentLayer}
-          className="bottom-3 right-3 left-auto shadow-md"
+          className="bottom-3 left-3 shadow-md"
         />
       </div>
 

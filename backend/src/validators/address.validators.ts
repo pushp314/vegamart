@@ -14,6 +14,8 @@ export const createAddressSchema = z.object({
   country: z.string().trim().max(60).default("India"),
   latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
   longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  map_url: z.string().trim().max(500).optional().nullable(),
+  exact_location: z.string().trim().max(500).optional().nullable(),
   phone: z.string().trim().max(20).optional().nullable(),
   is_default: z.boolean().optional(),
 }).strict();
