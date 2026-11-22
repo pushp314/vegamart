@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import React from "react";
 import {
   MapContainer,
   TileLayer,
@@ -18,8 +19,14 @@ import {
   Radio,
   Clock,
   Compass,
+  Volume2,
+  VolumeX,
+  Store,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { playArrivalChime } from "@/lib/chime";
+import { toast } from "sonner";
 
 // Fix standard default icon assets
 import iconUrl from "leaflet/dist/images/marker-icon.png";
@@ -61,6 +68,7 @@ export interface OrderLiveTrackingMapProps {
   status?: string;
   etaMinutes?: number | null;
   etaSeconds?: number | null;
+  remainingMeters?: number | null;
   heading?: number | null;
   speedKmh?: number | null;
   accuracy?: number | null;
@@ -122,6 +130,7 @@ export function OrderLiveTrackingMap({
   status = "out_for_delivery",
   etaMinutes,
   etaSeconds,
+  remainingMeters,
   heading: incomingHeading,
   speedKmh,
   accuracy,
@@ -135,6 +144,25 @@ export function OrderLiveTrackingMap({
   const [recenterCounter, setRecenterCounter] = useState(0);
   const [autoFollow, setAutoFollow] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const hasChimedRef = useRef(false);
+
+  // Proximity trigger: chime once when rider is within 500m or 2 mins of doorstep
+  useEffect(() => {
+    if (!soundEnabled || hasChimedRef.current) return;
+    if (status !== "out_for_delivery") return;
+
+    const isCloseByDistance = remainingMeters != null && remainingMeters > 0 && remainingMeters <= 500;
+    const isCloseByEta = etaSeconds != null && etaSeconds > 0 && etaSeconds <= 120;
+
+    if (isCloseByDistance || isCloseByEta) {
+      hasChimedRef.current = true;
+      playArrivalChime();
+      toast.success("🛵 Delivery partner is arriving at your doorstep in ~2 minutes!", {
+        duration: 7000,
+      });
+    }
+  }, [remainingMeters, etaSeconds, status, soundEnabled]);
 
   // References to keep Leaflet instances without remounting
   const mapRef = useRef<L.Map | null>(null);
@@ -276,18 +304,23 @@ export function OrderLiveTrackingMap({
     });
   }, []);
 
-  const storeDivIcon = useMemo(() => {
+  const getStoreDivIcon = useCallback((index: number, total: number) => {
     return L.divIcon({
       className: "store-marker-pin",
       html: `
         <div style="position: relative; display: flex; align-items: center; justify-content: center;">
-          <div style="width: 34px; height: 34px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 9999px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); border: 2px solid #ffffff; font-size: 16px;">
+          <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 9999px; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 12px -2px rgba(217, 119, 6, 0.45); border: 2.5px solid #ffffff; font-size: 16px;">
             🏪
           </div>
+          ${
+            total > 1
+              ? `<span style="position: absolute; top: -3px; right: -3px; background: #0f172a; color: #ffffff; font-size: 10px; font-weight: 800; border-radius: 9999px; width: 17px; height: 17px; display: flex; align-items: center; justify-content: center; border: 1.5px solid #ffffff;">${index + 1}</span>`
+              : ""
+          }
         </div>
       `,
-      iconSize: [34, 34],
-      iconAnchor: [17, 17],
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
     });
   }, []);
 
@@ -510,6 +543,30 @@ export function OrderLiveTrackingMap({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Audio Chime Alert Toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              if (next) playArrivalChime();
+            }}
+            className={`h-8 px-2.5 text-xs font-bold rounded-xl transition-all ${
+              soundEnabled
+                ? "border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-700 dark:bg-card dark:border-emerald-800"
+                : "border-muted bg-muted/40 text-muted-foreground"
+            }`}
+            title={soundEnabled ? "Audio Chime Enabled (Plays on arrival)" : "Audio Chime Muted"}
+          >
+            {soundEnabled ? (
+              <Volume2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+            ) : (
+              <VolumeX className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+            )}
+            {soundEnabled ? "Chime On" : "Muted"}
+          </Button>
+
           {/* Follow Rider Toggle */}
           <Button
             variant="outline"
@@ -559,6 +616,32 @@ export function OrderLiveTrackingMap({
           </Button>
         </div>
       </div>
+
+      {/* Multi-Store Pickup Pipeline Ribbon (visual progress across multiple vendor stores) */}
+      {validPickups.length > 1 && (
+        <div className="px-4 py-2.5 bg-amber-500/10 dark:bg-amber-950/20 border-b border-amber-500/20 flex items-center justify-between gap-2 overflow-x-auto text-xs">
+          <div className="flex items-center gap-1.5 shrink-0 font-bold text-amber-900 dark:text-amber-200">
+            <Store className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            <span>Multi-Store Order ({validPickups.length} Stores):</span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto shrink-0 text-[11px] font-semibold text-muted-foreground">
+            {validPickups.map((pickup, idx) => (
+              <React.Fragment key={pickup.id || idx}>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white dark:bg-card border shadow-2xs text-foreground">
+                  <span className="w-4 h-4 rounded-full bg-amber-500 text-white font-extrabold text-[9px] flex items-center justify-center">
+                    {idx + 1}
+                  </span>
+                  <span className="truncate max-w-[110px]">{pickup.name}</span>
+                </span>
+                <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+              </React.Fragment>
+            ))}
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-bold">
+              🏠 Drop-off
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Main Map Canvas */}
       <div className="relative h-80 sm:h-96 w-full bg-muted">
@@ -633,17 +716,17 @@ export function OrderLiveTrackingMap({
             </Marker>
           )}
 
-          {/* Store Pickup Pin(s) */}
+          {/* Store Pickup Pin(s) with Numbered Waypoint Badges */}
           {validPickups.map((pickup, idx) => (
             <Marker
-              key={idx}
+              key={pickup.id || idx}
               position={[pickup.lat, pickup.lng]}
-              icon={storeDivIcon}
+              icon={getStoreDivIcon(idx, validPickups.length)}
             >
               <Popup>
                 <div className="p-1 space-y-0.5 text-xs">
                   <div className="font-bold text-amber-700 flex items-center gap-1">
-                    🏪 {pickup.name || "Pickup Location"}
+                    🏪 {validPickups.length > 1 ? `Store ${idx + 1}: ` : ""}{pickup.name || "Pickup Location"}
                   </div>
                   {pickup.address && (
                     <p className="text-[11px] text-muted-foreground max-w-[180px]">

@@ -844,6 +844,7 @@ export const deliveryService = {
     return eligibleRows.map((m: any) => {
       const items = m.orders.flatMap((o: any) => (o.items || []).map(mapItemWithImage));
       const vendors = m.orders.map((o: any) => o.vendor);
+      const validVendors = vendors.filter(Boolean);
       
       return {
         id: m.id,
@@ -861,7 +862,7 @@ export const deliveryService = {
         created_at: m.created_at,
         payment: m.orders[0]?.payment,
         items: items,
-        vendor: vendors.length === 1 && vendors[0] ? vendors[0] : { business_name: `${vendors.length} Stores`, address: "Multiple Pickup Locations", phone: vendors.find((v: any) => v?.phone)?.phone || null },
+        vendor: validVendors.length === 1 ? validVendors[0] : validVendors.length > 1 ? { business_name: `${validVendors.length} Stores`, address: "Multiple Pickup Locations", phone: validVendors.find((v: any) => v?.phone)?.phone || null } : null,
         vendors: vendors,
         sub_orders: m.orders.map((o: any) => ({
            id: o.id,

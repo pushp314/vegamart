@@ -24,6 +24,11 @@ export const requestRefundSchema = z.object({
   reason: z.string().trim().min(5, "Reason is required and must be at least 5 characters.").max(500),
 }).strict();
 
+export const updateDeliveryInstructionsSchema = z.object({
+  instructions: z.array(z.string().trim().max(100)).max(10),
+}).strict();
+
 export type CancelOrderBody = z.infer<typeof cancelOrderSchema>;
 export type RequestRefundBody = z.infer<typeof requestRefundSchema>;
 export type TransitionOrderStatusBody = z.infer<typeof transitionOrderStatusSchema>;
+export type UpdateDeliveryInstructionsBody = z.infer<typeof updateDeliveryInstructionsSchema>;

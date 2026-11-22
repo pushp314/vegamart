@@ -26,6 +26,11 @@ import {
   Check,
   Receipt,
   Printer,
+  BellOff,
+  DoorClosed,
+  PhoneCall,
+  Moon,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderInvoiceModal } from "@/components/orders/OrderInvoiceModal";
@@ -173,6 +178,56 @@ function OrderIdTrackingPage() {
   const isPreparing =
     status === "preparing" || status === "packed" || status === "ready_for_pickup";
   const isConfirmed = status === "confirmed" || isPreparing || isOutForDelivery || isDelivered;
+
+  // Delivery instructions state
+  const rawDeliveryNote = (order?.delivery_note || order?.orders?.[0]?.delivery_note || "") as string;
+  const [selectedInstructions, setSelectedInstructions] = useState<string[]>([]);
+  const [isUpdatingInstructions, setIsUpdatingInstructions] = useState(false);
+
+  useEffect(() => {
+    if (rawDeliveryNote) {
+      const parts = rawDeliveryNote
+        .split("•")
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      setSelectedInstructions(parts);
+    } else {
+      setSelectedInstructions([]);
+    }
+  }, [rawDeliveryNote]);
+
+  const availableInstructionChips = useMemo(
+    () => [
+      { id: "no_bell", label: "Don't ring bell", icon: BellOff },
+      { id: "leave_door", label: "Leave at door", icon: DoorClosed },
+      { id: "call_arrival", label: "Call on arrival", icon: PhoneCall },
+      { id: "baby_sleeping", label: "Baby sleeping", icon: Moon },
+      { id: "leave_guard", label: "Leave with guard", icon: ShieldCheck },
+    ],
+    []
+  );
+
+  const canEditInstructions = !isDelivered && status !== "cancelled" && status !== "refunded";
+
+  const toggleInstruction = async (label: string) => {
+    if (!canEditInstructions || isUpdatingInstructions) return;
+    const next = selectedInstructions.includes(label)
+      ? selectedInstructions.filter((i) => i !== label)
+      : [...selectedInstructions, label];
+
+    setSelectedInstructions(next);
+    setIsUpdatingInstructions(true);
+    try {
+      await api.patch(`/orders/${orderId}/instructions`, { instructions: next });
+      toast.success("Delivery instructions updated for rider", { duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["orderDetail", orderId] });
+    } catch (err: any) {
+      setSelectedInstructions(selectedInstructions);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to update instructions");
+    } finally {
+      setIsUpdatingInstructions(false);
+    }
+  };
 
   // Track WebSocket connection state to suppress redundant REST polling
   const [isWsConnected, setIsWsConnected] = useState(false);
@@ -951,6 +1006,7 @@ function OrderIdTrackingPage() {
                   status={status}
                   etaMinutes={trackingData?.eta_minutes}
                   etaSeconds={liveTrackingState.etaSeconds ?? trackingData?.eta_seconds}
+                  remainingMeters={liveTrackingState.remainingMeters ?? trackingData?.remaining_meters}
                   heading={liveTrackingState.heading ?? trackingData?.heading}
                   speedKmh={liveTrackingState.speedKmh ?? trackingData?.speed_kmh ?? trackingData?.speed}
                   accuracy={liveTrackingState.accuracy ?? trackingData?.accuracy}
@@ -962,6 +1018,74 @@ function OrderIdTrackingPage() {
                 />
               </Suspense>
             )}
+
+            {/* Customer Delivery Instructions Chips */}
+            <div className="rounded-3xl border bg-card p-5 sm:p-6 shadow-soft space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display font-black text-sm sm:text-base text-foreground flex items-center gap-2">
+                    <span>🛵 Delivery Instructions for Rider</span>
+                    {isUpdatingInstructions && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
+                    )}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Select preferences to help your delivery partner drop off smoothly.
+                  </p>
+                </div>
+                {selectedInstructions.length > 0 && canEditInstructions && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSelectedInstructions([]);
+                      try {
+                        await api.patch(`/orders/${orderId}/instructions`, { instructions: [] });
+                        toast.success("Instructions cleared.");
+                        queryClient.invalidateQueries({ queryKey: ["orderDetail", orderId] });
+                      } catch {
+                        toast.error("Failed to clear instructions.");
+                      }
+                    }}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {availableInstructionChips.map((chip) => {
+                  const Icon = chip.icon;
+                  const isSelected = selectedInstructions.includes(chip.label);
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      disabled={!canEditInstructions || isUpdatingInstructions}
+                      onClick={() => toggleInstruction(chip.label)}
+                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all border select-none ${
+                        isSelected
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02]"
+                          : "bg-muted/40 hover:bg-muted text-foreground border-border/80 hover:border-emerald-300"
+                      } ${!canEditInstructions ? "opacity-60 cursor-not-allowed" : "cursor-pointer active:scale-95"}`}
+                    >
+                      <Icon className={`h-3.5 w-3.5 ${isSelected ? "text-white" : "text-muted-foreground"}`} />
+                      <span>{chip.label}</span>
+                      {isSelected && <Check className="h-3 w-3 ml-0.5 text-white stroke-[3]" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedInstructions.length > 0 && (
+                <div className="mt-2 text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    Rider will see: <strong>{selectedInstructions.join(" • ")}</strong>
+                  </span>
+                </div>
+              )}
+            </div>
 
             {/* Status Timeline */}
             <div className="rounded-3xl border bg-card p-6 shadow-soft space-y-4">

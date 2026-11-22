@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { authenticate } from "../../middlewares/auth.middleware";
+import { optionalAuthenticate } from "../../middlewares/auth.middleware";
 import asyncHandler from "../../utils/asyncHandler";
 import { sendSuccess } from "../../utils/ApiResponse";
 import { createRealtimeTicket } from "../../services/realtime-ticket.service";
@@ -20,9 +20,21 @@ const router = Router();
  */
 router.post(
   "/ticket",
-  authenticate,
+  optionalAuthenticate,
   asyncHandler(async (req: Request, res: Response) => {
-    const ticket = await createRealtimeTicket(req.user!);
+    const user = req.user || {
+      id: "anonymous",
+      email: "guest@galiconnect.local",
+      name: "Guest",
+      role: "customer",
+      role_id: "",
+      permissions: [],
+      vendor_id: null,
+      delivery_id: null,
+      is_verified: false,
+      session_id: null,
+    };
+    const ticket = await createRealtimeTicket(user as any);
     return sendSuccess(res, { ticket, expires_in: 30 }, { message: "Realtime ticket generated." });
   })
 );

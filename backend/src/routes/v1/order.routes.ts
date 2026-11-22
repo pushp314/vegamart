@@ -11,6 +11,7 @@ import {
   transitionOrderStatus,
   requestRefund,
   rejectOrderItem,
+  updateDeliveryInstructions,
 } from "../../controllers/order.controller";
 import { authenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
@@ -22,6 +23,7 @@ import {
   orderIdParamsSchema,
   transitionOrderStatusSchema,
   requestRefundSchema,
+  updateDeliveryInstructionsSchema,
 } from "../../validators/order.validators";
 
 const router = Router();
@@ -33,6 +35,7 @@ router.get("/orders/:order_id/timeline", authenticate, requireRole(ROLES.CUSTOME
 router.get("/orders/:order_id/invoice", authenticate, requireRole(ROLES.CUSTOMER), validate({ params: orderIdParamsSchema }), getOrderInvoice);
 router.post("/orders/:order_id/cancel", authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ params: orderIdParamsSchema, body: cancelOrderSchema }), cancelOrder);
 router.post("/orders/:order_id/refund", authenticate, blockGuest, requireRole(ROLES.CUSTOMER), validate({ params: orderIdParamsSchema, body: requestRefundSchema }), requestRefund);
+router.patch("/orders/:order_id/instructions", authenticate, requireRole(ROLES.CUSTOMER), validate({ params: orderIdParamsSchema, body: updateDeliveryInstructionsSchema }), updateDeliveryInstructions);
 
 // Vendor order views (must be registered before any catch-all order routes if present)
 router.get("/vendors/orders", authenticate, requireRole(ROLES.VENDOR), validate({ query: listOrdersQuerySchema }), listVendorOrders);

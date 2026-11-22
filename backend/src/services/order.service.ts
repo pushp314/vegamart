@@ -1034,4 +1034,57 @@ export const orderService = {
       refund_amount: refundAmount,
     };
   },
+
+  async updateDeliveryInstructions(userId: string, orderId: string, instructions: string[]) {
+    const formattedNote = instructions.join(" • ");
+    let masterOrder = await prisma.masterOrder.findUnique({
+      where: { id: orderId },
+      include: { orders: true },
+    });
+    if (!masterOrder) {
+      const child = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { master_order: { include: { orders: true } } },
+      });
+      if (child?.master_order) {
+        masterOrder = child.master_order;
+      } else if (child) {
+        if (child.user_id !== userId) {
+          throw new ForbiddenError("You can only update instructions for your own order.");
+        }
+        await prisma.order.update({
+          where: { id: child.id },
+          data: { delivery_note: formattedNote },
+        });
+        return {
+          success: true,
+          delivery_note: formattedNote,
+          instructions,
+        };
+      }
+    }
+    if (!masterOrder) {
+      throw new NotFoundError("Order not found.");
+    }
+    if (masterOrder.user_id !== userId) {
+      throw new ForbiddenError("You can only update instructions for your own order.");
+    }
+
+    for (const sub of masterOrder.orders) {
+      await prisma.order.update({
+        where: { id: sub.id },
+        data: { delivery_note: formattedNote },
+      });
+    }
+
+    if (masterOrder.delivery_partner_id) {
+      realtime.publishOrderStatus(masterOrder.id, masterOrder.status);
+    }
+
+    return {
+      success: true,
+      delivery_note: formattedNote,
+      instructions,
+    };
+  },
 };

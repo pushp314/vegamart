@@ -267,3 +267,9 @@ export const rejectOrderItem = asyncHandler(async (req: Request, res: Response) 
   const result = await orderService.rejectOrderItem(req.user!.id, req.params.order_id!, req.params.item_id!, req);
   return sendSuccess(res, result, { message: "Order item rejected successfully" });
 });
+
+export const updateDeliveryInstructions = asyncHandler(async (req: Request, res: Response) => {
+  const instructions = Array.isArray(req.body.instructions) ? req.body.instructions : [];
+  const result = await orderService.updateDeliveryInstructions(req.user!.id, req.params.order_id as string, instructions);
+  return sendSuccess(res, result, { message: "Delivery instructions updated." });
+});

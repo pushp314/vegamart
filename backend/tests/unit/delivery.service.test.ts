@@ -4,7 +4,8 @@ jest.mock("../../src/database/prisma", () => ({
   __esModule: true,
   default: {
     $transaction: jest.fn(),
-    order: { findMany: jest.fn(), findUnique: jest.fn() },
+    order: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    masterOrder: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     deliveryTracking: { upsert: jest.fn(), findUnique: jest.fn() },
     deliveryProfile: { findUnique: jest.fn() },
     deliveryEarning: { aggregate: jest.fn(), findMany: jest.fn(), count: jest.fn() },
