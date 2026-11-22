@@ -184,7 +184,7 @@ export function AdminTrackingCredits() {
                 wallet.dues_amount > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"
               }`}
             >
-              <span>₹{wallet.dues_amount.toFixed(2)}</span>
+              <span>{Math.round(wallet.dues_amount)} Credits</span>
             </div>
             <p className="text-[11px] text-muted-foreground pt-1 leading-tight">
               {wallet.dues_amount > 0 ? (
@@ -226,11 +226,11 @@ export function AdminTrackingCredits() {
           </CardHeader>
           <CardContent className="space-y-1">
             <div className="text-3xl font-black text-foreground flex items-baseline gap-1">
-              <span>₹{wallet.cost_per_track.toFixed(2)}</span>
+              <span>1 Credit</span>
               <span className="text-xs font-semibold text-muted-foreground">/ order</span>
             </div>
             <p className="text-[11px] text-muted-foreground pt-1">
-              Billed exactly 1 credit per tracked delivery
+              Deducts exactly 1 credit per tracked delivery
             </p>
           </CardContent>
         </Card>
@@ -409,10 +409,10 @@ export function AdminTrackingCredits() {
                       <TableCell className="text-right font-mono text-xs">
                         {log.dues_after > 0 ? (
                           <span className="font-bold text-amber-600 dark:text-amber-400">
-                            ₹{log.dues_after.toFixed(2)}
+                            {Math.round(log.dues_after)} Credits
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">₹0.00</span>
+                          <span className="text-muted-foreground">0</span>
                         )}
                       </TableCell>
                     </TableRow>

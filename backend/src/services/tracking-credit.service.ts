@@ -48,36 +48,37 @@ export const trackingCreditService = {
   },
 
   /**
-   * Add / recharge credits to the wallet (e.g. from CLI `npm run credits:add 1200`).
+   * Add / recharge or adjust credits to the wallet (e.g. from CLI `npm run credits:add 1200` or `npm run credits:add -- -1200`).
    * Automatically clears or reduces dues if the balance was negative.
    */
   async addCredits(amount: number, reason = "Manual Credit Recharge") {
-    if (!amount || isNaN(amount) || amount <= 0) {
-      throw new Error("Credit amount must be a positive number.");
+    if (!amount || isNaN(amount)) {
+      throw new Error("Credit amount must be a non-zero number.");
     }
 
     const wallet = await this.getWallet();
     const newBalance = wallet.balance + amount;
     const costPerTrack = Number(wallet.cost_per_track ?? 1.0);
     const newDues = newBalance < 0 ? Math.abs(newBalance) * costPerTrack : 0;
+    const isRecharge = amount > 0;
 
     const [updatedWallet, log] = await prisma.$transaction([
       prisma.trackingCreditWallet.update({
         where: { id: wallet.id },
         data: {
           balance: newBalance,
-          total_recharged: wallet.total_recharged + amount,
+          total_recharged: isRecharge ? wallet.total_recharged + amount : wallet.total_recharged,
           dues_amount: new Prisma.Decimal(newDues),
         },
       }),
       prisma.trackingUsageLog.create({
         data: {
           wallet_id: wallet.id,
-          type: "RECHARGE",
+          type: isRecharge ? "RECHARGE" : "ADJUSTMENT",
           credits: amount,
           balance_after: newBalance,
           dues_after: new Prisma.Decimal(newDues),
-          description: `${reason} (+${amount.toLocaleString()} Credits)`,
+          description: `${reason} (${amount > 0 ? `+${amount.toLocaleString()}` : amount.toLocaleString()} Credits)`,
         },
       }),
     ]);
@@ -88,6 +89,49 @@ export const trackingCreditService = {
       amountAdded: amount,
       previousBalance: wallet.balance,
       newBalance,
+      duesAmount: newDues,
+    };
+  },
+
+  /**
+   * Set wallet balance to an exact target number (e.g. `npm run credits:set 1200`).
+   */
+  async setBalance(targetBalance: number, reason = "Balance Correction") {
+    if (isNaN(targetBalance) || targetBalance < 0) {
+      throw new Error("Target balance must be a non-negative number.");
+    }
+
+    const wallet = await this.getWallet();
+    const diff = targetBalance - wallet.balance;
+    const costPerTrack = Number(wallet.cost_per_track ?? 1.0);
+    const newDues = targetBalance < 0 ? Math.abs(targetBalance) * costPerTrack : 0;
+
+    const [updatedWallet, log] = await prisma.$transaction([
+      prisma.trackingCreditWallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: targetBalance,
+          dues_amount: new Prisma.Decimal(newDues),
+        },
+      }),
+      prisma.trackingUsageLog.create({
+        data: {
+          wallet_id: wallet.id,
+          type: "ADJUSTMENT",
+          credits: diff,
+          balance_after: targetBalance,
+          dues_after: new Prisma.Decimal(newDues),
+          description: `${reason} (Reset balance from ${wallet.balance.toLocaleString()} to ${targetBalance.toLocaleString()} Credits)`,
+        },
+      }),
+    ]);
+
+    return {
+      wallet: updatedWallet,
+      log,
+      previousBalance: wallet.balance,
+      newBalance: targetBalance,
+      diff,
       duesAmount: newDues,
     };
   },
