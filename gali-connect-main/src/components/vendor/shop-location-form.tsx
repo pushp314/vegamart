@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { MapLayerToggle } from "@/components/maps/MapLayerToggle";
+import { MAP_LAYERS, type MapLayerType } from "@/components/maps/map-layers";
 
 // Fix Leaflet icon issue
 import L from "leaflet";
@@ -63,6 +65,7 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [mapLink, setMapLink] = useState("");
   const [isLocating, setIsLocating] = useState(false);
+  const [currentLayer, setCurrentLayer] = useState<MapLayerType>("streets");
 
   const handleCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -191,14 +194,10 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
         <div className="h-[400px] rounded-lg overflow-hidden border border-border relative z-0">
           <MapContainer center={defaultCenter} zoom={13} style={{ height: "100%", width: "100%" }}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url={
-                import.meta.env.VITE_MAP_TILE_URL &&
-                (!import.meta.env.VITE_MAP_TILE_URL.includes("cartocdn.com") ||
-                  import.meta.env.VITE_MAP_TILE_URL.includes("api_key="))
-                  ? import.meta.env.VITE_MAP_TILE_URL
-                  : "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
-              }
+              key={currentLayer}
+              attribution={MAP_LAYERS[currentLayer].attribution}
+              url={MAP_LAYERS[currentLayer].url}
+              subdomains={MAP_LAYERS[currentLayer].subdomains}
               maxZoom={19}
             />
             <LocationMarker position={position} setPosition={setPosition} />
@@ -214,6 +213,13 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
               />
             )}
           </MapContainer>
+
+          {/* Google Maps-style Free Satellite / Road Map Toggle */}
+          <MapLayerToggle
+            currentLayer={currentLayer}
+            onToggle={setCurrentLayer}
+            className="bottom-3 left-3 shadow-md"
+          />
         </div>
 
         <div className="space-y-1.5">

@@ -30,6 +30,7 @@ import contactRoutes from "./contact.routes";
 import { faqRoutes } from "./faq.routes";
 import maintenanceRoutes from "../../modules/maintenance/maintenance.routes";
 import realtimeRoutes from "./realtime.routes";
+import adminTrackingCreditRoutes from "./admin-tracking-credits.routes";
 
 const v1Router = Router();
 
@@ -57,6 +58,7 @@ v1Router.use(notificationRoutes);
 v1Router.use(uploadRoutes);
 v1Router.use("/admin", adminRoutes);
 v1Router.use("/admin", integrationAdminRoutes);
+v1Router.use("/admin/tracking-credits", adminTrackingCreditRoutes);
 v1Router.use(publicSettingsRoutes);
 v1Router.use(offersRoutes);
 v1Router.use(membershipPlanRoutes);

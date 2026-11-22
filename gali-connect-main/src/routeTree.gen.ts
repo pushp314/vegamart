@@ -62,6 +62,7 @@ import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSubscriptionsRouteImport } from './routes/admin/subscriptions'
 import { Route as AdminSupportTicketsRouteImport } from './routes/admin/support-tickets'
+import { Route as AdminTrackingCreditsRouteImport } from './routes/admin/tracking-credits'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminVendorsRouteImport } from './routes/admin/vendors'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -353,6 +354,11 @@ const AdminSupportTicketsRoute = AdminSupportTicketsRouteImport.update({
   path: '/support-tickets',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminTrackingCreditsRoute = AdminTrackingCreditsRouteImport.update({
+  id: '/tracking-credits',
+  path: '/tracking-credits',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -532,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/admin/support-tickets': typeof AdminSupportTicketsRoute
+  '/admin/tracking-credits': typeof AdminTrackingCreditsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -610,6 +617,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/admin/support-tickets': typeof AdminSupportTicketsRoute
+  '/admin/tracking-credits': typeof AdminTrackingCreditsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -690,6 +698,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/admin/support-tickets': typeof AdminSupportTicketsRoute
+  '/admin/tracking-credits': typeof AdminTrackingCreditsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -772,6 +781,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/subscriptions'
     | '/admin/support-tickets'
+    | '/admin/tracking-credits'
     | '/admin/users'
     | '/admin/vendors'
     | '/auth/callback'
@@ -850,6 +860,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/subscriptions'
     | '/admin/support-tickets'
+    | '/admin/tracking-credits'
     | '/admin/users'
     | '/admin/vendors'
     | '/auth/callback'
@@ -929,6 +940,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/subscriptions'
     | '/admin/support-tickets'
+    | '/admin/tracking-credits'
     | '/admin/users'
     | '/admin/vendors'
     | '/auth/callback'
@@ -1368,6 +1380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSupportTicketsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/tracking-credits': {
+      id: '/admin/tracking-credits'
+      path: '/tracking-credits'
+      fullPath: '/admin/tracking-credits'
+      preLoaderRoute: typeof AdminTrackingCreditsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/users'
@@ -1568,6 +1587,7 @@ interface AdminRouteRouteChildren {
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
   AdminSupportTicketsRoute: typeof AdminSupportTicketsRoute
+  AdminTrackingCreditsRoute: typeof AdminTrackingCreditsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminVendorsRoute: typeof AdminVendorsRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -1595,6 +1615,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSubscriptionsRoute: AdminSubscriptionsRoute,
   AdminSupportTicketsRoute: AdminSupportTicketsRoute,
+  AdminTrackingCreditsRoute: AdminTrackingCreditsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminVendorsRoute: AdminVendorsRoute,
   AdminIndexRoute: AdminIndexRoute,

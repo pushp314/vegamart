@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { MapLayerToggle } from "@/components/maps/MapLayerToggle";
+import { MAP_LAYERS, type MapLayerType } from "@/components/maps/map-layers";
 
 // Fix leaflet icon paths
 import L from "leaflet";
@@ -30,6 +33,8 @@ export function DeliveryMapModal({
   startLocation,
   endLocation,
 }: DeliveryMapModalProps) {
+  const [currentLayer, setCurrentLayer] = useState<MapLayerType>("streets");
+
   const center = [
     (startLocation.lat + endLocation.lat) / 2,
     (startLocation.lng + endLocation.lng) / 2,
@@ -44,14 +49,10 @@ export function DeliveryMapModal({
         <div className="flex-1 bg-muted relative">
           <MapContainer center={center} zoom={13} scrollWheelZoom={true} className="h-full w-full">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url={
-                import.meta.env.VITE_MAP_TILE_URL &&
-                (!import.meta.env.VITE_MAP_TILE_URL.includes("cartocdn.com") ||
-                  import.meta.env.VITE_MAP_TILE_URL.includes("api_key="))
-                  ? import.meta.env.VITE_MAP_TILE_URL
-                  : "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
-              }
+              key={currentLayer}
+              attribution={MAP_LAYERS[currentLayer].attribution}
+              url={MAP_LAYERS[currentLayer].url}
+              subdomains={MAP_LAYERS[currentLayer].subdomains}
               maxZoom={19}
             />
 
@@ -73,11 +74,18 @@ export function DeliveryMapModal({
                 [startLocation.lat, startLocation.lng],
                 [endLocation.lat, endLocation.lng],
               ]}
-              color="blue"
+              color="#2563eb"
               dashArray="5, 10"
               weight={4}
             />
           </MapContainer>
+
+          {/* Google Maps-style Free Satellite / Road Map Toggle */}
+          <MapLayerToggle
+            currentLayer={currentLayer}
+            onToggle={setCurrentLayer}
+            className="bottom-3 left-3 shadow-md"
+          />
         </div>
       </DialogContent>
     </Dialog>

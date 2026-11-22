@@ -1388,6 +1388,46 @@ model Setting {
   @@map("settings")
 }
 
+model TrackingCreditWallet {
+  id              String             @id @default(uuid()) @db.Uuid
+  balance         Int                @default(1200)
+  total_used      Int                @default(0)
+  total_recharged Int                @default(1200)
+  cost_per_track  Decimal            @default(1.00) @db.Decimal(10, 2)
+  dues_amount     Decimal            @default(0)    @db.Decimal(10, 2)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+
+  logs            TrackingUsageLog[]
+
+  @@map("tracking_credit_wallets")
+}
+
+model TrackingUsageLog {
+  id                String               @id @default(uuid()) @db.Uuid
+  wallet_id         String               @db.Uuid
+  type              String               @default("USAGE") @db.VarChar(30)
+  credits           Int
+  balance_after     Int
+  dues_after        Decimal              @default(0) @db.Decimal(10, 2)
+  order_id          String?              @db.Uuid
+  order_number      String?              @db.VarChar(50)
+  customer_name     String?              @db.VarChar(120)
+  customer_phone    String?              @db.VarChar(30)
+  customer_address  String?              @db.Text
+  rider_name        String?              @db.VarChar(120)
+  vendor_names      String?              @db.Text
+  description       String?              @db.VarChar(255)
+  created_at        DateTime             @default(now())
+
+  wallet            TrackingCreditWallet @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
+
+  @@index([wallet_id])
+  @@index([order_id])
+  @@index([created_at])
+  @@map("tracking_usage_logs")
+}
+
 model CmsBanner {
   id         String   @id @default(uuid()) @db.Uuid
   title      String?  @db.VarChar(200)

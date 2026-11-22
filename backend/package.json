@@ -30,6 +30,7 @@
     "prisma:reset": "prisma migrate reset --schema prisma/schema.prisma",
     "backfill:earnings": "tsx src/scripts/backfill-earnings.ts",
     "db:push": "prisma db push --schema prisma/schema.prisma",
+    "credits:add": "ts-node --transpile-only scripts/add-credits.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

@@ -23,10 +23,13 @@ import {
   VolumeX,
   Store,
   ChevronRight,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playArrivalChime } from "@/lib/chime";
 import { toast } from "sonner";
+import { MAP_LAYERS, type MapLayerType } from "../maps/map-layers";
+import { MapLayerToggle } from "../maps/MapLayerToggle";
 
 // Fix standard default icon assets
 import iconUrl from "leaflet/dist/images/marker-icon.png";
@@ -41,6 +44,7 @@ L.Icon.Default.mergeOptions({
 });
 
 export interface LocationPoint {
+  id?: string | number;
   lat: number;
   lng: number;
   name?: string;
@@ -145,6 +149,7 @@ export function OrderLiveTrackingMap({
   const [autoFollow, setAutoFollow] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [currentLayer, setCurrentLayer] = useState<MapLayerType>("streets");
   const hasChimedRef = useRef(false);
 
   // Proximity trigger: chime once when rider is within 500m or 2 mins of doorstep
@@ -567,6 +572,22 @@ export function OrderLiveTrackingMap({
             {soundEnabled ? "Chime On" : "Muted"}
           </Button>
 
+          {/* Map Layer Mode Toggle (Roads / Satellite) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentLayer(currentLayer === "streets" ? "satellite" : "streets")}
+            className={`h-8 px-2.5 text-xs font-bold rounded-xl transition-all ${
+              currentLayer === "satellite"
+                ? "border-slate-800 bg-slate-900 text-white shadow-xs"
+                : "border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 dark:bg-card dark:border-emerald-800 dark:text-emerald-300"
+            }`}
+            title={currentLayer === "satellite" ? "Switch to High-Contrast Road Map" : "Switch to Free Satellite View"}
+          >
+            <Layers className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+            {currentLayer === "satellite" ? "🛰️ Satellite" : "🛣️ Roads"}
+          </Button>
+
           {/* Follow Rider Toggle */}
           <Button
             variant="outline"
@@ -655,8 +676,10 @@ export function OrderLiveTrackingMap({
           }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url={mapTileUrl}
+            key={currentLayer}
+            attribution={MAP_LAYERS[currentLayer].attribution}
+            url={MAP_LAYERS[currentLayer].url}
+            subdomains={MAP_LAYERS[currentLayer].subdomains}
             maxZoom={19}
           />
 
@@ -779,6 +802,13 @@ export function OrderLiveTrackingMap({
             </span>
           </div>
         </div>
+
+        {/* Google Maps-style Satellite / Streets toggle thumbnail */}
+        <MapLayerToggle
+          currentLayer={currentLayer}
+          onToggle={setCurrentLayer}
+          className="bottom-3 right-3 left-auto shadow-md"
+        />
       </div>
 
       {/* Driver Contact & Vehicle Information Footer */}

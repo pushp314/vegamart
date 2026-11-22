@@ -20,6 +20,7 @@ import type {
   CompactLocationUpdate,
 } from "./tracking.types";
 import { isVegaMartDeliveryPartnerOrder } from "../../services/delivery.service";
+import { trackingCreditService } from "../../services/tracking-credit.service";
 
 const LIVE_PREFIX = "vegamart:tracking:live:";
 const ROUTE_PREFIX = "vegamart:tracking:route:";
@@ -248,6 +249,9 @@ export class TrackingService {
     }
 
     for (const masterOrder of validOrders) {
+      // Deduct 1 credit per tracked delivery order (idempotent, never blocks tracking)
+      trackingCreditService.deductCreditForOrder(masterOrder.id).catch(() => {});
+
       const liveKey = `${LIVE_PREFIX}${masterOrder.id}`;
       const hotState = await this.getCacheJson<LiveTrackingState>(liveKey);
 

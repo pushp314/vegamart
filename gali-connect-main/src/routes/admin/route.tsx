@@ -21,6 +21,7 @@ import {
   Crown,
   BookOpen,
   Wallet,
+  Compass,
 } from "lucide-react";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { MaintenanceAlertModal } from "@/components/admin/MaintenanceAlertModal";
@@ -62,6 +63,7 @@ function AdminLayout() {
     },
     { id: "users", title: "Users", icon: Users, url: "/admin/users" },
     { id: "delivery", title: "Delivery Boys", icon: Bike, url: "/admin/delivery" },
+    { id: "tracking_credits", title: "Tracking Credits", icon: Compass, url: "/admin/tracking-credits" },
     { id: "categories", title: "Categories", icon: Layers, url: "/admin/categories" },
     { id: "products", title: "Products", icon: FileText, url: "/admin/products" },
     { id: "cms", title: "CMS", icon: ClipboardList, url: "/admin/cms" },
