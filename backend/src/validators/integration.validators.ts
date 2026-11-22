@@ -75,7 +75,7 @@ export const createOrderAliasSchema = z.object({
 export type CreateOrderAliasBody = z.infer<typeof createOrderAliasSchema>;
 
 export const orderIdAliasParamsSchema = z.object({
-  id: z.string().uuid("id must be a valid UUID."),
+  id: z.string().trim().min(1, "id is required"),
 }).strict();
 
 export type OrderIdAliasParams = z.infer<typeof orderIdAliasParamsSchema>;

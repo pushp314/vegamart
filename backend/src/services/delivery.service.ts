@@ -1712,20 +1712,39 @@ export const deliveryService = {
   },
 
   async getDeliveryTracking(user: TrackingRequester, orderId: string) {
-    let masterOrder = await prisma.masterOrder.findUnique({
-      where: { id: orderId },
-      include: {
-        orders: {
-          include: { vendor: true }
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderId);
+    let masterOrder = null;
+    if (isUuid) {
+      masterOrder = await prisma.masterOrder.findUnique({
+        where: { id: orderId },
+        include: {
+          orders: {
+            include: { vendor: true }
+          }
         }
-      }
-    });
+      });
+    }
+    if (!masterOrder) {
+      masterOrder = await prisma.masterOrder.findFirst({
+        where: { order_number: orderId },
+        include: {
+          orders: {
+            include: { vendor: true }
+          }
+        }
+      });
+    }
 
     if (!masterOrder) {
-      const child = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: { master_order: { include: { orders: { include: { vendor: true } } } } },
-      });
+      const child = isUuid
+        ? await prisma.order.findUnique({
+            where: { id: orderId },
+            include: { master_order: { include: { orders: { include: { vendor: true } } } } },
+          })
+        : await prisma.order.findFirst({
+            where: { order_number: orderId },
+            include: { master_order: { include: { orders: { include: { vendor: true } } } } },
+          });
       if (child?.master_order) {
         masterOrder = child.master_order;
       }

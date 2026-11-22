@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const orderIdParamsSchema = z.object({
-  order_id: z.string().uuid("order_id must be a valid UUID."),
+  order_id: z.string().trim().min(1, "order_id is required"),
 }).strict();
 
 export const listOrdersQuerySchema = z.object({

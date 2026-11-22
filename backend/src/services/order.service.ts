@@ -193,22 +193,153 @@ export const orderService = {
       },
     } as const;
 
-    let m = await prisma.masterOrder.findUnique({
-      where: { id: orderId },
-      include: orderInclude,
-    });
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderId);
 
-    if (!m) {
-      const subOrder = await prisma.order.findUnique({
+    let m: any = null;
+    if (isUuid) {
+      m = await prisma.masterOrder.findUnique({
         where: { id: orderId },
-        select: { master_order_id: true },
+        include: orderInclude,
       });
+    }
+    if (!m) {
+      m = await prisma.masterOrder.findFirst({
+        where: { order_number: orderId },
+        include: orderInclude,
+      });
+    }
+
+    const singleOrderInclude = {
+      user: { select: { id: true, name: true, phone: true, email: true } },
+      address: true,
+      vendor: true,
+      payment: true,
+      coupon: true,
+      delivery_partner: {
+        select: {
+          id: true,
+          vehicle_type: true,
+          vehicle_number: true,
+          user: { select: { name: true, phone: true } },
+        },
+      },
+      items: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              unit: true,
+              images: {
+                select: { url: true },
+                take: 1,
+                orderBy: { sort_order: "asc" },
+              },
+            },
+          },
+        },
+      },
+      events: { orderBy: { created_at: "desc" } },
+      transactions: true,
+    } as const;
+
+    let subOrder: any = null;
+    if (!m) {
+      if (isUuid) {
+        subOrder = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: singleOrderInclude,
+        });
+      }
+      if (!subOrder) {
+        subOrder = await prisma.order.findFirst({
+          where: { order_number: orderId },
+          include: singleOrderInclude,
+        });
+      }
+
       if (subOrder && subOrder.master_order_id) {
         m = await prisma.masterOrder.findUnique({
           where: { id: subOrder.master_order_id },
           include: orderInclude,
         });
       }
+    }
+
+    if (!m && subOrder) {
+      if (subOrder.user_id !== userId) {
+        throw new ForbiddenError("You do not own this order.");
+      }
+      const allItems = (subOrder.items || []).map((item: any) => ({
+        ...item,
+        image_url: item.image_url || item.product?.images?.[0]?.url || null,
+        vendor_id: subOrder.vendor?.id,
+        vendor_name: subOrder.vendor?.business_name,
+        vendor_slug: subOrder.vendor?.slug,
+        vendor_phone: subOrder.vendor?.phone,
+        status: subOrder.status === "CANCELLED" ? "rejected" : item.status,
+      }));
+      const vendor = subOrder.vendor;
+      const vendors = vendor ? [vendor] : [];
+      const invoiceNumber = subOrder.invoice_number || generateInvoiceNumber(subOrder.order_number);
+      const itemsSubtotal = allItems
+        .filter((i: any) => i.status !== "rejected")
+        .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
+
+      return {
+        id: subOrder.id,
+        order_number: subOrder.order_number,
+        invoice_number: invoiceNumber,
+        status: subOrder.status,
+        total_amount: Number(subOrder.total),
+        items_subtotal: itemsSubtotal,
+        delivery_fee: Number(subOrder.delivery_fee || 0),
+        tax: Number(subOrder.tax || 0),
+        platform_fee: Number(subOrder.platform_fee || 0),
+        additional_charges: subOrder.additional_charges || [],
+        discount: Number(subOrder.discount || 0),
+        coupon_code: (subOrder as any).coupon?.code || null,
+        payment_method: subOrder.payment_method,
+        payment_status: subOrder.payment_status,
+        customer: subOrder.user || {
+          id: subOrder.user_id,
+          name: subOrder.address?.label || "Customer",
+          phone: subOrder.address?.phone || null,
+          email: null,
+        },
+        delivery_note: subOrder.delivery_note,
+        delivery_slot: subOrder.delivery_note,
+        delivery_option: subOrder.delivery_note,
+        created_at: subOrder.created_at,
+        delivery_partner_id: subOrder.delivery_partner_id,
+        items: allItems,
+        vendors: vendors,
+        sub_orders: [
+          {
+            id: subOrder.id,
+            order_number: subOrder.order_number,
+            invoice_number: invoiceNumber,
+            status: subOrder.status,
+            delivery_partner_id: subOrder.delivery_partner_id,
+            total: Number(subOrder.total),
+            items_subtotal: itemsSubtotal,
+            delivery_fee: Number(subOrder.delivery_fee || 0),
+            tax: Number(subOrder.tax || 0),
+            discount: Number(subOrder.discount || 0),
+            vendor: subOrder.vendor,
+            otp_code: subOrder.otp_code,
+            delivery_note: subOrder.delivery_note,
+            eta_minutes: subOrder.eta_minutes ?? null,
+            items: allItems,
+          },
+        ],
+        address: subOrder.address,
+        delivery_partner: subOrder.delivery_partner,
+        total: Number(subOrder.total),
+        vendor: vendor || { business_name: "Store", phone: null },
+        otp_code: subOrder.otp_code,
+        eta_minutes: subOrder.eta_minutes ?? null,
+      };
     }
 
     if (!m) {

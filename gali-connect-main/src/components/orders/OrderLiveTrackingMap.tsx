@@ -81,6 +81,8 @@ export interface OrderLiveTrackingMapProps {
   isStale?: boolean;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  isSelfPickup?: boolean;
+  storeDirectionsUrl?: string | null;
 }
 
 // Controller to auto-fit map view to markers
@@ -143,6 +145,8 @@ export function OrderLiveTrackingMap({
   isStale: serverStale = false,
   onRefresh,
   isRefreshing,
+  isSelfPickup = false,
+  storeDirectionsUrl = null,
 }: OrderLiveTrackingMapProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [recenterCounter, setRecenterCounter] = useState(0);
@@ -788,20 +792,46 @@ export function OrderLiveTrackingMap({
           <div className="bg-card/95 backdrop-blur-md border border-border px-3.5 py-1.5 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold">
             <span
               className={`h-2.5 w-2.5 rounded-full ${
-                isStale
+                isSelfPickup
+                  ? "bg-purple-500"
+                  : isStale
                   ? "bg-amber-500"
-                  : "bg-emerald-500 animate-pulse"
+                  : validDriver
+                  ? "bg-emerald-500 animate-pulse"
+                  : "bg-blue-500 animate-pulse"
               }`}
             />
             <span className="text-foreground">
-              {isStale
-                ? "Waiting for rider signal…"
-                : displayEta
-                ? `En route • Arriving in ~${displayEta}`
-                : "Rider is en route"}
+              {isSelfPickup
+                ? "🏪 Store Pickup • Collect at Shop"
+                : validDriver
+                ? isStale
+                  ? "Waiting for rider signal…"
+                  : displayEta
+                  ? `En route • Arriving in ~${displayEta}`
+                  : "Rider is en route"
+                : status === "pending" || status === "booked"
+                ? "Order Booked • Preparing by merchant"
+                : "Merchant preparing items • Rider assignment pending"}
             </span>
           </div>
         </div>
+
+        {/* Self-Pickup Direct Google Maps Direction CTA on Top Right */}
+        {isSelfPickup && storeDirectionsUrl && (
+          <div className="absolute top-3 right-3 z-[400]">
+            <a
+              href={storeDirectionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-2xl shadow-lg transition-all active:scale-95"
+              title="Open turn-by-turn directions to store in Google Maps"
+            >
+              <Navigation className="h-3.5 w-3.5" />
+              <span>Get Directions</span>
+            </a>
+          </div>
+        )}
 
         {/* Google Maps-style Satellite / Streets toggle thumbnail (Bottom-Left matching Google Maps) */}
         <MapLayerToggle

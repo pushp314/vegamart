@@ -179,6 +179,32 @@ function OrderIdTrackingPage() {
     status === "preparing" || status === "packed" || status === "ready_for_pickup";
   const isConfirmed = status === "confirmed" || isPreparing || isOutForDelivery || isDelivered;
 
+  const isSelfPickup = Boolean(
+    order?.is_self_pickup ||
+    order?.delivery_option === "pickup" ||
+    order?.delivery_option === "self_pickup" ||
+    order?.orders?.[0]?.delivery_option === "pickup" ||
+    order?.orders?.[0]?.delivery_option === "self_pickup" ||
+    String(order?.delivery_note || "").toLowerCase().includes("self") ||
+    String(order?.delivery_note || "").toLowerCase().includes("pickup") ||
+    String(order?.orders?.[0]?.delivery_note || "").toLowerCase().includes("self") ||
+    String(order?.orders?.[0]?.delivery_note || "").toLowerCase().includes("pickup")
+  );
+
+  const selfPickupDirectionsUrl = useMemo(() => {
+    const v = order?.vendor || order?.vendors?.[0] || order?.orders?.[0]?.vendor;
+    const lat = v?.latitude || v?.lat;
+    const lng = v?.longitude || v?.lng;
+    if (lat && lng) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    }
+    const addr = v?.full_address || v?.address;
+    if (addr) {
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${v?.business_name || ""} ${addr}`)}`;
+    }
+    return null;
+  }, [order?.vendor, order?.vendors, order?.orders]);
+
   // Delivery instructions state
   const rawDeliveryNote = (order?.delivery_note || order?.orders?.[0]?.delivery_note || "") as string;
   const [selectedInstructions, setSelectedInstructions] = useState<string[]>([]);
@@ -244,6 +270,7 @@ function OrderIdTrackingPage() {
     queryKey: ["orderTracking", orderId],
     queryFn: () => api.get<{ data: any }>(`/delivery/order/${orderId}/tracking`),
     enabled:
+      !isSelfPickup &&
       !!order &&
       (isOutForDelivery ||
         status === "picked_up" ||
@@ -707,9 +734,36 @@ function OrderIdTrackingPage() {
       />
 
       <main className="mx-auto max-w-4xl px-4 md:px-6 py-6 space-y-6">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-24">
+        {isLoading || authLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-xs font-semibold text-muted-foreground">Loading order details…</p>
+          </div>
+        ) : !isAuthenticated && !authLoading ? (
+          <div className="rounded-3xl border bg-card p-10 text-center space-y-4 shadow-soft">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600">
+              <User className="h-8 w-8" />
+            </div>
+            <div>
+              <h2 className="font-display font-black text-lg">Sign In to Track Order</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Please sign in with your phone or email to view live order tracking.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => navigate({ to: "/login" })}
+                className="inline-flex items-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-xs px-5 py-3 shadow-xs hover:bg-primary/90 transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => navigate({ to: "/orders" })}
+                className="inline-flex items-center gap-2 rounded-2xl border bg-card font-bold text-xs px-5 py-3 hover:bg-muted transition-colors"
+              >
+                My Orders
+              </button>
+            </div>
           </div>
         ) : !order ? (
           <div className="rounded-3xl border bg-card p-10 text-center space-y-4">
@@ -968,53 +1022,111 @@ function OrderIdTrackingPage() {
               </div>
             )}
 
-            {/* Live GPS Tracking Map */}
-            {isClient &&
-              (isOutForDelivery ||
-                status === "picked_up" ||
-                (effectiveStatus === "PICKUP_IN_PROGRESS" && (!!liveTrackingState.lat || !!trackingData?.current_lat))) && (
+            {/* Self-Pickup Store Location & Google Maps Direction CTA Card */}
+            {isSelfPickup && (
+              <div className="rounded-3xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-500/10 via-card to-purple-500/5 p-5 sm:p-6 shadow-soft space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-12 w-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shadow-md shrink-0 mt-0.5">
+                      <Store className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-purple-600 text-white">
+                          Self Pickup (Takeaway)
+                        </span>
+                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          ✓ Zero Delivery Fee
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-base text-foreground mt-1">
+                        {order?.vendor?.business_name || order?.vendors?.[0]?.business_name || order?.orders?.[0]?.vendor?.business_name || "Merchant Store"}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {order?.vendor?.full_address || order?.vendor?.address || order?.vendors?.[0]?.full_address || order?.orders?.[0]?.vendor?.full_address || "Visit store to collect your order"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {(order?.vendor?.phone || order?.vendors?.[0]?.phone || order?.orders?.[0]?.vendor?.phone) && (
+                      <a
+                        href={`tel:${order?.vendor?.phone || order?.vendors?.[0]?.phone || order?.orders?.[0]?.vendor?.phone}`}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-border bg-card hover:bg-muted text-xs font-bold transition-colors shadow-2xs"
+                      >
+                        <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                        Call Store
+                      </a>
+                    )}
+                    {selfPickupDirectionsUrl && (
+                      <a
+                        href={selfPickupDirectionsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md active:scale-95"
+                      >
+                        <Navigation className="h-4 w-4" />
+                        Directions in Google Maps
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-[11px] font-medium text-purple-900 dark:text-purple-200 bg-purple-100/60 dark:bg-purple-950/40 rounded-xl p-3 border border-purple-200 dark:border-purple-800 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-purple-600 shrink-0" />
+                  <span>
+                    Show your 6-digit pickup verification code or order number at the store counter to collect your packed items.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Live GPS Tracking Map / Store Pickup Map Canvas */}
+            {isClient && (
               <Suspense
                 fallback={
                   <div className="rounded-3xl border bg-card overflow-hidden shadow-soft h-80 flex flex-col items-center justify-center gap-3 p-6 text-center">
                     <div className="h-10 w-10 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
                     <p className="text-xs font-bold text-muted-foreground">
-                      Loading Live Tracking Map…
+                      Loading Map…
                     </p>
                   </div>
                 }
               >
                 <OrderLiveTrackingMap
                   driverLocation={
-                    liveTrackingState.lat != null && liveTrackingState.lng != null
+                    !isSelfPickup && liveTrackingState.lat != null && liveTrackingState.lng != null
                       ? { lat: liveTrackingState.lat, lng: liveTrackingState.lng }
-                      : trackingData?.current_lat && trackingData?.current_lng
+                      : !isSelfPickup && trackingData?.current_lat && trackingData?.current_lng
                       ? { lat: Number(trackingData.current_lat), lng: Number(trackingData.current_lng) }
                       : null
                   }
                   snappedLocation={
-                    liveTrackingState.snappedLat != null && liveTrackingState.snappedLng != null
+                    !isSelfPickup && liveTrackingState.snappedLat != null && liveTrackingState.snappedLng != null
                       ? { lat: liveTrackingState.snappedLat, lng: liveTrackingState.snappedLng }
-                      : trackingData?.snapped_lat && trackingData?.snapped_lng
+                      : !isSelfPickup && trackingData?.snapped_lat && trackingData?.snapped_lng
                       ? { lat: Number(trackingData.snapped_lat), lng: Number(trackingData.snapped_lng) }
                       : null
                   }
-                  routePoints={trackingData?.route?.points || []}
-                  routeIndex={liveTrackingState.routeIndex || trackingData?.route_index || 0}
+                  routePoints={!isSelfPickup ? trackingData?.route?.points || [] : []}
+                  routeIndex={!isSelfPickup ? liveTrackingState.routeIndex || trackingData?.route_index || 0 : 0}
                   pickupLocations={pickupLocations}
-                  deliveryLocation={deliveryLocation}
-                  driverInfo={driverInfo}
+                  deliveryLocation={!isSelfPickup ? deliveryLocation : null}
+                  driverInfo={!isSelfPickup ? driverInfo : null}
                   status={status}
-                  etaMinutes={trackingData?.eta_minutes}
-                  etaSeconds={liveTrackingState.etaSeconds ?? trackingData?.eta_seconds}
-                  remainingMeters={liveTrackingState.remainingMeters ?? trackingData?.remaining_meters}
-                  heading={liveTrackingState.heading ?? trackingData?.heading}
-                  speedKmh={liveTrackingState.speedKmh ?? trackingData?.speed_kmh ?? trackingData?.speed}
-                  accuracy={liveTrackingState.accuracy ?? trackingData?.accuracy}
-                  lastUpdatedAt={liveTrackingState.ts || trackingData?.last_updated_at || trackingData?.lastUpdatedAt}
-                  isLive={trackingData?.is_live ?? true}
-                  isStale={trackingData?.isStale ?? false}
+                  etaMinutes={!isSelfPickup ? trackingData?.eta_minutes : null}
+                  etaSeconds={!isSelfPickup ? liveTrackingState.etaSeconds ?? trackingData?.eta_seconds : null}
+                  remainingMeters={!isSelfPickup ? liveTrackingState.remainingMeters ?? trackingData?.remaining_meters : null}
+                  heading={!isSelfPickup ? liveTrackingState.heading ?? trackingData?.heading : null}
+                  speedKmh={!isSelfPickup ? liveTrackingState.speedKmh ?? trackingData?.speed_kmh ?? trackingData?.speed : null}
+                  accuracy={!isSelfPickup ? liveTrackingState.accuracy ?? trackingData?.accuracy : null}
+                  lastUpdatedAt={!isSelfPickup ? liveTrackingState.ts || trackingData?.last_updated_at || trackingData?.lastUpdatedAt : null}
+                  isLive={!isSelfPickup ? trackingData?.is_live ?? true : false}
+                  isStale={!isSelfPickup ? trackingData?.isStale ?? false : false}
                   onRefresh={() => refetchTracking()}
                   isRefreshing={isFetchingTracking}
+                  isSelfPickup={isSelfPickup}
+                  storeDirectionsUrl={selfPickupDirectionsUrl}
                 />
               </Suspense>
             )}
