@@ -42,11 +42,11 @@ jest.mock("../../src/services/earning.service", () => ({
 jest.mock("../../src/database/prisma", () => {
   const prismaMock: any = {
     $transaction: jest.fn(),
-    masterOrder: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+    masterOrder: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     orderItem: { updateMany: jest.fn() },
     orderEvent: { create: jest.fn() },
     payment: { findFirst: jest.fn() },
-    order: { findUnique: jest.fn(), findMany: jest.fn() },
+    order: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
   };
   prismaMock.$transaction.mockImplementation((cb: any) =>
     typeof cb === "function" ? cb(prismaMock) : Promise.resolve([])

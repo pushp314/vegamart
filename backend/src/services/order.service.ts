@@ -193,20 +193,24 @@ export const orderService = {
       },
     } as const;
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderId);
-
     let m: any = null;
-    if (isUuid) {
+    try {
       m = await prisma.masterOrder.findUnique({
         where: { id: orderId },
         include: orderInclude,
       });
+    } catch {
+      m = null;
     }
     if (!m) {
-      m = await prisma.masterOrder.findFirst({
-        where: { order_number: orderId },
-        include: orderInclude,
-      });
+      try {
+        m = await prisma.masterOrder.findFirst({
+          where: { order_number: orderId },
+          include: orderInclude,
+        });
+      } catch {
+        m = null;
+      }
     }
 
     const singleOrderInclude = {
@@ -245,24 +249,34 @@ export const orderService = {
 
     let subOrder: any = null;
     if (!m) {
-      if (isUuid) {
+      try {
         subOrder = await prisma.order.findUnique({
           where: { id: orderId },
           include: singleOrderInclude,
         });
+      } catch {
+        subOrder = null;
       }
       if (!subOrder) {
-        subOrder = await prisma.order.findFirst({
-          where: { order_number: orderId },
-          include: singleOrderInclude,
-        });
+        try {
+          subOrder = await prisma.order.findFirst({
+            where: { order_number: orderId },
+            include: singleOrderInclude,
+          });
+        } catch {
+          subOrder = null;
+        }
       }
 
       if (subOrder && subOrder.master_order_id) {
-        m = await prisma.masterOrder.findUnique({
-          where: { id: subOrder.master_order_id },
-          include: orderInclude,
-        });
+        try {
+          m = await prisma.masterOrder.findUnique({
+            where: { id: subOrder.master_order_id },
+            include: orderInclude,
+          });
+        } catch {
+          m = null;
+        }
       }
     }
 
@@ -409,14 +423,18 @@ export const orderService = {
       .filter((i: any) => i.status !== "rejected")
       .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
 
-    const masterTracking = await prisma.deliveryTracking.findFirst({
-      where: {
-        OR: [
-          { order_id: m.id },
-          ...m.orders.map((o: any) => ({ order_id: o.id })),
-        ],
-      },
-    }).catch(() => null);
+    const masterTracking = prisma.deliveryTracking
+      ? await prisma.deliveryTracking
+          .findFirst({
+            where: {
+              OR: [
+                { order_id: m.id },
+                ...m.orders.map((o: any) => ({ order_id: o.id })),
+              ],
+            },
+          })
+          .catch(() => null)
+      : null;
     const masterRider = (masterTracking?.history as any)?.in_house_rider || null;
     const singleVendorPickupPoint = (vendors[0] as any)?.delivery_configs?.pickup_point || null;
 
