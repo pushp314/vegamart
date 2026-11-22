@@ -56,8 +56,8 @@ function AddressesPage() {
       toast.success(editingAddr ? "Address updated successfully" : "New address added");
       setModalOpen(false);
     },
-    onError: () => {
-      toast.error("Failed to save address");
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to save address");
     },
   });
 

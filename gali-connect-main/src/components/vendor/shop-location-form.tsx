@@ -130,18 +130,35 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
   }, [vendorProfile]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: { lat: number; lng: number; delivery_radius_km: number }) =>
-      api.put("/vendors/me", {
+    mutationFn: async (data: { lat: number; lng: number; delivery_radius_km: number }) => {
+      const payload = {
         latitude: data.lat,
         longitude: data.lng,
+        lat: data.lat,
+        lng: data.lng,
         delivery_radius_km: data.delivery_radius_km,
-      }),
+      };
+
+      // Try canonical /vendors/me first
+      const res = await api.put("/vendors/me", payload);
+      if (res.success) {
+        return res.data;
+      }
+
+      // Fallback to /vendors/me/location
+      const locRes = await api.put("/vendors/me/location", payload);
+      if (locRes.success) {
+        return locRes.data;
+      }
+
+      throw new Error(res.error?.message || locRes.error?.message || "Failed to save location");
+    },
     onSuccess: () => {
-      toast.success("Shop location updated successfully");
+      toast.success("Shop location saved successfully");
       queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Failed to update location");
+      toast.error(err?.message || "Failed to save location");
     },
   });
 

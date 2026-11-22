@@ -26,6 +26,8 @@ export const createVendorSchema = z.object({
   pincode: z.string().min(3).max(10),
   latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
   longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  lat: z.coerce.number().min(-90).max(90).optional().nullable(),
+  lng: z.coerce.number().min(-180).max(180).optional().nullable(),
   delivery_radius_km: z.coerce.number().min(0.5).max(50).optional(),
   business_hours: z.string().max(500).optional().nullable(),
   min_order: z.coerce.number().min(0).optional(),
@@ -119,7 +121,7 @@ export const updateVendorSchema = createVendorSchema.partial().extend({
   store_schedule: z.any().optional(),
   manual_override_status: z.enum(["NONE", "FORCE_OPEN", "FORCE_CLOSE", "TEMPORARY_CLOSE"]).optional().nullable(),
   manual_override_until: z.preprocess((val) => (val === "" || val === null ? null : val), z.coerce.date().optional().nullable()),
-});
+}).passthrough();
 
 export const vendorAvailabilitySchema = z.object({
   is_open: z.boolean().optional(),
@@ -146,16 +148,18 @@ export const vendorLocationSchema = z.object({
 }).strict();
 
 export const vendorLocationUpdateSchema = z.object({
-  latitude: z.coerce.number().min(-90).max(90).optional(),
-  longitude: z.coerce.number().min(-180).max(180).optional(),
-  address: z.string().trim().min(5).max(300).optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
+  longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  lat: z.coerce.number().min(-90).max(90).optional().nullable(),
+  lng: z.coerce.number().min(-180).max(180).optional().nullable(),
+  address: z.string().trim().min(2).max(300).optional(),
   landmark: z.string().trim().max(200).optional().nullable(),
-  city: z.string().trim().min(1).max(100).optional(),
-  state: z.string().trim().min(1).max(100).optional(),
-  country: z.string().trim().min(1).max(60).optional(),
-  pincode: z.string().regex(/^\d{6}$/, "Pincode must be exactly 6 digits.").optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(100).optional(),
+  country: z.string().trim().max(60).optional(),
+  pincode: z.string().optional(),
   delivery_radius_km: z.coerce.number().min(0.5).max(50).optional(),
-}).strict();
+}).passthrough();
 
 export const vendorHoursSchema = z.object({
   business_hours: z.string().max(500),
@@ -191,11 +195,13 @@ export const nearbyVendorsQuerySchema = z.object({
 }).strict();
 
 export const upsertDailyLocationSchema = z.object({
-  area: z.string().trim().min(1, "Area is required.").max(200),
+  area: z.string().trim().max(200).optional().default("Current Location"),
   landmark: z.string().trim().max(200).optional().nullable(),
-  address: z.string().trim().min(1, "Address is required.").max(400),
-  latitude: z.coerce.number().min(-90, "Invalid latitude.").max(90, "Invalid latitude."),
-  longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
+  address: z.string().trim().max(400).optional().default("Current Location"),
+  latitude: z.coerce.number().min(-90, "Invalid latitude.").max(90, "Invalid latitude.").optional(),
+  longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude.").optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
   start_time: z
     .string()
     .trim()
@@ -210,7 +216,7 @@ export const upsertDailyLocationSchema = z.object({
     .nullable(),
   notes: z.string().trim().max(500).optional().nullable(),
   is_active: z.boolean().optional().default(true),
-}).strict();
+}).passthrough();
 
 export type CreateVendorBody = z.infer<typeof createVendorSchema>;
 export type UpdateVendorBody = z.infer<typeof updateVendorSchema>;

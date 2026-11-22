@@ -252,8 +252,18 @@ export const setVendorAvailability = asyncHandler(async (req: Request, res: Resp
  *         description: Location updated.
  */
 export const updateVendorLocation = asyncHandler(async (req: Request, res: Response) => {
-  const { lat, lng } = req.body as { lat: number; lng: number };
-  const vendor = await vendorService.setLocation(req.user!.id, lat, lng, req);
+  const body = req.body as any;
+  const lat = body.latitude !== undefined ? Number(body.latitude) : (body.lat !== undefined ? Number(body.lat) : undefined);
+  const lng = body.longitude !== undefined ? Number(body.longitude) : (body.lng !== undefined ? Number(body.lng) : undefined);
+  const vendor = await vendorService.updateLocation(
+    req.user!.id,
+    {
+      ...body,
+      latitude: lat,
+      longitude: lng,
+    },
+    req
+  );
   return sendSuccess(res, vendor);
 });
 

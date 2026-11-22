@@ -280,8 +280,10 @@ export const vendorService = {
     if (input.state !== undefined) data.state = input.state.trim();
     if (input.country !== undefined) data.country = input.country.trim();
     if (input.pincode !== undefined) data.pincode = input.pincode;
-    if (input.latitude !== undefined) data.latitude = input.latitude;
-    if (input.longitude !== undefined) data.longitude = input.longitude;
+    const lat = input.latitude !== undefined ? input.latitude : (input as any).lat;
+    const lng = input.longitude !== undefined ? input.longitude : (input as any).lng;
+    if (lat !== undefined) data.latitude = lat;
+    if (lng !== undefined) data.longitude = lng;
     if (input.delivery_radius_km !== undefined) data.delivery_radius_km = input.delivery_radius_km;
     if (input.business_hours !== undefined) data.business_hours = input.business_hours || null;
     if (input.min_order !== undefined) data.min_order = input.min_order;
@@ -459,8 +461,10 @@ export const vendorService = {
     const vendor = await this.getMyVendor(userId);
 
     const data: Record<string, unknown> = {};
-    if (input.latitude !== undefined) data.latitude = input.latitude;
-    if (input.longitude !== undefined) data.longitude = input.longitude;
+    const lat = input.latitude !== undefined ? input.latitude : (input as any).lat;
+    const lng = input.longitude !== undefined ? input.longitude : (input as any).lng;
+    if (lat !== undefined) data.latitude = lat;
+    if (lng !== undefined) data.longitude = lng;
     if (input.address !== undefined) data.address = input.address.trim();
     if (input.landmark !== undefined) data.landmark = input.landmark || null;
     if (input.city !== undefined) data.city = input.city.trim();
@@ -862,12 +866,15 @@ export const vendorService = {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const lat = input.latitude ?? (input as any).lat ?? vendor.latitude ?? 0;
+    const lng = input.longitude ?? (input as any).lng ?? vendor.longitude ?? 0;
+
     const location = await dailyLocationRepo.upsert(vendor.id, today, {
-      area: input.area,
+      area: input.area || "Current Location",
       landmark: input.landmark ?? null,
-      address: input.address,
-      latitude: input.latitude,
-      longitude: input.longitude,
+      address: input.address || "Current Location",
+      latitude: lat,
+      longitude: lng,
       start_time: input.start_time ?? null,
       end_time: input.end_time ?? null,
       notes: input.notes ?? null,
