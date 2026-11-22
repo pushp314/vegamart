@@ -1637,6 +1637,40 @@ function DeliveryDashboard() {
                           >
                             <Navigation className="h-4 w-4" /> View Route
                           </button>
+
+                          {/* 1-Tap Google Maps Voice Navigation */}
+                          {(() => {
+                            const isPickupPhase =
+                              o.status === "CONFIRMED" ||
+                              o.status === "READY_FOR_PICKUP" ||
+                              o.status === "PREPARING";
+                            const targetLat = isPickupPhase ? o.vendor?.latitude : o.address?.latitude;
+                            const targetLng = isPickupPhase ? o.vendor?.longitude : o.address?.longitude;
+                            const fallbackQuery = isPickupPhase
+                              ? `${o.vendor?.business_name || ""} ${o.vendor?.address || ""}`
+                              : `${o.address?.full_address || o.address?.street_address || ""} ${o.address?.city || ""}`;
+
+                            return (
+                              <a
+                                href={getGoogleMapsUrl(targetLat, targetLng, fallbackQuery)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`px-3.5 py-3 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-1.5 shadow-2xs shrink-0 ${
+                                  isPickupPhase
+                                    ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                                    : "bg-rose-600 hover:bg-rose-500 text-white"
+                                }`}
+                                title={
+                                  isPickupPhase
+                                    ? "Launch Turn-by-Turn GPS Navigation to Vendor Store in Google Maps"
+                                    : "Launch Turn-by-Turn GPS Navigation to Customer Doorstep in Google Maps"
+                                }
+                              >
+                                <Navigation className="h-4 w-4" />
+                                <span>{isPickupPhase ? "Store Maps" : "Doorstep Maps"}</span>
+                              </a>
+                            );
+                          })()}
                         </div>
 
                         {/* Sub-orders Sequence UI */}
