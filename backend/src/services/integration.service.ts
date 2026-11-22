@@ -575,6 +575,8 @@ export const integrationService = {
     const fullAddress = [body.line1, body.line2]
       .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
       .join(", ");
+    const lat = typeof body.latitude === "number" ? body.latitude : (body.latitude ? parseFloat(String(body.latitude)) : null);
+    const lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(String(body.longitude)) : null);
     const created = await addressService.create(userId, {
       label: typeof body.label === "string" ? body.label : "Home",
       full_address: fullAddress.length > 0 ? fullAddress : (typeof body.full_address === "string" ? body.full_address : "Address"),
@@ -584,6 +586,8 @@ export const integrationService = {
       state: typeof body.state === "string" ? body.state : "",
       country: typeof body.country === "string" ? body.country : "India",
       pincode: typeof body.pincode === "string" ? body.pincode : "",
+      latitude: lat && !isNaN(lat) ? lat : null,
+      longitude: lng && !isNaN(lng) ? lng : null,
       ...(typeof body.is_default === "boolean" ? { is_default: body.is_default } : {}),
     } as never);
     return this.mapAddress(created, user?.name ?? "");
@@ -604,6 +608,14 @@ export const integrationService = {
     if (typeof body.state === "string") input.state = body.state;
     if (typeof body.pincode === "string") input.pincode = body.pincode;
     if (typeof body.is_default === "boolean") input.is_default = body.is_default;
+    if (body.latitude !== undefined) {
+      const lat = typeof body.latitude === "number" ? body.latitude : (body.latitude ? parseFloat(String(body.latitude)) : null);
+      input.latitude = lat && !isNaN(lat) ? lat : null;
+    }
+    if (body.longitude !== undefined) {
+      const lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(String(body.longitude)) : null);
+      input.longitude = lng && !isNaN(lng) ? lng : null;
+    }
     const updated = await addressService.update(userId, addressId, input as never);
     return this.mapAddress(updated, user?.name ?? "");
   },

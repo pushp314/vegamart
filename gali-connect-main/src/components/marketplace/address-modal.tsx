@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, MapPin, Loader2 } from "lucide-react";
+import { X, MapPin, Loader2, Navigation, CheckCircle2, LocateFixed } from "lucide-react";
 import { toast } from "sonner";
 
 export interface AddressData {
@@ -36,10 +36,79 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
   const [city, setCity] = useState(initialData?.city || "");
   const [state, setState] = useState(initialData?.state || "");
   const [pincode, setPincode] = useState(initialData?.pincode || "");
+  const [latitude, setLatitude] = useState<number | null>(initialData?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(initialData?.longitude ?? null);
+  const [isLocating, setIsLocating] = useState(false);
   const [isDefault, setIsDefault] = useState(initialData?.is_default || false);
   const [saving, setSaving] = useState(false);
 
   if (!open) return null;
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+
+        try {
+          // Free Nominatim reverse geocoding to auto-fill street, area, city, and pincode
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+            { headers: { "Accept-Language": "en" } }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            const addr = data.address || {};
+
+            const streetName =
+              addr.road || addr.street || addr.residential || addr.neighbourhood || "";
+            const areaName =
+              addr.suburb || addr.neighbourhood || addr.village || addr.subdistrict || "";
+            const cityName =
+              addr.city || addr.town || addr.village || addr.state_district || addr.county || "";
+            const stateName = addr.state || "";
+            const pincodeVal = addr.postcode || "";
+
+            if (streetName && (!line1 || line1.length < 5)) {
+              setLine1(streetName);
+            }
+            if (areaName && (!line2 || line2.length < 5)) {
+              setLine2(areaName);
+            }
+            if (cityName) setCity(cityName);
+            if (stateName) setState(stateName);
+            if (pincodeVal) setPincode(pincodeVal);
+
+            toast.success("📍 Exact GPS location detected & address details auto-filled!");
+          } else {
+            toast.success("📍 Exact GPS coordinates pinned!");
+          }
+        } catch {
+          toast.success("📍 Exact GPS coordinates pinned!");
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        if (err.code === 1) {
+          toast.error("Location permission denied. Please allow location access in your browser settings.");
+        } else {
+          toast.error("Unable to retrieve location. Please check your GPS signal.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +129,8 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
         city,
         state,
         pincode,
+        latitude,
+        longitude,
         is_default: isDefault,
       });
       // Parent mutation onSuccess handles the success toast and closing the modal.
@@ -102,6 +173,51 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
           className="flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 py-4 space-y-4"
           onSubmit={handleSubmit}
         >
+          {/* Quick Auto-Detect GPS Location Banner */}
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-950/20 p-3 flex items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-600 text-white shrink-0 shadow-xs">
+                <LocateFixed className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                  <span>Use Current Location</span>
+                  {latitude && longitude && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 text-[10px] font-extrabold px-1.5 py-0.2">
+                      <CheckCircle2 className="h-2.5 w-2.5" /> Pinned
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {latitude && longitude
+                    ? `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+                    : "Auto-detects GPS so delivery boy navigates directly to your doorstep"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isLocating}
+              onClick={handleUseCurrentLocation}
+              className="shrink-0 flex items-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {isLocating ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Locating…
+                </>
+              ) : latitude && longitude ? (
+                <>
+                  <Navigation className="h-3 w-3" /> Update GPS
+                </>
+              ) : (
+                <>
+                  <LocateFixed className="h-3.5 w-3.5" /> Detect Location
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Label selector */}
           <div>
             <div className="mb-1.5 text-xs font-semibold text-foreground">Address Label</div>

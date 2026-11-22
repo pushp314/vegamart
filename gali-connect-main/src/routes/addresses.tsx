@@ -177,6 +177,11 @@ function AddressesPage() {
                               <CheckCircle2 className="h-3 w-3" /> Default
                             </span>
                           )}
+                          {addr.latitude && addr.longitude && (
+                            <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold px-2 py-0.5">
+                              <MapPin className="h-3 w-3" /> GPS Pinned
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs font-semibold text-foreground mt-0.5">
                           {addr.full_name} • {addr.phone}

@@ -1101,6 +1101,11 @@ function Checkout() {
                                 Default
                               </span>
                             )}
+                            {a.latitude && a.longitude && (
+                              <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 flex items-center gap-0.5">
+                                <MapPin className="h-2.5 w-2.5" /> GPS Pinned
+                              </span>
+                            )}
                           </div>
                           <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                             {a.line1}, {a.city}, {a.pincode}
