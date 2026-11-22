@@ -86,6 +86,8 @@ export interface OrderLiveTrackingMapProps {
   customerLiveLocation?: { lat: number; lng: number } | null;
   walkDirectionsUrl?: string | null;
   driveDirectionsUrl?: string | null;
+  pickupPoint?: { name: string; lat: number; lng: number; instructions?: string | null } | null;
+  inHouseRider?: { name: string; phone?: string | null; vehicle_number?: string | null } | null;
 }
 
 // Controller to auto-fit map view to markers
@@ -153,6 +155,8 @@ export function OrderLiveTrackingMap({
   customerLiveLocation = null,
   walkDirectionsUrl = null,
   driveDirectionsUrl = null,
+  pickupPoint = null,
+  inHouseRider = null,
 }: OrderLiveTrackingMapProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [recenterCounter, setRecenterCounter] = useState(0);
@@ -248,13 +252,14 @@ export function OrderLiveTrackingMap({
 
   // Fallback center coordinates
   const defaultCenter = useMemo<[number, number]>(() => {
+    if (pickupPoint) return [pickupPoint.lat, pickupPoint.lng];
     if (isSelfPickup && customerLiveLocation) return [customerLiveLocation.lat, customerLiveLocation.lng];
     if (validDriver) return [validDriver.lat, validDriver.lng];
     if (validDelivery) return [validDelivery.lat, validDelivery.lng];
     if (validPickups.length > 0 && validPickups[0])
       return [validPickups[0].lat, validPickups[0].lng];
     return [12.9716, 77.5946];
-  }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation]);
+  }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation, pickupPoint]);
 
   // Points for map bounds fitting
   const allPoints = useMemo<[number, number][]>(() => {
@@ -262,9 +267,10 @@ export function OrderLiveTrackingMap({
     if (validDriver) pts.push([validDriver.lat, validDriver.lng]);
     if (validDelivery) pts.push([validDelivery.lat, validDelivery.lng]);
     if (isSelfPickup && customerLiveLocation) pts.push([customerLiveLocation.lat, customerLiveLocation.lng]);
+    if (pickupPoint) pts.push([pickupPoint.lat, pickupPoint.lng]);
     validPickups.forEach((p) => pts.push([p.lat, p.lng]));
     return pts;
-  }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation]);
+  }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation, pickupPoint]);
 
   // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
   const { pathAhead, pathTrail } = useMemo(() => {
@@ -370,6 +376,23 @@ export function OrderLiveTrackingMap({
       `,
       iconSize: [44, 44],
       iconAnchor: [22, 22],
+    });
+  }, []);
+
+  // Emerald / Cyan Pin for Store Pickup Point / Entrance
+  const pickupPointDivIcon = useMemo(() => {
+    return L.divIcon({
+      className: "pickup-point-pin",
+      html: `
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+          <div style="width: 34px; height: 34px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 9999px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5); border: 2.5px solid #ffffff; display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 15px;">
+            🚪
+          </div>
+          <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #059669; margin-top: -1px;"></div>
+        </div>
+      `,
+      iconSize: [34, 40],
+      iconAnchor: [17, 40],
     });
   }, []);
 
@@ -843,6 +866,30 @@ export function OrderLiveTrackingMap({
               opacity={0.85}
             />
           )}
+
+          {/* Store Entrance / Pickup Bay Marker */}
+          {pickupPoint && (
+            <Marker position={[pickupPoint.lat, pickupPoint.lng]} icon={pickupPointDivIcon}>
+              <Popup>
+                <div className="p-1 space-y-0.5 text-xs">
+                  <div className="font-bold text-emerald-700 flex items-center gap-1">
+                    🚪 Entrance: {pickupPoint.name}
+                  </div>
+                  {pickupPoint.instructions && (
+                    <p className="text-[11px] text-muted-foreground">{pickupPoint.instructions}</p>
+                  )}
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${pickupPoint.lat},${pickupPoint.lng}&travelmode=walking`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-1 font-bold text-[11px] text-emerald-600 hover:underline"
+                  >
+                    🚶 Walk to this Entrance &rarr;
+                  </a>
+                </div>
+              </Popup>
+            </Marker>
+          )}
         </MapContainer>
 
         {/* Floating Status Pill */}
@@ -876,8 +923,19 @@ export function OrderLiveTrackingMap({
         </div>
 
         {/* Self-Pickup Walk / Drive Direction CTAs on Top Right */}
-        {isSelfPickup && (walkDirectionsUrl || driveDirectionsUrl || storeDirectionsUrl) && (
+        {isSelfPickup && (walkDirectionsUrl || driveDirectionsUrl || storeDirectionsUrl || pickupPoint) && (
           <div className="absolute top-3 right-3 z-[400] flex items-center gap-1.5">
+            {pickupPoint && (
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${pickupPoint.lat},${pickupPoint.lng}&travelmode=walking`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-2xl shadow-md transition-all active:scale-95"
+                title={`Walk to ${pickupPoint.name}`}
+              >
+                <span>🚪 Entrance</span>
+              </a>
+            )}
             {walkDirectionsUrl && (
               <a
                 href={walkDirectionsUrl}

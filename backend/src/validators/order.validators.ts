@@ -28,7 +28,31 @@ export const updateDeliveryInstructionsSchema = z.object({
   instructions: z.array(z.string().trim().max(100)).max(10),
 }).strict();
 
+export const assignShopRiderSchema = z.object({
+  rider_name: z.string().trim().min(2, "Rider name is required").max(100),
+  rider_phone: z.string().trim().min(10, "Valid 10-digit phone number is required").max(15),
+  vehicle_number: z.string().trim().max(30).optional().nullable(),
+  estimated_minutes: z.coerce.number().min(1).max(240).optional().nullable(),
+  notes: z.string().trim().max(200).optional().nullable(),
+}).strict();
+
+export const saveInHouseRiderSchema = z.object({
+  name: z.string().trim().min(2, "Rider name is required").max(100),
+  phone: z.string().trim().min(10, "Valid 10-digit phone number is required").max(15),
+  vehicle_number: z.string().trim().max(30).optional().nullable(),
+}).strict();
+
+export const updatePickupPointSchema = z.object({
+  pickup_point_name: z.string().trim().min(2, "Pickup point / entrance name is required").max(120),
+  pickup_latitude: z.coerce.number().min(-90).max(90),
+  pickup_longitude: z.coerce.number().min(-180).max(180),
+  instructions: z.string().trim().max(300).optional().nullable(),
+}).strict();
+
 export type CancelOrderBody = z.infer<typeof cancelOrderSchema>;
 export type RequestRefundBody = z.infer<typeof requestRefundSchema>;
 export type TransitionOrderStatusBody = z.infer<typeof transitionOrderStatusSchema>;
 export type UpdateDeliveryInstructionsBody = z.infer<typeof updateDeliveryInstructionsSchema>;
+export type AssignShopRiderBody = z.infer<typeof assignShopRiderSchema>;
+export type SaveInHouseRiderBody = z.infer<typeof saveInHouseRiderSchema>;
+export type UpdatePickupPointBody = z.infer<typeof updatePickupPointSchema>;

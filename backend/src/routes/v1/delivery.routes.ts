@@ -29,6 +29,8 @@ import {
   getCashInHand,
   submitCashSettlement,
   listMyCashSettlements,
+  updateOrderRiderLocation,
+  completeRiderOrderWithOtp,
 } from "../../controllers/delivery.controller";
 import { authenticate, optionalAuthenticate } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
@@ -187,5 +189,17 @@ router.post(
 router.post("/delivery/me/kyc", authenticate, requireRole(ROLES.DELIVERY_PARTNER), validate({ body: deliveryKycSchema }), submitDeliveryKyc);
 router.get("/delivery/order/:id/tracking", optionalAuthenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
 router.get("/delivery/orders/:id/tracking", optionalAuthenticate, validate({ params: orderIdAliasParamsSchema }), getDeliveryTracking);
+router.post(
+  "/delivery/order/:id/location",
+  optionalAuthenticate,
+  validate({ params: orderIdAliasParamsSchema, body: deliveryLocationSchema }),
+  updateOrderRiderLocation
+);
+router.post(
+  "/delivery/order/:id/complete-otp",
+  optionalAuthenticate,
+  validate({ params: orderIdAliasParamsSchema, body: deliveredOtpSchema }),
+  completeRiderOrderWithOtp
+);
 
 export default router;

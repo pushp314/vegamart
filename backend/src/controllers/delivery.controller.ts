@@ -277,3 +277,22 @@ export const listMyCashSettlements = asyncHandler(async (req: Request, res: Resp
   const list = await deliveryService.listMyCashSettlements(profile.id);
   return sendSuccess(res, list);
 });
+
+export const updateOrderRiderLocation = asyncHandler(async (req: Request, res: Response) => {
+  const orderId = req.params.id as string;
+  const { latitude, longitude, heading, speed } = req.body;
+  const result = await deliveryService.updateOrderRiderLocation(orderId, {
+    latitude: Number(latitude),
+    longitude: Number(longitude),
+    heading: heading != null ? Number(heading) : undefined,
+    speed: speed != null ? Number(speed) : undefined,
+  });
+  return sendSuccess(res, result, { message: "Rider location updated." });
+});
+
+export const completeRiderOrderWithOtp = asyncHandler(async (req: Request, res: Response) => {
+  const orderId = req.params.id as string;
+  const { otp } = req.body;
+  const result = await deliveryService.completeRiderOrderWithOtp(orderId, otp);
+  return sendSuccess(res, result, { message: "Order delivered successfully!" });
+});

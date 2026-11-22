@@ -12,6 +12,11 @@ import {
   requestRefund,
   rejectOrderItem,
   updateDeliveryInstructions,
+  assignShopRider,
+  getVendorRiders,
+  addVendorRider,
+  deleteVendorRider,
+  updatePickupPoint,
 } from "../../controllers/order.controller";
 import { authenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
@@ -24,6 +29,9 @@ import {
   transitionOrderStatusSchema,
   requestRefundSchema,
   updateDeliveryInstructionsSchema,
+  assignShopRiderSchema,
+  saveInHouseRiderSchema,
+  updatePickupPointSchema,
 } from "../../validators/order.validators";
 
 const router = Router();
@@ -42,5 +50,10 @@ router.get("/vendors/orders", authenticate, requireRole(ROLES.VENDOR), validate(
 router.get("/vendors/orders/:order_id", authenticate, requireRole(ROLES.VENDOR), validate({ params: orderIdParamsSchema }), getVendorOrder);
 router.patch("/vendors/orders/:order_id/status", authenticate, requireRole(ROLES.VENDOR), validate({ params: orderIdParamsSchema, body: transitionOrderStatusSchema }), transitionOrderStatus);
 router.post("/vendors/orders/:order_id/items/:item_id/reject", authenticate, requireRole(ROLES.VENDOR), rejectOrderItem);
+router.post("/vendors/orders/:order_id/assign-rider", authenticate, requireRole(ROLES.VENDOR), validate({ params: orderIdParamsSchema, body: assignShopRiderSchema }), assignShopRider);
+router.get("/vendors/me/riders", authenticate, requireRole(ROLES.VENDOR), getVendorRiders);
+router.post("/vendors/me/riders", authenticate, requireRole(ROLES.VENDOR), validate({ body: saveInHouseRiderSchema }), addVendorRider);
+router.delete("/vendors/me/riders/:rider_id", authenticate, requireRole(ROLES.VENDOR), deleteVendorRider);
+router.put("/vendors/me/pickup-point", authenticate, requireRole(ROLES.VENDOR), validate({ body: updatePickupPointSchema }), updatePickupPoint);
 
 export default router;

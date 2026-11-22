@@ -619,6 +619,29 @@ export class TrackingService {
       }
     }
 
+    let inHouseTracking: any = null;
+    if (!driverInfo) {
+      const orderIds = [masterOrder.id, ...(masterOrder.orders.map((o) => o.id))];
+      inHouseTracking = await prisma.deliveryTracking.findFirst({
+        where: { order_id: { in: orderIds } },
+      }).catch(() => null);
+
+      if (inHouseTracking?.history && typeof inHouseTracking.history === "object") {
+        const h: any = inHouseTracking.history;
+        if (h.in_house_rider) {
+          driverInfo = {
+            id: `in_house_${orderIds[0]}`,
+            name: h.in_house_rider.name || "Shop Delivery Boy",
+            phone: h.in_house_rider.phone || null,
+            rating: 5.0,
+            review_count: 1,
+            vehicle_type: "bike",
+            vehicle_number: h.in_house_rider.vehicle_number || "Shop Delivery",
+          };
+        }
+      }
+    }
+
     // 5. Delivery Address
     let deliveryCoords = { lat: 0, lng: 0, address: "Delivery Address" };
     if (masterOrder.address_id) {
@@ -646,11 +669,14 @@ export class TrackingService {
     }));
 
     const now = Date.now();
-    const isStale = hotState ? now - hotState.updatedAt > 45_000 : true;
-    const isLive = Boolean(hotState && !isStale && masterOrder.delivery_partner_id);
+    const isStale = hotState ? now - hotState.updatedAt > 45_000 : (inHouseTracking ? false : true);
+    const isLive = Boolean(
+      (hotState && !isStale) ||
+      (inHouseTracking && inHouseTracking.driver_lat != null)
+    );
 
-    const currentLat = hotState?.lastPing.lat ?? partnerProfile?.current_lat ?? vendors[0]?.latitude ?? null;
-    const currentLng = hotState?.lastPing.lng ?? partnerProfile?.current_lng ?? vendors[0]?.longitude ?? null;
+    const currentLat = hotState?.lastPing.lat ?? inHouseTracking?.driver_lat ?? partnerProfile?.current_lat ?? vendors[0]?.latitude ?? null;
+    const currentLng = hotState?.lastPing.lng ?? inHouseTracking?.driver_lng ?? partnerProfile?.current_lng ?? vendors[0]?.longitude ?? null;
     const snappedLat = hotState?.lastPing.snappedLat ?? currentLat;
     const snappedLng = hotState?.lastPing.snappedLng ?? currentLng;
 

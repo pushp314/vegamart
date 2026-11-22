@@ -71,6 +71,7 @@ import { Route as DeliveryHowToUseRouteImport } from './routes/delivery.how-to-u
 import { Route as DeliveryLoginRouteImport } from './routes/delivery.login'
 import { Route as OrdersHistoryRouteImport } from './routes/orders.history'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
+import { Route as RiderOrderIdRouteImport } from './routes/rider.$orderId'
 import { Route as VendorIndexRouteImport } from './routes/vendor.index'
 import { Route as VendorAnalyticsRouteImport } from './routes/vendor.analytics'
 import { Route as VendorCouponsRouteImport } from './routes/vendor.coupons'
@@ -399,6 +400,11 @@ const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
   path: '/$productId',
   getParentRoute: () => ProductsRoute,
 } as any)
+const RiderOrderIdRoute = RiderOrderIdRouteImport.update({
+  id: '/rider/$orderId',
+  path: '/rider/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VendorIndexRoute = VendorIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -547,6 +553,7 @@ export interface FileRoutesByFullPath {
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/rider/$orderId': typeof RiderOrderIdRoute
   '/vendor/analytics': typeof VendorAnalyticsRoute
   '/vendor/coupons': typeof VendorCouponsRoute
   '/vendor/earnings': typeof VendorEarningsRoute
@@ -626,6 +633,7 @@ export interface FileRoutesByTo {
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/rider/$orderId': typeof RiderOrderIdRoute
   '/vendor/analytics': typeof VendorAnalyticsRoute
   '/vendor/coupons': typeof VendorCouponsRoute
   '/vendor/earnings': typeof VendorEarningsRoute
@@ -707,6 +715,7 @@ export interface FileRoutesById {
   '/delivery/login': typeof DeliveryLoginRoute
   '/orders/history': typeof OrdersHistoryRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/rider/$orderId': typeof RiderOrderIdRoute
   '/vendor/analytics': typeof VendorAnalyticsRoute
   '/vendor/coupons': typeof VendorCouponsRoute
   '/vendor/earnings': typeof VendorEarningsRoute
@@ -790,6 +799,7 @@ export interface FileRouteTypes {
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
+    | '/rider/$orderId'
     | '/vendor/analytics'
     | '/vendor/coupons'
     | '/vendor/earnings'
@@ -869,6 +879,7 @@ export interface FileRouteTypes {
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
+    | '/rider/$orderId'
     | '/vendor/analytics'
     | '/vendor/coupons'
     | '/vendor/earnings'
@@ -949,6 +960,7 @@ export interface FileRouteTypes {
     | '/delivery/login'
     | '/orders/history'
     | '/products/$productId'
+    | '/rider/$orderId'
     | '/vendor/analytics'
     | '/vendor/coupons'
     | '/vendor/earnings'
@@ -1003,6 +1015,7 @@ export interface RootRouteChildren {
   WishlistRoute: typeof WishlistRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   CategoriesCategorySlugRoute: typeof CategoriesCategorySlugRoute
+  RiderOrderIdRoute: typeof RiderOrderIdRoute
   VendorsVendorIdRoute: typeof VendorsVendorIdRoute
   VendorsIndexRoute: typeof VendorsIndexRoute
 }
@@ -1443,6 +1456,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsProductIdRouteImport
       parentRoute: typeof ProductsRoute
     }
+    '/rider/$orderId': {
+      id: '/rider/$orderId'
+      path: '/rider/$orderId'
+      fullPath: '/rider/$orderId'
+      preLoaderRoute: typeof RiderOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vendor/': {
       id: '/vendor/'
       path: '/'
@@ -1744,6 +1764,7 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistRoute: WishlistRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   CategoriesCategorySlugRoute: CategoriesCategorySlugRoute,
+  RiderOrderIdRoute: RiderOrderIdRoute,
   VendorsVendorIdRoute: VendorsVendorIdRoute,
   VendorsIndexRoute: VendorsIndexRoute,
 }

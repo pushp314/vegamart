@@ -2433,4 +2433,111 @@ export const deliveryService = {
 
     return updated;
   },
+
+  async updateOrderRiderLocation(
+    orderId: string,
+    location: { latitude: number; longitude: number; heading?: number; speed?: number }
+  ) {
+    let order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { master_order: true },
+    });
+    if (!order) {
+      order = await prisma.order.findFirst({
+        where: { order_number: orderId },
+        include: { master_order: true },
+      });
+    }
+    if (!order) {
+      const master = await prisma.masterOrder.findUnique({
+        where: { id: orderId },
+        include: { orders: true },
+      });
+      if (master && master.orders.length > 0) {
+        order = master.orders[0] as any;
+      }
+    }
+    if (!order) throw new NotFoundError("Order not found.");
+
+    const targetOrderId = order.id;
+
+    // Update deliveryTracking
+    await prisma.deliveryTracking.upsert({
+      where: { order_id: targetOrderId },
+      update: {
+        driver_lat: location.latitude,
+        driver_lng: location.longitude,
+      },
+      create: {
+        order_id: targetOrderId,
+        status: "OUT_FOR_DELIVERY",
+        driver_lat: location.latitude,
+        driver_lng: location.longitude,
+      },
+    });
+
+    // Record location in tracking service & realtime
+    try {
+      realtime.publishOrderLocation(order.master_order_id || targetOrderId, location.latitude, location.longitude);
+      realtime.publishTrackingUpdate(order.master_order_id || targetOrderId, {
+        current_lat: location.latitude,
+        current_lng: location.longitude,
+        snapped_lat: location.latitude,
+        snapped_lng: location.longitude,
+        heading: location.heading ?? null,
+        speed_kmh: location.speed ?? null,
+        is_live: true,
+        isLive: true,
+      });
+    } catch {}
+
+    return { success: true };
+  },
+
+  async completeRiderOrderWithOtp(orderId: string, otp: string) {
+    let order = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+    if (!order) {
+      order = await prisma.order.findFirst({
+        where: { order_number: orderId },
+      });
+    }
+    if (!order) throw new NotFoundError("Order not found.");
+
+    await verifyDeliveryOtp(order as any, otp, [
+      "OUT_FOR_DELIVERY",
+      "READY_FOR_PICKUP",
+      "PACKED",
+      "PREPARING",
+      "CONFIRMED",
+    ]);
+
+    await completeDelivery({
+      orderId: order.id,
+      otp,
+      allowedStates: [
+        "OUT_FOR_DELIVERY",
+        "READY_FOR_PICKUP",
+        "PACKED",
+        "PREPARING",
+        "CONFIRMED",
+      ],
+      actorType: "delivery",
+      actorId: "rider",
+    });
+
+    await prisma.deliveryTracking
+      .updateMany({
+        where: { order_id: order.id },
+        data: { status: "DELIVERED" },
+      })
+      .catch(() => {});
+
+    try {
+      realtime.publishOrderStatus(order.master_order_id || order.id, "DELIVERED");
+    } catch {}
+
+    return { success: true, order_id: order.id, status: "DELIVERED" };
+  },
 };

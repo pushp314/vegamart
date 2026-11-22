@@ -273,3 +273,28 @@ export const updateDeliveryInstructions = asyncHandler(async (req: Request, res:
   const result = await orderService.updateDeliveryInstructions(req.user!.id, req.params.order_id as string, instructions);
   return sendSuccess(res, result, { message: "Delivery instructions updated." });
 });
+
+export const assignShopRider = asyncHandler(async (req: Request, res: Response) => {
+  const result = await orderService.assignShopRider(req.user!.id, req.params.order_id as string, req.body);
+  return sendSuccess(res, result, { message: "Shop rider assigned successfully." });
+});
+
+export const getVendorRiders = asyncHandler(async (req: Request, res: Response) => {
+  const result = await orderService.getVendorRiders(req.user!.id);
+  return sendSuccess(res, result);
+});
+
+export const addVendorRider = asyncHandler(async (req: Request, res: Response) => {
+  const result = await orderService.addVendorRider(req.user!.id, req.body);
+  return sendSuccess(res, result, { message: "Rider saved successfully." });
+});
+
+export const deleteVendorRider = asyncHandler(async (req: Request, res: Response) => {
+  const result = await orderService.deleteVendorRider(req.user!.id, req.params.rider_id as string);
+  return sendSuccess(res, result, { message: "Rider deleted successfully." });
+});
+
+export const updatePickupPoint = asyncHandler(async (req: Request, res: Response) => {
+  const result = await orderService.updatePickupPoint(req.user!.id, req.body);
+  return sendSuccess(res, result, { message: "Store pickup point updated successfully." });
+});

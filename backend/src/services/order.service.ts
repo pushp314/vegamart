@@ -286,6 +286,12 @@ export const orderService = {
         .filter((i: any) => i.status !== "rejected")
         .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
 
+      const subOrderPickupPoint = (subOrder.vendor as any)?.delivery_configs?.pickup_point || null;
+      const subOrderTracking = await prisma.deliveryTracking.findFirst({
+        where: { order_id: subOrder.id },
+      }).catch(() => null);
+      const subOrderRider = (subOrderTracking?.history as any)?.in_house_rider || null;
+
       return {
         id: subOrder.id,
         order_number: subOrder.order_number,
@@ -326,7 +332,10 @@ export const orderService = {
             delivery_fee: Number(subOrder.delivery_fee || 0),
             tax: Number(subOrder.tax || 0),
             discount: Number(subOrder.discount || 0),
-            vendor: subOrder.vendor,
+            vendor: subOrder.vendor ? {
+              ...subOrder.vendor,
+              pickup_point: subOrderPickupPoint,
+            } : null,
             otp_code: subOrder.otp_code,
             delivery_note: subOrder.delivery_note,
             eta_minutes: subOrder.eta_minutes ?? null,
@@ -336,7 +345,11 @@ export const orderService = {
         address: subOrder.address,
         delivery_partner: subOrder.delivery_partner,
         total: Number(subOrder.total),
-        vendor: vendor || { business_name: "Store", phone: null },
+        vendor: vendor ? {
+          ...vendor,
+          pickup_point: subOrderPickupPoint,
+        } : { business_name: "Store", phone: null },
+        in_house_rider: subOrderRider,
         otp_code: subOrder.otp_code,
         eta_minutes: subOrder.eta_minutes ?? null,
       };
@@ -396,6 +409,17 @@ export const orderService = {
       .filter((i: any) => i.status !== "rejected")
       .reduce((sum: number, i: any) => sum + Number(i.unit_price) * Number(i.quantity), 0);
 
+    const masterTracking = await prisma.deliveryTracking.findFirst({
+      where: {
+        OR: [
+          { order_id: m.id },
+          ...m.orders.map((o: any) => ({ order_id: o.id })),
+        ],
+      },
+    }).catch(() => null);
+    const masterRider = (masterTracking?.history as any)?.in_house_rider || null;
+    const singleVendorPickupPoint = (vendors[0] as any)?.delivery_configs?.pickup_point || null;
+
     return {
       id: m.id,
       order_number: m.order_number,
@@ -428,7 +452,11 @@ export const orderService = {
       address: m.address,
       delivery_partner: m.delivery_partner,
       total: Number(m.total_amount),
-      vendor: vendors.length === 1 ? vendors[0] : { business_name: `${vendors.length} Stores`, phone: null },
+      vendor: vendors.length === 1 && vendors[0] ? {
+        ...vendors[0],
+        pickup_point: singleVendorPickupPoint,
+      } : { business_name: `${vendors.length} Stores`, phone: null },
+      in_house_rider: masterRider,
       otp_code: activeOtp,
       eta_minutes: activeEtaMinutes,
       payment: payment ? {
@@ -1217,5 +1245,284 @@ export const orderService = {
       delivery_note: formattedNote,
       instructions,
     };
+  },
+
+  async assignShopRider(
+    vendorUserId: string,
+    orderId: string,
+    input: {
+      rider_name: string;
+      rider_phone: string;
+      vehicle_number?: string | null;
+      estimated_minutes?: number | null;
+      notes?: string | null;
+    }
+  ) {
+    const vendor = await prisma.vendorProfile.findFirst({
+      where: { user_id: vendorUserId },
+    });
+    if (!vendor) {
+      throw new ForbiddenError("Vendor profile not found.");
+    }
+
+    let order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { address: true, master_order: true },
+    });
+    if (!order) {
+      order = await prisma.order.findFirst({
+        where: { order_number: orderId },
+        include: { address: true, master_order: true },
+      });
+    }
+    if (!order) {
+      throw new NotFoundError("Order not found.");
+    }
+    if (order.vendor_id !== vendor.id) {
+      throw new ForbiddenError("You do not own this order.");
+    }
+    if (order.status === "CANCELLED" || order.status === "DELIVERED") {
+      throw new ApiError(HttpStatus.BAD_REQUEST, `Cannot assign rider to ${order.status} order.`);
+    }
+
+    const etaMin = input.estimated_minutes || 20;
+
+    // 1. Update order status to OUT_FOR_DELIVERY
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: "OUT_FOR_DELIVERY",
+        started_at: new Date(),
+        eta_minutes: etaMin,
+        delivery_note: input.notes
+          ? `${order.delivery_note ? order.delivery_note + " • " : ""}${input.notes}`
+          : order.delivery_note,
+      },
+    });
+
+    if (order.master_order_id) {
+      await prisma.masterOrder
+        .update({
+          where: { id: order.master_order_id },
+          data: { status: "OUT_FOR_DELIVERY" },
+        })
+        .catch(() => {});
+    }
+
+    // 2. Create or update DeliveryTracking record
+    const pickupLat = vendor.latitude || 12.9716;
+    const pickupLng = vendor.longitude || 77.5946;
+    const dropoffLat = order.address?.latitude || pickupLat;
+    const dropoffLng = order.address?.longitude || pickupLng;
+
+    const inHouseRiderData = {
+      name: input.rider_name,
+      phone: input.rider_phone,
+      vehicle_number: input.vehicle_number || "Shop Delivery",
+      assigned_at: new Date().toISOString(),
+      vendor_name: vendor.business_name,
+      vendor_phone: vendor.phone,
+    };
+
+    await prisma.deliveryTracking.upsert({
+      where: { order_id: order.id },
+      update: {
+        status: "OUT_FOR_DELIVERY",
+        driver_lat: pickupLat,
+        driver_lng: pickupLng,
+        pickup_lat: pickupLat,
+        pickup_lng: pickupLng,
+        dropoff_lat: dropoffLat,
+        dropoff_lng: dropoffLng,
+        eta_minutes: etaMin,
+        history: {
+          rider_type: "in_house",
+          in_house_rider: inHouseRiderData,
+        },
+      },
+      create: {
+        order_id: order.id,
+        status: "OUT_FOR_DELIVERY",
+        driver_lat: pickupLat,
+        driver_lng: pickupLng,
+        pickup_lat: pickupLat,
+        pickup_lng: pickupLng,
+        dropoff_lat: dropoffLat,
+        dropoff_lng: dropoffLng,
+        eta_minutes: etaMin,
+        history: {
+          rider_type: "in_house",
+          in_house_rider: inHouseRiderData,
+        },
+      },
+    });
+
+    // 3. Save rider to vendor's in_house_riders list in delivery_configs if not present
+    try {
+      const currentConfigs: any = vendor.delivery_configs || {};
+      const savedRiders: any[] = Array.isArray(currentConfigs.in_house_riders)
+        ? currentConfigs.in_house_riders
+        : [];
+      const exists = savedRiders.some((r: any) => r.phone === input.rider_phone);
+      if (!exists) {
+        const newRider = {
+          id: `rider_${Date.now()}`,
+          name: input.rider_name,
+          phone: input.rider_phone,
+          vehicle_number: input.vehicle_number || "",
+          created_at: new Date().toISOString(),
+        };
+        await prisma.vendorProfile.update({
+          where: { id: vendor.id },
+          data: {
+            delivery_configs: {
+              ...currentConfigs,
+              in_house_riders: [...savedRiders, newRider],
+            },
+          },
+        });
+      }
+    } catch {
+      // Non-critical
+    }
+
+    // 4. Record order event
+    await prisma.orderEvent
+      .create({
+        data: {
+          order_id: order.id,
+          status: "OUT_FOR_DELIVERY",
+          note: `Assigned to shop rider: ${input.rider_name} (${input.rider_phone})`,
+        },
+      })
+      .catch(() => {});
+
+    // 5. Warm road route
+    try {
+      await trackingService.getOrCalculateRoadRoute(
+        order.master_order_id || order.id,
+        { lat: pickupLat, lng: pickupLng },
+        true
+      );
+    } catch {}
+
+    // 6. Realtime publish
+    try {
+      realtime.publishOrderStatus(order.master_order_id || order.id, "OUT_FOR_DELIVERY");
+    } catch {}
+
+    return {
+      success: true,
+      order_id: order.id,
+      status: "OUT_FOR_DELIVERY",
+      rider: inHouseRiderData,
+      rider_task_url: `/rider/${order.id}`,
+    };
+  },
+
+  async getVendorRiders(vendorUserId: string) {
+    const vendor = await prisma.vendorProfile.findFirst({
+      where: { user_id: vendorUserId },
+      select: { id: true, delivery_configs: true },
+    });
+    if (!vendor) throw new ForbiddenError("Vendor profile not found.");
+    const configs: any = vendor.delivery_configs || {};
+    const riders: any[] = Array.isArray(configs.in_house_riders) ? configs.in_house_riders : [];
+    const pickupPoint: any = configs.pickup_point || null;
+    return { riders, pickup_point: pickupPoint };
+  },
+
+  async addVendorRider(
+    vendorUserId: string,
+    input: { name: string; phone: string; vehicle_number?: string | null }
+  ) {
+    const vendor = await prisma.vendorProfile.findFirst({
+      where: { user_id: vendorUserId },
+    });
+    if (!vendor) throw new ForbiddenError("Vendor profile not found.");
+    const configs: any = vendor.delivery_configs || {};
+    const savedRiders: any[] = Array.isArray(configs.in_house_riders) ? [...configs.in_house_riders] : [];
+    const existingIndex = savedRiders.findIndex((r: any) => r.phone === input.phone);
+    const newRider = {
+      id: existingIndex >= 0 ? savedRiders[existingIndex].id : `rider_${Date.now()}`,
+      name: input.name,
+      phone: input.phone,
+      vehicle_number: input.vehicle_number || "",
+      updated_at: new Date().toISOString(),
+    };
+    if (existingIndex >= 0) {
+      savedRiders[existingIndex] = newRider;
+    } else {
+      savedRiders.push(newRider);
+    }
+
+    await prisma.vendorProfile.update({
+      where: { id: vendor.id },
+      data: {
+        delivery_configs: {
+          ...configs,
+          in_house_riders: savedRiders,
+        },
+      },
+    });
+
+    return { success: true, rider: newRider, riders: savedRiders };
+  },
+
+  async deleteVendorRider(vendorUserId: string, riderId: string) {
+    const vendor = await prisma.vendorProfile.findFirst({
+      where: { user_id: vendorUserId },
+    });
+    if (!vendor) throw new ForbiddenError("Vendor profile not found.");
+    const configs: any = vendor.delivery_configs || {};
+    const savedRiders: any[] = Array.isArray(configs.in_house_riders) ? configs.in_house_riders : [];
+    const filtered = savedRiders.filter((r: any) => r.id !== riderId && r.phone !== riderId);
+
+    await prisma.vendorProfile.update({
+      where: { id: vendor.id },
+      data: {
+        delivery_configs: {
+          ...configs,
+          in_house_riders: filtered,
+        },
+      },
+    });
+
+    return { success: true, riders: filtered };
+  },
+
+  async updatePickupPoint(
+    vendorUserId: string,
+    input: {
+      pickup_point_name: string;
+      pickup_latitude: number;
+      pickup_longitude: number;
+      instructions?: string | null;
+    }
+  ) {
+    const vendor = await prisma.vendorProfile.findFirst({
+      where: { user_id: vendorUserId },
+    });
+    if (!vendor) throw new ForbiddenError("Vendor profile not found.");
+    const configs: any = vendor.delivery_configs || {};
+    const pickupPoint = {
+      name: input.pickup_point_name,
+      latitude: Number(input.pickup_latitude),
+      longitude: Number(input.pickup_longitude),
+      instructions: input.instructions?.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    await prisma.vendorProfile.update({
+      where: { id: vendor.id },
+      data: {
+        delivery_configs: {
+          ...configs,
+          pickup_point: pickupPoint,
+        },
+      },
+    });
+
+    return { success: true, pickup_point: pickupPoint };
   },
 };

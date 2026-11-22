@@ -1212,6 +1212,42 @@ function OrderIdTrackingPage() {
               </div>
             )}
 
+            {/* High-Priority "Rider Near You" Alert Banner */}
+            {!isStorePickup && isOutForDelivery && (
+              (liveTrackingState.remainingMeters != null && liveTrackingState.remainingMeters <= 600) ||
+              (trackingData?.remaining_meters != null && trackingData.remaining_meters <= 600) ||
+              (trackingData?.eta_minutes != null && trackingData.eta_minutes <= 3)
+            ) && (
+              <div className="rounded-3xl border-2 border-amber-500 bg-amber-500/10 dark:bg-amber-950/30 p-4 flex items-center justify-between gap-3 shadow-lg animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-amber-500 text-white grid place-items-center shrink-0 shadow-md">
+                    <Bike className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-amber-900 dark:text-amber-100 flex items-center gap-1.5">
+                      <span>Rider is arriving near you!</span>
+                    </h4>
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      {liveTrackingState.remainingMeters != null
+                        ? `Only ${liveTrackingState.remainingMeters} meters away.`
+                        : trackingData?.remaining_meters
+                        ? `Only ${trackingData.remaining_meters} meters away.`
+                        : "Arriving within 2-3 minutes."}{" "}
+                      Please be ready at your doorstep with OTP.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-2xl border border-amber-300 dark:border-amber-700">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    Delivery OTP
+                  </span>
+                  <span className="font-mono text-lg font-black text-amber-600 dark:text-amber-400">
+                    {order?.otp_code || order?.orders?.[0]?.otp_code || "—"}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Live GPS Tracking Map / Store Pickup Map Canvas */}
             {isClient && (
               <Suspense
@@ -1245,6 +1281,8 @@ function OrderIdTrackingPage() {
                   deliveryLocation={!isStorePickup ? deliveryLocation : null}
                   customerLiveLocation={customerLiveCoords}
                   driverInfo={!isStorePickup ? driverInfo : null}
+                  inHouseRider={order?.in_house_rider || (trackingData as any)?.in_house_rider || null}
+                  pickupPoint={order?.vendor?.pickup_point || order?.orders?.[0]?.vendor?.pickup_point || null}
                   status={status}
                   etaMinutes={!isStorePickup ? trackingData?.eta_minutes : null}
                   etaSeconds={!isStorePickup ? liveTrackingState.etaSeconds ?? trackingData?.eta_seconds : null}

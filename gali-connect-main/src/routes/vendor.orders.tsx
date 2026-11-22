@@ -57,6 +57,40 @@ function VendorOrdersPage() {
   const { highlight } = useSearch({ from: "/vendor/orders" });
   const queryClient = useQueryClient();
   const [rejectTarget, setRejectTarget] = useState<{ orderId: string; item: any } | null>(null);
+  const [assignRiderTarget, setAssignRiderTarget] = useState<any | null>(null);
+  const [riderName, setRiderName] = useState("");
+  const [riderPhone, setRiderPhone] = useState("");
+  const [riderVehicle, setRiderVehicle] = useState("");
+  const [riderEta, setRiderEta] = useState("20");
+
+  const { data: savedRidersRes, refetch: refetchSavedRiders } = useQuery({
+    queryKey: ["vendorRiders"],
+    queryFn: () => api.get<{ riders: any[]; pickup_point: any }>("/vendors/me/riders"),
+  });
+  const savedRiders: any[] = (savedRidersRes?.data as any)?.riders || [];
+
+  const assignRiderMutation = useMutation({
+    mutationFn: (data: {
+      orderId: string;
+      rider_name: string;
+      rider_phone: string;
+      vehicle_number?: string;
+      estimated_minutes?: number;
+    }) => api.post(`/vendors/orders/${data.orderId}/assign-rider`, data),
+    onSuccess: (res: any) => {
+      if (!res.success) {
+        toast.error(res.error?.message || "Failed to assign rider");
+        return;
+      }
+      toast.success("Shop delivery boy assigned! Order marked Out for Delivery.");
+      setAssignRiderTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["vendorOrders"] });
+      refetchSavedRiders();
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to assign rider");
+    },
+  });
   const [otpTarget, setOtpTarget] = useState<any | null>(null);
   const [otpInput, setOtpInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -896,10 +930,64 @@ function VendorOrdersPage() {
                   </div>
                 )}
 
+                {/* In-House Rider Badge & Share Task Link */}
+                {(o.delivery_tracking?.history?.in_house_rider || o.in_house_rider) && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Bike className="h-4 w-4 text-amber-600" />
+                      <span>
+                        Shop Rider:{" "}
+                        <strong>
+                          {o.delivery_tracking?.history?.in_house_rider?.name ||
+                            o.in_house_rider?.name}
+                        </strong>{" "}
+                        (
+                        {o.delivery_tracking?.history?.in_house_rider?.phone ||
+                          o.in_house_rider?.phone}
+                        )
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/rider/${o.id}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success("Rider task link copied! WhatsApp it to your delivery boy.");
+                      }}
+                      className="inline-flex items-center gap-1 font-bold text-[11px] text-amber-800 dark:text-amber-300 hover:underline bg-amber-100 dark:bg-amber-900/50 px-2.5 py-1 rounded-xl"
+                    >
+                      <span>📋 Copy Delivery Boy Link</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Status Action Buttons */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                   <span className="text-xs text-muted-foreground font-medium">Next Action:</span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {o.status?.toUpperCase() !== "DELIVERED" &&
+                      o.status?.toUpperCase() !== "CANCELLED" &&
+                      o.status?.toUpperCase() !== "REFUNDED" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAssignRiderTarget(o);
+                            if (savedRiders.length > 0) {
+                              setRiderName(savedRiders[0].name);
+                              setRiderPhone(savedRiders[0].phone);
+                              setRiderVehicle(savedRiders[0].vehicle_number || "");
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white px-4 py-2.5 text-xs font-bold shadow-md transition-all active:scale-95"
+                        >
+                          <Bike className="h-3.5 w-3.5" />
+                          <span>
+                            {o.delivery_tracking?.history?.in_house_rider || o.in_house_rider
+                              ? "Reassign Rider"
+                              : "Assign Shop Rider"}
+                          </span>
+                        </button>
+                      )}
                     {nextStatuses.length > 0 ? (
                       nextStatuses.map((ns) => (
                         <button
@@ -1028,6 +1116,147 @@ function VendorOrdersPage() {
                   <ShieldCheck className="h-4 w-4" />
                 )}
                 Verify & Deliver
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Shop Rider Dialog */}
+      <Dialog
+        open={!!assignRiderTarget}
+        onOpenChange={(open) => !open && setAssignRiderTarget(null)}
+      >
+        <DialogContent className="rounded-3xl border-border max-w-sm">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 mb-1">
+              <Bike className="h-6 w-6" />
+            </div>
+            <DialogTitle className="font-display text-center text-lg font-black text-foreground">
+              Assign Shop Delivery Boy
+            </DialogTitle>
+            <DialogDescription className="text-xs text-center leading-relaxed">
+              Assign this order to your in-house staff. They will receive a turn-by-turn navigation link and customer can track them live!
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {savedRiders.length > 0 && (
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground block mb-1">
+                  Choose from Saved Staff
+                </label>
+                <select
+                  onChange={(e) => {
+                    const found = savedRiders.find((r) => r.phone === e.target.value);
+                    if (found) {
+                      setRiderName(found.name);
+                      setRiderPhone(found.phone);
+                      setRiderVehicle(found.vehicle_number || "");
+                    }
+                  }}
+                  className="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold"
+                >
+                  <option value="">-- Or enter new delivery boy below --</option>
+                  {savedRiders.map((r, i) => (
+                    <option key={i} value={r.phone}>
+                      {r.name} ({r.phone}) {r.vehicle_number ? `• ${r.vehicle_number}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="text-[11px] font-bold text-muted-foreground block mb-1">
+                Rider Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Ramesh Kumar"
+                value={riderName}
+                onChange={(e) => setRiderName(e.target.value)}
+                className="w-full rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-muted-foreground block mb-1">
+                Rider Phone (10 digits) *
+              </label>
+              <input
+                type="tel"
+                placeholder="e.g. 9876543210"
+                value={riderPhone}
+                onChange={(e) => setRiderPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                className="w-full rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground block mb-1">
+                  Vehicle / Bike No.
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. DL 01 AB 1234"
+                  value={riderVehicle}
+                  onChange={(e) => setRiderVehicle(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground block mb-1">
+                  Est. Delivery Time
+                </label>
+                <select
+                  value={riderEta}
+                  onChange={(e) => setRiderEta(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold"
+                >
+                  <option value="15">15 mins</option>
+                  <option value="20">20 mins</option>
+                  <option value="30">30 mins</option>
+                  <option value="45">45 mins</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAssignRiderTarget(null)}
+                className="flex-1 rounded-2xl border border-border py-2.5 font-bold text-xs hover:bg-muted/50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  riderName.trim().length < 2 ||
+                  riderPhone.trim().length < 10 ||
+                  assignRiderMutation.isPending
+                }
+                onClick={() => {
+                  if (assignRiderTarget) {
+                    assignRiderMutation.mutate({
+                      orderId: assignRiderTarget.id,
+                      rider_name: riderName.trim(),
+                      rider_phone: riderPhone.trim(),
+                      vehicle_number: riderVehicle.trim() || undefined,
+                      estimated_minutes: Number(riderEta) || 20,
+                    });
+                  }
+                }}
+                className="flex-1 rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white py-2.5 font-bold text-xs shadow-md transition-all inline-flex items-center justify-center gap-1.5"
+              >
+                {assignRiderMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Bike className="h-4 w-4" />
+                )}
+                <span>Assign &amp; Dispatch</span>
               </button>
             </div>
           </div>
