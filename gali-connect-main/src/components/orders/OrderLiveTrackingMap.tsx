@@ -83,6 +83,9 @@ export interface OrderLiveTrackingMapProps {
   isRefreshing?: boolean;
   isSelfPickup?: boolean;
   storeDirectionsUrl?: string | null;
+  customerLiveLocation?: { lat: number; lng: number } | null;
+  walkDirectionsUrl?: string | null;
+  driveDirectionsUrl?: string | null;
 }
 
 // Controller to auto-fit map view to markers
@@ -147,6 +150,9 @@ export function OrderLiveTrackingMap({
   isRefreshing,
   isSelfPickup = false,
   storeDirectionsUrl = null,
+  customerLiveLocation = null,
+  walkDirectionsUrl = null,
+  driveDirectionsUrl = null,
 }: OrderLiveTrackingMapProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [recenterCounter, setRecenterCounter] = useState(0);
@@ -242,21 +248,23 @@ export function OrderLiveTrackingMap({
 
   // Fallback center coordinates
   const defaultCenter = useMemo<[number, number]>(() => {
+    if (isSelfPickup && customerLiveLocation) return [customerLiveLocation.lat, customerLiveLocation.lng];
     if (validDriver) return [validDriver.lat, validDriver.lng];
     if (validDelivery) return [validDelivery.lat, validDelivery.lng];
     if (validPickups.length > 0 && validPickups[0])
       return [validPickups[0].lat, validPickups[0].lng];
     return [12.9716, 77.5946];
-  }, [validDriver, validDelivery, validPickups]);
+  }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation]);
 
   // Points for map bounds fitting
   const allPoints = useMemo<[number, number][]>(() => {
     const pts: [number, number][] = [];
     if (validDriver) pts.push([validDriver.lat, validDriver.lng]);
     if (validDelivery) pts.push([validDelivery.lat, validDelivery.lng]);
+    if (isSelfPickup && customerLiveLocation) pts.push([customerLiveLocation.lat, customerLiveLocation.lng]);
     validPickups.forEach((p) => pts.push([p.lat, p.lng]));
     return pts;
-  }, [validDriver, validDelivery, validPickups]);
+  }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation]);
 
   // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
   const { pathAhead, pathTrail } = useMemo(() => {
@@ -345,6 +353,23 @@ export function OrderLiveTrackingMap({
       `,
       iconSize: [36, 36],
       iconAnchor: [18, 18],
+    });
+  }, []);
+
+  // Blue Pulsating GPS Dot for Customer Live Location
+  const customerDivIcon = useMemo(() => {
+    return L.divIcon({
+      className: "customer-marker-pin",
+      html: `
+        <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;">
+          <span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background-color: rgba(37, 99, 235, 0.25); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+          <div style="position: relative; z-index: 10; width: 22px; height: 22px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 9999px; box-shadow: 0 0 12px rgba(37, 99, 235, 0.8); border: 3px solid #ffffff; display: flex; align-items: center; justify-content: center;">
+            <div style="width: 6px; height: 6px; background: #ffffff; border-radius: 9999px;"></div>
+          </div>
+        </div>
+      `,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
     });
   }, []);
 
@@ -785,6 +810,39 @@ export function OrderLiveTrackingMap({
               </Popup>
             </Marker>
           )}
+
+          {/* Customer Live GPS Marker (for Store Pickup / Advance Booking) */}
+          {isSelfPickup && customerLiveLocation && (
+            <Marker
+              position={[customerLiveLocation.lat, customerLiveLocation.lng]}
+              icon={customerDivIcon}
+            >
+              <Popup>
+                <div className="p-1 space-y-0.5 text-xs">
+                  <div className="font-bold text-blue-700 flex items-center gap-1">
+                    📍 You Are Here
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Your current live GPS position
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* Dotted Route Connector between Customer and Store */}
+          {isSelfPickup && customerLiveLocation && validPickups.length > 0 && validPickups[0] && (
+            <Polyline
+              positions={[
+                [customerLiveLocation.lat, customerLiveLocation.lng],
+                [validPickups[0].lat, validPickups[0].lng],
+              ]}
+              color="#2563eb"
+              weight={3.5}
+              dashArray="6, 8"
+              opacity={0.85}
+            />
+          )}
         </MapContainer>
 
         {/* Floating Status Pill */}
@@ -817,18 +875,29 @@ export function OrderLiveTrackingMap({
           </div>
         </div>
 
-        {/* Self-Pickup Direct Google Maps Direction CTA on Top Right */}
-        {isSelfPickup && storeDirectionsUrl && (
-          <div className="absolute top-3 right-3 z-[400]">
+        {/* Self-Pickup Walk / Drive Direction CTAs on Top Right */}
+        {isSelfPickup && (walkDirectionsUrl || driveDirectionsUrl || storeDirectionsUrl) && (
+          <div className="absolute top-3 right-3 z-[400] flex items-center gap-1.5">
+            {walkDirectionsUrl && (
+              <a
+                href={walkDirectionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-bold bg-white/95 dark:bg-slate-900/95 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-2xl shadow-md transition-all active:scale-95"
+                title="Open walking directions in Google Maps"
+              >
+                <span>🚶 Walk</span>
+              </a>
+            )}
             <a
-              href={storeDirectionsUrl}
+              href={driveDirectionsUrl || storeDirectionsUrl || "#"}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-2xl shadow-lg transition-all active:scale-95"
-              title="Open turn-by-turn directions to store in Google Maps"
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-2xl shadow-md transition-all active:scale-95"
+              title="Open driving navigation in Google Maps"
             >
-              <Navigation className="h-3.5 w-3.5" />
-              <span>Get Directions</span>
+              <Navigation className="h-3 w-3" />
+              <span>Drive</span>
             </a>
           </div>
         )}

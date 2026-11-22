@@ -210,7 +210,7 @@ export const orderService = {
     }
 
     const singleOrderInclude = {
-      user: { select: { id: true, name: true, phone: true, email: true } },
+      customer: { select: { id: true, name: true, phone: true, email: true } },
       address: true,
       vendor: true,
       payment: true,
@@ -301,7 +301,7 @@ export const orderService = {
         coupon_code: (subOrder as any).coupon?.code || null,
         payment_method: subOrder.payment_method,
         payment_status: subOrder.payment_status,
-        customer: subOrder.user || {
+        customer: subOrder.customer || {
           id: subOrder.user_id,
           name: subOrder.address?.label || "Customer",
           phone: subOrder.address?.phone || null,

@@ -110,10 +110,17 @@ function OrderIdTrackingPage() {
     data: orderRes,
     isLoading,
     isError,
+    error: queryError,
     refetch,
   } = useQuery({
     queryKey: ["orderDetail", orderId],
-    queryFn: () => api.get<{ data: any }>(`/orders/${orderId}`),
+    queryFn: async () => {
+      const res = await api.get<{ data: any }>(`/orders/${orderId}`);
+      if (!res.success) {
+        throw new Error(res.error?.message || "Failed to load order");
+      }
+      return res;
+    },
     retry: 1,
     enabled: !!user && !isGuest,
   });
@@ -179,6 +186,17 @@ function OrderIdTrackingPage() {
     status === "preparing" || status === "packed" || status === "ready_for_pickup";
   const isConfirmed = status === "confirmed" || isPreparing || isOutForDelivery || isDelivered;
 
+  const isAdvanceBooking = Boolean(
+    order?.delivery_option === "booking" ||
+    order?.delivery_option === "advance" ||
+    order?.orders?.[0]?.delivery_option === "booking" ||
+    order?.orders?.[0]?.delivery_option === "advance" ||
+    String(order?.delivery_note || "").toLowerCase().includes("booking") ||
+    String(order?.delivery_note || "").toLowerCase().includes("advance") ||
+    String(order?.orders?.[0]?.delivery_note || "").toLowerCase().includes("booking") ||
+    String(order?.orders?.[0]?.delivery_note || "").toLowerCase().includes("advance")
+  );
+
   const isSelfPickup = Boolean(
     order?.is_self_pickup ||
     order?.delivery_option === "pickup" ||
@@ -191,19 +209,93 @@ function OrderIdTrackingPage() {
     String(order?.orders?.[0]?.delivery_note || "").toLowerCase().includes("pickup")
   );
 
-  const selfPickupDirectionsUrl = useMemo(() => {
+  const isStorePickup = isSelfPickup || isAdvanceBooking;
+
+  // Real-time Customer Geolocation for Live Proximity & Dual-Pin Map
+  const [customerLiveCoords, setCustomerLiveCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocatingCustomer, setIsLocatingCustomer] = useState(false);
+
+  useEffect(() => {
+    if (!isStorePickup || typeof window === "undefined" || !navigator.geolocation) return;
+
+    setIsLocatingCustomer(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCustomerLiveCoords({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        setIsLocatingCustomer(false);
+      },
+      () => {
+        setIsLocatingCustomer(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setCustomerLiveCoords({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+      },
+      undefined,
+      { enableHighAccuracy: true, maximumAge: 15000 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isStorePickup]);
+
+  const storeCoord = useMemo(() => {
     const v = order?.vendor || order?.vendors?.[0] || order?.orders?.[0]?.vendor;
     const lat = v?.latitude || v?.lat;
     const lng = v?.longitude || v?.lng;
     if (lat && lng) {
-      return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    }
-    const addr = v?.full_address || v?.address;
-    if (addr) {
-      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${v?.business_name || ""} ${addr}`)}`;
+      return {
+        lat: Number(lat),
+        lng: Number(lng),
+        business_name: v.business_name || v.name || "Merchant Store",
+        full_address: v.full_address || v.address || "Store Location",
+        phone: v.phone || null,
+      };
     }
     return null;
   }, [order?.vendor, order?.vendors, order?.orders]);
+
+  // Haversine direct distance in kilometers between customer and shop
+  const customerDistanceKm = useMemo(() => {
+    if (!customerLiveCoords || !storeCoord) return null;
+    const R = 6371; // Earth radius in km
+    const dLat = ((storeCoord.lat - customerLiveCoords.lat) * Math.PI) / 180;
+    const dLon = ((storeCoord.lng - customerLiveCoords.lng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((customerLiveCoords.lat * Math.PI) / 180) *
+        Math.cos((storeCoord.lat * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }, [customerLiveCoords, storeCoord]);
+
+  // Google Maps Walking Navigation URL (includes origin when customer location available)
+  const walkDirectionsUrl = useMemo(() => {
+    if (!storeCoord) return null;
+    const originParam = customerLiveCoords ? `&origin=${customerLiveCoords.lat},${customerLiveCoords.lng}` : "";
+    return `https://www.google.com/maps/dir/?api=1&destination=${storeCoord.lat},${storeCoord.lng}${originParam}&travelmode=walking`;
+  }, [storeCoord, customerLiveCoords]);
+
+  // Google Maps Driving Navigation URL (includes origin when customer location available)
+  const driveDirectionsUrl = useMemo(() => {
+    if (!storeCoord) return null;
+    const originParam = customerLiveCoords ? `&origin=${customerLiveCoords.lat},${customerLiveCoords.lng}` : "";
+    return `https://www.google.com/maps/dir/?api=1&destination=${storeCoord.lat},${storeCoord.lng}${originParam}&travelmode=driving`;
+  }, [storeCoord, customerLiveCoords]);
+
+  const selfPickupDirectionsUrl = driveDirectionsUrl || (storeCoord ? `https://www.google.com/maps/dir/?api=1&destination=${storeCoord.lat},${storeCoord.lng}` : null);
 
   // Delivery instructions state
   const rawDeliveryNote = (order?.delivery_note || order?.orders?.[0]?.delivery_note || "") as string;
@@ -270,7 +362,7 @@ function OrderIdTrackingPage() {
     queryKey: ["orderTracking", orderId],
     queryFn: () => api.get<{ data: any }>(`/delivery/order/${orderId}/tracking`),
     enabled:
-      !isSelfPickup &&
+      !isStorePickup &&
       !!order &&
       (isOutForDelivery ||
         status === "picked_up" ||
@@ -775,9 +867,11 @@ function OrderIdTrackingPage() {
                 {isError ? "Couldn't load this order" : "Order not found"}
               </h2>
               <p className="text-xs text-muted-foreground mt-1">
-                {isError
-                  ? "Something went wrong while fetching your order. Please try again."
-                  : "This order may have been removed or the link is incorrect."}
+                {(queryError as any)?.message ||
+                  orderRes?.error?.message ||
+                  (isError
+                    ? "Something went wrong while fetching your order. Please try again."
+                    : "This order may have been removed or the link is incorrect.")}
               </p>
             </div>
             <div className="flex items-center justify-center gap-2">
@@ -1022,51 +1116,88 @@ function OrderIdTrackingPage() {
               </div>
             )}
 
-            {/* Self-Pickup Store Location & Google Maps Direction CTA Card */}
-            {isSelfPickup && (
+            {/* Store Pickup / Advance Booking Location & Google Maps Navigation Card */}
+            {isStorePickup && (
               <div className="rounded-3xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-500/10 via-card to-purple-500/5 p-5 sm:p-6 shadow-soft space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
                     <div className="h-12 w-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shadow-md shrink-0 mt-0.5">
-                      <Store className="h-6 w-6" />
+                      {isAdvanceBooking ? <Calendar className="h-6 w-6" /> : <Store className="h-6 w-6" />}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-purple-600 text-white">
-                          Self Pickup (Takeaway)
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-purple-600 text-white shadow-2xs">
+                          {isAdvanceBooking ? "Advance Booking" : "Self Pickup (Takeaway)"}
                         </span>
-                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                           ✓ Zero Delivery Fee
                         </span>
                       </div>
                       <h3 className="font-bold text-base text-foreground mt-1">
-                        {order?.vendor?.business_name || order?.vendors?.[0]?.business_name || order?.orders?.[0]?.vendor?.business_name || "Merchant Store"}
+                        {storeCoord?.business_name || "Merchant Store"}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {order?.vendor?.full_address || order?.vendor?.address || order?.vendors?.[0]?.full_address || order?.orders?.[0]?.vendor?.full_address || "Visit store to collect your order"}
+                        {storeCoord?.full_address || "Visit store pickup counter to collect your order"}
                       </p>
+
+                      {/* Live Customer-to-Store Distance Badge */}
+                      {customerDistanceKm != null ? (
+                        <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs font-bold">
+                          <span className="h-2 w-2 rounded-full bg-blue-600 animate-ping" />
+                          <span>
+                            {customerDistanceKm < 0.05
+                              ? "🎉 You have arrived at the store! Collect order at counter."
+                              : `📍 You are ${
+                                  customerDistanceKm < 1
+                                    ? `${Math.round(customerDistanceKm * 1000)} meters`
+                                    : `${customerDistanceKm.toFixed(1)} km`
+                                } away (~${Math.round((customerDistanceKm / 4.5) * 60)} mins walk • ~${Math.max(
+                                  1,
+                                  Math.round((customerDistanceKm / 25) * 60)
+                                )} mins drive)`}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 font-medium">
+                          <Navigation className="h-3 w-3 text-blue-600 animate-pulse" />
+                          <span>{isLocatingCustomer ? "Locating your GPS distance…" : "Turn on device location to see live distance"}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {(order?.vendor?.phone || order?.vendors?.[0]?.phone || order?.orders?.[0]?.vendor?.phone) && (
+                  {/* Walk vs Drive Action CTAs */}
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+                    {storeCoord?.phone && (
                       <a
-                        href={`tel:${order?.vendor?.phone || order?.vendors?.[0]?.phone || order?.orders?.[0]?.vendor?.phone}`}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-border bg-card hover:bg-muted text-xs font-bold transition-colors shadow-2xs"
+                        href={`tel:${storeCoord.phone}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl border border-border bg-card hover:bg-muted text-xs font-bold transition-colors shadow-2xs"
                       >
                         <Phone className="h-3.5 w-3.5 text-emerald-600" />
                         Call Store
                       </a>
                     )}
-                    {selfPickupDirectionsUrl && (
+                    {walkDirectionsUrl && (
                       <a
-                        href={selfPickupDirectionsUrl}
+                        href={walkDirectionsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md active:scale-95"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all shadow-2xs active:scale-95"
+                        title="Walk to store using Google Maps"
                       >
-                        <Navigation className="h-4 w-4" />
-                        Directions in Google Maps
+                        <span>🚶 Walk</span>
+                      </a>
+                    )}
+                    {driveDirectionsUrl && (
+                      <a
+                        href={driveDirectionsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md active:scale-95"
+                        title="Drive to store using Google Maps"
+                      >
+                        <Navigation className="h-3.5 w-3.5" />
+                        Drive to Store
                       </a>
                     )}
                   </div>
@@ -1095,38 +1226,41 @@ function OrderIdTrackingPage() {
               >
                 <OrderLiveTrackingMap
                   driverLocation={
-                    !isSelfPickup && liveTrackingState.lat != null && liveTrackingState.lng != null
+                    !isStorePickup && liveTrackingState.lat != null && liveTrackingState.lng != null
                       ? { lat: liveTrackingState.lat, lng: liveTrackingState.lng }
-                      : !isSelfPickup && trackingData?.current_lat && trackingData?.current_lng
+                      : !isStorePickup && trackingData?.current_lat && trackingData?.current_lng
                       ? { lat: Number(trackingData.current_lat), lng: Number(trackingData.current_lng) }
                       : null
                   }
                   snappedLocation={
-                    !isSelfPickup && liveTrackingState.snappedLat != null && liveTrackingState.snappedLng != null
+                    !isStorePickup && liveTrackingState.snappedLat != null && liveTrackingState.snappedLng != null
                       ? { lat: liveTrackingState.snappedLat, lng: liveTrackingState.snappedLng }
-                      : !isSelfPickup && trackingData?.snapped_lat && trackingData?.snapped_lng
+                      : !isStorePickup && trackingData?.snapped_lat && trackingData?.snapped_lng
                       ? { lat: Number(trackingData.snapped_lat), lng: Number(trackingData.snapped_lng) }
                       : null
                   }
-                  routePoints={!isSelfPickup ? trackingData?.route?.points || [] : []}
-                  routeIndex={!isSelfPickup ? liveTrackingState.routeIndex || trackingData?.route_index || 0 : 0}
+                  routePoints={!isStorePickup ? trackingData?.route?.points || [] : []}
+                  routeIndex={!isStorePickup ? liveTrackingState.routeIndex || trackingData?.route_index || 0 : 0}
                   pickupLocations={pickupLocations}
-                  deliveryLocation={!isSelfPickup ? deliveryLocation : null}
-                  driverInfo={!isSelfPickup ? driverInfo : null}
+                  deliveryLocation={!isStorePickup ? deliveryLocation : null}
+                  customerLiveLocation={customerLiveCoords}
+                  driverInfo={!isStorePickup ? driverInfo : null}
                   status={status}
-                  etaMinutes={!isSelfPickup ? trackingData?.eta_minutes : null}
-                  etaSeconds={!isSelfPickup ? liveTrackingState.etaSeconds ?? trackingData?.eta_seconds : null}
-                  remainingMeters={!isSelfPickup ? liveTrackingState.remainingMeters ?? trackingData?.remaining_meters : null}
-                  heading={!isSelfPickup ? liveTrackingState.heading ?? trackingData?.heading : null}
-                  speedKmh={!isSelfPickup ? liveTrackingState.speedKmh ?? trackingData?.speed_kmh ?? trackingData?.speed : null}
-                  accuracy={!isSelfPickup ? liveTrackingState.accuracy ?? trackingData?.accuracy : null}
-                  lastUpdatedAt={!isSelfPickup ? liveTrackingState.ts || trackingData?.last_updated_at || trackingData?.lastUpdatedAt : null}
-                  isLive={!isSelfPickup ? trackingData?.is_live ?? true : false}
-                  isStale={!isSelfPickup ? trackingData?.isStale ?? false : false}
+                  etaMinutes={!isStorePickup ? trackingData?.eta_minutes : null}
+                  etaSeconds={!isStorePickup ? liveTrackingState.etaSeconds ?? trackingData?.eta_seconds : null}
+                  remainingMeters={!isStorePickup ? liveTrackingState.remainingMeters ?? trackingData?.remaining_meters : null}
+                  heading={!isStorePickup ? liveTrackingState.heading ?? trackingData?.heading : null}
+                  speedKmh={!isStorePickup ? liveTrackingState.speedKmh ?? trackingData?.speed_kmh ?? trackingData?.speed : null}
+                  accuracy={!isStorePickup ? liveTrackingState.accuracy ?? trackingData?.accuracy : null}
+                  lastUpdatedAt={!isStorePickup ? liveTrackingState.ts || trackingData?.last_updated_at || trackingData?.lastUpdatedAt : null}
+                  isLive={!isStorePickup ? trackingData?.is_live ?? true : false}
+                  isStale={!isStorePickup ? trackingData?.isStale ?? false : false}
                   onRefresh={() => refetchTracking()}
                   isRefreshing={isFetchingTracking}
-                  isSelfPickup={isSelfPickup}
-                  storeDirectionsUrl={selfPickupDirectionsUrl}
+                  isSelfPickup={isStorePickup}
+                  storeDirectionsUrl={driveDirectionsUrl || selfPickupDirectionsUrl}
+                  walkDirectionsUrl={walkDirectionsUrl}
+                  driveDirectionsUrl={driveDirectionsUrl}
                 />
               </Suspense>
             )}
