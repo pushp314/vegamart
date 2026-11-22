@@ -513,6 +513,8 @@ export class TrackingService {
       const child = await prisma.order.findUnique({
         where: { id: orderOrMasterId },
         include: {
+          delivery_partner: true,
+          vendor: true,
           master_order: {
             include: {
               delivery_partner: true,
@@ -523,6 +525,17 @@ export class TrackingService {
       });
       if (child?.master_order) {
         masterOrder = child.master_order;
+      } else if (child) {
+        masterOrder = {
+          id: child.id,
+          order_number: child.order_number,
+          user_id: child.user_id,
+          delivery_partner_id: child.delivery_partner_id,
+          address_id: child.address_id as string,
+          status: child.status as any,
+          delivery_partner: child.delivery_partner,
+          orders: [child],
+        } as any;
       }
     }
 
