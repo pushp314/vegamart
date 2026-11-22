@@ -32,6 +32,7 @@
     "db:push": "prisma db push --schema prisma/schema.prisma",
     "credits:add": "ts-node --transpile-only scripts/add-credits.ts",
     "credits:set": "ts-node --transpile-only scripts/set-credits.ts",
+    "credits:clean": "ts-node --transpile-only scripts/clean-credits.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

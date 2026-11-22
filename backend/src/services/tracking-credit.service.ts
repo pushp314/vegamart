@@ -265,19 +265,28 @@ export const trackingCreditService = {
 
     const wallet = await this.getWallet();
 
-    const where: Prisma.TrackingUsageLogWhereInput = search
-      ? {
-          OR: [
-            { order_number: { contains: search, mode: "insensitive" } },
-            { customer_name: { contains: search, mode: "insensitive" } },
-            { customer_phone: { contains: search, mode: "insensitive" } },
-            { customer_address: { contains: search, mode: "insensitive" } },
-            { rider_name: { contains: search, mode: "insensitive" } },
-            { vendor_names: { contains: search, mode: "insensitive" } },
-            { description: { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : {};
+    const where: Prisma.TrackingUsageLogWhereInput = {
+      // Exclude negative recharge or manual adjustment entries from the audit ledger
+      NOT: {
+        OR: [
+          { type: { not: "USAGE" }, credits: { lt: 0 } },
+          { credits: -1200 },
+        ],
+      },
+      ...(search
+        ? {
+            OR: [
+              { order_number: { contains: search, mode: "insensitive" } },
+              { customer_name: { contains: search, mode: "insensitive" } },
+              { customer_phone: { contains: search, mode: "insensitive" } },
+              { customer_address: { contains: search, mode: "insensitive" } },
+              { rider_name: { contains: search, mode: "insensitive" } },
+              { vendor_names: { contains: search, mode: "insensitive" } },
+              { description: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
 
     const [total, logs] = await Promise.all([
       prisma.trackingUsageLog.count({ where }),

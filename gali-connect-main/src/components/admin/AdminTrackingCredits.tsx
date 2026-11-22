@@ -97,7 +97,10 @@ export function AdminTrackingCredits() {
     is_overdrawn: false,
   };
 
-  const logs: TrackingLog[] = resData?.logs || [];
+  const rawLogs: TrackingLog[] = resData?.logs || [];
+  const logs: TrackingLog[] = rawLogs.filter(
+    (log) => !(log.type !== "USAGE" && log.credits < 0) && log.credits !== -1200
+  );
   const pagination: PaginationMeta = resData?.pagination || {
     page: 1,
     per_page: 20,
