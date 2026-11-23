@@ -12,7 +12,7 @@ import {
   AlertTriangle,
   Volume2,
 } from "lucide-react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { playArrivalChime } from "@/lib/chime";
@@ -31,8 +31,29 @@ function RadarMapBounds({
   riderPositions: [number, number][];
 }) {
   const map = useMap();
+  const hasInitialFitRef = useRef(false);
+  const userInteractedRef = useRef(false);
+
+  useMapEvents({
+    zoomstart: () => {
+      userInteractedRef.current = true;
+    },
+    dragstart: () => {
+      userInteractedRef.current = true;
+    },
+    movestart: (e) => {
+      if ((e as any).originalEvent) {
+        userInteractedRef.current = true;
+      }
+    },
+  });
 
   useEffect(() => {
+    // If merchant manually zoomed or panned, never zoom out on radar refresh
+    if (userInteractedRef.current && hasInitialFitRef.current) {
+      return;
+    }
+
     const valid = [shopPos, ...riderPositions].filter(
       ([lat, lng]) =>
         typeof lat === "number" &&
@@ -50,6 +71,7 @@ function RadarMapBounds({
       const bounds = L.latLngBounds(valid);
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
     }
+    hasInitialFitRef.current = true;
   }, [map, shopPos, riderPositions]);
 
   return null;

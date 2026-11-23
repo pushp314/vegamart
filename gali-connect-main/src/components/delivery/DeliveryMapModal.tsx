@@ -1,6 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  CircleMarker,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapLayerToggle } from "@/components/maps/MapLayerToggle";
 import { MAP_LAYERS, type MapLayerType } from "@/components/maps/map-layers";
@@ -47,7 +56,27 @@ export interface DeliveryMapModalProps {
   isPickupPhase?: boolean;
 }
 
-// Controller to auto-fit map view to markers
+// Calculate geographic distance in meters between two coordinates
+function getDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Controller to auto-fit map view to markers without overriding user manual zoom
 function MapBoundsController({
   points,
   recenterTrigger,
@@ -56,8 +85,36 @@ function MapBoundsController({
   recenterTrigger: number;
 }) {
   const map = useMap();
+  const hasInitialFitRef = useRef(false);
+  const userInteractedRef = useRef(false);
+  const lastRecenterRef = useRef(recenterTrigger);
+
+  useMapEvents({
+    zoomstart: () => {
+      userInteractedRef.current = true;
+    },
+    dragstart: () => {
+      userInteractedRef.current = true;
+    },
+    movestart: (e) => {
+      if ((e as any).originalEvent) {
+        userInteractedRef.current = true;
+      }
+    },
+  });
 
   useEffect(() => {
+    // If user clicked explicit recenter, clear lock
+    if (recenterTrigger !== lastRecenterRef.current) {
+      lastRecenterRef.current = recenterTrigger;
+      userInteractedRef.current = false;
+    }
+
+    // Once user has manually zoomed or panned, NEVER auto zoom-out!
+    if (userInteractedRef.current && hasInitialFitRef.current) {
+      return;
+    }
+
     const valid = points.filter(
       ([lat, lng]) =>
         typeof lat === "number" &&
@@ -76,6 +133,7 @@ function MapBoundsController({
       const bounds = L.latLngBounds(valid);
       map.fitBounds(bounds, { padding: [70, 70], maxZoom: 16, animate: true });
     }
+    hasInitialFitRef.current = true;
   }, [map, points, recenterTrigger]);
 
   return null;
@@ -195,6 +253,65 @@ export function DeliveryMapModal({
       active = false;
     };
   }, [safeStart, safeEnd, validIntermediate]);
+
+  // Google Maps-style Off-road walk connector lines:
+  const {
+    startAccessConnector,
+    endAccessConnector,
+    roadStartJunction,
+    roadEndJunction,
+  } = useMemo(() => {
+    if (roadPolyline.length < 2) {
+      return {
+        startAccessConnector: null,
+        endAccessConnector: null,
+        roadStartJunction: null,
+        roadEndJunction: null,
+      };
+    }
+
+    const roadStart = roadPolyline[0];
+    const roadEnd = roadPolyline[roadPolyline.length - 1];
+
+    let startConnector: [[number, number], [number, number]] | null = null;
+    let startJunction: [number, number] | null = null;
+
+    if (safeStart && roadStart) {
+      const dist = getDistanceMeters(
+        safeStart.lat,
+        safeStart.lng,
+        roadStart[0],
+        roadStart[1]
+      );
+      if (dist > 6) {
+        startConnector = [[safeStart.lat, safeStart.lng], roadStart];
+        startJunction = roadStart;
+      }
+    }
+
+    let endConnector: [[number, number], [number, number]] | null = null;
+    let endJunction: [number, number] | null = null;
+
+    if (safeEnd && roadEnd) {
+      const dist = getDistanceMeters(
+        roadEnd[0],
+        roadEnd[1],
+        safeEnd.lat,
+        safeEnd.lng
+      );
+      if (dist > 6) {
+        endConnector = [roadEnd, [safeEnd.lat, safeEnd.lng]];
+        endJunction = roadEnd;
+      }
+    }
+
+    return {
+      startAccessConnector: startConnector,
+      endAccessConnector: endConnector,
+      roadStartJunction: startJunction,
+      roadEndJunction: endJunction,
+    };
+  }, [roadPolyline, safeStart, safeEnd]);
 
   // 1. Custom 3D Scooter Rider Marker (Matching client reference)
   const riderDivIcon = useMemo(() => {
@@ -449,6 +566,73 @@ export function DeliveryMapModal({
                 </div>
               </Popup>
             </Marker>
+
+            {/* ⚪ Google Maps-style Off-Road Dotted Walk / Access Connectors */}
+            {startAccessConnector && (
+              <>
+                <Polyline
+                  positions={startAccessConnector}
+                  color="#1e293b"
+                  weight={7}
+                  dashArray="1, 12"
+                  lineCap="round"
+                  opacity={0.7}
+                />
+                <Polyline
+                  positions={startAccessConnector}
+                  color="#ffffff"
+                  weight={4.5}
+                  dashArray="1, 12"
+                  lineCap="round"
+                  opacity={1}
+                />
+                {roadStartJunction && (
+                  <CircleMarker
+                    center={roadStartJunction}
+                    radius={5}
+                    pathOptions={{
+                      color: "#ffffff",
+                      weight: 2.5,
+                      fillColor: "#475569",
+                      fillOpacity: 1,
+                    }}
+                  />
+                )}
+              </>
+            )}
+
+            {endAccessConnector && (
+              <>
+                <Polyline
+                  positions={endAccessConnector}
+                  color="#1e293b"
+                  weight={7}
+                  dashArray="1, 12"
+                  lineCap="round"
+                  opacity={0.7}
+                />
+                <Polyline
+                  positions={endAccessConnector}
+                  color="#ffffff"
+                  weight={4.5}
+                  dashArray="1, 12"
+                  lineCap="round"
+                  opacity={1}
+                />
+                {roadEndJunction && (
+                  <CircleMarker
+                    center={roadEndJunction}
+                    radius={5}
+                    pathOptions={{
+                      color: "#ffffff",
+                      weight: 2.5,
+                      fillColor: "#475569",
+                      fillOpacity: 1,
+                    }}
+                  />
+                )}
+              </>
+            )}
 
             {/* Emerald Road Route Ahead (With Soft Glow Underneath) */}
             {roadPolyline.length >= 2 && (

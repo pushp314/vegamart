@@ -6,7 +6,9 @@ import {
   Marker,
   Popup,
   Polyline,
+  CircleMarker,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -91,24 +93,89 @@ export interface OrderLiveTrackingMapProps {
   inHouseRider?: { name: string; phone?: string | null; vehicle_number?: string | null } | null;
 }
 
-// Controller to auto-fit map view to markers
+// Calculate geographic distance in meters between two coordinates
+function getDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Controller to auto-fit map view to markers without overriding user manual zoom
 function MapBoundsController({
   points,
   recenterTrigger,
+  onUserInteract,
 }: {
   points: [number, number][];
   recenterTrigger: number;
+  onUserInteract?: () => void;
 }) {
   const map = useMap();
+  const hasInitialFitRef = useRef(false);
+  const userInteractedRef = useRef(false);
+  const lastRecenterRef = useRef(recenterTrigger);
+
+  useMapEvents({
+    zoomstart: () => {
+      userInteractedRef.current = true;
+      onUserInteract?.();
+    },
+    dragstart: () => {
+      userInteractedRef.current = true;
+      onUserInteract?.();
+    },
+    movestart: (e) => {
+      if ((e as any).originalEvent) {
+        userInteractedRef.current = true;
+        onUserInteract?.();
+      }
+    },
+  });
 
   useEffect(() => {
-    if (points.length === 0) return;
-    if (points.length === 1 && points[0]) {
-      map.setView(points[0], 15, { animate: true });
+    // If user clicked the explicit "Recenter" button, clear user interaction lock
+    if (recenterTrigger !== lastRecenterRef.current) {
+      lastRecenterRef.current = recenterTrigger;
+      userInteractedRef.current = false;
+    }
+
+    // Once user has manually zoomed or panned, NEVER auto zoom-out on GPS updates!
+    if (userInteractedRef.current && hasInitialFitRef.current) {
+      return;
+    }
+
+    const valid = points.filter(
+      ([lat, lng]) =>
+        typeof lat === "number" &&
+        typeof lng === "number" &&
+        !isNaN(lat) &&
+        !isNaN(lng) &&
+        lat > 5 &&
+        lng > 60
+    );
+
+    if (valid.length === 0) return;
+
+    if (valid.length === 1 && valid[0]) {
+      map.setView(valid[0], 15, { animate: true });
     } else {
-      const bounds = L.latLngBounds(points);
+      const bounds = L.latLngBounds(valid);
       map.fitBounds(bounds, { padding: [50, 50], animate: true });
     }
+    hasInitialFitRef.current = true;
   }, [points, recenterTrigger, map]);
 
   return null;
@@ -327,34 +394,134 @@ export function OrderLiveTrackingMap({
     return pts;
   }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation, pickupPoint]);
 
+  // Real active road route (must contain real street network >3 points)
+  const activeRoadRoute = useMemo<[number, number][]>(() => {
+    if (hasDetailedBackendRoute) return routePoints;
+    if (clientRoadRoute && clientRoadRoute.length > 3) return clientRoadRoute;
+    return [];
+  }, [hasDetailedBackendRoute, routePoints, clientRoadRoute]);
+
+  // Google Maps-style Off-road walk connector lines:
+  // When rider/customer is inside a house/compound and the drivable road starts some distance away,
+  // show a dotted line ("⚪ ⚪ ⚪ ⚪ ⚪") connecting the pin to the road entrance.
+  const {
+    startAccessConnector,
+    endAccessConnector,
+    roadStartJunction,
+    roadEndJunction,
+  } = useMemo(() => {
+    if (activeRoadRoute.length < 2) {
+      return {
+        startAccessConnector: null,
+        endAccessConnector: null,
+        roadStartJunction: null,
+        roadEndJunction: null,
+      };
+    }
+
+    const roadStart = activeRoadRoute[0];
+    const roadEnd = activeRoadRoute[activeRoadRoute.length - 1];
+
+    let startConnector: [[number, number], [number, number]] | null = null;
+    let startJunction: [number, number] | null = null;
+
+    if (isSelfPickup && customerLiveLocation && roadStart) {
+      const dist = getDistanceMeters(
+        customerLiveLocation.lat,
+        customerLiveLocation.lng,
+        roadStart[0],
+        roadStart[1]
+      );
+      if (dist > 6) {
+        startConnector = [
+          [customerLiveLocation.lat, customerLiveLocation.lng],
+          roadStart,
+        ];
+        startJunction = roadStart;
+      }
+    } else if (validDriver && activeRoadRoute.length > 0) {
+      const safeIndex = Math.max(0, Math.min(routeIndex, activeRoadRoute.length - 1));
+      const targetRoadNode = activeRoadRoute[safeIndex] || roadStart;
+      const dist = getDistanceMeters(
+        validDriver.lat,
+        validDriver.lng,
+        targetRoadNode[0],
+        targetRoadNode[1]
+      );
+      if (dist > 6) {
+        startConnector = [[validDriver.lat, validDriver.lng], targetRoadNode];
+        startJunction = targetRoadNode;
+      }
+    } else if (validPickups.length > 0 && validPickups[0] && roadStart) {
+      const dist = getDistanceMeters(
+        validPickups[0].lat,
+        validPickups[0].lng,
+        roadStart[0],
+        roadStart[1]
+      );
+      if (dist > 6) {
+        startConnector = [[validPickups[0].lat, validPickups[0].lng], roadStart];
+        startJunction = roadStart;
+      }
+    }
+
+    let endConnector: [[number, number], [number, number]] | null = null;
+    let endJunction: [number, number] | null = null;
+
+    let destCoords: [number, number] | null = null;
+    if (isSelfPickup && validPickups[0]) {
+      destCoords = [validPickups[0].lat, validPickups[0].lng];
+    } else if (validDelivery) {
+      destCoords = [validDelivery.lat, validDelivery.lng];
+    }
+
+    if (destCoords && roadEnd) {
+      const dist = getDistanceMeters(roadEnd[0], roadEnd[1], destCoords[0], destCoords[1]);
+      if (dist > 6) {
+        endConnector = [roadEnd, destCoords];
+        endJunction = roadEnd;
+      }
+    }
+
+    return {
+      startAccessConnector: startConnector,
+      endAccessConnector: endConnector,
+      roadStartJunction: startJunction,
+      roadEndJunction: endJunction,
+    };
+  }, [
+    activeRoadRoute,
+    isSelfPickup,
+    customerLiveLocation,
+    validDriver,
+    routeIndex,
+    validPickups,
+    validDelivery,
+  ]);
+
   // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
   const { pathAhead, pathTrail } = useMemo(() => {
-    // Only use a route that has real road points (>3 coordinates)
-    const activeRoute = hasDetailedBackendRoute
-      ? routePoints
-      : clientRoadRoute && clientRoadRoute.length > 3
-      ? clientRoadRoute
-      : null;
-
-    if (!activeRoute || activeRoute.length < 2) {
+    if (activeRoadRoute.length < 2) {
       // NEVER draw straight lines across buildings/lakes!
       return { pathAhead: [] as [number, number][], pathTrail: [] as [number, number][] };
     }
 
-    const safeIndex = Math.max(0, Math.min(routeIndex, activeRoute.length - 1));
-    const trail = activeRoute.slice(0, safeIndex + 1);
+    const safeIndex = Math.max(0, Math.min(routeIndex, activeRoadRoute.length - 1));
+    const trail = activeRoadRoute.slice(0, safeIndex + 1);
 
     const ahead: [number, number][] = [];
-    if (validDriver) {
+    // If the rider is directly on the road (not using an off-road walk connector),
+    // anchor the start of the solid line to their live position.
+    if (validDriver && !startAccessConnector) {
       ahead.push([validDriver.lat, validDriver.lng]);
     }
-    for (let i = safeIndex + 1; i < activeRoute.length; i++) {
-      const pt = activeRoute[i];
+    for (let i = safeIndex; i < activeRoadRoute.length; i++) {
+      const pt = activeRoadRoute[i];
       if (pt) ahead.push(pt);
     }
 
-    return { pathAhead: ahead.length > 0 ? ahead : activeRoute, pathTrail: trail };
-  }, [hasDetailedBackendRoute, routePoints, clientRoadRoute, routeIndex, validDriver]);
+    return { pathAhead: ahead.length > 0 ? ahead : activeRoadRoute, pathTrail: trail };
+  }, [activeRoadRoute, routeIndex, validDriver, startAccessConnector]);
 
   // Distance calculation helper (km)
   const getHaversineKm = (c1: { lat: number; lng: number }, c2: { lat: number; lng: number }) => {
@@ -919,7 +1086,79 @@ export function OrderLiveTrackingMap({
           <MapBoundsController
             points={allPoints}
             recenterTrigger={recenterCounter}
+            onUserInteract={() => setAutoFollow(false)}
           />
+
+          {/* ⚪ Google Maps-style Off-Road Dotted Walk / Access Connectors (House/Yard to Road) */}
+          {startAccessConnector && (
+            <>
+              {/* Outer dark casing for crisp contrast on satellite & light street maps */}
+              <Polyline
+                positions={startAccessConnector}
+                color="#1e293b"
+                weight={7}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={0.7}
+              />
+              {/* Inner white circular beads (matches Google Maps walking trail) */}
+              <Polyline
+                positions={startAccessConnector}
+                color="#ffffff"
+                weight={4.5}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={1}
+              />
+              {roadStartJunction && (
+                <CircleMarker
+                  center={roadStartJunction}
+                  radius={5}
+                  pathOptions={{
+                    color: "#ffffff",
+                    weight: 2.5,
+                    fillColor: "#475569",
+                    fillOpacity: 1,
+                  }}
+                />
+              )}
+            </>
+          )}
+
+          {endAccessConnector && (
+            <>
+              {/* Outer dark casing */}
+              <Polyline
+                positions={endAccessConnector}
+                color="#1e293b"
+                weight={7}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={0.7}
+              />
+              {/* Inner white circular beads */}
+              <Polyline
+                positions={endAccessConnector}
+                color="#ffffff"
+                weight={4.5}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={1}
+              />
+              {roadEndJunction && (
+                <CircleMarker
+                  center={roadEndJunction}
+                  radius={5}
+                  pathOptions={{
+                    color: "#ffffff",
+                    weight: 2.5,
+                    fillColor: "#475569",
+                    fillOpacity: 1,
+                  }}
+                />
+              )}
+            </>
+          )}
 
           {/* Shrinking Trail (already travelled route) */}
           {pathTrail.length >= 2 && (
@@ -1045,10 +1284,10 @@ export function OrderLiveTrackingMap({
           )}
 
           {/* Real Road Route for Self Pickup & Advance Booking (True street network) */}
-          {isSelfPickup && clientRoadRoute.length >= 2 && (
+          {isSelfPickup && activeRoadRoute.length > 3 && (
             <>
               <Polyline
-                positions={clientRoadRoute}
+                positions={activeRoadRoute}
                 color="#2563eb"
                 weight={10}
                 opacity={0.2}
@@ -1056,7 +1295,7 @@ export function OrderLiveTrackingMap({
                 lineJoin="round"
               />
               <Polyline
-                positions={clientRoadRoute}
+                positions={activeRoadRoute}
                 color="#2563eb"
                 weight={4.5}
                 opacity={0.9}

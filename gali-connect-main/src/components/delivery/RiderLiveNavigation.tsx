@@ -1,5 +1,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  CircleMarker,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import {
@@ -44,7 +53,27 @@ export interface RiderLiveNavigationProps {
   defaultFullscreen?: boolean;
 }
 
-// Controller to auto-fit map view or follow rider
+// Calculate geographic distance in meters between two coordinates
+function getDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Controller to auto-fit map view or follow rider without unexpected zoom-outs
 function NavigationCameraController({
   allPoints,
   riderPosition,
@@ -59,6 +88,8 @@ function NavigationCameraController({
   onUserInteraction?: () => void;
 }) {
   const map = useMap();
+  const hasInitialFitRef = useRef(false);
+  const lastRecenterRef = useRef(recenterCount);
 
   useMapEvents({
     dragstart: () => onUserInteraction?.(),
@@ -66,12 +97,22 @@ function NavigationCameraController({
   });
 
   useEffect(() => {
+    // If user clicked explicit recenter button, trigger camera re-lock
+    const isExplicitRecenter = recenterCount !== lastRecenterRef.current;
+    if (isExplicitRecenter) {
+      lastRecenterRef.current = recenterCount;
+    }
+
     if (autoFollow && riderPosition) {
       map.setView(riderPosition, Math.max(map.getZoom(), 17), { animate: true });
       return;
     }
 
-    if (!autoFollow) return; // In free-look, do not override user's manual view
+    if (!autoFollow) return; // In free-look, NEVER override user's manual view or zoom
+
+    if (hasInitialFitRef.current && !isExplicitRecenter) {
+      return;
+    }
 
     const valid = allPoints.filter(
       ([lat, lng]) =>
@@ -91,6 +132,7 @@ function NavigationCameraController({
       const bounds = L.latLngBounds(valid);
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: true });
     }
+    hasInitialFitRef.current = true;
   }, [map, allPoints, riderPosition, autoFollow, recenterCount]);
 
   return null;
@@ -357,6 +399,74 @@ export function RiderLiveNavigation({
   const displayDist = route ? `${route.distanceKm} km` : "Calculating...";
   const displayEta = route ? `${route.durationMinutes} min` : "...";
 
+  // Google Maps-style arrival clock time (e.g. 1:50 pm)
+  const arrivalTime = useMemo(() => {
+    if (!route?.durationMinutes) return null;
+    const arrivalDate = new Date(Date.now() + route.durationMinutes * 60 * 1000);
+    return arrivalDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }, [route?.durationMinutes]);
+
+  // Google Maps-style Off-road walk connector lines:
+  // When rider/customer is inside a house/compound and the drivable road starts some distance away,
+  // show a dotted line ("⚪ ⚪ ⚪ ⚪ ⚪") connecting the pin to the road entrance.
+  const {
+    startAccessConnector,
+    endAccessConnector,
+    roadStartJunction,
+    roadEndJunction,
+  } = useMemo(() => {
+    if (!route || !route.coordinates || route.coordinates.length < 2) {
+      return {
+        startAccessConnector: null,
+        endAccessConnector: null,
+        roadStartJunction: null,
+        roadEndJunction: null,
+      };
+    }
+
+    const roadStart = route.coordinates[0];
+    const roadEnd = route.coordinates[route.coordinates.length - 1];
+
+    let startConnector: [[number, number], [number, number]] | null = null;
+    let startJunction: [number, number] | null = null;
+
+    if (snappedRider && roadStart) {
+      const dist = getDistanceMeters(
+        snappedRider.lat,
+        snappedRider.lng,
+        roadStart[0],
+        roadStart[1]
+      );
+      if (dist > 6) {
+        startConnector = [[snappedRider.lat, snappedRider.lng], roadStart];
+        startJunction = roadStart;
+      }
+    }
+
+    let endConnector: [[number, number], [number, number]] | null = null;
+    let endJunction: [number, number] | null = null;
+
+    if (destination && roadEnd) {
+      const dist = getDistanceMeters(
+        roadEnd[0],
+        roadEnd[1],
+        destination.lat,
+        destination.lng
+      );
+      if (dist > 6) {
+        endConnector = [roadEnd, [destination.lat, destination.lng]];
+        endJunction = roadEnd;
+      }
+    }
+
+    return {
+      startAccessConnector: startConnector,
+      endAccessConnector: endConnector,
+      roadStartJunction: startJunction,
+      roadEndJunction: endJunction,
+    };
+  }, [route, snappedRider, destination]);
+
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&travelmode=driving`;
 
   return (
@@ -466,6 +576,77 @@ export function RiderLiveNavigation({
             </Popup>
           </Marker>
 
+          {/* ⚪ Google Maps-style Off-Road Dotted Walk / Access Connectors (House/Yard to Road) */}
+          {startAccessConnector && (
+            <>
+              {/* Outer dark casing */}
+              <Polyline
+                positions={startAccessConnector}
+                color="#1e293b"
+                weight={7}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={0.7}
+              />
+              {/* Inner white circular beads */}
+              <Polyline
+                positions={startAccessConnector}
+                color="#ffffff"
+                weight={4.5}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={1}
+              />
+              {roadStartJunction && (
+                <CircleMarker
+                  center={roadStartJunction}
+                  radius={5}
+                  pathOptions={{
+                    color: "#ffffff",
+                    weight: 2.5,
+                    fillColor: "#475569",
+                    fillOpacity: 1,
+                  }}
+                />
+              )}
+            </>
+          )}
+
+          {endAccessConnector && (
+            <>
+              {/* Outer dark casing */}
+              <Polyline
+                positions={endAccessConnector}
+                color="#1e293b"
+                weight={7}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={0.7}
+              />
+              {/* Inner white circular beads */}
+              <Polyline
+                positions={endAccessConnector}
+                color="#ffffff"
+                weight={4.5}
+                dashArray="1, 12"
+                lineCap="round"
+                opacity={1}
+              />
+              {roadEndJunction && (
+                <CircleMarker
+                  center={roadEndJunction}
+                  radius={5}
+                  pathOptions={{
+                    color: "#ffffff",
+                    weight: 2.5,
+                    fillColor: "#475569",
+                    fillOpacity: 1,
+                  }}
+                />
+              )}
+            </>
+          )}
+
           {/* Road Network Polyline (Emerald route tracing exact streets and turns) */}
           {route && route.coordinates.length >= 2 && (
             <>
@@ -541,6 +722,17 @@ export function RiderLiveNavigation({
             <p className="text-[11px] text-muted-foreground truncate">
               {destination.address}
             </p>
+            <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1.5 truncate">
+              <span>⚡ {displayEta}</span>
+              <span>•</span>
+              <span>{displayDist}</span>
+              {arrivalTime && (
+                <>
+                  <span>•</span>
+                  <span>Arrival ~{arrivalTime}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
