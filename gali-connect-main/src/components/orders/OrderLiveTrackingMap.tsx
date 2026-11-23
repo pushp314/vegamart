@@ -30,6 +30,7 @@ import { playArrivalChime } from "@/lib/chime";
 import { toast } from "sonner";
 import { MAP_LAYERS, type MapLayerType } from "../maps/map-layers";
 import { MapLayerToggle } from "../maps/MapLayerToggle";
+import { fetchRoadRoute } from "@/lib/road-routing";
 
 // Fix standard default icon assets
 import iconUrl from "leaflet/dist/images/marker-icon.png";
@@ -258,8 +259,49 @@ export function OrderLiveTrackingMap({
     if (validDelivery) return [validDelivery.lat, validDelivery.lng];
     if (validPickups.length > 0 && validPickups[0])
       return [validPickups[0].lat, validPickups[0].lng];
-    return [12.9716, 77.5946];
+    return [21.9588, 82.9588]; // Sakti, Chhattisgarh default
   }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation, pickupPoint]);
+
+  // Client-side real road network route calculation if backend did not supply routePoints
+  const [clientRoadRoute, setClientRoadRoute] = useState<[number, number][]>([]);
+
+  useEffect(() => {
+    if (routePoints && routePoints.length >= 2) return;
+
+    let active = true;
+    const waypoints: Array<{ lat: number; lng: number }> = [];
+
+    if (isSelfPickup && customerLiveLocation && validPickups[0]) {
+      waypoints.push({ lat: customerLiveLocation.lat, lng: customerLiveLocation.lng });
+      waypoints.push({ lat: validPickups[0].lat, lng: validPickups[0].lng });
+    } else {
+      if (validDriver) {
+        waypoints.push({ lat: validDriver.lat, lng: validDriver.lng });
+      } else if (validPickups[0]) {
+        waypoints.push({ lat: validPickups[0].lat, lng: validPickups[0].lng });
+      }
+
+      validPickups.slice(validDriver ? 0 : 1).forEach((p) => {
+        waypoints.push({ lat: p.lat, lng: p.lng });
+      });
+
+      if (validDelivery) {
+        waypoints.push({ lat: validDelivery.lat, lng: validDelivery.lng });
+      }
+    }
+
+    if (waypoints.length >= 2) {
+      fetchRoadRoute(waypoints).then((res) => {
+        if (active && res && res.coordinates.length >= 2) {
+          setClientRoadRoute(res.coordinates);
+        }
+      });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [routePoints, isSelfPickup, customerLiveLocation, validDriver, validPickups, validDelivery]);
 
   // Points for map bounds fitting
   const allPoints = useMemo<[number, number][]>(() => {
@@ -274,29 +316,29 @@ export function OrderLiveTrackingMap({
 
   // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
   const { pathAhead, pathTrail } = useMemo(() => {
-    if (!routePoints || routePoints.length === 0) {
-      // Fallback straight-line polyline if no road route available
-      const straight: [number, number][] = [];
-      if (validDriver) straight.push([validDriver.lat, validDriver.lng]);
-      validPickups.forEach((p) => straight.push([p.lat, p.lng]));
-      if (validDelivery) straight.push([validDelivery.lat, validDelivery.lng]);
-      return { pathAhead: straight, pathTrail: [] as [number, number][] };
+    const activeRoute = (routePoints && routePoints.length >= 2) ? routePoints : clientRoadRoute;
+
+    if (!activeRoute || activeRoute.length < 2) {
+      const fallback: [number, number][] = [];
+      if (validDriver) fallback.push([validDriver.lat, validDriver.lng]);
+      if (validDelivery) fallback.push([validDelivery.lat, validDelivery.lng]);
+      return { pathAhead: fallback, pathTrail: [] as [number, number][] };
     }
 
-    const safeIndex = Math.max(0, Math.min(routeIndex, routePoints.length - 1));
-    const trail = routePoints.slice(0, safeIndex + 1);
+    const safeIndex = Math.max(0, Math.min(routeIndex, activeRoute.length - 1));
+    const trail = activeRoute.slice(0, safeIndex + 1);
 
     const ahead: [number, number][] = [];
     if (validDriver) {
       ahead.push([validDriver.lat, validDriver.lng]);
     }
-    for (let i = safeIndex + 1; i < routePoints.length; i++) {
-      const pt = routePoints[i];
+    for (let i = safeIndex + 1; i < activeRoute.length; i++) {
+      const pt = activeRoute[i];
       if (pt) ahead.push(pt);
     }
 
-    return { pathAhead: ahead, pathTrail: trail };
-  }, [routePoints, routeIndex, validDriver, validPickups, validDelivery]);
+    return { pathAhead: ahead.length > 0 ? ahead : activeRoute, pathTrail: trail };
+  }, [routePoints, clientRoadRoute, routeIndex, validDriver, validDelivery]);
 
   // Dynamic ETA display formatting
   const displayEta = useMemo(() => {
@@ -351,14 +393,19 @@ export function OrderLiveTrackingMap({
     return L.divIcon({
       className: "dest-marker-pin",
       html: `
-        <div style="position: relative; display: flex; align-items: center; justify-content: center;">
-          <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #e11d48, #be123c); border-radius: 9999px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 12px -2px rgba(225, 29, 72, 0.4); border: 2px solid #ffffff; font-size: 16px;">
-            🏠
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 6px 12px rgba(16, 185, 129, 0.4));">
+          <div style="width: 44px; height: 44px; background: #ffffff; border-radius: 9999px; border: 3.5px solid #10b981; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#10b981" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" fill="#ffffff" stroke="#10b981"/>
+            </svg>
           </div>
+          <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #10b981; margin-top: -1px;"></div>
+          <div style="width: 6px; height: 6px; border-radius: 9999px; background: #10b981; margin-top: 1px;"></div>
         </div>
       `,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
+      iconSize: [44, 54],
+      iconAnchor: [22, 54],
     });
   }, []);
 
@@ -751,16 +798,26 @@ export function OrderLiveTrackingMap({
             />
           )}
 
-          {/* Upcoming Road Route Ahead (vibrant emerald line) */}
+          {/* Upcoming Road Route Ahead (vibrant emerald line with road glow) */}
           {pathAhead.length >= 2 && (
-            <Polyline
-              positions={pathAhead}
-              color="#059669"
-              weight={5}
-              opacity={0.95}
-              lineCap="round"
-              lineJoin="round"
-            />
+            <>
+              <Polyline
+                positions={pathAhead}
+                color="#10b981"
+                weight={10}
+                opacity={0.25}
+                lineCap="round"
+                lineJoin="round"
+              />
+              <Polyline
+                positions={pathAhead}
+                color="#059669"
+                weight={5}
+                opacity={0.95}
+                lineCap="round"
+                lineJoin="round"
+              />
+            </>
           )}
 
           {/* Driver Vehicle Pin with 60fps Lerp */}
@@ -853,18 +910,26 @@ export function OrderLiveTrackingMap({
             </Marker>
           )}
 
-          {/* Dotted Route Connector between Customer and Store */}
-          {isSelfPickup && customerLiveLocation && validPickups.length > 0 && validPickups[0] && (
-            <Polyline
-              positions={[
-                [customerLiveLocation.lat, customerLiveLocation.lng],
-                [validPickups[0].lat, validPickups[0].lng],
-              ]}
-              color="#2563eb"
-              weight={3.5}
-              dashArray="6, 8"
-              opacity={0.85}
-            />
+          {/* Real Road Route for Self Pickup & Advance Booking (True street network) */}
+          {isSelfPickup && clientRoadRoute.length >= 2 && (
+            <>
+              <Polyline
+                positions={clientRoadRoute}
+                color="#2563eb"
+                weight={10}
+                opacity={0.2}
+                lineCap="round"
+                lineJoin="round"
+              />
+              <Polyline
+                positions={clientRoadRoute}
+                color="#2563eb"
+                weight={4.5}
+                opacity={0.9}
+                lineCap="round"
+                lineJoin="round"
+              />
+            </>
           )}
 
           {/* Store Entrance / Pickup Bay Marker */}

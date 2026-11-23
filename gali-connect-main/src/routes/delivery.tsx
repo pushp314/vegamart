@@ -55,6 +55,14 @@ const DeliveryMapModal =
         })),
       )
     : () => null;
+const RiderLiveNavigation =
+  typeof window !== "undefined"
+    ? lazy(() =>
+        import("@/components/delivery/RiderLiveNavigation").then((m) => ({
+          default: m.RiderLiveNavigation,
+        })),
+      )
+    : () => null;
 import {
   Dialog,
   DialogContent,
@@ -1317,6 +1325,31 @@ function DeliveryDashboard() {
                             </div>
                           );
                         })()}
+
+                        {/* 🗺️ In-App Live GPS Road Navigation (Direct in Rider Panel) */}
+                        <div className="rounded-3xl overflow-hidden border border-border shadow-sm my-3">
+                          <ClientOnly>
+                            <Suspense
+                              fallback={
+                                <div className="h-[280px] bg-muted/40 rounded-3xl flex items-center justify-center text-xs text-muted-foreground gap-2">
+                                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> Initializing Live Road Navigation...
+                                </div>
+                              }
+                            >
+                              <RiderLiveNavigation
+                                order={o}
+                                riderCoords={riderCoords}
+                                onUpdateStatus={(status) => {
+                                  updateStatusMutation.mutate({ orderId: o.id, status });
+                                }}
+                                onOpenOtpModal={() => {
+                                  setSelectedOrder(o);
+                                  setOtpModalOpen(true);
+                                }}
+                              />
+                            </Suspense>
+                          </ClientOnly>
+                        </div>
 
                         <div className="relative space-y-4">
                           <div className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-border" />

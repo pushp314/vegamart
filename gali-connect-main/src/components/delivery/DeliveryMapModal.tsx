@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-
 import "leaflet/dist/leaflet.css";
 import { MapLayerToggle } from "@/components/maps/MapLayerToggle";
 import { MAP_LAYERS, type MapLayerType } from "@/components/maps/map-layers";
+import { fetchRoadRoute } from "@/lib/road-routing";
 import {
   ArrowLeft,
   Store,
@@ -174,54 +175,26 @@ export function DeliveryMapModal({
   useEffect(() => {
     let active = true;
 
-    async function fetchRoadRoute() {
-      try {
-        const waypoints = [
-          `${safeStart.lng},${safeStart.lat}`,
-          ...validIntermediate.map((p) => `${p.lng},${p.lat}`),
-          `${safeEnd.lng},${safeEnd.lat}`,
-        ].join(";");
+    async function loadRoute() {
+      const waypoints = [
+        safeStart,
+        ...validIntermediate,
+        safeEnd,
+      ];
 
-        const url = `https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=full&geometries=geojson`;
-        const res = await fetch(url, { headers: { Accept: "application/json" } });
-
-        if (!res.ok) throw new Error("OSRM routing returned non-200");
-        const data = await res.json();
-        const route = data.routes?.[0];
-
-        if (route?.geometry?.coordinates && Array.isArray(route.geometry.coordinates)) {
-          const mapped: [number, number][] = route.geometry.coordinates.map(
-            (c: [number, number]) => [c[1], c[0]]
-          );
-          if (active) {
-            setRoadPolyline(mapped);
-            if (typeof route.distance === "number") {
-              setRoadDistanceKm(Math.round((route.distance / 1000) * 10) / 10);
-            }
-            if (typeof route.duration === "number") {
-              setRoadEtaMinutes(Math.max(1, Math.round(route.duration / 60)));
-            }
-          }
-        }
-      } catch {
-        if (active) {
-          const straight: [number, number][] = [
-            [safeStart.lat, safeStart.lng],
-            ...validIntermediate.map((p): [number, number] => [p.lat, p.lng]),
-            [safeEnd.lat, safeEnd.lng],
-          ];
-          setRoadPolyline(straight);
-          setRoadDistanceKm(straightDistanceKm);
-          setRoadEtaMinutes(Math.max(2, Math.round((straightDistanceKm / 25) * 60)));
-        }
+      const res = await fetchRoadRoute(waypoints);
+      if (active && res) {
+        setRoadPolyline(res.coordinates);
+        setRoadDistanceKm(res.distanceKm);
+        setRoadEtaMinutes(res.durationMinutes);
       }
     }
 
-    fetchRoadRoute();
+    loadRoute();
     return () => {
       active = false;
     };
-  }, [safeStart, safeEnd, validIntermediate, straightDistanceKm]);
+  }, [safeStart, safeEnd, validIntermediate]);
 
   // 1. Custom 3D Scooter Rider Marker (Matching client reference)
   const riderDivIcon = useMemo(() => {
