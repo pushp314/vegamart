@@ -420,6 +420,56 @@ export function OrderLiveTrackingMap({
     return null;
   }, [driverInfo, inHouseRider]);
 
+  // Traffic / Railway Crossing pause detection
+  const [stationarySeconds, setStationarySeconds] = useState(0);
+  const lastRiderPosRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (!validDriver || status !== "out_for_delivery") {
+      setStationarySeconds(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (lastRiderPosRef.current && validDriver) {
+        const dLat = Math.abs(validDriver.lat - lastRiderPosRef.current.lat);
+        const dLng = Math.abs(validDriver.lng - lastRiderPosRef.current.lng);
+        // If movement is under ~15m and speed is under 3 km/h
+        if (dLat < 0.00015 && dLng < 0.00015 && (speedKmh == null || speedKmh < 3)) {
+          setStationarySeconds((s) => s + 3);
+        } else {
+          setStationarySeconds(0);
+        }
+      }
+      lastRiderPosRef.current = { lat: validDriver.lat, lng: validDriver.lng };
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [validDriver, status, speedKmh]);
+
+  const isStationaryInTraffic = stationarySeconds >= 75 && (remainingMeters == null || remainingMeters > 150);
+
+  // Contextual live milestone messages for customer trust & excitement
+  const contextualMilestone = useMemo(() => {
+    if (isSelfPickup) {
+      return "🏪 Store Pickup • Ready for collection at shop counter";
+    }
+    if (status === "delivered") {
+      return "🎉 Order delivered successfully to your doorstep!";
+    }
+    if (status === "confirmed" || status === "preparing" || status === "ready_for_pickup") {
+      const storeName = validPickups[0]?.name || "merchant";
+      return `🏪 Rider ${storeName} par samaan pack karwa raha hai`;
+    }
+    if (remainingMeters != null && remainingMeters > 0 && remainingMeters <= 200) {
+      return "📍 Rider aapki gali ke mod par pahunch chuka hai!";
+    }
+    if (isStationaryInTraffic) {
+      return "🚦 Railway crossing / traffic signal par ruka hua hai";
+    }
+    return `🛵 Rider raste me hai • ${displayDistance || "1 km"} away`;
+  }, [isSelfPickup, status, validPickups, remainingMeters, isStationaryInTraffic, displayDistance]);
+
   // Custom Div Icons for visual excellence
   const driverDivIcon = useMemo(() => {
     return L.divIcon({
@@ -1028,12 +1078,12 @@ export function OrderLiveTrackingMap({
         </MapContainer>
 
         {/* Floating ETA & Distance Card matching Blinkit / Client Reference UI */}
-        <div className="absolute top-4 left-4 z-[400] pointer-events-none">
-          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 shadow-xl border border-zinc-200/80 dark:border-zinc-800 flex items-center gap-3 sm:gap-3.5 min-w-[200px] sm:min-w-[240px]">
+        <div className="absolute top-4 left-4 z-[400] pointer-events-none max-w-[90%] sm:max-w-sm">
+          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 shadow-xl border border-zinc-200/80 dark:border-zinc-800 flex items-center gap-3 sm:gap-3.5">
             <div className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/40 shadow-xs">
               <Clock className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <span>{isSelfPickup ? "Store Distance" : "Estimated delivery"}</span>
                 {!isSelfPickup && validDriver && !isStale && (
@@ -1053,9 +1103,30 @@ export function OrderLiveTrackingMap({
                   </>
                 )}
               </div>
+              {contextualMilestone && (
+                <p className="text-[10.5px] font-semibold text-emerald-800 dark:text-emerald-300 mt-1 truncate">
+                  {contextualMilestone}
+                </p>
+              )}
             </div>
           </div>
         </div>
+
+        {/* 🚦 Live Traffic / Railway Crossing Reassuring Alert Banner */}
+        {isStationaryInTraffic && (
+          <div className="absolute top-28 left-4 right-4 sm:right-auto z-[400] max-w-sm bg-amber-500/95 text-white backdrop-blur-md px-3.5 py-2.5 rounded-2xl shadow-xl border border-amber-300 text-xs font-bold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
+            <span className="text-lg shrink-0">🚦</span>
+            <span className="leading-snug">Rider railway crossing / traffic signal par ruka hua hai, chinta na karein.</span>
+          </div>
+        )}
+
+        {/* 📡 Network Re-connecting Indicator */}
+        {secondsAgo > 18 && !isSelfPickup && (
+          <div className="absolute bottom-16 left-4 z-[400] bg-zinc-950/85 text-amber-300 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold shadow-lg border border-amber-500/30 flex items-center gap-2 animate-in fade-in">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <span>Network re-connecting... Last seen {secondsAgo}s ago</span>
+          </div>
+        )}
 
         {/* Self-Pickup Walk / Drive Direction CTAs on Top Right */}
         {isSelfPickup && (walkDirectionsUrl || driveDirectionsUrl || storeDirectionsUrl || pickupPoint) && (

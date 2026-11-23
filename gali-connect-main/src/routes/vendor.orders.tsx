@@ -39,6 +39,7 @@ import {
   getOrderStatusInfo,
 } from "@/lib/order-helpers";
 import { OrderInvoiceModal } from "@/components/orders/OrderInvoiceModal";
+import { VendorDispatchRadar } from "@/components/vendor/VendorDispatchRadar";
 
 type VendorOrdersSearch = {
   highlight?: string;
@@ -260,6 +261,9 @@ function VendorOrdersPage() {
           </p>
         </div>
       </div>
+
+      {/* Merchant Live Dispatch Radar (Bird's Eye View & 300m Pre-Arrival Proximity Alert) */}
+      <VendorDispatchRadar orders={vendorOrders} vendorProfile={vendor} />
 
       {/* Filter Tabs & Search */}
       <div className="flex flex-col sm:flex-row items-center gap-3">

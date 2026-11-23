@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import {
@@ -50,19 +50,28 @@ function NavigationCameraController({
   riderPosition,
   autoFollow,
   recenterCount,
+  onUserInteraction,
 }: {
   allPoints: [number, number][];
   riderPosition: [number, number] | null;
   autoFollow: boolean;
   recenterCount: number;
+  onUserInteraction?: () => void;
 }) {
   const map = useMap();
 
+  useMapEvents({
+    dragstart: () => onUserInteraction?.(),
+    zoomstart: () => onUserInteraction?.(),
+  });
+
   useEffect(() => {
     if (autoFollow && riderPosition) {
-      map.panTo(riderPosition, { animate: true });
+      map.setView(riderPosition, Math.max(map.getZoom(), 17), { animate: true });
       return;
     }
+
+    if (!autoFollow) return; // In free-look, do not override user's manual view
 
     const valid = allPoints.filter(
       ([lat, lng]) =>
@@ -110,8 +119,87 @@ export function RiderLiveNavigation({
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
   const [currentLayer, setCurrentLayer] = useState<MapLayerType>("streets");
   const [route, setRoute] = useState<RoadRoute | null>(null);
-  const [autoFollow, setAutoFollow] = useState(false);
+  const [autoFollow, setAutoFollow] = useState(true); // Default to locked navigation follow
+  const [isFreeLook, setIsFreeLook] = useState(false);
+  const [freeLookCountdown, setFreeLookCountdown] = useState(5);
   const [recenterCount, setRecenterCount] = useState(0);
+
+  const freeLookTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Screen WakeLock: keep rider's phone screen awake during active navigation
+  useEffect(() => {
+    let wakeLock: any = null;
+    let released = false;
+
+    async function requestWakeLock() {
+      if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+        try {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+        } catch {
+          // Ignore if permission denied or unsupported in browser
+        }
+      }
+    }
+
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (wakeLock !== null && document.visibilityState === "visible" && !released) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      released = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (wakeLock) {
+        wakeLock.release().catch(() => {});
+      }
+      if (freeLookTimerRef.current) clearTimeout(freeLookTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    };
+  }, []);
+
+  const handleRecenter = useCallback(() => {
+    if (freeLookTimerRef.current) clearTimeout(freeLookTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    setIsFreeLook(false);
+    setAutoFollow(true);
+    setFreeLookCountdown(5);
+    setRecenterCount((c) => c + 1);
+    toast.success("Locked camera onto your GPS location ⌖", { duration: 1500 });
+  }, []);
+
+  const handleUserMapInteraction = useCallback(() => {
+    setIsFreeLook(true);
+    setAutoFollow(false);
+    setFreeLookCountdown(5);
+
+    if (freeLookTimerRef.current) clearTimeout(freeLookTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+    countdownIntervalRef.current = setInterval(() => {
+      setFreeLookCountdown((prev) => {
+        if (prev <= 1) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // After 5 seconds of untouched free look, auto-snap back onto rider
+    freeLookTimerRef.current = setTimeout(() => {
+      setIsFreeLook(false);
+      setAutoFollow(true);
+      setFreeLookCountdown(5);
+      setRecenterCount((c) => c + 1);
+      toast.info("Auto-centering camera on your GPS ⌖", { duration: 2000 });
+    }, 5000);
+  }, []);
 
   // Extract vendors list (supports multi-store master orders)
   const vendorList: any[] = useMemo(() => {
@@ -334,6 +422,7 @@ export function RiderLiveNavigation({
             riderPosition={[snappedRider.lat, snappedRider.lng]}
             autoFollow={autoFollow}
             recenterCount={recenterCount}
+            onUserInteraction={handleUserMapInteraction}
           />
 
           {/* Live Rider Marker (Scooter heading forward) */}
@@ -402,19 +491,31 @@ export function RiderLiveNavigation({
           )}
         </MapContainer>
 
+        {/* Free-Look Banner with 5s Countdown */}
+        {isFreeLook && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[400] bg-zinc-950/90 text-white px-3.5 py-1.5 rounded-full text-xs font-bold shadow-2xl border border-emerald-500/50 backdrop-blur-md flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span>Free Look ({freeLookCountdown}s)</span>
+            </span>
+            <button
+              onClick={handleRecenter}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-colors"
+            >
+              Recenter ⌖
+            </button>
+          </div>
+        )}
+
         {/* ⌖ Floating Recenter / Auto-Follow Button */}
         <button
-          onClick={() => {
-            setAutoFollow(true);
-            setRecenterCount((c) => c + 1);
-            toast.success("Locked camera onto your GPS location ⌖");
-          }}
+          onClick={handleRecenter}
           className={`absolute bottom-4 right-4 z-[400] h-11 w-11 rounded-full shadow-xl border border-black/10 dark:border-white/10 grid place-items-center active:scale-95 transition-all ${
             autoFollow
-              ? "bg-emerald-600 text-white"
-              : "bg-white dark:bg-card text-foreground hover:bg-muted"
+              ? "bg-emerald-600 text-white shadow-emerald-500/30"
+              : "bg-white dark:bg-card text-foreground hover:bg-muted ring-2 ring-emerald-500 animate-pulse"
           }`}
-          title="Recenter & follow rider"
+          title="Recenter & lock camera to rider"
         >
           <LocateFixed className="h-5 w-5" />
         </button>

@@ -67,6 +67,46 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // ── Cache Map Tiles (OpenStreetMap / CartoDB / Satellite) for Offline Navigation Resilience ──
+  const isMapTile =
+    url.hostname.includes("tile.openstreetmap.de") ||
+    url.hostname.includes("tile.openstreetmap.org") ||
+    url.hostname.includes("basemaps.cartocdn.com") ||
+    url.hostname.includes("arcgisonline.com") ||
+    (url.pathname.endsWith(".png") && (url.pathname.includes("/tile/") || url.pathname.includes("/osm/")));
+
+  if (isMapTile) {
+    const MAP_CACHE_NAME = "vegamart-map-tiles-v1";
+    event.respondWith(
+      caches.open(MAP_CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) {
+          // Stale-While-Revalidate: serve cached tile immediately, update in background if online
+          fetch(request)
+            .then((networkRes) => {
+              if (networkRes.status === 200) {
+                cache.put(request, networkRes.clone());
+              }
+            })
+            .catch(() => {});
+          return cached;
+        }
+
+        try {
+          const networkRes = await fetch(request);
+          if (networkRes.status === 200) {
+            cache.put(request, networkRes.clone());
+          }
+          return networkRes;
+        } catch {
+          // If network failed and tile not in cache, fallback gracefully without broken image
+          return new Response("", { status: 200, headers: { "Content-Type": "image/png" } });
+        }
+      })
+    );
+    return;
+  }
+
   if (url.origin !== self.location.origin) return;
 
   if (
