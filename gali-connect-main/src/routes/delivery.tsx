@@ -156,9 +156,19 @@ function deliveryOptionBadge(o: any): { label: string; icon: any; cls: string } 
   };
 }
 
-function getGoogleMapsUrl(lat?: number | null, lng?: number | null, query?: string | null): string {
+function getGoogleMapsUrl(
+  lat?: number | null,
+  lng?: number | null,
+  query?: string | null,
+  originLat?: number | null,
+  originLng?: number | null
+): string {
   if (lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    const originParam =
+      originLat && originLng && !isNaN(Number(originLat)) && !isNaN(Number(originLng))
+        ? `&origin=${originLat},${originLng}`
+        : "";
+    return `https://www.google.com/maps/dir/?api=1${originParam}&destination=${lat},${lng}&travelmode=driving`;
   }
   if (query && query.trim()) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;
