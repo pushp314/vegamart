@@ -1612,24 +1612,75 @@ function DeliveryDashboard() {
                           </button>
                           <button
                             onClick={() => {
-                              // Store Pickup Location
-                              const vLat = Number(o.vendor?.latitude ?? o.vendor?.lat ?? 0);
-                              const vLng = Number(o.vendor?.longitude ?? o.vendor?.lng ?? 0);
+                              // Multi-Store and Single Store vendor resolution
+                              const subOrders = Array.isArray(o.orders) && o.orders.length > 0 ? o.orders : [];
+                              const vendorList = subOrders
+                                .map((sub: any) => sub.vendor)
+                                .filter((v: any): v is NonNullable<typeof v> => Boolean(v && Number(v.latitude || v.lat) > 5 && Number(v.longitude || v.lng) > 60));
+
+                              if (vendorList.length === 0 && o.vendor && Number(o.vendor.latitude || o.vendor.lat) > 5) {
+                                vendorList.push(o.vendor);
+                              }
+
+                              const firstVendor = vendorList[0] || o.vendor;
+                              const vLat = Number(firstVendor?.latitude ?? firstVendor?.lat ?? 0);
+                              const vLng = Number(firstVendor?.longitude ?? firstVendor?.lng ?? 0);
+
                               // Customer Dropoff Location
-                              const cLat = Number(o.address?.latitude ?? o.address?.lat ?? 0);
-                              const cLng = Number(o.address?.longitude ?? o.address?.lng ?? 0);
+                              const rawCLat = Number(o.address?.latitude ?? o.address?.lat ?? 0);
+                              const rawCLng = Number(o.address?.longitude ?? o.address?.lng ?? 0);
+                              const cLat = rawCLat > 5 && rawCLng > 60 ? rawCLat : 0;
+                              const cLng = rawCLat > 5 && rawCLng > 60 ? rawCLng : 0;
 
-                              // Live Rider Location
-                              const rLat =
-                                riderCoords?.lat || Number(partner.current_lat || vLat - 0.01);
-                              const rLng =
-                                riderCoords?.lng || Number(partner.current_lng || vLng - 0.01);
+                              // Live Rider Location with strict India bounds check (never default to -0.01)
+                              const hasValidRiderCoords =
+                                riderCoords &&
+                                typeof riderCoords.lat === "number" &&
+                                typeof riderCoords.lng === "number" &&
+                                riderCoords.lat > 5 &&
+                                riderCoords.lng > 60;
 
-                              if (
+                              const hasValidPartnerCoords =
+                                typeof partner.current_lat === "number" &&
+                                typeof partner.current_lng === "number" &&
+                                partner.current_lat > 5 &&
+                                partner.current_lng > 60;
+
+                              let rLat = 0;
+                              let rLng = 0;
+
+                              if (hasValidRiderCoords) {
+                                rLat = riderCoords.lat;
+                                rLng = riderCoords.lng;
+                              } else if (hasValidPartnerCoords) {
+                                rLat = partner.current_lat;
+                                rLng = partner.current_lng;
+                              } else if (vLat > 5 && vLng > 60) {
+                                rLat = vLat - 0.003;
+                                rLng = vLng - 0.003;
+                              } else if (cLat > 5 && cLng > 60) {
+                                rLat = cLat - 0.005;
+                                rLng = cLng - 0.005;
+                              } else {
+                                rLat = 21.9588;
+                                rLng = 82.9588;
+                              }
+
+                              const intermediateStops = vendorList.slice(1).map((v: any) => ({
+                                lat: Number(v.latitude || v.lat),
+                                lng: Number(v.longitude || v.lng),
+                                label: v.business_name || "Merchant Store",
+                                type: "store" as const,
+                              }));
+
+                              const isPickupPhase =
                                 o.status === "CONFIRMED" ||
                                 o.status === "READY_FOR_PICKUP" ||
-                                o.status === "PREPARING"
-                              ) {
+                                o.status === "PREPARING";
+
+                              if (isPickupPhase) {
+                                const endLat = vLat > 5 ? vLat : rLat + 0.005;
+                                const endLng = vLng > 60 ? vLng : rLng + 0.005;
                                 setMapData({
                                   title: "Route to Store Pickup",
                                   startLocation: {
@@ -1638,12 +1689,23 @@ function DeliveryDashboard() {
                                     label: "Your Live Location",
                                   },
                                   endLocation: {
-                                    lat: vLat,
-                                    lng: vLng,
-                                    label: o.vendor?.business_name || "Vendor Store",
+                                    lat: endLat,
+                                    lng: endLng,
+                                    label: firstVendor?.business_name || "Vendor Store",
+                                    address: firstVendor?.address || "",
                                   },
+                                  intermediatePoints: intermediateStops,
+                                  directionsUrl: getGoogleMapsUrl(
+                                    vLat > 5 ? vLat : null,
+                                    vLng > 60 ? vLng : null,
+                                    firstVendor?.business_name,
+                                    rLat,
+                                    rLng
+                                  ),
                                 });
                               } else {
+                                const endLat = cLat > 5 ? cLat : (vLat > 5 ? vLat + 0.006 : rLat + 0.006);
+                                const endLng = cLng > 60 ? cLng : (vLng > 60 ? vLng + 0.006 : rLng + 0.006);
                                 setMapData({
                                   title: "Route to Customer Dropoff",
                                   startLocation: {
@@ -1652,10 +1714,19 @@ function DeliveryDashboard() {
                                     label: "Your Live Location",
                                   },
                                   endLocation: {
-                                    lat: cLat,
-                                    lng: cLng,
+                                    lat: endLat,
+                                    lng: endLng,
                                     label: o.user?.name || o.customer?.name || "Customer",
+                                    address: o.address?.full_address || o.address?.line1 || "",
                                   },
+                                  intermediatePoints: intermediateStops,
+                                  directionsUrl: getGoogleMapsUrl(
+                                    cLat > 5 ? cLat : null,
+                                    cLng > 60 ? cLng : null,
+                                    o.address?.full_address,
+                                    rLat,
+                                    rLng
+                                  ),
                                 });
                               }
                               setMapModalOpen(true);
@@ -3007,6 +3078,8 @@ function DeliveryDashboard() {
               title={mapData.title}
               startLocation={mapData.startLocation}
               endLocation={mapData.endLocation}
+              intermediatePoints={mapData.intermediatePoints}
+              directionsUrl={mapData.directionsUrl}
             />
           </Suspense>
         </ClientOnly>
