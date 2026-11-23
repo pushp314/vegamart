@@ -2572,6 +2572,19 @@ function DeliveryDashboard() {
                             {detailsOrder.address.landmark}
                           </div>
                         )}
+                        {detailsOrder.address?.exact_location && (
+                          <div className="mt-1.5 text-[11px] font-medium text-emerald-950 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl p-2.5 flex items-start gap-2 shadow-2xs">
+                            <MapPin className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-emerald-800 dark:text-emerald-300 text-[11px] uppercase tracking-wider">
+                                Exact Fetched Customer Location:
+                              </div>
+                              <p className="text-muted-foreground text-[11px] leading-tight mt-0.5">
+                                {detailsOrder.address.exact_location}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                         {custPhone && (
                           <div className="text-xs font-medium text-foreground mt-1">
                             📱 Phone: <span className="font-mono font-bold">{custPhone}</span>
