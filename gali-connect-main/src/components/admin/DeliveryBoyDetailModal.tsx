@@ -91,10 +91,10 @@ export function DeliveryBoyDetailModal({ open, onClose, deliveryId }: DeliveryBo
           </div>
         )}
 
-        {!isLoading && isError && (
+        {!isLoading && (isError || !partner) && (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
             <AlertCircle className="h-10 w-10 text-rose-500" />
-            <p className="text-sm text-muted-foreground">Could not load this rider's report.</p>
+            <p className="text-sm text-muted-foreground">Rider details could not be found or loaded.</p>
           </div>
         )}
 

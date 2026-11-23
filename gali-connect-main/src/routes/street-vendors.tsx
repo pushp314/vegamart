@@ -50,12 +50,20 @@ function StreetVendorsRoute() {
           <div className="flex items-center justify-center py-8">
             <div className="text-xs font-semibold text-muted-foreground">Loading vendors...</div>
           </div>
+        ) : filteredVendors.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-2xl border border-dashed border-border bg-card/50">
+            <Store className="h-12 w-12 text-muted-foreground/40 mb-3" />
+            <h3 className="text-sm font-bold text-foreground">No street vendors available right now</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mt-1">
+              There are currently no active street vendors or roaming carts. Please check back shortly.
+            </p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredVendors.map((vendor) => {
               const profile = vendor.profile || {};
               const isRoaming = vendor.roaming === true || profile.roaming === true;
-              const phoneNum = profile.phone || vendor.phone || "+919876543210";
+              const phoneNum = (profile.phone || vendor.phone || "").trim();
 
               return (
                 <div
@@ -105,7 +113,7 @@ function StreetVendorsRoute() {
 
                   <div className="bg-muted/60 rounded-xl p-2 text-xs text-muted-foreground flex items-center justify-between gap-2">
                     <span className="truncate font-medium">
-                      📍 {profile.address || "Main Market Street"}
+                      📍 {profile.address || vendor.address || "Street / Roaming Location"}
                     </span>
                     <span className="text-[10px] font-bold text-emerald-700 shrink-0">
                       {isRoaming ? "Moving" : "Open Now"}
@@ -113,13 +121,23 @@ function StreetVendorsRoute() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href={`tel:${phoneNum}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-[11px] h-9 transition-colors"
-                    >
-                      <Phone className="h-3 w-3 text-emerald-600" /> Call
-                    </a>
+                    {phoneNum ? (
+                      <a
+                        href={`tel:${phoneNum}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-[11px] h-9 transition-colors"
+                      >
+                        <Phone className="h-3 w-3 text-emerald-600" /> Call
+                      </a>
+                    ) : (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted/40 text-muted-foreground font-medium text-[11px] h-9 cursor-not-allowed opacity-60"
+                        title="No phone number available"
+                      >
+                        <Phone className="h-3 w-3" /> No Phone
+                      </div>
+                    )}
                     <Link
                       to="/vendors/$vendorId"
                       params={{ vendorId: vendor.id }}

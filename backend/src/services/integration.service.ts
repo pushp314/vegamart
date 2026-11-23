@@ -139,8 +139,8 @@ export const integrationService = {
     if (detail.user_id !== userId) {
       throw new ForbiddenError("You do not own this order.");
     }
-    if (!["DELIVERED", "CONFIRMED"].includes(detail.status)) {
-      throw new ApiError(HttpStatus.BAD_REQUEST, "This order cannot be returned in its current state.", {
+    if (detail.status !== "DELIVERED") {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Only delivered orders can be returned.", {
         code: "ORDER_NOT_RETURNABLE",
       });
     }

@@ -123,14 +123,22 @@ export function isVegaMartDeliveryPartnerOrder(deliveryNote?: string | null): bo
   if (!deliveryNote) return true;
   const raw = deliveryNote.trim().toLowerCase();
   if (
-    raw.includes("self") ||
-    raw.includes("pickup") ||
+    raw.startsWith("self pickup") ||
+    raw.startsWith("self-pickup") ||
+    raw.startsWith("takeaway") ||
+    raw.startsWith("advance booking") ||
+    raw.startsWith("booking") ||
+    raw.startsWith("shop direct delivery") ||
+    raw.startsWith("shop delivery") ||
+    raw.startsWith("vendor comes to me") ||
+    raw.startsWith("vendor comes") ||
+    raw.startsWith("street cart") ||
+    raw.includes("self pickup") ||
     raw.includes("takeaway") ||
-    raw.includes("booking") ||
-    raw.includes("shop") ||
-    raw.includes("vendor comes") ||
-    raw.includes("comes to me") ||
-    raw.includes("street cart")
+    raw.includes("advance booking") ||
+    raw.includes("shop direct delivery") ||
+    raw.includes("shop delivery") ||
+    raw.includes("vendor comes to me")
   ) {
     return false;
   }

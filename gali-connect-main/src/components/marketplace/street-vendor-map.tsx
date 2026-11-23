@@ -290,8 +290,8 @@ export function StreetVendorMap() {
         logo_url: v.logo_url || v.profile?.logo_url || null,
         banner_url: v.banner_url || v.profile?.banner_url || null,
         rating: v.rating || v.profile?.rating || 4.8,
-        phone: v.phone || v.profile?.phone || "+919876543210",
-        address: v.address || v.profile?.address || "Main Market Street",
+        phone: v.phone || v.profile?.phone || "",
+        address: v.address || v.profile?.address || "Location on Map",
         slug: v.slug || v.id,
       }));
 
@@ -340,8 +340,8 @@ export function StreetVendorMap() {
                       logo_url: v.logo_url || v.profile?.logo_url,
                       banner_url: v.banner_url || v.profile?.banner_url,
                       rating: v.rating || v.profile?.rating || 4.8,
-                      phone: v.phone || v.profile?.phone || "+919876543210",
-                      address: v.address || v.profile?.address || "Main Market Street",
+                      phone: v.phone || v.profile?.phone || "",
+                      address: v.address || v.profile?.address || "Location on Map",
                       slug: v.slug || v.id,
                     },
                   ],
@@ -469,7 +469,7 @@ export function StreetVendorMap() {
   const buildPopupCardHtml = useCallback((vendor: RoamingVendor): string => {
     const cat = getCategoryMeta(vendor.category);
     const shopUrl = `/vendors/${vendor.id}`;
-    const phone = vendor.phone || "+919876543210";
+    const phone = (vendor.phone || "").trim();
 
     return `
       <div style="width:240px;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;background:#ffffff;border-radius:18px;">
@@ -495,7 +495,7 @@ export function StreetVendorMap() {
               ★ ${vendor.rating || "4.8"}
             </span>
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;font-weight:500;">
-              📍 ${vendor.address || "Main Market Street"}
+              📍 ${vendor.address || "Location on Map"}
             </span>
           </div>
 
@@ -510,14 +510,24 @@ export function StreetVendorMap() {
               <span>Visit Shop</span>
               <span>→</span>
             </button>
-            <a
-              href="tel:${phone}"
-              onclick="event.stopPropagation();"
-              style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:12px;padding:9px 11px;font-size:13px;font-weight:700;text-decoration:none;display:flex;align-items:center;justify-content:center;"
-              title="Call Vendor"
-            >
-              📞
-            </a>
+            ${
+              phone
+                ? `<a
+                    href="tel:${phone}"
+                    onclick="event.stopPropagation();"
+                    style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:12px;padding:9px 11px;font-size:13px;font-weight:700;text-decoration:none;display:flex;align-items:center;justify-content:center;"
+                    title="Call Vendor"
+                  >
+                    📞
+                  </a>`
+                : `<span
+                    onclick="event.stopPropagation();"
+                    style="background:#f8fafc;color:#94a3b8;border:1px solid #e2e8f0;border-radius:12px;padding:9px 11px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:not-allowed;"
+                    title="No phone number provided"
+                  >
+                    📞
+                  </span>`
+            }
           </div>
         </div>
       </div>

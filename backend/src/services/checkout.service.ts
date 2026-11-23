@@ -461,7 +461,20 @@ export const checkoutService = {
             );
           }
 
-          if (address.latitude && address.longitude && vendor.latitude && vendor.longitude) {
+          if (vendor.latitude && vendor.longitude) {
+            if (!address.latitude || !address.longitude) {
+              throw new ApiError(
+                HttpStatus.BAD_REQUEST,
+                `Delivery address coordinates are required for delivery from ${vendor.business_name}. Please update your delivery address pin on the map or select Self Pickup.`,
+                {
+                  code: "ADDRESS_COORDINATES_REQUIRED",
+                  details: {
+                    vendor_name: vendor.business_name,
+                  },
+                }
+              );
+            }
+
             const distKm = haversineDistanceKm(
               Number(address.latitude),
               Number(address.longitude),
@@ -756,7 +769,20 @@ export const checkoutService = {
             );
           }
 
-          if (address.latitude && address.longitude && vendor.latitude && vendor.longitude) {
+          if (vendor.latitude && vendor.longitude) {
+            if (!address.latitude || !address.longitude) {
+              throw new ApiError(
+                HttpStatus.BAD_REQUEST,
+                `Delivery address coordinates are required for delivery from ${vendor.business_name}. Please update your delivery address pin on the map or select Self Pickup.`,
+                {
+                  code: "ADDRESS_COORDINATES_REQUIRED",
+                  details: {
+                    vendor_name: vendor.business_name,
+                  },
+                }
+              );
+            }
+
             const distKm = haversineDistanceKm(
               Number(address.latitude),
               Number(address.longitude),
@@ -1311,7 +1337,20 @@ export const checkoutService = {
             );
           }
 
-          if (address.latitude && address.longitude && vendor.latitude && vendor.longitude) {
+          if (vendor.latitude && vendor.longitude) {
+            if (!address.latitude || !address.longitude) {
+              throw new ApiError(
+                HttpStatus.BAD_REQUEST,
+                `Delivery address coordinates are required for delivery from ${vendor.business_name}. Please update your delivery address pin on the map or select Self Pickup.`,
+                {
+                  code: "ADDRESS_COORDINATES_REQUIRED",
+                  details: {
+                    vendor_name: vendor.business_name,
+                  },
+                }
+              );
+            }
+
             const distKm = haversineDistanceKm(
               Number(address.latitude),
               Number(address.longitude),

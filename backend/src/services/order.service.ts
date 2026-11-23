@@ -1319,12 +1319,24 @@ export const orderService = {
     });
 
     if (order.master_order_id) {
-      await prisma.masterOrder
-        .update({
-          where: { id: order.master_order_id },
-          data: { status: "OUT_FOR_DELIVERY" },
+      const remainingUnprepared = await prisma.order
+        .count({
+          where: {
+            master_order_id: order.master_order_id,
+            id: { not: order.id },
+            status: { in: ["PENDING", "CONFIRMED", "PREPARING", "PACKED"] },
+          },
         })
-        .catch(() => {});
+        .catch(() => 0);
+
+      if (remainingUnprepared === 0) {
+        await prisma.masterOrder
+          .update({
+            where: { id: order.master_order_id },
+            data: { status: "OUT_FOR_DELIVERY" },
+          })
+          .catch(() => {});
+      }
     }
 
     // 2. Create or update DeliveryTracking record
