@@ -4,6 +4,7 @@ import { Search, X } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useLocation } from "@/hooks/use-location";
 import type { Category, Product, ProductImage } from "@/types";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { useRouterState } from "@tanstack/react-router";
@@ -47,6 +48,7 @@ function ProductsPage() {
   const { category, q } = useSearch({ from: "/products" });
   const [input, setInput] = useState(q || "");
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { selectedCity } = useLocation();
 
   const setSearch = useCallback((updates: { category?: string; q?: string }) => {
     navigate({
@@ -70,9 +72,10 @@ function ProductsPage() {
   );
 
   const { data: productsRes, isLoading } = useQuery({
-    queryKey: ["products", activeCategory?.id || "all", q],
+    queryKey: ["products", activeCategory?.id || "all", q, selectedCity],
     queryFn: () => {
       const params = new URLSearchParams({ per_page: "60" });
+      if (selectedCity) params.set("city", selectedCity);
       if (activeCategory) params.set("category_id", activeCategory.id);
       if (q) params.set("q", q);
       return api.get<ProductRow[]>(`/products?${params.toString()}`);

@@ -302,6 +302,7 @@ async list(query: {
     page?: number;
     per_page?: number;
     q?: string;
+    city?: string;
     vendor_id?: string;
     category_id?: string;
     subcategory_id?: string;
@@ -322,6 +323,7 @@ async list(query: {
       productRepo.listProducts(
         {
           q: query.q,
+          city: query.city,
           vendorId: query.vendor_id,
           categoryId: query.category_id,
           subcategoryId: query.subcategory_id,
@@ -378,6 +380,7 @@ async list(query: {
     per_page?: number;
     products_per_vendor?: number;
     vendor_is_open?: string;
+    city?: string;
   }) {
     const perPage = Math.min(200, Math.max(1, query.per_page ?? 100));
     const productsPerVendor = Math.min(20, Math.max(1, query.products_per_vendor ?? 10));
@@ -387,6 +390,7 @@ async list(query: {
       perPage,
       productsPerVendor,
       vendorIsOpen,
+      city: query.city,
     });
 
     return { rows, total };

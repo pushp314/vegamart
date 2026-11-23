@@ -44,6 +44,7 @@ import {
   verifyBank,
   getMonthlyInvoice,
 } from "../../controllers/vendor.controller";
+import { getServiceableCities } from "../../controllers/location.controller";
 import { requirePermission, requireRole } from "../../middlewares/rbac.middleware";
 import { requirePlan } from "../../middlewares/subscription.middleware";
 import { authenticate, optionalAuthenticate, blockGuest } from "../../middlewares/auth.middleware";
@@ -72,6 +73,8 @@ import { upload } from "../../middlewares/upload.middleware";
 const router = Router();
 
 // Public routes
+router.get("/vendors/cities", getServiceableCities);
+router.get("/locations/cities", getServiceableCities);
 router.get("/vendors", validate({ query: listVendorsQuerySchema }), listVendors);
 router.get("/vendors/nearby", optionalAuthenticate, validate({ query: nearbyVendorsQuerySchema }), nearbyVendors);
 router.get("/vendors/by-slug/:slug", validate({ params: vendorSlugParamsSchema }), getVendorBySlug);

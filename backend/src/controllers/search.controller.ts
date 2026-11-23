@@ -31,11 +31,11 @@ import { buildPaginationMeta } from "../utils/pagination";
  *         description: Search results with products and/or vendors.
  */
 export const search = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as { q?: string; type?: string; page?: string; per_page?: string };
+  const query = req.query as { q?: string; type?: string; page?: string; per_page?: string; city?: string };
   const type = (query.type as "products" | "vendors" | "all") ?? "all";
   const page = query.page ? Number(query.page) : 1;
   const perPage = query.per_page ? Number(query.per_page) : 20;
-  const result = await searchService.search(query.q ?? "", type, page, perPage);
+  const result = await searchService.search(query.q ?? "", type, page, perPage, query.city);
   return sendSuccess(res, {
     products: result.products,
     vendors: result.vendors,

@@ -46,6 +46,11 @@ const baseSelect = {
       free_delivery_min_order: true,
       is_open: true,
       provides_delivery: true,
+      city: true,
+      state: true,
+      latitude: true,
+      longitude: true,
+      delivery_radius_km: true,
     },
   },
 } as const;
@@ -90,6 +95,11 @@ export type ProductRow = {
     free_delivery_min_order?: import("@prisma/client").Prisma.Decimal | null;
     is_open?: boolean;
     provides_delivery?: boolean;
+    city?: string;
+    state?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    delivery_radius_km?: number;
   } | null;
 };
 
@@ -137,6 +147,7 @@ export async function countForVendor(vendorId: string): Promise<number> {
 
 export interface ProductListFilter {
   q?: string;
+  city?: string;
   vendorId?: string;
   categoryId?: string;
   subcategoryId?: string;
@@ -166,6 +177,9 @@ export async function listProducts(
       status: "APPROVED",
       deleted_at: null,
     };
+    if (filter.city) {
+      vendorFilter.city = { contains: filter.city, mode: "insensitive" };
+    }
     // Only apply is_open filter when NOT querying for a specific vendor
     // When vendorId is provided, we want to show all products for that vendor regardless of open status
     if (!filter.vendorId && filter.vendorIsOpen !== false) {
@@ -340,6 +354,7 @@ export async function listProductsForHomepage(
     perPage?: number;
     productsPerVendor?: number;
     vendorIsOpen?: boolean;
+    city?: string;
   } = {}
 ): Promise<{ rows: ProductRow[]; total: number }> {
   const perPage = options.perPage ?? 100;
@@ -351,6 +366,9 @@ export async function listProductsForHomepage(
     status: "APPROVED",
     deleted_at: null,
   };
+  if (options.city) {
+    vendorWhere.city = { contains: options.city, mode: "insensitive" };
+  }
   if (vendorIsOpen) {
     vendorWhere.is_open = true;
   }

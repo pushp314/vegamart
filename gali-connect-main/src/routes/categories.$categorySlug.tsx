@@ -24,7 +24,7 @@ type DailyLocationWithDistance = DailyLocationData & { distance_km?: number };
 function CategoryPage() {
   const { categorySlug } = Route.useParams();
   const navigate = useNavigate();
-  const { activeAddress, displayLocation } = useLocation();
+  const { activeAddress, displayLocation, selectedCity } = useLocation();
   const queryClient = useQueryClient();
   const { addToCart } = useCart();
 
@@ -83,9 +83,10 @@ function CategoryPage() {
   };
 
   const { data: vendorsRes, isLoading: loadingVendors } = useQuery({
-    queryKey: ["vendors", activeCategory?.id, activeSubcategory],
+    queryKey: ["vendors", activeCategory?.id, activeSubcategory, selectedCity],
     queryFn: () => {
       const params = new URLSearchParams({ per_page: "100" });
+      if (selectedCity) params.set("city", selectedCity);
       if (activeSubcategory) {
         params.set("subcategory_id", activeSubcategory);
       } else if (activeCategory) {
@@ -98,9 +99,10 @@ function CategoryPage() {
   });
 
   const { data: productsRes, isLoading: loadingProducts } = useQuery({
-    queryKey: ["products", activeCategory?.id, activeSubcategory],
+    queryKey: ["products", activeCategory?.id, activeSubcategory, selectedCity],
     queryFn: () => {
       const params = new URLSearchParams({ per_page: "100" });
+      if (selectedCity) params.set("city", selectedCity);
       if (activeSubcategory) {
         params.set("subcategory_id", activeSubcategory);
       } else if (activeCategory) {

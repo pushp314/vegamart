@@ -56,6 +56,7 @@ export const listProductsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(200).optional(),
   q: z.string().trim().max(160).optional(),
+  city: z.string().trim().max(100).optional(),
   vendor_id: z.string().uuid("vendor_id must be a valid UUID.").optional(),
   category_id: z.string().uuid("category_id must be a valid UUID.").optional(),
   subcategory_id: z.string().uuid("subcategory_id must be a valid UUID.").optional(),

@@ -61,27 +61,28 @@ export const searchService = {
     query: string,
     type: "products" | "vendors" | "all" = "all",
     page = 1,
-    perPage = 20
+    perPage = 20,
+    city?: string
   ) {
     const limit = Math.min(perPage, MAX_RESULTS);
     const skip = (page - 1) * limit;
     const q = query.trim();
 
     if (type === "products") {
-      const { rows, total } = await productRepo.listProducts({ q }, skip, limit);
+      const { rows, total } = await productRepo.listProducts({ q, city }, skip, limit);
       rows.sort((a, b) => rankProduct(q, a) - rankProduct(q, b));
       return { products: rows, vendors: [], total, page, perPage: limit };
     }
 
     if (type === "vendors") {
-      const { rows, total } = await vendorRepo.listVendors({ q }, skip, limit);
+      const { rows, total } = await vendorRepo.listVendors({ q, city }, skip, limit);
       rows.sort((a, b) => rankVendor(q, a) - rankVendor(q, b));
       return { products: [], vendors: rows, total, page, perPage: limit };
     }
 
     const [productResult, vendorResult] = await Promise.all([
-      productRepo.listProducts({ q }, skip, limit),
-      vendorRepo.listVendors({ q }, skip, limit),
+      productRepo.listProducts({ q, city }, skip, limit),
+      vendorRepo.listVendors({ q, city }, skip, limit),
     ]);
 
     const products = productResult.rows

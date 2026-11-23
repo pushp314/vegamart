@@ -8,6 +8,7 @@ import { api, type DailyLocationData, getNearbyDailyLocations } from "@/lib/api"
 import type { Vendor, Category } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useLocation } from "@/hooks/use-location";
+import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
 
 export const Route = createFileRoute("/vendors/")({
@@ -55,17 +56,18 @@ function VendorsPage() {
     }
   }, [urlQ]);
 
-  const { activeAddress, displayLocation } = useLocation();
+  const { activeAddress, displayLocation, isCityModalOpen, setIsCityModalOpen } = useLocation();
 
   const { data: vendorsRes, isLoading: loadingVendors } = useQuery({
-    queryKey: ["vendors", activeAddress?.latitude, activeAddress?.longitude],
+    queryKey: ["vendors", activeAddress?.latitude, activeAddress?.longitude, activeAddress?.city],
     queryFn: async () => {
+      const cityParam = activeAddress?.city ? `&city=${encodeURIComponent(activeAddress.city)}` : "";
       if (activeAddress?.latitude && activeAddress?.longitude) {
-        const url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}&radius=50`;
+        const url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}&radius=50${cityParam}`;
         const res = await api.get<Vendor[]>(url);
         return res;
       }
-      return api.get<Vendor[]>("/vendors");
+      return api.get<Vendor[]>(`/vendors?${cityParam.replace('&', '')}`);
     },
   });
 
@@ -98,6 +100,14 @@ function VendorsPage() {
       const catMatch = targetCat === "all" || profile?.category === targetCat;
       if (!catMatch) return false;
 
+      if (activeAddress?.city) {
+        const vCity = (profile?.city || (v as any).city || "").trim().toLowerCase();
+        const aCity = activeAddress.city.trim().toLowerCase();
+        if (vCity && aCity && !vCity.includes(aCity) && !aCity.includes(vCity)) {
+          return false;
+        }
+      }
+
       if (!q) return true;
 
       let tags: string[] = [];
@@ -128,6 +138,16 @@ function VendorsPage() {
         title="Live vendors"
         subtitle={`${filtered.length} shops near ${displayLocation}`}
         back={false}
+        right={
+          <button
+            type="button"
+            onClick={() => setIsCityModalOpen(true)}
+            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border bg-card hover:bg-muted text-primary cursor-pointer shrink-0"
+          >
+            <MapPin className="h-3.5 w-3.5 text-primary" />
+            <span className="truncate max-w-[80px]">{activeAddress?.city || "City"}</span>
+          </button>
+        }
       />
       <PullToRefresh onRefresh={realRefresh}>
         <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 pb-28 md:pb-16">
@@ -327,6 +347,7 @@ function VendorsPage() {
           )}
         </main>
       </PullToRefresh>
+      <CitySelectorModal open={isCityModalOpen} onOpenChange={setIsCityModalOpen} />
     </div>
   );
 }

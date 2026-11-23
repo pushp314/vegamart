@@ -73,6 +73,7 @@ export const listProducts = asyncHandler(
       page: query.page ? Number(query.page) : undefined,
       per_page: query.per_page ? Number(query.per_page) : undefined,
       q: query.q,
+      city: query.city,
       vendor_id: query.vendor_id,
       category_id: query.category_id,
       subcategory_id: query.subcategory_id,
@@ -120,6 +121,7 @@ export const listProductsForHomepage = asyncHandler(
       per_page: query.per_page ? Number(query.per_page) : undefined,
       products_per_vendor: query.products_per_vendor ? Number(query.products_per_vendor) : undefined,
       vendor_is_open: query.vendor_is_open,
+      city: query.city,
     });
     const perPage = result.rows.length;
     return sendSuccess(res, result.rows, {

@@ -4,6 +4,7 @@ import { MAX_PAGE_SIZE } from "../constants";
 
 export const searchQuerySchema = z.object({
   q: z.string().trim().min(1, "q is required.").max(160),
+  city: z.string().trim().max(100).optional(),
   type: z.enum(["products", "vendors", "all"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),

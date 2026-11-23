@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useLocation } from "@/hooks/use-location";
+import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 
 export const Route = createFileRoute("/addresses")({
   head: () => ({ meta: [{ title: "Saved Addresses — Vegamart" }] }),
@@ -30,6 +32,7 @@ function AddressesPage() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAddr, setEditingAddr] = useState<AddressData | null>(null);
+  const { selectedCity, isCityModalOpen, setIsCityModalOpen } = useLocation();
 
   const { user, isAuthenticated, isGuest, isLoading: authLoading } = useAuth();
   const { data: addrRes, isLoading } = useQuery({
@@ -109,6 +112,13 @@ function AddressesPage() {
             Please log in to your account to view and manage your saved addresses.
           </p>
           <div className="mt-6 w-full space-y-3">
+            <button
+              type="button"
+              onClick={() => setIsCityModalOpen(true)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/40 bg-card text-primary font-bold text-sm h-12 shadow-sm hover:bg-muted"
+            >
+              <MapPin className="h-4 w-4" /> Change City ({selectedCity})
+            </button>
             <Link
               to="/login"
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold text-sm h-12 shadow-md hover:bg-primary/90"
@@ -117,6 +127,7 @@ function AddressesPage() {
             </Link>
           </div>
         </main>
+        <CitySelectorModal open={isCityModalOpen} onOpenChange={setIsCityModalOpen} />
       </div>
     );
   }
@@ -126,6 +137,28 @@ function AddressesPage() {
       <AppHeader title="Saved Addresses" subtitle="Manage delivery locations" />
 
       <main className="mx-auto max-w-3xl px-4 py-6 space-y-4">
+        {/* Active Browsing City Banner */}
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-600 text-white shadow-xs">
+              <MapPin className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Current Delivery City
+              </div>
+              <div className="text-sm font-bold text-foreground">{selectedCity}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCityModalOpen(true)}
+            className="text-xs font-bold px-3 py-1.5 rounded-xl border border-primary bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer"
+          >
+            Switch City
+          </button>
+        </div>
+
         <div className="flex items-center justify-between">
           <h1 className="hidden md:block font-display text-2xl font-bold">Saved Addresses</h1>
           <button
@@ -263,6 +296,7 @@ function AddressesPage() {
         onSave={handleSave}
         initialData={editingAddr}
       />
+      <CitySelectorModal open={isCityModalOpen} onOpenChange={setIsCityModalOpen} />
     </div>
   );
 }

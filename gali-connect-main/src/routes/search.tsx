@@ -7,6 +7,7 @@ import { api, getFeaturedProducts } from "@/lib/api";
 import type { Product, Vendor, Category } from "@/types";
 import { AppHeader } from "@/components/layout/app-header";
 import { ProductCard } from "@/components/marketplace/product-card";
+import { useLocation } from "@/hooks/use-location";
 
 const TRENDING = [
   "Fresh Tomatoes",
@@ -89,17 +90,22 @@ function SearchPage() {
   const [debounced, setDebounced] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const { recent, push, clear, remove } = useRecent();
+  const { selectedCity } = useLocation();
 
   const { data: pRes } = useQuery({
-    queryKey: ["products", "search", debounced],
+    queryKey: ["products", "search", debounced, selectedCity],
     queryFn: () => {
       if (!debounced) return Promise.resolve([]);
-      return api.get<Product[]>(`/products?q=${encodeURIComponent(debounced)}&per_page=50`).then(r => r.data || []);
+      const cityParam = selectedCity ? `&city=${encodeURIComponent(selectedCity)}` : "";
+      return api.get<Product[]>(`/products?q=${encodeURIComponent(debounced)}&per_page=50${cityParam}`).then(r => r.data || []);
     },
   });
   const { data: vRes } = useQuery({
-    queryKey: ["vendors"],
-    queryFn: () => api.get<Vendor[]>("/vendors"),
+    queryKey: ["vendors", selectedCity],
+    queryFn: () => {
+      const cityParam = selectedCity ? `?city=${encodeURIComponent(selectedCity)}` : "";
+      return api.get<Vendor[]>(`/vendors${cityParam}`);
+    },
   });
   const { data: cRes } = useQuery({
     queryKey: ["categories"],

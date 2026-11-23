@@ -532,7 +532,7 @@ function VendorDetail() {
                 </span>
                 <p className="text-[11px] text-muted-foreground">
                   {vendor.business_name} only delivers home orders within{" "}
-                  <strong>{deliveryRadiusKm} km</strong> (Sakti District). You can still browse
+                  <strong>{deliveryRadiusKm} km</strong> in {profile.city || "this city"}. You can still browse
                   products or select <strong>Self Pickup</strong> during checkout.
                 </p>
               </div>

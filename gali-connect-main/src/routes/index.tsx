@@ -47,6 +47,7 @@ import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useLocation } from "@/hooks/use-location";
+import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { toast } from "sonner";
 import {
@@ -252,7 +253,7 @@ function renderSectionById(id: string, activeAddress: any) {
 }
 
 function Home() {
-  const { activeAddress, displayLocation } = useLocation();
+  const { activeAddress, displayLocation, isCityModalOpen, setIsCityModalOpen } = useLocation();
   const queryClient = useQueryClient();
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -294,17 +295,24 @@ function Home() {
       <PullToRefresh onRefresh={refresh}>
         <main className="px-4 pb-28 md:pb-16 md:mx-auto md:max-w-7xl md:px-6 lg:px-8">
           <div className="md:hidden">
-            <Header displayLocation={displayLocation} />
+            <Header displayLocation={displayLocation} onOpenCitySelector={() => setIsCityModalOpen(true)} />
             <SearchBar />
           </div>
           {orderedSections.map((sec: any) => renderSectionById(sec.id, activeAddress))}
         </main>
+        <CitySelectorModal open={isCityModalOpen} onOpenChange={setIsCityModalOpen} />
       </PullToRefresh>
     </div>
   );
 }
 
-function Header({ displayLocation }: { displayLocation: string }) {
+function Header({
+  displayLocation,
+  onOpenCitySelector,
+}: {
+  displayLocation: string;
+  onOpenCitySelector: () => void;
+}) {
   const { itemCount } = useCart();
   const { showInstallOption, isDismissed, install } = usePwaInstall();
 
@@ -313,12 +321,16 @@ function Header({ displayLocation }: { displayLocation: string }) {
       <Link to="/" aria-label="Vegamart home" className="shrink-0">
         <Logo className="h-11 w-11" />
       </Link>
-      <Link to="/addresses" className="flex-1 min-w-0 text-left tap-highlight-none">
+      <button
+        type="button"
+        onClick={onOpenCitySelector}
+        className="flex-1 min-w-0 text-left tap-highlight-none cursor-pointer"
+      >
         <div className="flex items-center gap-1 text-[11px] font-semibold text-primary">
           <MapPin className="h-3 w-3" /> Deliver to <ChevronDown className="h-3 w-3" />
         </div>
         <div className="mt-0.5 text-[15px] font-bold truncate">{displayLocation}</div>
-      </Link>
+      </button>
       {showInstallOption && isDismissed ? (
         <button
           onClick={install}
@@ -875,8 +887,11 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
   };
   type ShopProduct = Product & { vendor?: StoreVendor };
   const { data: res, isLoading } = useQuery({
-    queryKey: ["products", "shopwise"],
-    queryFn: () => api.get<ShopProduct[]>("/products/homepage?per_page=100&products_per_vendor=10&vendor_is_open=true"),
+    queryKey: ["products", "shopwise", defaultAddress?.city],
+    queryFn: () => {
+      const cityParam = defaultAddress?.city ? `&city=${encodeURIComponent(defaultAddress.city)}` : "";
+      return api.get<ShopProduct[]>(`/products/homepage?per_page=100&products_per_vendor=10&vendor_is_open=true${cityParam}`);
+    },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -910,6 +925,13 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
           const maxRadius = Number(v.delivery_radius_km || 10);
           if (distKm > maxRadius) continue;
         }
+      }
+
+      // 3. FILTER BY CITY: ensure data from different cities is properly separated
+      if (defaultAddress?.city && (v as any).city) {
+        const cCity = String(defaultAddress.city).trim().toLowerCase();
+        const vCity = String((v as any).city).trim().toLowerCase();
+        if (cCity && vCity && !cCity.includes(vCity) && !vCity.includes(cCity)) continue;
       }
 
       if (!map.has(vid)) {
@@ -1201,8 +1223,11 @@ function isRoamingVendor(v: any): boolean {
 
 function SponsoredVendors({ defaultAddress }: { defaultAddress?: any }) {
   const { data: res, isLoading } = useQuery({
-    queryKey: ["vendors", "sponsored"],
-    queryFn: () => api.get<any[]>("/vendors"),
+    queryKey: ["vendors", "sponsored", defaultAddress?.city],
+    queryFn: () => {
+      const cityParam = defaultAddress?.city ? `?city=${encodeURIComponent(defaultAddress.city)}` : "";
+      return api.get<any[]>(`/vendors${cityParam}`);
+    },
   });
 
   const rawData: any = res?.data;
@@ -1230,6 +1255,12 @@ function SponsoredVendors({ defaultAddress }: { defaultAddress?: any }) {
         const maxRadius = Number(v.delivery_radius_km || 10);
         if (distKm > maxRadius) return false;
       }
+    }
+    // 3. FILTER BY CITY
+    if (defaultAddress?.city && v.city) {
+      const cCity = String(defaultAddress.city).trim().toLowerCase();
+      const vCity = String(v.city).trim().toLowerCase();
+      if (cCity && vCity && !cCity.includes(vCity) && !vCity.includes(cCity)) return false;
     }
     return true;
   });
@@ -1305,11 +1336,12 @@ function SponsoredVendors({ defaultAddress }: { defaultAddress?: any }) {
 
 function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
   const { data: res, isLoading } = useQuery({
-    queryKey: ["vendors", "live", defaultAddress?.latitude, defaultAddress?.longitude],
+    queryKey: ["vendors", "live", defaultAddress?.latitude, defaultAddress?.longitude, defaultAddress?.city],
     queryFn: async () => {
+      const cityParam = defaultAddress?.city ? `&city=${encodeURIComponent(defaultAddress.city)}` : "";
       if (defaultAddress?.latitude && defaultAddress?.longitude) {
         const nearbyRes = await api.get<any[]>(
-          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10`
+          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10${cityParam}`
         );
         const rawData: any = nearbyRes?.data;
         const items = Array.isArray(rawData)
@@ -1323,7 +1355,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
           return nearbyRes;
         }
       }
-      return api.get<any[]>("/vendors");
+      return api.get<any[]>(`/vendors?${cityParam.replace('&', '')}`);
     },
   });
 
@@ -1519,11 +1551,12 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
 
 function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
   const { data: res, isLoading } = useQuery({
-    queryKey: ["vendors", "shops", defaultAddress?.latitude, defaultAddress?.longitude],
+    queryKey: ["vendors", "shops", defaultAddress?.latitude, defaultAddress?.longitude, defaultAddress?.city],
     queryFn: async () => {
+      const cityParam = defaultAddress?.city ? `&city=${encodeURIComponent(defaultAddress.city)}` : "";
       if (defaultAddress?.latitude && defaultAddress?.longitude) {
         const nearbyRes = await api.get<any[]>(
-          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10`
+          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10${cityParam}`
         );
         const rawData: any = nearbyRes?.data;
         const items = Array.isArray(rawData)
@@ -1537,7 +1570,7 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
           return nearbyRes;
         }
       }
-      return api.get<any[]>("/vendors");
+      return api.get<any[]>(`/vendors?${cityParam.replace('&', '')}`);
     },
   });
 
@@ -1577,6 +1610,12 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
         const maxRadius = Number(v.delivery_radius_km || 10);
         if (distKm > maxRadius) return false;
       }
+    }
+    // 3. FILTER BY CITY
+    if (defaultAddress?.city && v.city) {
+      const cCity = String(defaultAddress.city).trim().toLowerCase();
+      const vCity = String(v.city).trim().toLowerCase();
+      if (cCity && vCity && !cCity.includes(vCity) && !vCity.includes(cCity)) return false;
     }
     return true;
   });

@@ -20,6 +20,7 @@ import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useAuth } from "@/context/auth-context";
 import { useLocation } from "@/hooks/use-location";
+import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { toast } from "sonner";
 
@@ -31,7 +32,7 @@ export function Navbar() {
   const { itemCount } = useCart();
   const { wishlist } = useWishlist();
   const { user, role } = useAuth();
-  const { displayLocation } = useLocation();
+  const { displayLocation, isCityModalOpen, setIsCityModalOpen } = useLocation();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isStandalone, install } = usePwaInstall();
@@ -63,9 +64,10 @@ export function Navbar() {
           </div>
         </Link>
 
-        <Link
-          to="/addresses"
-          className="hidden lg:flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-left text-sm hover:border-primary/40 transition-colors"
+        <button
+          type="button"
+          onClick={() => setIsCityModalOpen(true)}
+          className="hidden lg:flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-left text-sm hover:border-primary/40 transition-colors cursor-pointer"
         >
           <MapPin className="h-4 w-4 text-primary shrink-0" />
           <div className="min-w-0">
@@ -74,7 +76,7 @@ export function Navbar() {
             </div>
             <div className="text-xs font-medium truncate max-w-[150px]">{displayLocation}</div>
           </div>
-        </Link>
+        </button>
 
         <div className="flex flex-1 max-w-xl">
           <Link
@@ -223,6 +225,7 @@ export function Navbar() {
           </Button>
         </nav>
       </div>
+      <CitySelectorModal open={isCityModalOpen} onOpenChange={setIsCityModalOpen} />
     </header>
   );
 }

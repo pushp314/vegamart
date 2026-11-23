@@ -442,8 +442,17 @@ function Checkout() {
   }
 
   const isSelfPickup = selectedOptionObj?.id === "self_pickup";
+  const vendorCityName = vendorData?.city || vendorGroup?.vendor_city || "local area";
+  const isCityMismatch =
+    !isSelfPickup &&
+    selectedAddress?.city &&
+    vendorData?.city &&
+    !vendorData.city.toLowerCase().trim().includes(selectedAddress.city.toLowerCase().trim()) &&
+    !selectedAddress.city.toLowerCase().trim().includes(vendorData.city.toLowerCase().trim());
+
   const isOutOfDeliveryRadius =
-    !isSelfPickup && deliveryDistanceKm !== null && deliveryDistanceKm > vendorDeliveryRadius;
+    !isSelfPickup &&
+    ((deliveryDistanceKm !== null && deliveryDistanceKm > vendorDeliveryRadius) || Boolean(isCityMismatch));
 
   const createAddressMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -661,9 +670,15 @@ function Checkout() {
       setAddressModalOpen(true);
       return;
     }
+    if (isCityMismatch) {
+      toast.error(
+        `${vendorName} is located in ${vendorCityName} and does not deliver to ${selectedAddress.city}. Please choose an address in ${vendorCityName} or select Self Pickup.`,
+      );
+      return;
+    }
     if (isOutOfDeliveryRadius) {
       toast.error(
-        `Selected address (${deliveryDistanceKm} km away) is outside ${vendorName}'s delivery limit of ${vendorDeliveryRadius} km. Please select a delivery address in Sakti District or choose Self Pickup.`,
+        `Selected address (${deliveryDistanceKm} km away) is outside ${vendorName}'s delivery limit of ${vendorDeliveryRadius} km (${vendorCityName}). Please select a closer address or choose Self Pickup.`,
       );
       return;
     }
@@ -1177,16 +1192,20 @@ function Checkout() {
                   <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 space-y-2.5 mt-2 animate-in fade-in">
                     <div className="flex items-center gap-2 font-bold text-xs">
                       <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                      <span>Address Out of Delivery Zone ({deliveryDistanceKm} km away)</span>
+                      <span>
+                        {isCityMismatch
+                          ? `Different City: Store is in ${vendorCityName}`
+                          : `Address Out of Delivery Zone (${deliveryDistanceKm} km away)`}
+                      </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
                       {vendorName} currently delivers within a maximum of{" "}
-                      <strong className="text-foreground">{vendorDeliveryRadius} km</strong> (Sakti
-                      District). Your selected address in{" "}
+                      <strong className="text-foreground">{vendorDeliveryRadius} km</strong> in{" "}
+                      <strong className="text-foreground">{vendorCityName}</strong>. Your selected address in{" "}
                       <strong className="text-foreground">
                         {selectedAddress.city || selectedAddress.area || "selected location"}
                       </strong>{" "}
-                      is beyond the deliverable zone.
+                      is outside the store&apos;s service area.
                     </p>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
@@ -1809,7 +1828,7 @@ function Checkout() {
                 <div className="hidden md:block text-center p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-950 dark:text-amber-200 text-xs font-bold space-y-1">
                   <div>Out of Delivery Range ({deliveryDistanceKm} km)</div>
                   <div className="text-[10px] font-normal text-muted-foreground">
-                    Store limit: {vendorDeliveryRadius} km (Sakti District)
+                    Store limit: {vendorDeliveryRadius} km ({vendorCityName})
                   </div>
                 </div>
               ) : availablePayments.length === 0 ? (
