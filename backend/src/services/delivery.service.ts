@@ -1801,6 +1801,14 @@ export const deliveryService = {
     }
 
     const address = await addressRepo.findById(masterOrder.address_id);
+    const customer = masterOrder.user_id
+      ? await prisma.user.findUnique({
+          where: { id: masterOrder.user_id },
+          select: { name: true, phone: true },
+        }).catch(() => null)
+      : null;
+    const customerPhone = address?.phone || customer?.phone || null;
+    const customerName = customer?.name || "Customer";
     
     const firstOrder = masterOrder.orders[0];
     const tracking = firstOrder ? await prisma.deliveryTracking.findUnique({ where: { order_id: firstOrder.id } }) : null;
@@ -1872,10 +1880,18 @@ export const deliveryService = {
         name: vendors.length === 1 ? vendors[0]?.business_name : `${vendors.length} Stores`,
       },
       pickup_locations: liveSnapshot?.pickup_locations?.length ? liveSnapshot.pickup_locations : pickupLocations,
+      customer: {
+        name: customerName,
+        phone: customerPhone,
+      },
+      customer_phone: customerPhone,
+      customer_name: customerName,
       delivery_location: {
         lat: address?.latitude ?? null,
         lng: address?.longitude ?? null,
         address: address?.full_address ?? [address?.landmark, address?.city, address?.pincode].filter(Boolean).join(", "),
+        phone: customerPhone,
+        name: customerName,
       },
       driver: driverInfo,
       driver_info: driverInfo,

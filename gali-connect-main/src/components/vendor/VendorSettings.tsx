@@ -28,6 +28,9 @@ import {
   CreditCard,
   Zap,
   Banknote,
+  Users,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 import { useVendorOrderNotifications } from "./VendorOrderNotificationProvider";
@@ -128,6 +131,45 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
   const [deliveryPartnerFullPaymentEnabled, setDeliveryPartnerFullPaymentEnabled] = useState(true);
   const [deliveryPartnerAdvancePaymentEnabled, setDeliveryPartnerAdvancePaymentEnabled] = useState(false);
   const [deliveryPartnerAdvance, setDeliveryPartnerAdvance] = useState("20");
+
+  // In-House Delivery Staff Management
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffPhone, setNewStaffPhone] = useState("");
+  const [newStaffVehicle, setNewStaffVehicle] = useState("");
+
+  const { data: ridersRes, isLoading: ridersLoading } = useQuery({
+    queryKey: ["vendorRiders"],
+    queryFn: () => api.get<{ riders: any[]; pickup_point: any }>("/vendors/me/riders"),
+  });
+  const savedRiders: any[] = ridersRes?.data?.riders || (Array.isArray(ridersRes) ? (ridersRes as any) : []);
+
+  const addRiderMutation = useMutation({
+    mutationFn: (data: { name: string; phone: string; vehicle_number?: string }) =>
+      api.post("/vendors/me/riders", data),
+    onSuccess: () => {
+      toast.success("Delivery staff saved successfully! ✨");
+      queryClient.invalidateQueries({ queryKey: ["vendorRiders"] });
+      setNewStaffName("");
+      setNewStaffPhone("");
+      setNewStaffVehicle("");
+      setIsAddingStaff(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to save delivery staff");
+    },
+  });
+
+  const deleteRiderMutation = useMutation({
+    mutationFn: (riderId: string) => api.delete(`/vendors/me/riders/${riderId}`),
+    onSuccess: () => {
+      toast.success("Delivery staff removed.");
+      queryClient.invalidateQueries({ queryKey: ["vendorRiders"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to remove staff");
+    },
+  });
 
   const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1308,6 +1350,155 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                         </div>
                       </div>
                     )}
+
+                    {/* In-House Delivery Staff Management Section */}
+                    <div className="rounded-2xl bg-background/90 border border-emerald-500/30 p-4 space-y-3 mt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-emerald-600" />
+                          <div>
+                            <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                              My Delivery Staff (Boys / Girls)
+                            </h5>
+                            <p className="text-[11px] text-muted-foreground">
+                              Register your delivery staff here to quickly assign orders to them.
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsAddingStaff((v) => !v)}
+                          className="h-8 text-xs font-bold rounded-xl border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          {isAddingStaff ? "Cancel" : "Add Staff"}
+                        </Button>
+                      </div>
+
+                      {/* Add Staff Inline Form */}
+                      {isAddingStaff && (
+                        <div className="p-3.5 rounded-xl bg-muted/50 border border-border space-y-3 animate-in fade-in duration-150">
+                          <p className="text-xs font-bold text-foreground">Add New Delivery Person</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground mb-1 block">Staff Name *</Label>
+                              <Input
+                                placeholder="e.g. Ramesh Kumar"
+                                value={newStaffName}
+                                onChange={(e) => setNewStaffName(e.target.value)}
+                                className="h-8 text-xs bg-background"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground mb-1 block">Phone (10 digits) *</Label>
+                              <Input
+                                type="tel"
+                                placeholder="e.g. 9876543210"
+                                value={newStaffPhone}
+                                onChange={(e) => setNewStaffPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                                className="h-8 text-xs bg-background"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground mb-1 block">Vehicle / Bike No.</Label>
+                              <Input
+                                placeholder="e.g. CG 11 AB 1234"
+                                value={newStaffVehicle}
+                                onChange={(e) => setNewStaffVehicle(e.target.value)}
+                                className="h-8 text-xs bg-background"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setIsAddingStaff(false);
+                                setNewStaffName("");
+                                setNewStaffPhone("");
+                                setNewStaffVehicle("");
+                              }}
+                              className="h-8 text-xs"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={newStaffName.trim().length < 2 || newStaffPhone.trim().length < 10 || addRiderMutation.isPending}
+                              onClick={() => {
+                                addRiderMutation.mutate({
+                                  name: newStaffName.trim(),
+                                  phone: newStaffPhone.trim(),
+                                  vehicle_number: newStaffVehicle.trim() || undefined,
+                                });
+                              }}
+                              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                            >
+                              {addRiderMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+                              Save Staff
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Staff Roster List */}
+                      {ridersLoading ? (
+                        <div className="text-xs text-muted-foreground py-2 flex items-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" /> Loading staff roster...
+                        </div>
+                      ) : savedRiders.length === 0 ? (
+                        <div className="p-3 text-center rounded-xl bg-muted/30 border border-dashed border-border text-xs text-muted-foreground">
+                          No delivery staff registered yet. Click &ldquo;Add Staff&rdquo; above to register your shop&apos;s delivery boy/girl.
+                        </div>
+                      ) : (
+                        <div className="space-y-2 pt-1">
+                          {savedRiders.map((staff: any) => (
+                            <div
+                              key={staff.id || staff.phone}
+                              className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/80 shadow-2xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 grid place-items-center shrink-0">
+                                  <Bike className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-foreground truncate">{staff.name}</p>
+                                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                    <span>📞 {staff.phone}</span>
+                                    {staff.vehicle_number && (
+                                      <>
+                                        <span>•</span>
+                                        <span>🏍️ {staff.vehicle_number}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                disabled={deleteRiderMutation.isPending}
+                                onClick={() => {
+                                  if (confirm(`Remove ${staff.name} from your delivery staff?`)) {
+                                    deleteRiderMutation.mutate(staff.id || staff.phone);
+                                  }
+                                }}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg shrink-0"
+                                title="Remove staff member"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

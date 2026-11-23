@@ -49,6 +49,16 @@ function RiderOrderTaskPage() {
     tracking?.delivery_location?.address ||
     tracking?.dropoff_address ||
     "Customer Doorstep";
+  const customerPhone =
+    tracking?.delivery_location?.phone ||
+    tracking?.customer?.phone ||
+    tracking?.customer_phone ||
+    null;
+  const customerName =
+    tracking?.delivery_location?.name ||
+    tracking?.customer?.name ||
+    tracking?.customer_name ||
+    "Customer";
 
   // Google Maps Driving Navigation Intent URL
   const googleMapsUrl = useMemo(() => {
@@ -180,18 +190,29 @@ function RiderOrderTaskPage() {
 
             {/* Customer & Doorstep Card */}
             <div className="rounded-3xl border border-border bg-white dark:bg-slate-900 p-5 shadow-soft space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
                   <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 shrink-0">
                     <MapPin className="h-5 w-5" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-sm">Customer Delivery Address</h3>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm text-foreground truncate">{customerName}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                       {customerAddress}
                     </p>
                   </div>
                 </div>
+
+                {customerPhone && (
+                  <a
+                    href={`tel:${customerPhone}`}
+                    className="h-10 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all shrink-0"
+                    title={`Call ${customerName}`}
+                  >
+                    <Phone className="h-4 w-4" />
+                    <span>Call Customer</span>
+                  </a>
+                )}
               </div>
 
               {/* Store & Pickup Info */}
