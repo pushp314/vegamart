@@ -224,7 +224,7 @@ export function DailyLocationForm({ vendorProfile }: DailyLocationFormProps) {
                   step="0.0001"
                   min="-90"
                   max="90"
-                  placeholder="12.9716"
+                  placeholder="21.9588"
                   value={form.latitude || ""}
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, latitude: parseFloat(e.target.value) || 0 }))
@@ -242,7 +242,7 @@ export function DailyLocationForm({ vendorProfile }: DailyLocationFormProps) {
                   step="0.0001"
                   min="-180"
                   max="180"
-                  placeholder="77.5946"
+                  placeholder="82.9588"
                   value={form.longitude || ""}
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, longitude: parseFloat(e.target.value) || 0 }))

@@ -732,8 +732,8 @@ export class TrackingService {
       });
 
       const startPos = {
-        lat: partner?.current_lat ?? masterOrder.orders[0]?.vendor?.latitude ?? 12.9716,
-        lng: partner?.current_lng ?? masterOrder.orders[0]?.vendor?.longitude ?? 77.5946,
+        lat: partner?.current_lat ?? masterOrder.orders[0]?.vendor?.latitude ?? 21.9588,
+        lng: partner?.current_lng ?? masterOrder.orders[0]?.vendor?.longitude ?? 82.9588,
       };
 
       await this.getOrCalculateRoadRoute(masterOrderId, startPos, true);

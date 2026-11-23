@@ -179,7 +179,8 @@ export function StreetVendorMap() {
         setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       () => {
-        setUserLoc({ lat: 12.9715, lng: 77.6405 });
+        // Fallback to Sakti city center if geolocation is denied or unavailable
+        setUserLoc({ lat: 21.9588, lng: 82.9588 });
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
     );

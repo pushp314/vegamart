@@ -1328,8 +1328,8 @@ export const orderService = {
     }
 
     // 2. Create or update DeliveryTracking record
-    const pickupLat = vendor.latitude || 12.9716;
-    const pickupLng = vendor.longitude || 77.5946;
+    const pickupLat = vendor.latitude || 21.9588;
+    const pickupLng = vendor.longitude || 82.9588;
     const dropoffLat = order.address?.latitude || pickupLat;
     const dropoffLng = order.address?.longitude || pickupLng;
 
