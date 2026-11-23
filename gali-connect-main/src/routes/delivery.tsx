@@ -163,15 +163,38 @@ function getGoogleMapsUrl(
   originLat?: number | null,
   originLng?: number | null
 ): string {
-  if (lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+  if (lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng)) && Number(lat) > 5 && Number(lng) > 60) {
     const originParam =
       originLat && originLng && !isNaN(Number(originLat)) && !isNaN(Number(originLng))
         ? `&origin=${originLat},${originLng}`
         : "";
     return `https://www.google.com/maps/dir/?api=1${originParam}&destination=${lat},${lng}&travelmode=driving`;
   }
+
   if (query && query.trim()) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;
+    // If query string itself contains coordinates (e.g. "?q=21.958,82.958" or "GPS: 21.958, 82.958")
+    const coordMatch = query.match(/([-+]?\d{1,2}\.\d+)[,\s]+([-+]?\d{1,3}\.\d+)/);
+    if (coordMatch && coordMatch[1] && coordMatch[2]) {
+      const parsedLat = parseFloat(coordMatch[1]);
+      const parsedLng = parseFloat(coordMatch[2]);
+      if (parsedLat > 5 && parsedLng > 60) {
+        return `https://www.google.com/maps/dir/?api=1&destination=${parsedLat},${parsedLng}&travelmode=driving`;
+      }
+    }
+
+    // Clean address string: strip customer name prefix (e.g. "Ketan, Jhulkadam..." -> "Jhulkadam...")
+    let cleaned = query.trim();
+    cleaned = cleaned.replace(/^[A-Za-z\s]+,\s*/, "");
+
+    // Ensure it is anchored to Sakti, Chhattisgarh, India so Google Maps never jumps to another state
+    if (!cleaned.toLowerCase().includes("sakti")) {
+      cleaned += ", Sakti";
+    }
+    if (!cleaned.toLowerCase().includes("chhattisgarh")) {
+      cleaned += ", Chhattisgarh, India";
+    }
+
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleaned)}`;
   }
   return "#";
 }
