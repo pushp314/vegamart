@@ -10,7 +10,17 @@ interface AddressPinMapProps {
   latitude: number | null;
   longitude: number | null;
   onLocationChange: (lat: number, lng: number) => void;
+  defaultCity?: string;
+  defaultCoords?: { lat: number; lng: number } | null;
 }
+
+const CITY_COORDS: Record<string, [number, number]> = {
+  sakti: [21.9588, 82.9588],
+  raigarh: [21.8974, 83.3950],
+  bilaspur: [22.0797, 82.1409],
+  raipur: [21.2514, 81.6296],
+  bengaluru: [12.9716, 77.5946],
+};
 
 // Draggable Pin with Map Click listener
 function DraggablePin({
@@ -84,18 +94,40 @@ function PanController({ position }: { position: [number, number] }) {
   return null;
 }
 
-export function AddressPinMap({ latitude, longitude, onLocationChange }: AddressPinMapProps) {
+export function AddressPinMap({
+  latitude,
+  longitude,
+  onLocationChange,
+  defaultCity,
+  defaultCoords,
+}: AddressPinMapProps) {
   const [currentLayer, setCurrentLayer] = useState<MapLayerType>("streets");
 
-  // Default to Sakti, Chhattisgarh center if no coordinates yet
-  const validLat = latitude && latitude > 5 ? latitude : 21.9588;
-  const validLng = longitude && longitude > 60 ? longitude : 82.9588;
+  // Determine fallback coordinates from defaultCity or defaultCoords
+  const cityKey = (defaultCity || "").toLowerCase().trim();
+  const fallbackCoords = defaultCoords?.lat && defaultCoords?.lng
+    ? [defaultCoords.lat, defaultCoords.lng] as [number, number]
+    : CITY_COORDS[cityKey] || [21.9588, 82.9588];
+
+  const validLat = latitude && latitude > 5 ? latitude : fallbackCoords[0];
+  const validLng = longitude && longitude > 60 ? longitude : fallbackCoords[1];
   const currentPos: [number, number] = [validLat, validLng];
 
   const handlePinMove = (newPos: [number, number]) => {
     onLocationChange(
       Math.round(newPos[0] * 1000000) / 1000000,
       Math.round(newPos[1] * 1000000) / 1000000
+    );
+  };
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        handlePinMove([pos.coords.latitude, pos.coords.longitude]);
+      },
+      undefined,
+      { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
@@ -125,6 +157,17 @@ export function AddressPinMap({ latitude, longitude, onLocationChange }: Address
         onToggle={setCurrentLayer}
         className="bottom-2.5 left-2.5 shadow-md scale-90"
       />
+
+      {/* Quick GPS Center Button */}
+      <button
+        type="button"
+        onClick={handleLocateMe}
+        className="absolute bottom-2.5 right-2.5 z-[400] bg-card/95 hover:bg-card active:scale-95 text-foreground border border-border shadow-md px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+        title="Center map on your device GPS"
+      >
+        <LocateFixed className="h-3.5 w-3.5 text-emerald-600" />
+        <span>My GPS</span>
+      </button>
 
       {/* Floating Instructions Badge */}
       <div className="absolute top-2.5 left-2.5 right-2.5 z-[400] pointer-events-none flex justify-center">

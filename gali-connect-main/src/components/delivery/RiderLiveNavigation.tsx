@@ -327,6 +327,8 @@ export function RiderLiveNavigation({
       label: order?.user?.name || order?.customer?.name || "Customer",
       address: order?.address?.full_address || order?.address?.line1 || "Customer Doorstep",
       phone: order?.user?.phone || order?.customer?.phone || order?.address?.phone || "",
+      landmark: order?.address?.landmark || order?.delivery_address?.landmark || order?.delivery_location?.landmark || "",
+      exact_location: order?.address?.exact_location || order?.delivery_address?.exact_location || "",
       type: "customer" as const,
     };
   }, [isPickupPhase, vLat, vLng, cLat, cLng, origin, firstVendor, order]);
@@ -700,6 +702,11 @@ export function RiderLiveNavigation({
               <p className="text-[11px] text-muted-foreground truncate">
                 {destination.address}
               </p>
+              {"landmark" in destination && (destination as any).landmark && (
+                <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/40">
+                  <span>📍 Landmark: {(destination as any).landmark}</span>
+                </div>
+              )}
             </div>
           </div>
 

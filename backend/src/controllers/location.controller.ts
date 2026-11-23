@@ -108,3 +108,92 @@ export const getServiceableCities = asyncHandler(async (_req: Request, res: Resp
 
   return sendSuccess(res, result);
 });
+
+export const reverseGeocode = asyncHandler(async (req: Request, res: Response) => {
+  const lat = parseFloat(req.query.lat as string);
+  const lng = parseFloat(req.query.lng as string);
+
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return sendSuccess(res, {
+      line1: "",
+      line2: "",
+      city: "",
+      state: "",
+      pincode: "",
+      exact_location: "",
+      lat: null,
+      lng: null,
+    });
+  }
+
+  let streetName = "";
+  let areaName = "";
+  let cityName = "";
+  let stateName = "";
+  let pincode = "";
+  let displayName = "";
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    const osmRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+      {
+        headers: {
+          "User-Agent": "VegaMart/1.0 (contact@vegamart.in)",
+          "Accept-Language": "en",
+        },
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timeoutId);
+
+    if (osmRes.ok) {
+      const data: any = await osmRes.json();
+      const addr = data.address || {};
+      streetName = addr.road || addr.street || addr.residential || addr.neighbourhood || "";
+      areaName = addr.suburb || addr.neighbourhood || addr.village || addr.subdistrict || "";
+      cityName = addr.city || addr.town || addr.village || addr.state_district || addr.county || "";
+      stateName = addr.state || "";
+      pincode = addr.postcode || "";
+      displayName = data.display_name || "";
+    }
+  } catch (_err) {
+    // If Nominatim times out, continue to fallback calculation
+  }
+
+  // If city is still blank, match closest known city by distance
+  if (!cityName) {
+    const knownCities = [
+      { name: "Sakti", state: "Chhattisgarh", lat: 21.959, lng: 82.961 },
+      { name: "Raigarh", state: "Chhattisgarh", lat: 21.897, lng: 83.395 },
+      { name: "Bilaspur", state: "Chhattisgarh", lat: 22.079, lng: 82.140 },
+      { name: "Raipur", state: "Chhattisgarh", lat: 21.251, lng: 81.629 },
+      { name: "Bengaluru", state: "Karnataka", lat: 12.971, lng: 77.594 },
+    ];
+    let closest = knownCities[0]!;
+    let minD = Infinity;
+    for (const c of knownCities) {
+      const d = Math.hypot(lat - c.lat, lng - c.lng);
+      if (d < minD) {
+        minD = d;
+        closest = c;
+      }
+    }
+    cityName = closest.name;
+    if (!stateName) stateName = closest.state;
+  }
+
+  return sendSuccess(res, {
+    line1: streetName,
+    line2: areaName,
+    city: cityName,
+    state: stateName,
+    pincode,
+    exact_location: displayName || [streetName, areaName, cityName, stateName, pincode].filter(Boolean).join(", "),
+    lat,
+    lng,
+    map_url: `https://www.google.com/maps?q=${lat},${lng}`,
+  });
+});

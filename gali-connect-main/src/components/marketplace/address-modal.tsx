@@ -14,6 +14,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { useLocation } from "@/hooks/use-location";
 
 // Lazy-load interactive map for client-side rendering safety
 const AddressPinMap = lazy(() =>
@@ -85,12 +87,14 @@ function extractCoordinatesFromInput(input: string): { lat: number; lng: number 
 }
 
 export function AddressModal({ open, onClose, onSave, initialData }: AddressModalProps) {
+  const { selectedCity, activeAddress } = useLocation();
+
   const [label, setLabel] = useState(initialData?.label || "Home");
   const [fullName, setFullName] = useState(initialData?.full_name || "");
   const [phone, setPhone] = useState(initialData?.phone || "");
   const [line1, setLine1] = useState(initialData?.line1 || "");
   const [line2, setLine2] = useState(initialData?.line2 || "");
-  const [city, setCity] = useState(initialData?.city || "");
+  const [city, setCity] = useState(initialData?.city || selectedCity || "");
   const [state, setState] = useState(initialData?.state || "");
   const [pincode, setPincode] = useState(initialData?.pincode || "");
   const [latitude, setLatitude] = useState<number | null>(initialData?.latitude ?? null);
@@ -120,6 +124,26 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
     setLongitude(lng);
     setMapUrl(`https://www.google.com/maps?q=${lat},${lng}`);
 
+    // 1. First attempt reliable backend reverse geocode endpoint (avoids browser CORS & OSM user-agent blocks)
+    try {
+      const res = await api.get<any>(`/locations/reverse-geocode?lat=${lat}&lng=${lng}`);
+      const data = res?.data?.data || res?.data;
+      if (data && (data.city || data.line1 || data.exact_location)) {
+        if (data.line1 && (!line1 || line1.length < 5)) setLine1(data.line1);
+        if (data.line2 && (!line2 || line2.length < 5)) setLine2(data.line2);
+        if (data.city) setCity(data.city);
+        if (data.state) setState(data.state);
+        if (data.pincode) setPincode(data.pincode);
+        if (data.exact_location) setExactLocation(data.exact_location);
+
+        toast.success("📍 Exact GPS location pinned & address details auto-filled!");
+        return;
+      }
+    } catch {
+      // Continue to client-side fallback below
+    }
+
+    // 2. Client-side fallback to Nominatim
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
@@ -135,7 +159,7 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
         const areaName =
           addr.suburb || addr.neighbourhood || addr.village || addr.subdistrict || "";
         const cityName =
-          addr.city || addr.town || addr.village || addr.state_district || addr.county || "";
+          addr.city || addr.town || addr.village || addr.state_district || addr.county || selectedCity || "";
         const stateName = addr.state || "";
         const pincodeVal = addr.postcode || "";
 
@@ -154,10 +178,12 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
         toast.success("📍 Exact GPS location pinned & address details auto-filled!");
       } else {
         setExactLocation(`GPS Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        if (!city && selectedCity) setCity(selectedCity);
         toast.success("📍 GPS coordinates pinned successfully!");
       }
     } catch {
       setExactLocation(`GPS Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      if (!city && selectedCity) setCity(selectedCity);
       toast.success("📍 GPS coordinates pinned successfully!");
     }
   };
@@ -382,30 +408,61 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
 
             {/* TAB CONTENT 1: Live GPS */}
             {locationMode === "gps" && (
-              <div className="flex items-center justify-between gap-3 bg-card p-3 rounded-xl border border-border/70 shadow-2xs">
-                <div className="text-xs">
-                  <div className="font-bold text-foreground">Detect My Current Location</div>
-                  <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                    Uses your phone/browser GPS to pinpoint your exact doorstep.
-                  </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3 bg-card p-3 rounded-xl border border-border/70 shadow-2xs">
+                  <div className="text-xs">
+                    <div className="font-bold text-foreground">Detect My Current Location</div>
+                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                      Uses your phone/browser GPS to pinpoint your exact doorstep.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isLocating}
+                    onClick={handleUseCurrentLocation}
+                    className="shrink-0 flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {isLocating ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Detecting…
+                      </>
+                    ) : (
+                      <>
+                        <LocateFixed className="h-3.5 w-3.5" />
+                        <span>{latitude && longitude ? "Update GPS" : "Detect Location"}</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={isLocating}
-                  onClick={handleUseCurrentLocation}
-                  className="shrink-0 flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  {isLocating ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Detecting…
-                    </>
-                  ) : (
-                    <>
-                      <LocateFixed className="h-3.5 w-3.5" />
-                      <span>{latitude && longitude ? "Update GPS" : "Detect Location"}</span>
-                    </>
-                  )}
-                </button>
+
+                {/* Show live interactive map preview once GPS is detected so customer can verify and adjust */}
+                {latitude && longitude && (
+                  <div className="space-y-1.5 bg-card p-2 rounded-xl border border-emerald-500/30 shadow-2xs">
+                    <div className="flex items-center justify-between px-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Doorstep Pin Drop
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        Drag or tap to fine-tune gate
+                      </span>
+                    </div>
+                    <Suspense
+                      fallback={
+                        <div className="h-[220px] w-full rounded-2xl bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading map preview…
+                        </div>
+                      }
+                    >
+                      <AddressPinMap
+                        latitude={latitude}
+                        longitude={longitude}
+                        defaultCity={selectedCity}
+                        defaultCoords={activeAddress?.latitude ? { lat: activeAddress.latitude, lng: activeAddress.longitude } : null}
+                        onLocationChange={handleMapPinChange}
+                      />
+                    </Suspense>
+                  </div>
+                )}
               </div>
             )}
 
@@ -465,6 +522,8 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
                   <AddressPinMap
                     latitude={latitude}
                     longitude={longitude}
+                    defaultCity={selectedCity}
+                    defaultCoords={activeAddress?.latitude ? { lat: activeAddress.latitude, lng: activeAddress.longitude } : null}
                     onLocationChange={handleMapPinChange}
                   />
                 </Suspense>

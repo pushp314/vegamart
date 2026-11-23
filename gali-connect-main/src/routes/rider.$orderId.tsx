@@ -59,6 +59,16 @@ function RiderOrderTaskPage() {
     tracking?.customer?.name ||
     tracking?.customer_name ||
     "Customer";
+  const customerLandmark =
+    tracking?.delivery_location?.landmark ||
+    tracking?.dropoff_landmark ||
+    tracking?.address?.landmark ||
+    null;
+  const exactLocationNotes =
+    tracking?.delivery_location?.exact_location ||
+    tracking?.dropoff_exact_location ||
+    tracking?.address?.exact_location ||
+    null;
 
   // Google Maps Driving Navigation Intent URL
   const googleMapsUrl = useMemo(() => {
@@ -195,11 +205,21 @@ function RiderOrderTaskPage() {
                   <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 shrink-0">
                     <MapPin className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-sm text-foreground truncate">{customerName}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                       {customerAddress}
                     </p>
+                    {customerLandmark && (
+                      <div className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-xl border border-amber-200 dark:border-amber-800/40">
+                        <span>📍 Landmark: {customerLandmark}</span>
+                      </div>
+                    )}
+                    {exactLocationNotes && exactLocationNotes !== customerAddress && (
+                      <p className="text-[11px] text-muted-foreground/80 mt-1 italic">
+                        Doorstep: {exactLocationNotes}
+                      </p>
+                    )}
                   </div>
                 </div>
 

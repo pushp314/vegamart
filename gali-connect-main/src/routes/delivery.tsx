@@ -169,7 +169,8 @@ function getGoogleMapsUrl(
   lng?: number | null,
   query?: string | null,
   originLat?: number | null,
-  originLng?: number | null
+  originLng?: number | null,
+  cityHint?: string | null
 ): string {
   if (lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng)) && Number(lat) > 5 && Number(lng) > 60) {
     const originParam =
@@ -194,12 +195,12 @@ function getGoogleMapsUrl(
     let cleaned = query.trim();
     cleaned = cleaned.replace(/^[A-Za-z\s]+,\s*/, "");
 
-    // Ensure it is anchored to Sakti, Chhattisgarh, India so Google Maps never jumps to another state
-    if (!cleaned.toLowerCase().includes("sakti")) {
-      cleaned += ", Sakti";
+    const effectiveCity = (cityHint || "").trim();
+    if (effectiveCity && !cleaned.toLowerCase().includes(effectiveCity.toLowerCase())) {
+      cleaned += `, ${effectiveCity}`;
     }
-    if (!cleaned.toLowerCase().includes("chhattisgarh")) {
-      cleaned += ", Chhattisgarh, India";
+    if (!cleaned.toLowerCase().includes("india")) {
+      cleaned += ", India";
     }
 
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleaned)}`;
