@@ -264,6 +264,7 @@ export function OrderLiveTrackingMap({
 
   // Client-side real road network route calculation if backend did not supply routePoints
   const [clientRoadRoute, setClientRoadRoute] = useState<[number, number][]>([]);
+  const [clientRoadMeta, setClientRoadMeta] = useState<{ distanceKm: number; durationMinutes: number } | null>(null);
 
   useEffect(() => {
     if (routePoints && routePoints.length >= 2) return;
@@ -294,6 +295,7 @@ export function OrderLiveTrackingMap({
       fetchRoadRoute(waypoints).then((res) => {
         if (active && res && res.coordinates.length >= 2) {
           setClientRoadRoute(res.coordinates);
+          setClientRoadMeta({ distanceKm: res.distanceKm, durationMinutes: res.durationMinutes });
         }
       });
     }
@@ -340,17 +342,83 @@ export function OrderLiveTrackingMap({
     return { pathAhead: ahead.length > 0 ? ahead : activeRoute, pathTrail: trail };
   }, [routePoints, clientRoadRoute, routeIndex, validDriver, validDelivery]);
 
+  // Distance calculation helper (km)
+  const getHaversineKm = (c1: { lat: number; lng: number }, c2: { lat: number; lng: number }) => {
+    const R = 6371;
+    const dLat = ((c2.lat - c1.lat) * Math.PI) / 180;
+    const dLng = ((c2.lng - c1.lng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((c1.lat * Math.PI) / 180) *
+        Math.cos((c2.lat * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Real Road Distance computation
+  const displayDistance = useMemo(() => {
+    if (remainingMeters != null && remainingMeters > 0) {
+      if (remainingMeters >= 1000) {
+        return `${(remainingMeters / 1000).toFixed(1)} km`;
+      }
+      return `${Math.round(remainingMeters)} m`;
+    }
+    if (clientRoadMeta?.distanceKm && clientRoadMeta.distanceKm > 0) {
+      return `${clientRoadMeta.distanceKm.toFixed(1)} km`;
+    }
+    if (isSelfPickup && customerLiveLocation && validPickups[0]) {
+      const direct = getHaversineKm(customerLiveLocation, validPickups[0]);
+      return `${(direct * 1.3).toFixed(1)} km`;
+    }
+    const origin = validDriver || validPickups[0];
+    const destination = validDelivery;
+    if (origin && destination) {
+      const direct = getHaversineKm(origin, destination);
+      return `${(direct * 1.3).toFixed(1)} km`;
+    }
+    return null;
+  }, [remainingMeters, clientRoadMeta, isSelfPickup, customerLiveLocation, validPickups, validDriver, validDelivery]);
+
   // Dynamic ETA display formatting
   const displayEta = useMemo(() => {
     if (etaSeconds != null && etaSeconds > 0) {
       const mins = Math.ceil(etaSeconds / 60);
-      return mins <= 1 ? "1 min" : `${mins} mins`;
+      return mins <= 1 ? "1 min" : `${mins} min`;
     }
     if (etaMinutes != null && etaMinutes > 0) {
-      return etaMinutes <= 1 ? "1 min" : `${etaMinutes} mins`;
+      return etaMinutes <= 1 ? "1 min" : `${etaMinutes} min`;
+    }
+    if (clientRoadMeta?.durationMinutes && clientRoadMeta.durationMinutes > 0) {
+      const mins = Math.ceil(clientRoadMeta.durationMinutes);
+      return mins <= 1 ? "1 min" : `${mins} min`;
+    }
+    if (displayDistance) {
+      const km = parseFloat(displayDistance);
+      if (!isNaN(km) && km > 0) {
+        const mins = Math.max(3, Math.ceil((km / 20) * 60) + 3);
+        return `${mins} min`;
+      }
     }
     return null;
-  }, [etaSeconds, etaMinutes]);
+  }, [etaSeconds, etaMinutes, clientRoadMeta, displayDistance]);
+
+  // Active rider normalization (VegaMart fleet or in-house shop rider)
+  const activeRider = useMemo(() => {
+    if (driverInfo) return driverInfo;
+    if (inHouseRider) {
+      return {
+        name: inHouseRider.name || "Shop Delivery Partner",
+        phone: inHouseRider.phone || null,
+        rating: 5.0,
+        review_count: 0,
+        vehicle_type: "Shop In-House Delivery",
+        vehicle_number: inHouseRider.vehicle_number || null,
+      };
+    }
+    return null;
+  }, [driverInfo, inHouseRider]);
 
   // Custom Div Icons for visual excellence
   const driverDivIcon = useMemo(() => {
@@ -613,8 +681,10 @@ export function OrderLiveTrackingMap({
               <span className="text-sm font-black text-foreground">
                 {isStale
                   ? "Waiting for rider signal…"
+                  : isSelfPickup
+                  ? "Self Pickup Active"
                   : displayEta
-                  ? `Arriving in ~${displayEta}`
+                  ? `Arriving in ~${displayEta}${displayDistance ? ` • ${displayDistance} away` : ""}`
                   : "Live Tracking Active"}
               </span>
               <span
@@ -957,33 +1027,33 @@ export function OrderLiveTrackingMap({
           )}
         </MapContainer>
 
-        {/* Floating Status Pill */}
-        <div className="absolute top-3 left-3 z-[400] pointer-events-none">
-          <div className="bg-card/95 backdrop-blur-md border border-border px-3.5 py-1.5 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-semibold">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                isSelfPickup
-                  ? "bg-purple-500"
-                  : isStale
-                  ? "bg-amber-500"
-                  : validDriver
-                  ? "bg-emerald-500 animate-pulse"
-                  : "bg-blue-500 animate-pulse"
-              }`}
-            />
-            <span className="text-foreground">
-              {isSelfPickup
-                ? "🏪 Store Pickup • Collect at Shop"
-                : validDriver
-                ? isStale
-                  ? "Waiting for rider signal…"
-                  : displayEta
-                  ? `En route • Arriving in ~${displayEta}`
-                  : "Rider is en route"
-                : status === "pending" || status === "booked"
-                ? "Order Booked • Preparing by merchant"
-                : "Merchant preparing items • Rider assignment pending"}
-            </span>
+        {/* Floating ETA & Distance Card matching Blinkit / Client Reference UI */}
+        <div className="absolute top-4 left-4 z-[400] pointer-events-none">
+          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 shadow-xl border border-zinc-200/80 dark:border-zinc-800 flex items-center gap-3 sm:gap-3.5 min-w-[200px] sm:min-w-[240px]">
+            <div className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/40 shadow-xs">
+              <Clock className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <span>{isSelfPickup ? "Store Distance" : "Estimated delivery"}</span>
+                {!isSelfPickup && validDriver && !isStale && (
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                )}
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-black text-foreground">
+                  {displayEta || (status === "delivered" ? "Delivered" : isSelfPickup ? "Ready for Pickup" : "10-15 min")}
+                </span>
+                {displayDistance && (
+                  <>
+                    <span className="text-xs text-muted-foreground/60">•</span>
+                    <span className="text-xs font-bold text-muted-foreground">
+                      {displayDistance} away
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1034,37 +1104,37 @@ export function OrderLiveTrackingMap({
       </div>
 
       {/* Driver Contact & Vehicle Information Footer */}
-      {driverInfo && (
+      {activeRider && (
         <div className="p-4 bg-card border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-11 w-11 rounded-2xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-black text-lg flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800">
-              {driverInfo.name ? driverInfo.name.charAt(0).toUpperCase() : "D"}
+              {activeRider.name ? activeRider.name.charAt(0).toUpperCase() : "D"}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-sm font-black text-foreground">
-                  {driverInfo.name}
+                  {activeRider.name}
                 </h4>
                 <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
                   <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                  {driverInfo.rating && driverInfo.rating > 0
-                    ? driverInfo.rating.toFixed(1)
+                  {activeRider.rating && activeRider.rating > 0
+                    ? activeRider.rating.toFixed(1)
                     : "5.0"}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {driverInfo.vehicle_type || "Delivery Partner"}
-                {driverInfo.vehicle_number
-                  ? ` • ${driverInfo.vehicle_number}`
+                {activeRider.vehicle_type || "Delivery Partner"}
+                {activeRider.vehicle_number
+                  ? ` • ${activeRider.vehicle_number}`
                   : ""}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {driverInfo.phone && (
+            {activeRider.phone && (
               <a
-                href={`tel:${driverInfo.phone}`}
+                href={`tel:${activeRider.phone}`}
                 className="inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-xs"
               >
                 <Phone className="h-3.5 w-3.5" /> Call Rider
