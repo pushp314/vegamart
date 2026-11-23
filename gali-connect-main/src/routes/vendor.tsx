@@ -144,20 +144,7 @@ function VendorDashboard() {
     if (matchedNav) activeTab = matchedNav.id;
   }
 
-  // Handle Loading State
-  if (!isAuthenticated) return null;
-  if (vendorLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="animate-pulse space-y-4 text-center">
-          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary/20" />
-          <div className="h-4 w-32 rounded bg-muted" />
-        </div>
-      </div>
-    );
-  }
-
-  // Centralized status checks
+  // Centralized status checks (declared before early returns to preserve hook order)
   const vendorStatus = (vendor?.status || "").toLowerCase();
   const kycStatus = (kyc?.status || "").toLowerCase();
 
@@ -174,6 +161,19 @@ function VendorDashboard() {
       }
     }
   }, [vendor, isApproved, isLocationPinned]);
+
+  // Handle Loading State
+  if (!isAuthenticated) return null;
+  if (vendorLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-pulse space-y-4 text-center">
+          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary/20" />
+          <div className="h-4 w-32 rounded bg-muted" />
+        </div>
+      </div>
+    );
+  }
 
   // Handle Suspended Vendor
   if (vendor && isSuspended) {
