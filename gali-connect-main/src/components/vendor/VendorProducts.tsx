@@ -29,10 +29,8 @@ export function VendorProducts({
     formData.append("file", file);
 
     try {
-      // Assuming a backend endpoint for bulk upload exists, e.g., /products/bulk-upload
-      // If not, we would need to implement it in the backend.
-      // For now, let's simulate or use the real endpoint.
-      const res = await api.post("/products/bulk-upload", formData);
+      // VegaMart vendor bulk product upload
+      const res = await api.post("/vendors/products/bulk-upload", formData);
 
       if (res.success) {
         toast.success("Products uploaded successfully");

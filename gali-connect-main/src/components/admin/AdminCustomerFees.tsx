@@ -89,6 +89,7 @@ export function AdminCustomerFees() {
     mutationFn: (data: string) => api.patch("/admin/settings", { "platform.customer_fees_config": data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+      queryClient.invalidateQueries({ queryKey: ["publicSettings"] });
       toast.success("Customer fees updated successfully");
       setIsDirty(false);
     },

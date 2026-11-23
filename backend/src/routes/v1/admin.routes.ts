@@ -58,6 +58,7 @@ import {
   reviewCashSettlement,
   updateDeliveryCashLimit,
   bypassSubOrder,
+  toggleProductFeature,
 } from "../../controllers/admin.controller";
 import {
   analyticsCategorySales,
@@ -337,10 +338,11 @@ router.post("/orders/:order_id/sub-orders/:subId/bypass", bypassSubOrder);
 // Product management
 router.get("/products", validate({ query: adminProductsQuerySchema }), listProductsAdmin);
 router.delete("/products/:product_id", validate({ params: productIdParamsSchema }), deleteProduct);
-
-export default router;
-
+router.put("/products/:product_id/feature", validate({ params: productIdParamsSchema }), toggleProductFeature);
+router.patch("/products/:product_id/feature", validate({ params: productIdParamsSchema }), toggleProductFeature);
 
 // Support Tickets
 router.get("/support-tickets", listSupportTickets);
 router.patch("/support-tickets/:ticket_id/status", validate({ params: ticketIdParamsSchema, body: updateTicketStatusSchema }), updateSupportTicketStatus);
+
+export default router;

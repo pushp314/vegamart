@@ -860,6 +860,16 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response, _n
   sendSuccess(res, "Product deleted successfully");
 });
 
+export const toggleProductFeature = asyncHandler(async (req: Request, res: Response) => {
+  const productId = req.params.product_id as string;
+  const is_featured = req.body.is_featured === true || req.body.is_featured === "true";
+  const updated = await prisma.product.update({
+    where: { id: productId },
+    data: { is_featured },
+  });
+  return sendSuccess(res, updated, { message: "Product feature status updated successfully" });
+});
+
 /**
  * @swagger
  * /admin/orders/{order_id}/status:

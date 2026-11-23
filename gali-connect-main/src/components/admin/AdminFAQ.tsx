@@ -26,6 +26,7 @@ export function AdminFAQ() {
     mutationFn: (data: any) => api.post("/faqs", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_faqs"] });
+      queryClient.invalidateQueries({ queryKey: ["faqs"] });
       toast.success("FAQ created successfully");
       setShowForm(false);
       resetForm();
@@ -37,6 +38,7 @@ export function AdminFAQ() {
     mutationFn: ({ id, data }: { id: string, data: any }) => api.put(`/faqs/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_faqs"] });
+      queryClient.invalidateQueries({ queryKey: ["faqs"] });
       toast.success("FAQ updated successfully");
       setShowForm(false);
       resetForm();

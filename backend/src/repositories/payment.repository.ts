@@ -131,9 +131,10 @@ export async function claimAsPaid(
     razorpay_signature?: string;
     gateway_response?: Prisma.InputJsonValue;
     webhook_events?: Prisma.InputJsonValue;
-  }
+  },
+  db: DbClient = prisma
 ): Promise<number> {
-  const result = await prisma.payment.updateMany({
+  const result = await db.payment.updateMany({
     where: { id, status: { in: ["PENDING", "INITIATED", "FAILED"] } },
     data: {
       status: "PAID",

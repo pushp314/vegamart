@@ -1,9 +1,12 @@
 import { Router } from "express";
 import prisma from "../../database/prisma";
+import { authenticate } from "../../middlewares/auth.middleware";
+import { requireRole } from "../../middlewares/rbac.middleware";
+import { ROLES } from "../../constants/roles";
 
 const router = Router();
 
-// Get active FAQs
+// Get active FAQs (Public)
 router.get("/", async (_req, res) => {
   try {
     const faqs = await prisma.faq.findMany({
@@ -16,9 +19,8 @@ router.get("/", async (_req, res) => {
   }
 });
 
-// Admin routes (would be protected in a real app, assuming admin auth middleware exists elsewhere, 
-// or these can just be here for now if admin panel calls them directly)
-router.get("/admin", async (_req, res) => {
+// Admin routes (Protected by Admin/Super Admin authentication)
+router.get("/admin", authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (_req, res) => {
   try {
     const faqs = await prisma.faq.findMany({
       orderBy: { created_at: "asc" },
@@ -29,7 +31,7 @@ router.get("/admin", async (_req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   const { question, answer, is_active } = req.body;
   try {
     const faq = await prisma.faq.create({
@@ -41,7 +43,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   const { id } = req.params;
   const { question, answer, is_active } = req.body;
   try {
@@ -55,7 +57,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authenticate, requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.faq.delete({

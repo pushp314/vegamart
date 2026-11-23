@@ -1570,7 +1570,7 @@ export const checkoutService = {
         razorpay_order_id: verifiedPayment.razorpay_order_id,
       }, tx);
 
-      await paymentRepo.claimAsPaid(paymentRecord.id, { razorpay_payment_id: verifiedPayment.razorpay_payment_id, razorpay_signature: verifiedPayment.razorpay_signature });
+      await paymentRepo.claimAsPaid(paymentRecord.id, { razorpay_payment_id: verifiedPayment.razorpay_payment_id, razorpay_signature: verifiedPayment.razorpay_signature }, tx);
 
       for (let i = 0; i < serializedOrders.length; i++) {
         serializedOrders[i]!.payment = { ...paymentRecord, status: "PAID" } as any;

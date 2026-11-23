@@ -38,6 +38,8 @@ export function AdminCategories() {
     mutationFn: (data: any) => api.post("/categories", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminCategories"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["vendorCategories"] });
       toast.success("Category created");
       setIsModalOpen(false);
     },
@@ -48,6 +50,8 @@ export function AdminCategories() {
     mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/categories/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminCategories"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["vendorCategories"] });
       toast.success("Category updated");
       setIsModalOpen(false);
       setEditingCategory(null);
@@ -59,6 +63,8 @@ export function AdminCategories() {
     mutationFn: (id: string) => api.delete(`/categories/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminCategories"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["vendorCategories"] });
       toast.success("Category deleted");
     },
     onError: (err: any) => toast.error(err?.message || "Failed to delete category"),

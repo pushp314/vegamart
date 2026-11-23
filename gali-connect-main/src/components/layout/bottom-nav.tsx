@@ -48,10 +48,14 @@ export function BottomNav() {
     },
   ];
 
+  if (pathname === "/checkout" || pathname.includes("/track")) {
+    return null;
+  }
+
   return (
     <nav
       aria-label="Primary"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-[120] bg-card border-t border-border pb-safe shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.1)]"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border pb-safe shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.1)]"
     >
       <div className="flex justify-around items-center h-[72px] px-2">
         {TABS.map((t) => {

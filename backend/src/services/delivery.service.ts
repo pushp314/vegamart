@@ -1081,7 +1081,7 @@ export const deliveryService = {
     }
 
     const claimWhere: Prisma.MasterOrderWhereInput = {
-      id: orderId,
+      id: masterOrder.id,
       delivery_partner_id: null,
       orders: {
         some: {

@@ -446,7 +446,7 @@ function VendorProductsPage() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res: any = await api.post("/products/bulk-upload", formData);
+      const res: any = await api.post("/vendors/products/bulk-upload", formData);
       if (res.success) {
         toast.success("Bulk products imported successfully!");
         queryClient.invalidateQueries({ queryKey: ["vendorProducts"] });

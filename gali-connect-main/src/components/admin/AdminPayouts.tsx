@@ -216,9 +216,10 @@ export function AdminPayouts() {
   const handleExportCsv = async () => {
     try {
       setIsExporting(true);
-      const res = await fetch("/api/v1/admin/payouts/export-csv", {
+      const token = localStorage.getItem("vegamart_access_token") || localStorage.getItem("token") || "";
+      const res = await fetch(`${api.defaults?.baseURL || "/api/v1"}/admin/payouts/export-csv`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       const blob = await res.blob();

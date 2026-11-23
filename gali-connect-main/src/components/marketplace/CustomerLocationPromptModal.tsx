@@ -74,6 +74,7 @@ export function CustomerLocationPromptModal() {
   const handleOpenPinModal = (addr?: AddressData) => {
     const targetAddr = addr || unpinnedAddresses[0] || addresses[0];
     setEditingAddress(targetAddr || null);
+    setModalOpen(false);
     setAddressModalOpen(true);
   };
 

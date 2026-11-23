@@ -631,7 +631,8 @@ function Checkout() {
       const firstOrder = orders[0]?.order ?? null;
       clearCart();
       toast.success("Order placed successfully via Cash on Delivery!");
-      navigate({ to: "/order-success", search: { orderId: res?.data?.master_order_id || "" } });
+      const masterOrderId = res?.master_order_id || res?.masterOrderId || firstOrder?.id || orders[0]?.id || "";
+      navigate({ to: "/order-success", search: { orderId: masterOrderId } });
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Failed to place order");
@@ -798,7 +799,10 @@ function Checkout() {
         paymentObject.open();
       });
     } catch (err: any) {
-      toast.info(err?.message || "Payment was not completed.");
+      const reason = err?.message || "Payment was not completed.";
+      toast.info(reason);
+      setPaymentFailureReason(reason);
+      setFailureModalOpen(true);
     } finally {
       setIsProcessingPayment(false);
     }
@@ -836,10 +840,7 @@ function Checkout() {
   const originalDeliveryFee = selectedOptionObj.fee;
   const displayDeliveryFee = isFreeDelivery ? 0 : originalDeliveryFee;
 
-  let displayTax = tax;
-  if (selectedOptionObj.id === "delivery_partner" && displayDeliveryFee > 0) {
-    displayTax = tax + (displayDeliveryFee * taxRatePercent) / 100;
-  }
+  const displayTax = Math.round((tax || 0) * 100) / 100;
 
   const isAdvanceBooking = selectedOptionObj.id === "booking";
   const isCod = payment === "cod";

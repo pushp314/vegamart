@@ -562,14 +562,16 @@ export const paymentService = {
     // on the gateway refund id so a replayed refund event can never double-create an
     // adjustment. Orders cancelled before delivery never earned anything, so this is
     // a safe no-op for them.
+    const orderTotal = order.total.toNumber();
+    const effectivePaidBasis = orderTotal > 0 ? orderTotal : paidAmount;
     await reverseOrderEarnings(
       {
         id: order.id,
         vendor_id: order.vendor_id,
         delivery_partner_id: order.delivery_partner_id,
-        total: order.total.toNumber(),
+        total: orderTotal,
       },
-      cumulativeRefunded / paidAmount,
+      Math.min(1, cumulativeRefunded / effectivePaidBasis),
       refund.id
     );
 

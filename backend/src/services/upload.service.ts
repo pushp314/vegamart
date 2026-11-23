@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import prisma from "../database/prisma";
 
 import { AUDIT_ACTIONS } from "../constants/auth";
 import { MAX_IMAGE_DIMENSION } from "../constants";
@@ -114,6 +115,32 @@ export const uploadService = {
     if (!key || key.length > 500 || key.includes("..") || key.startsWith("/")) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "Invalid file key.", { code: "INVALID_FILE_KEY" });
     }
+
+    const userRole = (req.user?.role || "").toLowerCase();
+    const isAdmin = userRole === "admin" || userRole === "super_admin";
+    if (!isAdmin) {
+      // Defense-in-depth: Ensure non-admin users only delete assets they own
+      const isUserAvatar = key.includes("avatar") && key.includes(userId);
+      const isVendorAsset = await prisma.productImage.findFirst({
+        where: {
+          url: { contains: key },
+          product: { vendor: { user_id: userId } },
+        },
+      });
+      const isVendorProfileAsset = await prisma.vendorProfile.findFirst({
+        where: {
+          user_id: userId,
+          OR: [
+            { logo_url: { contains: key } },
+            { banner_url: { contains: key } },
+          ],
+        },
+      });
+      if (!isUserAvatar && !isVendorAsset && !isVendorProfileAsset) {
+        throw new ApiError(HttpStatus.FORBIDDEN, "You do not have permission to delete this file.", { code: "FORBIDDEN" });
+      }
+    }
+
     await deleteObject(key);
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.FILE_DELETED, entityType: "file", entityId: key },

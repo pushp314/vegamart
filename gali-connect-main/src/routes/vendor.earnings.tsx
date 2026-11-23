@@ -75,8 +75,8 @@ function VendorEarningsPage() {
   const handleExportStatement = async () => {
     setIsExporting(true);
     try {
-      const token = localStorage.getItem("accessToken") || "";
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/v1/vendors/me/wallet/statement/export`, {
+      const token = localStorage.getItem("vegamart_access_token") || localStorage.getItem("accessToken") || "";
+      const res = await fetch(`${api.defaults?.baseURL || "/api/v1"}/vendors/me/wallet/statement/export`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
