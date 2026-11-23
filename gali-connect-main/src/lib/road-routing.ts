@@ -100,90 +100,85 @@ export async function fetchRoadRoute(
     return cached.route;
   }
 
-  try {
-    const coordsQuery = valid.map((w) => `${w.lng},${w.lat}`).join(";");
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordsQuery}?overview=full&geometries=geojson&steps=true`;
+  const coordsQuery = valid.map((w) => `${w.lng},${w.lat}`).join(";");
+  const endpoints = [
+    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsQuery}?overview=full&geometries=geojson&steps=true`,
+    `https://router.project-osrm.org/route/v1/driving/${coordsQuery}?overview=full&geometries=geojson&steps=true`,
+  ];
 
-    const res = await fetch(url, {
-      headers: { Accept: "application/json" },
-    });
+  for (const url of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
 
-    if (!res.ok) throw new Error(`OSRM status ${res.status}`);
-    const data = await res.json();
-    const route = data.routes?.[0];
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
 
-    if (!route?.geometry?.coordinates || !Array.isArray(route.geometry.coordinates)) {
-      throw new Error("Invalid OSRM geometry");
-    }
+      if (!res.ok) continue;
+      const data = await res.json();
+      const route = data.routes?.[0];
 
-    // Convert GeoJSON [lon, lat] to Leaflet [lat, lon]
-    const coordinates: [number, number][] = route.geometry.coordinates.map(
-      (c: [number, number]) => [c[1], c[0]]
-    );
+      if (!route?.geometry?.coordinates || !Array.isArray(route.geometry.coordinates)) {
+        continue;
+      }
 
-    const distanceKm = Math.round((route.distance / 1000) * 10) / 10;
-    const durationMinutes = Math.max(1, Math.round(route.duration / 60));
+      // Convert GeoJSON [lon, lat] to Leaflet [lat, lon]
+      const coordinates: [number, number][] = route.geometry.coordinates.map(
+        (c: [number, number]) => [c[1], c[0]]
+      );
 
-    // Parse turn-by-turn steps
-    const steps: ManeuverStep[] = [];
-    if (Array.isArray(route.legs)) {
-      for (const leg of route.legs) {
-        if (Array.isArray(leg.steps)) {
-          for (const s of leg.steps) {
-            const m = s.maneuver || {};
-            const loc: [number, number] = m.location
-              ? [m.location[1], m.location[0]]
-              : coordinates[0] || [0, 0];
-            const street = s.name || "";
-            const instruction = formatManeuverInstruction(m.type, m.modifier, street);
+      // Must be real road geometry, not just a straight line
+      if (coordinates.length < 2) continue;
 
-            steps.push({
-              instruction,
-              type: m.type || "turn",
-              modifier: m.modifier,
-              distanceMeters: Math.round(s.distance || 0),
-              durationSeconds: Math.round(s.duration || 0),
-              streetName: street,
-              location: loc,
-            });
+      const distanceKm = Math.round((route.distance / 1000) * 10) / 10;
+      const durationMinutes = Math.max(1, Math.round(route.duration / 60));
+
+      // Parse turn-by-turn steps
+      const steps: ManeuverStep[] = [];
+      if (Array.isArray(route.legs)) {
+        for (const leg of route.legs) {
+          if (Array.isArray(leg.steps)) {
+            for (const s of leg.steps) {
+              const m = s.maneuver || {};
+              const loc: [number, number] = m.location
+                ? [m.location[1], m.location[0]]
+                : coordinates[0] || [0, 0];
+              const street = s.name || "";
+              const instruction = formatManeuverInstruction(m.type, m.modifier, street);
+
+              steps.push({
+                instruction,
+                type: m.type || "turn",
+                modifier: m.modifier,
+                distanceMeters: Math.round(s.distance || 0),
+                durationSeconds: Math.round(s.duration || 0),
+                streetName: street,
+                location: loc,
+              });
+            }
           }
         }
       }
+
+      const result: RoadRoute = {
+        coordinates,
+        distanceKm,
+        durationMinutes,
+        steps,
+      };
+
+      routeCache.set(cacheKey, { route: result, timestamp: Date.now() });
+      return result;
+    } catch {
+      // Continue to next mirror endpoint
     }
-
-    const result: RoadRoute = {
-      coordinates,
-      distanceKm,
-      durationMinutes,
-      steps,
-    };
-
-    routeCache.set(cacheKey, { route: result, timestamp: Date.now() });
-    return result;
-  } catch (err) {
-    console.warn("OSRM road route fetch fallback:", err);
-
-    // If network fails, build continuous road-segment interpolation between waypoints
-    const fallbackCoords: [number, number][] = valid.map((w) => [w.lat, w.lng]);
-    const fallbackDist = calculateTotalDistanceKm(valid);
-    const fallbackMins = Math.max(2, Math.round((fallbackDist / 25) * 60));
-
-    return {
-      coordinates: fallbackCoords,
-      distanceKm: fallbackDist,
-      durationMinutes: fallbackMins,
-      steps: [
-        {
-          instruction: "Head towards destination along route",
-          type: "depart",
-          distanceMeters: Math.round(fallbackDist * 1000),
-          durationSeconds: fallbackMins * 60,
-          streetName: "Road Ahead",
-          location: fallbackCoords[0] || [0, 0],
-        },
-      ],
-    };
   }
+
+  // Never return straight lines if routing server cannot be reached
+  return null;
 }
 
 /**

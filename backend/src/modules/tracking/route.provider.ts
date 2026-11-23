@@ -13,7 +13,7 @@ export interface IRouteProvider {
   calculateRoute(waypoints: Array<{ lat: number; lng: number }>): Promise<RouteResult>;
 }
 
-const HTTP_TIMEOUT_MS = 3500;
+const HTTP_TIMEOUT_MS = 5000;
 
 export class DirectHaversineFallbackProvider implements IRouteProvider {
   async calculateRoute(waypoints: Array<{ lat: number; lng: number }>): Promise<RouteResult> {
@@ -58,40 +58,49 @@ export class OsrmRouteProvider implements IRouteProvider {
 
     // OSRM coordinates format: lng,lat;lng,lat
     const coordsStr = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
-    const url = `${this.baseUrl.replace(/\/+$/, "")}/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+    const urls = [
+      `${this.baseUrl.replace(/\/+$/, "")}/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`,
+      `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`,
+      `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`,
+    ];
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
+    for (const url of urls) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
 
-    try {
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: { Accept: "application/json" },
-      });
+      try {
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
 
-      if (!res.ok) {
-        throw new Error(`OSRM HTTP ${res.status}: ${res.statusText}`);
+        if (!res.ok) continue;
+
+        const json = (await res.json()) as any;
+        const route = json.routes?.[0];
+        if (!route || !route.geometry?.coordinates || !Array.isArray(route.geometry.coordinates)) {
+          continue;
+        }
+
+        const rawCoords: [number, number][] = route.geometry.coordinates;
+        // Convert OSRM [lng, lat] GeoJSON to Leaflet [lat, lng]
+        const points = normalizePolyline(rawCoords);
+        if (points.length < 2) continue;
+
+        return {
+          points,
+          distanceMeters: Math.round(route.distance || 0),
+          durationSeconds: Math.round(route.duration || 0),
+          provider: "osrm",
+        };
+      } catch {
+        // Continue to next mirror
+      } finally {
+        clearTimeout(timer);
       }
-
-      const json = (await res.json()) as any;
-      const route = json.routes?.[0];
-      if (!route || !route.geometry?.coordinates) {
-        throw new Error("No route found in OSRM response");
-      }
-
-      const rawCoords: [number, number][] = route.geometry.coordinates;
-      // Convert OSRM [lng, lat] GeoJSON to Leaflet [lat, lng]
-      const points = normalizePolyline(rawCoords);
-
-      return {
-        points,
-        distanceMeters: Math.round(route.distance || 0),
-        durationSeconds: Math.round(route.duration || 0),
-        provider: "osrm",
-      };
-    } finally {
-      clearTimeout(timer);
     }
+
+    throw new Error("All OSRM routing providers failed or timed out");
   }
 }
 

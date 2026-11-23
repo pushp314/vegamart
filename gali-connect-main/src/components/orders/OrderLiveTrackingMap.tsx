@@ -262,30 +262,41 @@ export function OrderLiveTrackingMap({
     return [21.9588, 82.9588]; // Sakti, Chhattisgarh default
   }, [validDriver, validDelivery, validPickups, isSelfPickup, customerLiveLocation, pickupPoint]);
 
-  // Client-side real road network route calculation if backend did not supply routePoints
+  // Client-side real road network route calculation if backend did not supply detailed road points
   const [clientRoadRoute, setClientRoadRoute] = useState<[number, number][]>([]);
   const [clientRoadMeta, setClientRoadMeta] = useState<{ distanceKm: number; durationMinutes: number } | null>(null);
 
+  // A real road route contains curves and street geometry (more than 3 points)
+  const hasDetailedBackendRoute = Boolean(routePoints && routePoints.length > 3);
+
   useEffect(() => {
-    if (routePoints && routePoints.length >= 2) return;
+    if (hasDetailedBackendRoute) return;
 
     let active = true;
     const waypoints: Array<{ lat: number; lng: number }> = [];
+    const isOutForDelivery = status === "out_for_delivery" || status === "delivered";
 
     if (isSelfPickup && customerLiveLocation && validPickups[0]) {
       waypoints.push({ lat: customerLiveLocation.lat, lng: customerLiveLocation.lng });
       waypoints.push({ lat: validPickups[0].lat, lng: validPickups[0].lng });
-    } else {
+    } else if (isOutForDelivery) {
+      // In delivery phase, the rider already picked up the order! Target is ONLY customer doorstep.
       if (validDriver) {
         waypoints.push({ lat: validDriver.lat, lng: validDriver.lng });
       } else if (validPickups[0]) {
         waypoints.push({ lat: validPickups[0].lat, lng: validPickups[0].lng });
       }
-
-      validPickups.slice(validDriver ? 0 : 1).forEach((p) => {
+      if (validDelivery) {
+        waypoints.push({ lat: validDelivery.lat, lng: validDelivery.lng });
+      }
+    } else {
+      // Pickup phase: route rider to unpicked vendor stores then to customer
+      if (validDriver) {
+        waypoints.push({ lat: validDriver.lat, lng: validDriver.lng });
+      }
+      validPickups.forEach((p) => {
         waypoints.push({ lat: p.lat, lng: p.lng });
       });
-
       if (validDelivery) {
         waypoints.push({ lat: validDelivery.lat, lng: validDelivery.lng });
       }
@@ -293,7 +304,7 @@ export function OrderLiveTrackingMap({
 
     if (waypoints.length >= 2) {
       fetchRoadRoute(waypoints).then((res) => {
-        if (active && res && res.coordinates.length >= 2) {
+        if (active && res && res.coordinates.length > 3) {
           setClientRoadRoute(res.coordinates);
           setClientRoadMeta({ distanceKm: res.distanceKm, durationMinutes: res.durationMinutes });
         }
@@ -303,7 +314,7 @@ export function OrderLiveTrackingMap({
     return () => {
       active = false;
     };
-  }, [routePoints, isSelfPickup, customerLiveLocation, validDriver, validPickups, validDelivery]);
+  }, [hasDetailedBackendRoute, isSelfPickup, customerLiveLocation, validDriver, validPickups, validDelivery, status]);
 
   // Points for map bounds fitting
   const allPoints = useMemo<[number, number][]>(() => {
@@ -318,13 +329,16 @@ export function OrderLiveTrackingMap({
 
   // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
   const { pathAhead, pathTrail } = useMemo(() => {
-    const activeRoute = (routePoints && routePoints.length >= 2) ? routePoints : clientRoadRoute;
+    // Only use a route that has real road points (>3 coordinates)
+    const activeRoute = hasDetailedBackendRoute
+      ? routePoints
+      : clientRoadRoute && clientRoadRoute.length > 3
+      ? clientRoadRoute
+      : null;
 
     if (!activeRoute || activeRoute.length < 2) {
-      const fallback: [number, number][] = [];
-      if (validDriver) fallback.push([validDriver.lat, validDriver.lng]);
-      if (validDelivery) fallback.push([validDelivery.lat, validDelivery.lng]);
-      return { pathAhead: fallback, pathTrail: [] as [number, number][] };
+      // NEVER draw straight lines across buildings/lakes!
+      return { pathAhead: [] as [number, number][], pathTrail: [] as [number, number][] };
     }
 
     const safeIndex = Math.max(0, Math.min(routeIndex, activeRoute.length - 1));
@@ -340,7 +354,7 @@ export function OrderLiveTrackingMap({
     }
 
     return { pathAhead: ahead.length > 0 ? ahead : activeRoute, pathTrail: trail };
-  }, [routePoints, clientRoadRoute, routeIndex, validDriver, validDelivery]);
+  }, [hasDetailedBackendRoute, routePoints, clientRoadRoute, routeIndex, validDriver]);
 
   // Distance calculation helper (km)
   const getHaversineKm = (c1: { lat: number; lng: number }, c2: { lat: number; lng: number }) => {
