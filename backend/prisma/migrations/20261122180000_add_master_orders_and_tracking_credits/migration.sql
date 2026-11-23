@@ -19,8 +19,6 @@ ALTER TABLE "order_items" ADD COLUMN IF NOT EXISTS "status" VARCHAR(50) NOT NULL
 ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "master_order_id" UUID;
 ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "master_order_id" UUID;
 ALTER TABLE "payments" ALTER COLUMN "order_id" DROP NOT NULL;
-ALTER TABLE "addresses" ADD COLUMN IF NOT EXISTS "map_url" VARCHAR(500);
-ALTER TABLE "addresses" ADD COLUMN IF NOT EXISTS "exact_location" VARCHAR(500);
 
 -- Create master_orders table
 CREATE TABLE IF NOT EXISTS "master_orders" (

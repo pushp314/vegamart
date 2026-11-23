@@ -23,6 +23,17 @@ export async function connectDatabase(retries = 3, delayMs = 2000): Promise<void
     try {
       await prisma.$connect();
       log.info(`Connected to PostgreSQL (attempt ${attempt})`);
+
+      // Idempotently ensure columns added in recent features exist on production schema
+      try {
+        await prisma.$executeRawUnsafe(`
+          ALTER TABLE "addresses" ADD COLUMN IF NOT EXISTS "map_url" VARCHAR(500);
+          ALTER TABLE "addresses" ADD COLUMN IF NOT EXISTS "exact_location" VARCHAR(500);
+        `);
+      } catch (colErr) {
+        log.warn("Database column ensure check skipped:", { error: String(colErr) });
+      }
+
       return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
