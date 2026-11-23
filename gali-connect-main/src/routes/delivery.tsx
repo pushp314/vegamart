@@ -1725,6 +1725,13 @@ function DeliveryDashboard() {
                                     rLat,
                                     rLng
                                   ),
+                                  orderNumber: o.order_number || o.id?.slice(0, 8),
+                                  storeName: firstVendor?.business_name || "Vendor Store",
+                                  customerName: o.user?.name || o.customer?.name || "Customer",
+                                  customerPhone: o.user?.phone || o.customer?.phone || o.address?.phone || "",
+                                  storePhone: firstVendor?.phone || o.vendor?.phone || "",
+                                  status: o.status,
+                                  isPickupPhase: true,
                                 });
                               } else {
                                 const endLat = cLat > 5 ? cLat : (vLat > 5 ? vLat + 0.006 : rLat + 0.006);
@@ -1750,6 +1757,13 @@ function DeliveryDashboard() {
                                     rLat,
                                     rLng
                                   ),
+                                  orderNumber: o.order_number || o.id?.slice(0, 8),
+                                  storeName: firstVendor?.business_name || "Vendor Store",
+                                  customerName: o.user?.name || o.customer?.name || "Customer",
+                                  customerPhone: o.user?.phone || o.customer?.phone || o.address?.phone || "",
+                                  storePhone: firstVendor?.phone || o.vendor?.phone || "",
+                                  status: o.status,
+                                  isPickupPhase: false,
                                 });
                               }
                               setMapModalOpen(true);
@@ -3103,6 +3117,13 @@ function DeliveryDashboard() {
               endLocation={mapData.endLocation}
               intermediatePoints={mapData.intermediatePoints}
               directionsUrl={mapData.directionsUrl}
+              orderNumber={mapData.orderNumber}
+              storeName={mapData.storeName}
+              customerName={mapData.customerName}
+              customerPhone={mapData.customerPhone}
+              storePhone={mapData.storePhone}
+              status={mapData.status}
+              isPickupPhase={mapData.isPickupPhase}
             />
           </Suspense>
         </ClientOnly>
