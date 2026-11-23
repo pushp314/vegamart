@@ -918,7 +918,7 @@ function DeliveryDashboard() {
         </div>
       )}
 
-      <main className="p-4 space-y-6 pb-36">
+      <main className="p-4 space-y-6 pb-52">
         {/* RIDER PERFORMANCE STRIP */}
         {partner.status?.toUpperCase() === "APPROVED" && (
           <div className="grid grid-cols-3 gap-3">
@@ -2124,8 +2124,8 @@ function DeliveryDashboard() {
         {activeTab === "settings" && <DeliverySettings />}
       </main>
 
-      {/* BOTTOM NAVIGATION */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border pb-safe">
+      {/* BOTTOM NAVIGATION (Solid opaque background and high z-index to prevent card overlap on scroll) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-950 border-t border-border shadow-2xl z-50 pb-safe">
         <div className="flex justify-around items-center h-20 px-4">
           <button
             onClick={() => setActiveTab("requests")}

@@ -73,6 +73,23 @@ function getDistanceMeters(
   return R * c;
 }
 
+// Calculate bearing in degrees between two coordinates
+function computeBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLng);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
 // Controller to auto-fit map view or follow rider without unexpected zoom-outs
 function NavigationCameraController({
   allPoints,
@@ -406,113 +423,76 @@ export function RiderLiveNavigation({
     return arrivalDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }, [route?.durationMinutes]);
 
-  // Google Maps-style Off-road walk connector lines:
-  // When rider/customer is inside a house/compound and the drivable road starts some distance away,
-  // show a dotted line ("⚪ ⚪ ⚪ ⚪ ⚪") connecting the pin to the road entrance.
-  const {
-    startAccessConnector,
-    endAccessConnector,
-    roadStartJunction,
-    roadEndJunction,
-  } = useMemo(() => {
+  // Full continuous road coordinates connected seamlessly from rider to destination
+  const fullRouteCoordinates = useMemo<[number, number][]>(() => {
     if (!route || !route.coordinates || route.coordinates.length < 2) {
-      return {
-        startAccessConnector: null,
-        endAccessConnector: null,
-        roadStartJunction: null,
-        roadEndJunction: null,
-      };
+      return [
+        [snappedRider.lat, snappedRider.lng],
+        [destination.lat, destination.lng],
+      ];
     }
-
-    const roadStart = route.coordinates[0];
-    const roadEnd = route.coordinates[route.coordinates.length - 1];
-
-    let startConnector: [[number, number], [number, number]] | null = null;
-    let startJunction: [number, number] | null = null;
-
-    if (snappedRider && roadStart) {
-      const dist = getDistanceMeters(
-        snappedRider.lat,
-        snappedRider.lng,
-        roadStart[0],
-        roadStart[1]
-      );
-      if (dist > 6) {
-        startConnector = [[snappedRider.lat, snappedRider.lng], roadStart];
-        startJunction = roadStart;
-      }
+    const coords: [number, number][] = [[snappedRider.lat, snappedRider.lng]];
+    for (const pt of route.coordinates) {
+      coords.push(pt);
     }
-
-    let endConnector: [[number, number], [number, number]] | null = null;
-    let endJunction: [number, number] | null = null;
-
-    if (destination && roadEnd) {
-      const dist = getDistanceMeters(
-        roadEnd[0],
-        roadEnd[1],
-        destination.lat,
-        destination.lng
-      );
-      if (dist > 6) {
-        endConnector = [roadEnd, [destination.lat, destination.lng]];
-        endJunction = roadEnd;
-      }
-    }
-
-    return {
-      startAccessConnector: startConnector,
-      endAccessConnector: endConnector,
-      roadStartJunction: startJunction,
-      roadEndJunction: endJunction,
-    };
+    coords.push([destination.lat, destination.lng]);
+    return coords;
   }, [route, snappedRider, destination]);
+
+  // Directional arrow chevrons along the road route
+  const directionArrows = useMemo(() => {
+    if (fullRouteCoordinates.length < 4) return [];
+    const count = Math.min(6, Math.max(2, Math.floor(fullRouteCoordinates.length / 8)));
+    const step = Math.floor(fullRouteCoordinates.length / (count + 1));
+    const list: Array<{ pos: [number, number]; bearing: number }> = [];
+    for (let i = step; i < fullRouteCoordinates.length - 1; i += step) {
+      const p1 = fullRouteCoordinates[i];
+      const p2 = fullRouteCoordinates[i + 1];
+      if (p1 && p2) {
+        const b = computeBearing(p1[0], p1[1], p2[0], p2[1]);
+        list.push({ pos: p1, bearing: b });
+      }
+    }
+    return list;
+  }, [fullRouteCoordinates]);
 
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&travelmode=driving`;
 
   return (
     <div
-      className={`relative rounded-3xl overflow-hidden border border-border shadow-lg bg-card transition-all ${
+      className={`relative rounded-3xl overflow-hidden border border-border shadow-lg bg-card transition-all flex flex-col ${
         isFullscreen
-          ? "fixed inset-0 z-50 rounded-none border-none h-screen w-screen flex flex-col"
-          : `h-[380px] sm:h-[420px] ${className}`
+          ? "fixed inset-0 z-50 rounded-none border-none h-screen w-screen"
+          : `h-[460px] sm:h-[490px] ${className}`
       }`}
     >
-      {/* 🧭 Turn-by-Turn Maneuver HUD Banner (Top of Map, matching Google Maps/Blinkit) */}
-      <div className="absolute top-3 inset-x-3 sm:inset-x-4 z-[400] bg-[#064e3b] text-white rounded-2xl p-3 sm:p-3.5 shadow-2xl border border-white/10 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+      {/* 🧭 Turn-by-Turn Maneuver Bar (Top Header - No Map Obstruction) */}
+      <div className="bg-[#064e3b] text-white p-3 px-4 flex items-center justify-between gap-3 shrink-0 shadow-md z-10">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="h-11 w-11 rounded-xl bg-white/15 grid place-items-center shrink-0 border border-white/20 shadow-xs">
+          <div className="h-9 w-9 rounded-xl bg-white/15 grid place-items-center shrink-0 border border-white/20 shadow-xs">
             {getManeuverIcon(nextStep)}
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 flex items-center gap-1">
-              {isPickupPhase ? "Pickup Navigation" : "Doorstep Dropoff"} • {displayDist}
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 block leading-tight">
+              {isPickupPhase ? "Pickup Navigation" : "Doorstep Dropoff"}
             </span>
-            <h4 className="font-bold text-sm text-white truncate leading-tight mt-0.5">
+            <h4 className="font-bold text-xs sm:text-sm text-white truncate leading-tight mt-0.5">
               {nextStep?.instruction || `Head towards ${destination.label}`}
             </h4>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="text-right">
-            <span className="text-lg font-black text-white leading-none block">
-              {displayEta}
-            </span>
-            <span className="text-[10px] font-bold text-emerald-200 uppercase">ETA</span>
-          </div>
-
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors shrink-0"
-            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Navigation"}
-          >
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </button>
-        </div>
+        <button
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          className="h-8 w-8 rounded-xl bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors shrink-0"
+          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Navigation"}
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
       </div>
 
-      {/* 🗺️ Leaflet Road Map Canvas */}
-      <div className="flex-1 w-full h-full relative">
+      {/* 🗺️ Leaflet Road Map Canvas (Middle - Totally Unobstructed) */}
+      <div className="flex-1 w-full relative min-h-[260px] bg-muted">
         <MapContainer
           center={[origin.lat, origin.lng]}
           zoom={15}
@@ -576,105 +556,55 @@ export function RiderLiveNavigation({
             </Popup>
           </Marker>
 
-          {/* ⚪ Google Maps-style Off-Road Dotted Walk / Access Connectors (House/Yard to Road) */}
-          {startAccessConnector && (
+          {/* Solid Emerald Road Route (With Outer Casing) */}
+          {fullRouteCoordinates.length >= 2 && (
             <>
-              {/* Outer dark casing */}
+              {/* Outer road casing */}
               <Polyline
-                positions={startAccessConnector}
-                color="#1e293b"
+                positions={fullRouteCoordinates}
+                color="#064e3b"
                 weight={7}
-                dashArray="1, 12"
+                opacity={0.85}
                 lineCap="round"
-                opacity={0.7}
+                lineJoin="round"
               />
-              {/* Inner white circular beads */}
+              {/* Inner bright road polyline */}
               <Polyline
-                positions={startAccessConnector}
-                color="#ffffff"
-                weight={4.5}
-                dashArray="1, 12"
-                lineCap="round"
-                opacity={1}
-              />
-              {roadStartJunction && (
-                <CircleMarker
-                  center={roadStartJunction}
-                  radius={5}
-                  pathOptions={{
-                    color: "#ffffff",
-                    weight: 2.5,
-                    fillColor: "#475569",
-                    fillOpacity: 1,
-                  }}
-                />
-              )}
-            </>
-          )}
-
-          {endAccessConnector && (
-            <>
-              {/* Outer dark casing */}
-              <Polyline
-                positions={endAccessConnector}
-                color="#1e293b"
-                weight={7}
-                dashArray="1, 12"
-                lineCap="round"
-                opacity={0.7}
-              />
-              {/* Inner white circular beads */}
-              <Polyline
-                positions={endAccessConnector}
-                color="#ffffff"
-                weight={4.5}
-                dashArray="1, 12"
-                lineCap="round"
-                opacity={1}
-              />
-              {roadEndJunction && (
-                <CircleMarker
-                  center={roadEndJunction}
-                  radius={5}
-                  pathOptions={{
-                    color: "#ffffff",
-                    weight: 2.5,
-                    fillColor: "#475569",
-                    fillOpacity: 1,
-                  }}
-                />
-              )}
-            </>
-          )}
-
-          {/* Road Network Polyline (Emerald route tracing exact streets and turns) */}
-          {route && route.coordinates.length >= 2 && (
-            <>
-              {/* Outer soft glow */}
-              <Polyline
-                positions={route.coordinates}
+                positions={fullRouteCoordinates}
                 color="#10b981"
-                weight={10}
-                opacity={0.25}
-                lineCap="round"
-                lineJoin="round"
-              />
-              {/* Core road line */}
-              <Polyline
-                positions={route.coordinates}
-                color="#059669"
-                weight={5}
-                opacity={0.95}
+                weight={4.5}
+                opacity={1}
                 lineCap="round"
                 lineJoin="round"
               />
             </>
           )}
+
+          {/* Direction Chevrons along Road Route */}
+          {directionArrows.map((arrow, idx) => (
+            <Marker
+              key={`dir-arrow-${idx}`}
+              position={arrow.pos}
+              icon={L.divIcon({
+                className: "route-direction-arrow",
+                html: `
+                  <div style="transform: rotate(${Math.round(arrow.bearing)}deg); display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; pointer-events: none;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));">
+                      <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                  </div>
+                `,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+              })}
+              interactive={false}
+            />
+          ))}
         </MapContainer>
 
         {/* Free-Look Banner with 5s Countdown */}
         {isFreeLook && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[400] bg-zinc-950/90 text-white px-3.5 py-1.5 rounded-full text-xs font-bold shadow-2xl border border-emerald-500/50 backdrop-blur-md flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] bg-zinc-950/90 text-white px-3.5 py-1.5 rounded-full text-xs font-bold shadow-2xl border border-emerald-500/50 backdrop-blur-md flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
               <span>Free Look ({freeLookCountdown}s)</span>
@@ -709,74 +639,97 @@ export function RiderLiveNavigation({
         />
       </div>
 
-      {/* 📱 Bottom Navigation Action Footer (Directly inside Rider App) */}
-      <div className="p-3 sm:p-4 bg-card/95 backdrop-blur-md border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 z-10">
-        <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0">
-            {isPickupPhase ? <Store className="h-5 w-5" /> : <MapPin className="h-5 w-5 text-emerald-600" />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h5 className="font-bold text-xs text-foreground truncate">
-              {destination.label}
-            </h5>
-            <p className="text-[11px] text-muted-foreground truncate">
-              {destination.address}
-            </p>
-            <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1.5 truncate">
-              <span>⚡ {displayEta}</span>
-              <span>•</span>
-              <span>{displayDist}</span>
-              {arrivalTime && (
-                <>
-                  <span>•</span>
-                  <span>Arrival ~{arrivalTime}</span>
-                </>
-              )}
+      {/* 📱 Bottom Navigation Action Footer - ETA & Distance Card directly below map */}
+      <div className="p-3 sm:p-4 bg-card border-t border-border flex flex-col gap-2.5 shrink-0 z-10">
+        {/* Google Maps-style Big ETA & Distance Bar */}
+        <div className="flex items-center justify-between bg-muted/50 dark:bg-muted/20 px-3.5 py-2.5 rounded-2xl border border-border/60">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0">
+              <Clock className="h-4.5 w-4.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400 leading-tight">
+                  {displayEta}
+                </span>
+                <span className="text-xs font-bold text-muted-foreground">
+                  {displayDist}
+                </span>
+                {arrivalTime && (
+                  <>
+                    <span className="text-xs text-muted-foreground/60">•</span>
+                    <span className="text-xs font-bold text-foreground">
+                      {arrivalTime}
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="text-[10.5px] font-semibold text-muted-foreground truncate">
+                {isPickupPhase ? "Merchant Pickup" : "Doorstep Delivery"}
+              </p>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {/* 1-Tap Direct Call */}
-          {destination.phone && (
-            <a
-              href={`tel:${destination.phone}`}
-              className="h-10 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors shrink-0"
-              title={`Call ${destination.label}`}
-            >
-              <Phone className="h-3.5 w-3.5" /> Call
-            </a>
-          )}
-
-          {/* Quick External Google Maps Backup (Client requested Google Maps should still be available) */}
           <a
             href={googleMapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="h-10 px-3.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-bold text-[11px] transition-colors shrink-0"
             title="Open Turn-by-Turn Voice GPS in Google Maps"
           >
             <Navigation className="h-3.5 w-3.5 text-blue-600" />
-            <span className="hidden sm:inline">Google Maps</span>
+            <span>Maps</span>
             <ExternalLink className="h-3 w-3 opacity-60" />
           </a>
+        </div>
 
-          {/* In-App Delivery Workflow Action */}
-          {isPickupPhase ? (
-            <button
-              onClick={() => onUpdateStatus?.("out_for_delivery")}
-              className="flex-1 sm:flex-none h-10 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" /> Confirm Pickup
-            </button>
-          ) : (
-            <button
-              onClick={onOpenOtpModal}
-              className="flex-1 sm:flex-none h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Package className="h-3.5 w-3.5" /> Enter Delivery OTP
-            </button>
-          )}
+        {/* Destination Information & Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-0.5">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="h-9 w-9 rounded-xl bg-muted grid place-items-center shrink-0">
+              {isPickupPhase ? (
+                <Store className="h-4.5 w-4.5 text-amber-600" />
+              ) : (
+                <MapPin className="h-4.5 w-4.5 text-emerald-600" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h5 className="font-bold text-xs text-foreground truncate">
+                {destination.label}
+              </h5>
+              <p className="text-[11px] text-muted-foreground truncate">
+                {destination.address}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            {destination.phone && (
+              <a
+                href={`tel:${destination.phone}`}
+                className="h-9 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors shrink-0"
+                title={`Call ${destination.label}`}
+              >
+                <Phone className="h-3.5 w-3.5" /> Call
+              </a>
+            )}
+
+            {isPickupPhase ? (
+              <button
+                onClick={() => onUpdateStatus?.("out_for_delivery")}
+                className="flex-1 sm:flex-none h-9 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> Confirm Pickup
+              </button>
+            ) : (
+              <button
+                onClick={onOpenOtpModal}
+                className="flex-1 sm:flex-none h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Package className="h-3.5 w-3.5" /> Enter Delivery OTP
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

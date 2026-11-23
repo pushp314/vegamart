@@ -76,6 +76,23 @@ function getDistanceMeters(
   return R * c;
 }
 
+// Calculate bearing in degrees between two coordinates
+function computeBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLng);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
 // Controller to auto-fit map view to markers without overriding user manual zoom
 function MapBoundsController({
   points,
@@ -254,64 +271,38 @@ export function DeliveryMapModal({
     };
   }, [safeStart, safeEnd, validIntermediate]);
 
-  // Google Maps-style Off-road walk connector lines:
-  const {
-    startAccessConnector,
-    endAccessConnector,
-    roadStartJunction,
-    roadEndJunction,
-  } = useMemo(() => {
+  // Full continuous road coordinates connected seamlessly from rider to destination
+  const fullRouteCoordinates = useMemo<[number, number][]>(() => {
     if (roadPolyline.length < 2) {
-      return {
-        startAccessConnector: null,
-        endAccessConnector: null,
-        roadStartJunction: null,
-        roadEndJunction: null,
-      };
+      return [
+        [safeStart.lat, safeStart.lng],
+        [safeEnd.lat, safeEnd.lng],
+      ];
     }
-
-    const roadStart = roadPolyline[0];
-    const roadEnd = roadPolyline[roadPolyline.length - 1];
-
-    let startConnector: [[number, number], [number, number]] | null = null;
-    let startJunction: [number, number] | null = null;
-
-    if (safeStart && roadStart) {
-      const dist = getDistanceMeters(
-        safeStart.lat,
-        safeStart.lng,
-        roadStart[0],
-        roadStart[1]
-      );
-      if (dist > 6) {
-        startConnector = [[safeStart.lat, safeStart.lng], roadStart];
-        startJunction = roadStart;
-      }
+    const coords: [number, number][] = [[safeStart.lat, safeStart.lng]];
+    for (const pt of roadPolyline) {
+      coords.push(pt);
     }
-
-    let endConnector: [[number, number], [number, number]] | null = null;
-    let endJunction: [number, number] | null = null;
-
-    if (safeEnd && roadEnd) {
-      const dist = getDistanceMeters(
-        roadEnd[0],
-        roadEnd[1],
-        safeEnd.lat,
-        safeEnd.lng
-      );
-      if (dist > 6) {
-        endConnector = [roadEnd, [safeEnd.lat, safeEnd.lng]];
-        endJunction = roadEnd;
-      }
-    }
-
-    return {
-      startAccessConnector: startConnector,
-      endAccessConnector: endConnector,
-      roadStartJunction: startJunction,
-      roadEndJunction: endJunction,
-    };
+    coords.push([safeEnd.lat, safeEnd.lng]);
+    return coords;
   }, [roadPolyline, safeStart, safeEnd]);
+
+  // Directional arrow chevrons along the road route
+  const directionArrows = useMemo(() => {
+    if (fullRouteCoordinates.length < 4) return [];
+    const count = Math.min(6, Math.max(2, Math.floor(fullRouteCoordinates.length / 8)));
+    const step = Math.floor(fullRouteCoordinates.length / (count + 1));
+    const list: Array<{ pos: [number, number]; bearing: number }> = [];
+    for (let i = step; i < fullRouteCoordinates.length - 1; i += step) {
+      const p1 = fullRouteCoordinates[i];
+      const p2 = fullRouteCoordinates[i + 1];
+      if (p1 && p2) {
+        const b = computeBearing(p1[0], p1[1], p2[0], p2[1]);
+        list.push({ pos: p1, bearing: b });
+      }
+    }
+    return list;
+  }, [fullRouteCoordinates]);
 
   // 1. Custom 3D Scooter Rider Marker (Matching client reference)
   const riderDivIcon = useMemo(() => {
@@ -567,94 +558,50 @@ export function DeliveryMapModal({
               </Popup>
             </Marker>
 
-            {/* ⚪ Google Maps-style Off-Road Dotted Walk / Access Connectors */}
-            {startAccessConnector && (
+            {/* Solid Emerald Road Route (With Outer Casing) */}
+            {fullRouteCoordinates.length >= 2 && (
               <>
+                {/* Outer road casing */}
                 <Polyline
-                  positions={startAccessConnector}
-                  color="#1e293b"
+                  positions={fullRouteCoordinates}
+                  color="#064e3b"
                   weight={7}
-                  dashArray="1, 12"
+                  opacity={0.85}
                   lineCap="round"
-                  opacity={0.7}
+                  lineJoin="round"
                 />
+                {/* Inner bright road polyline */}
                 <Polyline
-                  positions={startAccessConnector}
-                  color="#ffffff"
-                  weight={4.5}
-                  dashArray="1, 12"
-                  lineCap="round"
-                  opacity={1}
-                />
-                {roadStartJunction && (
-                  <CircleMarker
-                    center={roadStartJunction}
-                    radius={5}
-                    pathOptions={{
-                      color: "#ffffff",
-                      weight: 2.5,
-                      fillColor: "#475569",
-                      fillOpacity: 1,
-                    }}
-                  />
-                )}
-              </>
-            )}
-
-            {endAccessConnector && (
-              <>
-                <Polyline
-                  positions={endAccessConnector}
-                  color="#1e293b"
-                  weight={7}
-                  dashArray="1, 12"
-                  lineCap="round"
-                  opacity={0.7}
-                />
-                <Polyline
-                  positions={endAccessConnector}
-                  color="#ffffff"
-                  weight={4.5}
-                  dashArray="1, 12"
-                  lineCap="round"
-                  opacity={1}
-                />
-                {roadEndJunction && (
-                  <CircleMarker
-                    center={roadEndJunction}
-                    radius={5}
-                    pathOptions={{
-                      color: "#ffffff",
-                      weight: 2.5,
-                      fillColor: "#475569",
-                      fillOpacity: 1,
-                    }}
-                  />
-                )}
-              </>
-            )}
-
-            {/* Emerald Road Route Ahead (With Soft Glow Underneath) */}
-            {roadPolyline.length >= 2 && (
-              <>
-                <Polyline
-                  positions={roadPolyline}
+                  positions={fullRouteCoordinates}
                   color="#10b981"
-                  weight={10}
-                  opacity={0.25}
-                  lineCap="round"
-                  lineJoin="round"
-                />
-                <Polyline
-                  positions={roadPolyline}
-                  color="#059669"
-                  weight={5}
-                  opacity={0.95}
+                  weight={4.5}
+                  opacity={1}
                   lineCap="round"
                   lineJoin="round"
                 />
               </>
             )}
+
+            {/* Direction Chevrons along Road Route */}
+            {directionArrows.map((arrow, idx) => (
+              <Marker
+                key={`modal-dir-arrow-${idx}`}
+                position={arrow.pos}
+                icon={L.divIcon({
+                  className: "route-direction-arrow",
+                  html: `
+                    <div style="transform: rotate(${Math.round(arrow.bearing)}deg); display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; pointer-events: none;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </div>
+                  `,
+                  iconSize: [16, 16],
+                  iconAnchor: [8, 8],
+                })}
+                interactive={false}
+              />
+            ))}
           </MapContainer>
 
           {/* Floating Recenter Target Button ⌖ (Bottom Right of Map, matching screenshot) */}

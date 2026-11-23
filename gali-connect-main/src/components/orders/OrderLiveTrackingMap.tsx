@@ -401,104 +401,6 @@ export function OrderLiveTrackingMap({
     return [];
   }, [hasDetailedBackendRoute, routePoints, clientRoadRoute]);
 
-  // Google Maps-style Off-road walk connector lines:
-  // When rider/customer is inside a house/compound and the drivable road starts some distance away,
-  // show a dotted line ("⚪ ⚪ ⚪ ⚪ ⚪") connecting the pin to the road entrance.
-  const {
-    startAccessConnector,
-    endAccessConnector,
-    roadStartJunction,
-    roadEndJunction,
-  } = useMemo(() => {
-    if (activeRoadRoute.length < 2) {
-      return {
-        startAccessConnector: null,
-        endAccessConnector: null,
-        roadStartJunction: null,
-        roadEndJunction: null,
-      };
-    }
-
-    const roadStart = activeRoadRoute[0];
-    const roadEnd = activeRoadRoute[activeRoadRoute.length - 1];
-
-    let startConnector: [[number, number], [number, number]] | null = null;
-    let startJunction: [number, number] | null = null;
-
-    if (isSelfPickup && customerLiveLocation && roadStart) {
-      const dist = getDistanceMeters(
-        customerLiveLocation.lat,
-        customerLiveLocation.lng,
-        roadStart[0],
-        roadStart[1]
-      );
-      if (dist > 6) {
-        startConnector = [
-          [customerLiveLocation.lat, customerLiveLocation.lng],
-          roadStart,
-        ];
-        startJunction = roadStart;
-      }
-    } else if (validDriver && activeRoadRoute.length > 0) {
-      const safeIndex = Math.max(0, Math.min(routeIndex, activeRoadRoute.length - 1));
-      const targetRoadNode = activeRoadRoute[safeIndex] || roadStart;
-      const dist = getDistanceMeters(
-        validDriver.lat,
-        validDriver.lng,
-        targetRoadNode[0],
-        targetRoadNode[1]
-      );
-      if (dist > 6) {
-        startConnector = [[validDriver.lat, validDriver.lng], targetRoadNode];
-        startJunction = targetRoadNode;
-      }
-    } else if (validPickups.length > 0 && validPickups[0] && roadStart) {
-      const dist = getDistanceMeters(
-        validPickups[0].lat,
-        validPickups[0].lng,
-        roadStart[0],
-        roadStart[1]
-      );
-      if (dist > 6) {
-        startConnector = [[validPickups[0].lat, validPickups[0].lng], roadStart];
-        startJunction = roadStart;
-      }
-    }
-
-    let endConnector: [[number, number], [number, number]] | null = null;
-    let endJunction: [number, number] | null = null;
-
-    let destCoords: [number, number] | null = null;
-    if (isSelfPickup && validPickups[0]) {
-      destCoords = [validPickups[0].lat, validPickups[0].lng];
-    } else if (validDelivery) {
-      destCoords = [validDelivery.lat, validDelivery.lng];
-    }
-
-    if (destCoords && roadEnd) {
-      const dist = getDistanceMeters(roadEnd[0], roadEnd[1], destCoords[0], destCoords[1]);
-      if (dist > 6) {
-        endConnector = [roadEnd, destCoords];
-        endJunction = roadEnd;
-      }
-    }
-
-    return {
-      startAccessConnector: startConnector,
-      endAccessConnector: endConnector,
-      roadStartJunction: startJunction,
-      roadEndJunction: endJunction,
-    };
-  }, [
-    activeRoadRoute,
-    isSelfPickup,
-    customerLiveLocation,
-    validDriver,
-    routeIndex,
-    validPickups,
-    validDelivery,
-  ]);
-
   // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
   const { pathAhead, pathTrail } = useMemo(() => {
     if (activeRoadRoute.length < 2) {
@@ -510,18 +412,37 @@ export function OrderLiveTrackingMap({
     const trail = activeRoadRoute.slice(0, safeIndex + 1);
 
     const ahead: [number, number][] = [];
-    // If the rider is directly on the road (not using an off-road walk connector),
-    // anchor the start of the solid line to their live position.
-    if (validDriver && !startAccessConnector) {
+    if (validDriver) {
       ahead.push([validDriver.lat, validDriver.lng]);
     }
     for (let i = safeIndex; i < activeRoadRoute.length; i++) {
       const pt = activeRoadRoute[i];
       if (pt) ahead.push(pt);
     }
+    if (validDelivery && ahead.length > 0) {
+      ahead.push([validDelivery.lat, validDelivery.lng]);
+    }
 
     return { pathAhead: ahead.length > 0 ? ahead : activeRoadRoute, pathTrail: trail };
-  }, [activeRoadRoute, routeIndex, validDriver, startAccessConnector]);
+  }, [activeRoadRoute, routeIndex, validDriver, validDelivery]);
+
+  // Clean directional arrow chevrons along the road route
+  const directionArrows = useMemo(() => {
+    const coords = pathAhead.length > 3 ? pathAhead : activeRoadRoute;
+    if (coords.length < 4) return [];
+    const count = Math.min(5, Math.max(2, Math.floor(coords.length / 10)));
+    const step = Math.floor(coords.length / (count + 1));
+    const list: Array<{ pos: [number, number]; bearing: number }> = [];
+    for (let i = step; i < coords.length - 1; i += step) {
+      const p1 = coords[i];
+      const p2 = coords[i + 1];
+      if (p1 && p2) {
+        const b = computeBearing(p1[0], p1[1], p2[0], p2[1]);
+        list.push({ pos: p1, bearing: b });
+      }
+    }
+    return list;
+  }, [pathAhead, activeRoadRoute]);
 
   // Distance calculation helper (km)
   const getHaversineKm = (c1: { lat: number; lng: number }, c2: { lat: number; lng: number }) => {
@@ -1089,77 +1010,6 @@ export function OrderLiveTrackingMap({
             onUserInteract={() => setAutoFollow(false)}
           />
 
-          {/* ⚪ Google Maps-style Off-Road Dotted Walk / Access Connectors (House/Yard to Road) */}
-          {startAccessConnector && (
-            <>
-              {/* Outer dark casing for crisp contrast on satellite & light street maps */}
-              <Polyline
-                positions={startAccessConnector}
-                color="#1e293b"
-                weight={7}
-                dashArray="1, 12"
-                lineCap="round"
-                opacity={0.7}
-              />
-              {/* Inner white circular beads (matches Google Maps walking trail) */}
-              <Polyline
-                positions={startAccessConnector}
-                color="#ffffff"
-                weight={4.5}
-                dashArray="1, 12"
-                lineCap="round"
-                opacity={1}
-              />
-              {roadStartJunction && (
-                <CircleMarker
-                  center={roadStartJunction}
-                  radius={5}
-                  pathOptions={{
-                    color: "#ffffff",
-                    weight: 2.5,
-                    fillColor: "#475569",
-                    fillOpacity: 1,
-                  }}
-                />
-              )}
-            </>
-          )}
-
-          {endAccessConnector && (
-            <>
-              {/* Outer dark casing */}
-              <Polyline
-                positions={endAccessConnector}
-                color="#1e293b"
-                weight={7}
-                dashArray="1, 12"
-                lineCap="round"
-                opacity={0.7}
-              />
-              {/* Inner white circular beads */}
-              <Polyline
-                positions={endAccessConnector}
-                color="#ffffff"
-                weight={4.5}
-                dashArray="1, 12"
-                lineCap="round"
-                opacity={1}
-              />
-              {roadEndJunction && (
-                <CircleMarker
-                  center={roadEndJunction}
-                  radius={5}
-                  pathOptions={{
-                    color: "#ffffff",
-                    weight: 2.5,
-                    fillColor: "#475569",
-                    fillOpacity: 1,
-                  }}
-                />
-              )}
-            </>
-          )}
-
           {/* Shrinking Trail (already travelled route) */}
           {pathTrail.length >= 2 && (
             <Polyline
@@ -1171,27 +1021,50 @@ export function OrderLiveTrackingMap({
             />
           )}
 
-          {/* Upcoming Road Route Ahead (vibrant emerald line with road glow) */}
+          {/* Upcoming Road Route Ahead (vibrant emerald line with road casing) */}
           {pathAhead.length >= 2 && (
             <>
+              {/* Outer road border/casing */}
               <Polyline
                 positions={pathAhead}
-                color="#10b981"
-                weight={10}
-                opacity={0.25}
+                color="#064e3b"
+                weight={7}
+                opacity={0.85}
                 lineCap="round"
                 lineJoin="round"
               />
+              {/* Inner bright emerald road line */}
               <Polyline
                 positions={pathAhead}
-                color="#059669"
-                weight={5}
-                opacity={0.95}
+                color="#10b981"
+                weight={4.5}
+                opacity={1}
                 lineCap="round"
                 lineJoin="round"
               />
             </>
           )}
+
+          {/* Direction Chevrons along Road Route */}
+          {directionArrows.map((arrow, idx) => (
+            <Marker
+              key={`dir-arrow-${idx}`}
+              position={arrow.pos}
+              icon={L.divIcon({
+                className: "route-direction-arrow",
+                html: `
+                  <div style="transform: rotate(${Math.round(arrow.bearing)}deg); display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; pointer-events: none;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));">
+                      <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                  </div>
+                `,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+              })}
+              interactive={false}
+            />
+          ))}
 
           {/* Driver Vehicle Pin with 60fps Lerp */}
           {validDriver && (
@@ -1330,44 +1203,9 @@ export function OrderLiveTrackingMap({
           )}
         </MapContainer>
 
-        {/* Floating ETA & Distance Card matching Blinkit / Client Reference UI */}
-        <div className="absolute top-4 left-4 z-[400] pointer-events-none max-w-[90%] sm:max-w-sm">
-          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 shadow-xl border border-zinc-200/80 dark:border-zinc-800 flex items-center gap-3 sm:gap-3.5">
-            <div className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/40 shadow-xs">
-              <Clock className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <span>{isSelfPickup ? "Store Distance" : "Estimated delivery"}</span>
-                {!isSelfPickup && validDriver && !isStale && (
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                )}
-              </p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-base sm:text-lg font-black text-foreground">
-                  {displayEta || (status === "delivered" ? "Delivered" : isSelfPickup ? "Ready for Pickup" : "10-15 min")}
-                </span>
-                {displayDistance && (
-                  <>
-                    <span className="text-xs text-muted-foreground/60">•</span>
-                    <span className="text-xs font-bold text-muted-foreground">
-                      {displayDistance} away
-                    </span>
-                  </>
-                )}
-              </div>
-              {contextualMilestone && (
-                <p className="text-[10.5px] font-semibold text-emerald-800 dark:text-emerald-300 mt-1 truncate">
-                  {contextualMilestone}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 🚦 Live Traffic / Railway Crossing Reassuring Alert Banner */}
+        {/* 🚦 Live Traffic / Railway Crossing Alert Banner */}
         {isStationaryInTraffic && (
-          <div className="absolute top-28 left-4 right-4 sm:right-auto z-[400] max-w-sm bg-amber-500/95 text-white backdrop-blur-md px-3.5 py-2.5 rounded-2xl shadow-xl border border-amber-300 text-xs font-bold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
+          <div className="absolute top-3 left-3 right-3 sm:right-auto z-[400] max-w-sm bg-amber-500/95 text-white backdrop-blur-md px-3.5 py-2.5 rounded-2xl shadow-xl border border-amber-300 text-xs font-bold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
             <span className="text-lg shrink-0">🚦</span>
             <span className="leading-snug">Rider railway crossing / traffic signal par ruka hua hai, chinta na karein.</span>
           </div>
@@ -1381,15 +1219,57 @@ export function OrderLiveTrackingMap({
           </div>
         )}
 
-        {/* Self-Pickup Walk / Drive Direction CTAs on Top Right */}
+        {/* Google Maps-style Satellite / Streets toggle thumbnail (Bottom-Left matching Google Maps) */}
+        <MapLayerToggle
+          currentLayer={currentLayer}
+          onToggle={setCurrentLayer}
+          className="bottom-3 left-3 shadow-md"
+        />
+      </div>
+
+      {/* ETA & Distance Card - Moved Below Map Canvas for 100% Unobstructed Map View */}
+      <div className="p-3.5 sm:p-4 bg-muted/40 dark:bg-zinc-900/40 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/40 shadow-xs">
+            <Clock className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <span>{isSelfPickup ? "Store Distance" : "Estimated delivery"}</span>
+              {!isSelfPickup && validDriver && !isStale && (
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+              )}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-base sm:text-lg font-black text-foreground">
+                {displayEta || (status === "delivered" ? "Delivered" : isSelfPickup ? "Ready for Pickup" : "10-15 min")}
+              </span>
+              {displayDistance && (
+                <>
+                  <span className="text-xs text-muted-foreground/60">•</span>
+                  <span className="text-xs font-bold text-muted-foreground">
+                    {displayDistance} away
+                  </span>
+                </>
+              )}
+            </div>
+            {contextualMilestone && (
+              <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 mt-1 truncate">
+                {contextualMilestone}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Self-Pickup Walk / Drive Direction CTAs */}
         {isSelfPickup && (walkDirectionsUrl || driveDirectionsUrl || storeDirectionsUrl || pickupPoint) && (
-          <div className="absolute top-3 right-3 z-[400] flex items-center gap-1.5">
+          <div className="flex items-center gap-2 shrink-0">
             {pickupPoint && (
               <a
                 href={`https://www.google.com/maps/dir/?api=1&destination=${pickupPoint.lat},${pickupPoint.lng}&travelmode=walking`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-2xl shadow-md transition-all active:scale-95"
+                className="inline-flex items-center gap-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl shadow-xs transition-all active:scale-95"
                 title={`Walk to ${pickupPoint.name}`}
               >
                 <span>🚪 Entrance</span>
@@ -1400,7 +1280,7 @@ export function OrderLiveTrackingMap({
                 href={walkDirectionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-bold bg-white/95 dark:bg-slate-900/95 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-2xl shadow-md transition-all active:scale-95"
+                className="inline-flex items-center gap-1 text-xs font-bold bg-card hover:bg-muted text-foreground border border-border px-3 py-2 rounded-xl shadow-xs transition-all active:scale-95"
                 title="Open walking directions in Google Maps"
               >
                 <span>🚶 Walk</span>
@@ -1410,21 +1290,14 @@ export function OrderLiveTrackingMap({
               href={driveDirectionsUrl || storeDirectionsUrl || "#"}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-2xl shadow-md transition-all active:scale-95"
+              className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-xl shadow-xs transition-all active:scale-95"
               title="Open driving navigation in Google Maps"
             >
-              <Navigation className="h-3 w-3" />
+              <Navigation className="h-3.5 w-3.5" />
               <span>Drive</span>
             </a>
           </div>
         )}
-
-        {/* Google Maps-style Satellite / Streets toggle thumbnail (Bottom-Left matching Google Maps) */}
-        <MapLayerToggle
-          currentLayer={currentLayer}
-          onToggle={setCurrentLayer}
-          className="bottom-3 left-3 shadow-md"
-        />
       </div>
 
       {/* Driver Contact & Vehicle Information Footer */}

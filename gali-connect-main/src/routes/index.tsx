@@ -194,6 +194,20 @@ const DEFAULT_HOMEPAGE_SECTIONS = [
   { id: "brand_footer", label: "Why VegaMart & Trust Badges", enabled: true },
 ];
 
+function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 function renderSectionById(id: string, activeAddress: any) {
   switch (id) {
     case "hero":
@@ -203,7 +217,7 @@ function renderSectionById(id: string, activeAddress: any) {
       return <Categories key={id} />;
     case "sponsored_vendors":
     case "featured_vendors":
-      return <SponsoredVendors key={id} />;
+      return <SponsoredVendors key={id} defaultAddress={activeAddress} />;
     case "live_banner":
     case "nearby_radar":
       return <LiveBanner key={id} />;
@@ -218,7 +232,7 @@ function renderSectionById(id: string, activeAddress: any) {
       return <Offers key={id} />;
     case "shopwise_products":
     case "vegetables_fruits":
-      return <ShopWiseProducts key={id} />;
+      return <ShopWiseProducts key={id} defaultAddress={activeAddress} />;
     case "trending":
     case "best_sellers":
       return <Trending key={id} />;
@@ -843,7 +857,7 @@ function FeaturedProducts() {
   );
 }
 
-function ShopWiseProducts() {
+function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
   type StoreVendor = {
     id: string;
     business_name: string;
@@ -855,11 +869,14 @@ function ShopWiseProducts() {
     rating?: number;
     review_count?: number;
     profile?: { logo_url?: string | null };
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+    delivery_radius_km?: number | string | null;
   };
   type ShopProduct = Product & { vendor?: StoreVendor };
   const { data: res, isLoading } = useQuery({
     queryKey: ["products", "shopwise"],
-    queryFn: () => api.get<ShopProduct[]>("/products/homepage?per_page=100&products_per_vendor=10&vendor_is_open=false"),
+    queryFn: () => api.get<ShopProduct[]>("/products/homepage?per_page=100&products_per_vendor=10&vendor_is_open=true"),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -877,6 +894,24 @@ function ShopWiseProducts() {
       const vid = p.vendor_id || p.vendor?.id;
       if (!vid) continue;
       const v: StoreVendor = p.vendor || { id: vid, business_name: "Store" };
+
+      // 1. FILTER OUT CLOSED SHOPS: only show opened stores
+      const isOpen = v.is_open === true && v.status !== "rejected" && v.status !== "suspended";
+      if (!isOpen) continue;
+
+      // 2. FILTER OUT OUT-OF-RANGE SHOPS: only show vendors within customer delivery radius
+      if (defaultAddress?.latitude && defaultAddress?.longitude && v.latitude && v.longitude) {
+        const custLat = Number(defaultAddress.latitude);
+        const custLng = Number(defaultAddress.longitude);
+        const vLat = Number(v.latitude);
+        const vLng = Number(v.longitude);
+        if (custLat > 5 && custLng > 60 && vLat > 5 && vLng > 60) {
+          const distKm = getDistanceKm(custLat, custLng, vLat, vLng);
+          const maxRadius = Number(v.delivery_radius_km || 10);
+          if (distKm > maxRadius) continue;
+        }
+      }
+
       if (!map.has(vid)) {
         map.set(vid, { vendor: v, products: [] });
       }
@@ -887,7 +922,7 @@ function ShopWiseProducts() {
         Number(b.vendor?.is_sponsored) - Number(a.vendor?.is_sponsored) ||
         a.vendor?.business_name?.localeCompare(b.vendor?.business_name || ""),
     );
-  }, [res?.data]);
+  }, [res?.data, defaultAddress?.latitude, defaultAddress?.longitude]);
 
   const totalShops = groups.length;
 
@@ -1164,7 +1199,7 @@ function isRoamingVendor(v: any): boolean {
   );
 }
 
-function SponsoredVendors() {
+function SponsoredVendors({ defaultAddress }: { defaultAddress?: any }) {
   const { data: res, isLoading } = useQuery({
     queryKey: ["vendors", "sponsored"],
     queryFn: () => api.get<any[]>("/vendors"),
@@ -1180,7 +1215,24 @@ function SponsoredVendors() {
         : Array.isArray(res)
           ? (res as any)
           : [];
-  const sponsoredList = rawList.filter((v: any) => v.is_sponsored === true);
+  const sponsoredList = rawList.filter((v: any) => {
+    if (v.is_sponsored !== true) return false;
+    // 1. FILTER OUT CLOSED SHOPS: only show opened stores
+    if (v.is_open === false || v.status === "rejected" || v.status === "suspended") return false;
+    // 2. FILTER OUT OUT-OF-RANGE SHOPS: only show vendors within customer delivery radius
+    if (defaultAddress?.latitude && defaultAddress?.longitude && v.latitude && v.longitude) {
+      const custLat = Number(defaultAddress.latitude);
+      const custLng = Number(defaultAddress.longitude);
+      const vLat = Number(v.latitude);
+      const vLng = Number(v.longitude);
+      if (custLat > 5 && custLng > 60 && vLat > 5 && vLng > 60) {
+        const distKm = getDistanceKm(custLat, custLng, vLat, vLng);
+        const maxRadius = Number(v.delivery_radius_km || 10);
+        if (distKm > maxRadius) return false;
+      }
+    }
+    return true;
+  });
 
   if (isLoading || sponsoredList.length === 0) return null;
 
@@ -1296,7 +1348,22 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
       : item,
   );
 
-  const roamingOnly = normalizedList.filter(isRoamingVendor);
+  const roamingOnly = normalizedList.filter((v: any) => {
+    if (!isRoamingVendor(v)) return false;
+    if (v.is_open === false || v.status === "rejected" || v.status === "suspended") return false;
+    if (defaultAddress?.latitude && defaultAddress?.longitude && v.latitude && v.longitude) {
+      const custLat = Number(defaultAddress.latitude);
+      const custLng = Number(defaultAddress.longitude);
+      const vLat = Number(v.latitude);
+      const vLng = Number(v.longitude);
+      if (custLat > 5 && custLng > 60 && vLat > 5 && vLng > 60) {
+        const distKm = getDistanceKm(custLat, custLng, vLat, vLng);
+        const maxRadius = Number(v.delivery_radius_km || 10);
+        if (distKm > maxRadius) return false;
+      }
+    }
+    return true;
+  });
   const list = (roamingOnly.length > 0 ? roamingOnly : normalizedList).slice(0, 6);
 
   return (
@@ -1495,7 +1562,24 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
       : item,
   );
 
-  const nonRoaming = normalizedList.filter((v) => !isRoamingVendor(v));
+  const nonRoaming = normalizedList.filter((v) => {
+    if (isRoamingVendor(v)) return false;
+    // 1. FILTER OUT CLOSED SHOPS: only show opened stores
+    if (v.is_open === false || v.status === "rejected" || v.status === "suspended") return false;
+    // 2. FILTER OUT OUT-OF-RANGE SHOPS: only show vendors within customer delivery radius
+    if (defaultAddress?.latitude && defaultAddress?.longitude && v.latitude && v.longitude) {
+      const custLat = Number(defaultAddress.latitude);
+      const custLng = Number(defaultAddress.longitude);
+      const vLat = Number(v.latitude);
+      const vLng = Number(v.longitude);
+      if (custLat > 5 && custLng > 60 && vLat > 5 && vLng > 60) {
+        const distKm = getDistanceKm(custLat, custLng, vLat, vLng);
+        const maxRadius = Number(v.delivery_radius_km || 10);
+        if (distKm > maxRadius) return false;
+      }
+    }
+    return true;
+  });
   const list = (nonRoaming.length > 0 ? nonRoaming : normalizedList).slice(0, 6);
 
   return (

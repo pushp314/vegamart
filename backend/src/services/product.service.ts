@@ -381,7 +381,7 @@ async list(query: {
   }) {
     const perPage = Math.min(200, Math.max(1, query.per_page ?? 100));
     const productsPerVendor = Math.min(20, Math.max(1, query.products_per_vendor ?? 10));
-    const vendorIsOpen = query.vendor_is_open === "true" ? true : query.vendor_is_open === "false" ? false : undefined;
+    const vendorIsOpen = query.vendor_is_open === "false" ? false : true;
 
     const { rows, total } = await productRepo.listProductsForHomepage({
       perPage,

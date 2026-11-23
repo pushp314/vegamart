@@ -344,7 +344,7 @@ export async function listProductsForHomepage(
 ): Promise<{ rows: ProductRow[]; total: number }> {
   const perPage = options.perPage ?? 100;
   const productsPerVendor = options.productsPerVendor ?? 10;
-  const vendorIsOpen = options.vendorIsOpen ?? false;
+  const vendorIsOpen = options.vendorIsOpen !== false;
 
   // First, get all eligible vendors with their sponsored status
   const vendorWhere: Prisma.VendorProfileWhereInput = {
