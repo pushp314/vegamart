@@ -65,13 +65,28 @@ function handlePrismaError(error: unknown): { status: number; code: string; mess
           details: { fields },
         };
       }
+      case "P2000":
+        return {
+          status: HttpStatus.BAD_REQUEST,
+          code: "VALUE_TOO_LONG",
+          message: "One of the provided fields exceeds the maximum allowed character limit.",
+          details: { error_code: error.code },
+        };
       case "P2003": {
         return {
-          status: HttpStatus.CONFLICT,
+          status: HttpStatus.BAD_REQUEST,
           code: "FK_CONSTRAINT_VIOLATION",
-          message: "Operation violates a referential constraint.",
+          message: "Referenced record does not exist or user session is invalid. Please log in again.",
+          details: { error_code: error.code },
         };
       }
+      case "P2011":
+        return {
+          status: HttpStatus.BAD_REQUEST,
+          code: "NULL_CONSTRAINT_VIOLATION",
+          message: "A required address or order field cannot be empty.",
+          details: { error_code: error.code },
+        };
       case "P2025":
         return {
           status: HttpStatus.NOT_FOUND,

@@ -36,7 +36,7 @@ import {
   updateMyProfile,
   verifyLoginOtpAlias,
 } from "../../controllers/integration.controller";
-import { authenticate } from "../../middlewares/auth.middleware";
+import { authenticate, blockGuest } from "../../middlewares/auth.middleware";
 import { requireRole } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate";
 import { otpLimiter, adminLimiter } from "../../middlewares/rate-limit.middleware";
@@ -74,11 +74,11 @@ router.get("/products/featured", listFeaturedProducts);
 // ---------------------------------------------------------------------------
 // Customer self-service (users/me)
 // ---------------------------------------------------------------------------
-router.get("/users/me/addresses", authenticate, listMyAddresses);
-router.post("/users/me/addresses", authenticate, createMyAddress);
-router.put("/users/me/addresses/:id", authenticate, updateMyAddress);
-router.delete("/users/me/addresses/:id", authenticate, removeMyAddress);
-router.put("/users/me/addresses/:id/default", authenticate, setDefaultMyAddress);
+router.get("/users/me/addresses", authenticate, blockGuest, listMyAddresses);
+router.post("/users/me/addresses", authenticate, blockGuest, createMyAddress);
+router.put("/users/me/addresses/:id", authenticate, blockGuest, updateMyAddress);
+router.delete("/users/me/addresses/:id", authenticate, blockGuest, removeMyAddress);
+router.put("/users/me/addresses/:id/default", authenticate, blockGuest, setDefaultMyAddress);
 router.get("/users/me/recently-viewed", authenticate, listRecentlyViewed);
 router.post("/users/me/recently-viewed", authenticate, validate({ body: recentlyViewedSchema }), addRecentlyViewed);
 router.get("/users/me/recommended", authenticate, listRecommended);

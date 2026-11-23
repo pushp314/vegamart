@@ -574,23 +574,25 @@ export const integrationService = {
 
   async createMyAddress(userId: string, body: Record<string, unknown>) {
     const user = await userRepo.findById(userId, {});
-    const fullAddress = [body.line1, body.line2]
-      .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
-      .join(", ");
+    const line1 = typeof body.line1 === "string" ? body.line1.trim() : "";
+    const line2 = typeof body.line2 === "string" ? body.line2.trim() : "";
+    const rawFull = [line1, line2].filter(Boolean).join(", ");
+    const fullAddress = (rawFull.length > 0 ? rawFull : (typeof body.full_address === "string" ? body.full_address : "Address")).trim().slice(0, 400);
+
     const lat = typeof body.latitude === "number" ? body.latitude : (body.latitude ? parseFloat(String(body.latitude)) : null);
     const lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(String(body.longitude)) : null);
-    const mapUrl = typeof body.map_url === "string" ? body.map_url : (lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null);
-    const exactLocation = typeof body.exact_location === "string" ? body.exact_location : null;
+    const mapUrl = typeof body.map_url === "string" ? body.map_url.trim().slice(0, 500) : (lat && lng ? `https://www.google.com/maps?q=${lat},${lng}`.slice(0, 500) : null);
+    const exactLocation = typeof body.exact_location === "string" ? body.exact_location.trim().slice(0, 500) : null;
 
     const created = await addressService.create(userId, {
-      label: typeof body.label === "string" ? body.label : "Home",
-      full_address: fullAddress.length > 0 ? fullAddress : (typeof body.full_address === "string" ? body.full_address : "Address"),
-      landmark: typeof body.line2 === "string" ? body.line2 : null,
-      phone: typeof body.phone === "string" ? body.phone : null,
-      city: typeof body.city === "string" ? body.city : "",
-      state: typeof body.state === "string" ? body.state : "",
-      country: typeof body.country === "string" ? body.country : "India",
-      pincode: typeof body.pincode === "string" ? body.pincode : "",
+      label: typeof body.label === "string" && body.label.trim() ? body.label.trim().slice(0, 60) : "Home",
+      full_address: fullAddress,
+      landmark: line2 ? line2.slice(0, 200) : (typeof body.landmark === "string" ? body.landmark.trim().slice(0, 200) : null),
+      phone: typeof body.phone === "string" ? body.phone.trim().slice(0, 20) : null,
+      city: typeof body.city === "string" && body.city.trim() ? body.city.trim().slice(0, 100) : "City",
+      state: typeof body.state === "string" && body.state.trim() ? body.state.trim().slice(0, 100) : "State",
+      country: typeof body.country === "string" && body.country.trim() ? body.country.trim().slice(0, 60) : "India",
+      pincode: typeof body.pincode === "string" && body.pincode.trim() ? body.pincode.trim().slice(0, 10) : "000000",
       latitude: lat && !isNaN(lat) ? lat : null,
       longitude: lng && !isNaN(lng) ? lng : null,
       map_url: mapUrl,
@@ -603,17 +605,22 @@ export const integrationService = {
   async updateMyAddress(userId: string, addressId: string, body: Record<string, unknown>) {
     const user = await userRepo.findById(userId, {});
     const input: Record<string, unknown> = {};
-    if (typeof body.label === "string") input.label = body.label;
-    if (typeof body.line1 === "string") {
-      input.full_address = [body.line1, body.line2]
-        .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
-        .join(", ");
+    if (typeof body.label === "string") input.label = body.label.trim().slice(0, 60);
+    if (typeof body.line1 === "string" || typeof body.line2 === "string") {
+      const line1 = typeof body.line1 === "string" ? body.line1.trim() : "";
+      const line2 = typeof body.line2 === "string" ? body.line2.trim() : "";
+      const combined = [line1, line2].filter(Boolean).join(", ");
+      if (combined.length > 0) input.full_address = combined.slice(0, 400);
+      if (line2) input.landmark = line2.slice(0, 200);
+    } else if (typeof body.full_address === "string") {
+      input.full_address = body.full_address.trim().slice(0, 400);
     }
-    if (typeof body.line2 === "string") input.landmark = body.line2;
-    if (typeof body.phone === "string") input.phone = body.phone;
-    if (typeof body.city === "string") input.city = body.city;
-    if (typeof body.state === "string") input.state = body.state;
-    if (typeof body.pincode === "string") input.pincode = body.pincode;
+    if (typeof body.landmark === "string" && !input.landmark) input.landmark = body.landmark.trim().slice(0, 200);
+    if (typeof body.phone === "string") input.phone = body.phone.trim().slice(0, 20);
+    if (typeof body.city === "string") input.city = body.city.trim().slice(0, 100);
+    if (typeof body.state === "string") input.state = body.state.trim().slice(0, 100);
+    if (typeof body.pincode === "string") input.pincode = body.pincode.trim().slice(0, 10);
+    if (typeof body.country === "string") input.country = body.country.trim().slice(0, 60);
     if (typeof body.is_default === "boolean") input.is_default = body.is_default;
     if (body.latitude !== undefined) {
       const lat = typeof body.latitude === "number" ? body.latitude : (body.latitude ? parseFloat(String(body.latitude)) : null);
@@ -623,8 +630,8 @@ export const integrationService = {
       const lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(String(body.longitude)) : null);
       input.longitude = lng && !isNaN(lng) ? lng : null;
     }
-    if (body.map_url !== undefined) input.map_url = typeof body.map_url === "string" ? body.map_url : null;
-    if (body.exact_location !== undefined) input.exact_location = typeof body.exact_location === "string" ? body.exact_location : null;
+    if (body.map_url !== undefined) input.map_url = typeof body.map_url === "string" ? body.map_url.trim().slice(0, 500) : null;
+    if (body.exact_location !== undefined) input.exact_location = typeof body.exact_location === "string" ? body.exact_location.trim().slice(0, 500) : null;
     const updated = await addressService.update(userId, addressId, input as never);
     return this.mapAddress(updated, user?.name ?? "");
   },

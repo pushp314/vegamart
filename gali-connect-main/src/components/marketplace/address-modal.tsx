@@ -92,9 +92,10 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
             const stateName = addr.state || "";
             const pincodeVal = addr.postcode || "";
 
-            const fetchedLocStr =
+            const rawLocStr =
               data.display_name ||
               [streetName, areaName, cityName, pincodeVal].filter(Boolean).join(", ");
+            const fetchedLocStr = rawLocStr ? String(rawLocStr).slice(0, 480) : "";
             setExactLocation(fetchedLocStr);
 
             if (streetName && (!line1 || line1.length < 5)) {
@@ -142,18 +143,18 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
     try {
       await onSave({
         id: initialData?.id || `addr_${Date.now()}`,
-        label,
-        full_name: fullName,
-        phone,
-        line1,
-        line2,
-        city,
-        state,
-        pincode,
+        label: label.trim().slice(0, 60),
+        full_name: fullName.trim().slice(0, 100),
+        phone: phone.trim().slice(0, 20),
+        line1: line1.trim().slice(0, 200),
+        line2: line2 ? line2.trim().slice(0, 200) : "",
+        city: (city.trim() || "City").slice(0, 100),
+        state: (state.trim() || "State").slice(0, 100),
+        pincode: (pincode.trim() || "000000").slice(0, 10),
         latitude,
         longitude,
-        map_url: mapUrl,
-        exact_location: exactLocation,
+        map_url: mapUrl ? mapUrl.trim().slice(0, 500) : null,
+        exact_location: exactLocation ? exactLocation.trim().slice(0, 490) : null,
         is_default: isDefault,
       });
       // Parent mutation onSuccess handles the success toast and closing the modal.
