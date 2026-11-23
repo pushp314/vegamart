@@ -174,7 +174,7 @@ export function ShopLocationForm({ vendorProfile }: ShopLocationFormProps) {
     });
   };
 
-  const defaultCenter = position || new L.LatLng(12.9716, 77.5946); // Bangalore default
+  const defaultCenter = position || new L.LatLng(21.9588, 82.9588); // Sakti, Chhattisgarh default
 
   return (
     <Card>

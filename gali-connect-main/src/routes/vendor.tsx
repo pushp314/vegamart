@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Outlet, useLocation } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useAuth } from "@/context/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -20,11 +20,19 @@ import {
   Crown,
   Send,
   BookOpen,
+  AlertTriangle,
 } from "lucide-react";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { VendorKYCForm } from "@/components/vendor/shared";
 import { VendorPlanOnboarding } from "@/components/vendor/VendorPlanOnboarding";
 import { VendorOrderNotificationProvider } from "@/components/vendor/VendorOrderNotificationProvider";
+import { ClientOnly } from "@/components/system/client-only";
+
+const VendorStoreLocationModal = lazy(() =>
+  import("@/components/vendor/VendorStoreLocationModal").then((m) => ({
+    default: m.VendorStoreLocationModal,
+  }))
+);
 
 export const Route = createFileRoute("/vendor")({
   component: VendorParentLayout,
@@ -73,6 +81,14 @@ function VendorDashboard() {
   });
 
   const vendor = vendorRes?.data?.data || vendorRes?.data;
+
+  const isLocationPinned = Boolean(
+    vendor?.latitude &&
+    vendor?.longitude &&
+    Number(vendor.latitude) > 5 &&
+    Number(vendor.longitude) > 60
+  );
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
 
   useEffect(() => {
     const vType = vendor?.profile?.vendor_type || vendor?.vendor_type;
@@ -149,6 +165,15 @@ function VendorDashboard() {
   const isSuspended = vendorStatus === "suspended";
   const isRejected = vendorStatus === "rejected";
   const isKycPending = kycStatus === "pending";
+
+  useEffect(() => {
+    if (vendor && isApproved && !isLocationPinned) {
+      const isDismissed = sessionStorage.getItem("vegamart_vendor_location_modal_dismissed") === "true";
+      if (!isDismissed) {
+        setLocationModalOpen(true);
+      }
+    }
+  }, [vendor, isApproved, isLocationPinned]);
 
   // Handle Suspended Vendor
   if (vendor && isSuspended) {
@@ -299,7 +324,51 @@ function VendorDashboard() {
         </div>
       </div>
 
+      {/* 📍 Compulsory Store Location Banner for Vendors */}
+      {!isLocationPinned && (
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 shadow-md animate-in fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white font-bold shadow-sm">
+              <MapPin className="h-6 w-6 animate-bounce" />
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="h-3 w-3" /> Action Required
+                </span>
+                <span className="text-xs font-bold text-foreground">
+                  Store GPS Pin Missing
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                Delivery partners cannot navigate to your shop for pickups until you pin your store coordinates.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setLocationModalOpen(true)}
+            className="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <MapPin className="h-4 w-4" /> Pin Store Location Now
+          </button>
+        </div>
+      )}
+
       <Outlet />
+
+      <ClientOnly>
+        <Suspense fallback={null}>
+          <VendorStoreLocationModal
+            vendor={vendor}
+            isOpen={locationModalOpen}
+            onClose={() => setLocationModalOpen(false)}
+          />
+        </Suspense>
+      </ClientOnly>
     </PortalLayout>
   );
 }

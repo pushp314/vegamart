@@ -69,6 +69,7 @@ function Checkout() {
   const [showChargesDropdown, setShowChargesDropdown] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>("delivery_partner");
   const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<any | null>(null);
   const [couponInput, setCouponInput] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [failureModalOpen, setFailureModalOpen] = useState(false);
@@ -446,7 +447,10 @@ function Checkout() {
 
   const createAddressMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await api.post<any>("/users/me/addresses", data);
+      const res =
+        data.id && !data.id.startsWith("addr_")
+          ? await api.put<any>(`/users/me/addresses/${data.id}`, data)
+          : await api.post<any>("/users/me/addresses", data);
       if (!res.success) {
         throw new Error(res.error?.message || "Failed to save address");
       }
@@ -455,10 +459,14 @@ function Checkout() {
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["addresses"] });
       setAddressModalOpen(false);
-      const addrId = res?.id;
+      setEditingAddress(null);
+      const addrId = res?.id || res?.data?.id;
       if (addrId) {
         setSelectedAddressId(addrId);
       }
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to save address");
     },
   });
 
@@ -638,6 +646,19 @@ function Checkout() {
     }
     if (!selectedAddress || !selectedAddress.id) {
       toast.error("Please add and select a valid delivery address.");
+      return;
+    }
+    const isDeliveryOrder = !isSelfPickup;
+    const hasAddressCoordinates = Boolean(
+      selectedAddress.latitude &&
+      selectedAddress.longitude &&
+      Number(selectedAddress.latitude) > 5 &&
+      Number(selectedAddress.longitude) > 60
+    );
+    if (isDeliveryOrder && !hasAddressCoordinates) {
+      toast.error("Exact GPS pin is compulsory for delivery! Please pin your location so the rider can navigate to your door.");
+      setEditingAddress(selectedAddress);
+      setAddressModalOpen(true);
       return;
     }
     if (isOutOfDeliveryRadius) {
@@ -1101,9 +1122,13 @@ function Checkout() {
                                 Default
                               </span>
                             )}
-                            {a.latitude && a.longitude && (
+                            {a.latitude && a.longitude && Number(a.latitude) > 5 && Number(a.longitude) > 60 ? (
                               <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 flex items-center gap-0.5">
                                 <MapPin className="h-2.5 w-2.5" /> GPS Pinned
+                              </span>
+                            ) : (
+                              <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-800 dark:text-amber-300 flex items-center gap-0.5">
+                                <AlertTriangle className="h-2.5 w-2.5 text-amber-600" /> Pin Required
                               </span>
                             )}
                           </div>
@@ -1120,6 +1145,31 @@ function Checkout() {
                       </button>
                     );
                   })
+                )}
+
+                {/* 📍 Compulsory Location Pin Warning */}
+                {!isSelfPickup && selectedAddress && !(selectedAddress.latitude && selectedAddress.longitude && Number(selectedAddress.latitude) > 5 && Number(selectedAddress.longitude) > 60) && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 space-y-2 mt-2 animate-in fade-in">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 font-bold text-xs">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span>GPS Pin Required for Delivery</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAddress(selectedAddress);
+                          setAddressModalOpen(true);
+                        }}
+                        className="text-xs font-bold text-primary underline hover:text-primary/80"
+                      >
+                        Pin Location Now
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      Your selected delivery address does not have GPS coordinates. Pinning your exact location is mandatory so the delivery rider can navigate straight to your doorstep.
+                    </p>
+                  </div>
                 )}
 
                 {/* 📍 Out of Delivery Radius Geo-Fence Warning */}
@@ -1864,8 +1914,12 @@ function Checkout() {
 
       <AddressModal
         open={addressModalOpen}
-        onClose={() => setAddressModalOpen(false)}
+        onClose={() => {
+          setAddressModalOpen(false);
+          setEditingAddress(null);
+        }}
         onSave={(data) => createAddressMutation.mutateAsync(data)}
+        initialData={editingAddress}
       />
 
       <PaymentFailureModal

@@ -25,6 +25,7 @@ import { CartProvider } from "../context/cart-context";
 import { WishlistProvider } from "../context/wishlist-context";
 import { GlobalNotificationAlertProvider } from "../components/notifications/GlobalNotificationAlertProvider";
 import { ActiveOrderTrackerPopup } from "../components/orders/ActiveOrderTrackerPopup";
+import { CustomerLocationPromptModal } from "../components/marketplace/CustomerLocationPromptModal";
 import { Toaster } from "../components/ui/sonner";
 import { checkMaintenanceStatus } from "../lib/api";
 
@@ -245,6 +246,11 @@ function RootComponent() {
               <ClientOnly>
                 <ActiveOrderTrackerPopup />
               </ClientOnly>
+              {!isPortalRoute && (
+                <ClientOnly>
+                  <CustomerLocationPromptModal />
+                </ClientOnly>
+              )}
               {!isPortalRoute && <BottomNav />}
               <ClientOnly>
                 <Toaster position="top-center" />

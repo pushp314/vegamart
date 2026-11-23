@@ -12,6 +12,7 @@ import {
   Loader2,
   User,
   ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { AddressModal, AddressData } from "@/components/marketplace/address-modal";
@@ -138,6 +139,21 @@ function AddressesPage() {
           </button>
         </div>
 
+        {/* Compulsory Pin Warning if any saved address is unpinned */}
+        {!isLoading && addresses.some((a) => !(a.latitude && a.longitude && Number(a.latitude) > 5 && Number(a.longitude) > 60)) && (
+          <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-sm animate-in fade-in">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <span className="font-bold text-foreground block">
+                GPS Pin Required for Doorstep Delivery
+              </span>
+              <span className="text-muted-foreground leading-normal mt-0.5 block">
+                One or more of your addresses do not have an exact GPS pin. Please tap <strong>"Pin Required"</strong> to update your location so delivery riders can reach your doorstep directly.
+              </span>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center p-12 text-muted-foreground gap-2">
             <Loader2 className="h-5 w-5 animate-spin text-primary" /> Loading addresses...
@@ -177,10 +193,21 @@ function AddressesPage() {
                               <CheckCircle2 className="h-3 w-3" /> Default
                             </span>
                           )}
-                          {addr.latitude && addr.longitude && (
+                          {addr.latitude && addr.longitude && Number(addr.latitude) > 5 && Number(addr.longitude) > 60 ? (
                             <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold px-2 py-0.5">
                               <MapPin className="h-3 w-3" /> GPS Pinned
                             </span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingAddr(addr);
+                                setModalOpen(true);
+                              }}
+                              className="flex items-center gap-1 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 hover:bg-amber-500/30 text-[10px] font-extrabold px-2 py-0.5 transition-colors cursor-pointer"
+                              title="Click to pin exact location"
+                            >
+                              <AlertTriangle className="h-3 w-3 text-amber-600" /> Pin Required
+                            </button>
                           )}
                         </div>
                         <div className="text-xs font-semibold text-foreground mt-0.5">
