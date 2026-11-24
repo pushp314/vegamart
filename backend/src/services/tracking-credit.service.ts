@@ -141,10 +141,11 @@ export const trackingCreditService = {
   },
 
   /**
-   * Deduct 1 credit for a live-tracked delivery order.
+   * Deduct credits for a live-tracked delivery order.
+   * Multi-store aware: deducts 1 credit per vendor shop stop (e.g. 1 store = 1 credit, 2 stores = 2 credits, 3 stores = 3 credits).
    * Completely non-blocking: if balance <= 0, tracking still functions
-   * and dues_amount increases by ₹1.00.
-   * Strictly idempotent and multi-store aware.
+   * and dues_amount increases accordingly.
+   * Strictly idempotent and exact-once per master order.
    */
   async deductCreditForOrder(orderId: string) {
     if (!orderId) return null;
@@ -207,8 +208,12 @@ export const trackingCreditService = {
         return { alreadyDeducted: true, log: existingLog };
       }
 
+      const storeCount = Math.max(1, masterOrder?.orders?.length || 1);
+      // 1 credit per vendor stop (e.g. 1 store = 1 credit, 2 stores = 2 credits, 3 stores = 3 credits)
+      const creditsToDeduct = storeCount;
+
       const wallet = await this.getWallet();
-      const newBalance = wallet.balance - 1;
+      const newBalance = wallet.balance - creditsToDeduct;
       const costPerTrack = Number(wallet.cost_per_track ?? 1.0);
       const newDues = newBalance < 0 ? Math.abs(newBalance) * costPerTrack : 0;
 
@@ -232,16 +237,17 @@ export const trackingCreditService = {
           .filter(Boolean)
           .join(", ") || "VegaMart Store";
 
-      const storeCount = masterOrder?.orders?.length || 1;
       const orderNumber = masterOrder?.order_number || orderId.slice(0, 8);
-      const storeSuffix = storeCount > 1 ? ` (${storeCount} Stores: ${vendorNames})` : ` (${vendorNames})`;
+      const storeSuffix = storeCount > 1
+        ? ` (${storeCount} Stores: ${vendorNames}) [${creditsToDeduct} Credits]`
+        : ` (${vendorNames}) [1 Credit]`;
 
       const [updatedWallet, log] = await prisma.$transaction([
         prisma.trackingCreditWallet.update({
           where: { id: wallet.id },
           data: {
             balance: newBalance,
-            total_used: wallet.total_used + 1,
+            total_used: wallet.total_used + creditsToDeduct,
             dues_amount: new Prisma.Decimal(newDues),
           },
         }),
@@ -249,7 +255,7 @@ export const trackingCreditService = {
           data: {
             wallet_id: wallet.id,
             type: "USAGE",
-            credits: -1,
+            credits: -creditsToDeduct,
             balance_after: newBalance,
             dues_after: new Prisma.Decimal(newDues),
             order_id: masterOrder?.id || orderId,

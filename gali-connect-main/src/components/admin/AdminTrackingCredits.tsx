@@ -230,10 +230,10 @@ export function AdminTrackingCredits() {
           <CardContent className="space-y-1">
             <div className="text-3xl font-black text-foreground flex items-baseline gap-1">
               <span>1 Credit</span>
-              <span className="text-xs font-semibold text-muted-foreground">/ order</span>
+              <span className="text-xs font-semibold text-muted-foreground">/ store stop</span>
             </div>
             <p className="text-[11px] text-muted-foreground pt-1">
-              Deducts exactly 1 credit per tracked delivery
+              1 credit per merchant stop (e.g. 2 stores = 2 credits)
             </p>
           </CardContent>
         </Card>
