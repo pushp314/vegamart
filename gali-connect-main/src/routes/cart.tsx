@@ -1,11 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, ShoppingBag, Minus, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowRight, ShoppingBag, Minus, Plus, Trash2, AlertTriangle, Tag, CheckCircle2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
 import { checkProductDeliverability } from "@/lib/deliverability";
 import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({ meta: [{ title: "Your cart — Vegamart" }] }),
@@ -22,10 +23,13 @@ function Cart() {
     tax,
     discount,
     appliedCoupon,
+    applyCoupon,
+    removeCoupon,
     total,
     itemCount,
   } = useCart();
   const { displayLocation, activeAddress } = useLocation();
+  const [couponInput, setCouponInput] = useState("");
 
   const undeliverableItems = useMemo(() => {
     return items.filter((i) => {
@@ -166,6 +170,59 @@ function Cart() {
           </div>
 
           <aside className="mt-5 md:mt-0 space-y-5">
+            {/* Interactive Coupon Code Card */}
+            <div className="rounded-2xl bg-card border p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <Tag className="h-4 w-4 text-primary" /> Apply Coupon
+              </div>
+              {appliedCoupon ? (
+                <div className="mt-3 flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="font-black text-xs uppercase tracking-wider">{appliedCoupon}</span>
+                      <span className="text-[11px] block text-emerald-700 dark:text-emerald-400 font-semibold">
+                        Discount of ₹{discount} applied!
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      removeCoupon();
+                      toast.info("Coupon removed");
+                    }}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700 px-2 py-1"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    placeholder="Enter coupon code"
+                    className="min-w-0 flex-1 h-10 rounded-xl border px-3 text-xs uppercase font-bold tracking-wider outline-none focus:border-primary bg-background"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!couponInput.trim()) return;
+                      const res = await applyCoupon(couponInput.trim());
+                      if (res.success) {
+                        toast.success(res.message);
+                        setCouponInput("");
+                      } else {
+                        toast.error(res.message);
+                      }
+                    }}
+                    className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all shrink-0"
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+            </div>
+
             <section className="rounded-2xl bg-card border p-4 md:sticky md:top-24">
               <h2 className="font-display text-[17px] font-bold">Bill summary</h2>
               <dl className="mt-3 space-y-2 text-sm">
