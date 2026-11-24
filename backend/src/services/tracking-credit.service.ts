@@ -13,6 +13,10 @@ export interface ListUsageLogsOptions {
   search?: string;
 }
 
+// In-memory locks & cache to guarantee exact-once deduction and 0ms latency on repeated GPS pings
+const inFlightDeductions = new Set<string>();
+const deductedOrderCache = new Set<string>();
+
 export const trackingCreditService = {
   /**
    * Retrieves or initializes the singleton credit wallet.
@@ -140,9 +144,18 @@ export const trackingCreditService = {
    * Deduct 1 credit for a live-tracked delivery order.
    * Completely non-blocking: if balance <= 0, tracking still functions
    * and dues_amount increases by ₹1.00.
+   * Strictly idempotent and multi-store aware.
    */
   async deductCreditForOrder(orderId: string) {
     if (!orderId) return null;
+    if (deductedOrderCache.has(orderId)) {
+      return { alreadyDeducted: true };
+    }
+    if (inFlightDeductions.has(orderId)) {
+      return { inFlight: true };
+    }
+
+    inFlightDeductions.add(orderId);
 
     try {
       // 1. Fetch order metadata to populate full usage history
@@ -176,6 +189,10 @@ export const trackingCreditService = {
       }
 
       const targetOrderId = masterOrder?.id || orderId;
+      if (deductedOrderCache.has(targetOrderId)) {
+        deductedOrderCache.add(orderId);
+        return { alreadyDeducted: true };
+      }
 
       // 2. Idempotency check: don't double charge an order that has already been deducted
       const existingLog = await prisma.trackingUsageLog.findFirst({
@@ -185,6 +202,8 @@ export const trackingCreditService = {
         },
       });
       if (existingLog) {
+        deductedOrderCache.add(targetOrderId);
+        deductedOrderCache.add(orderId);
         return { alreadyDeducted: true, log: existingLog };
       }
 
@@ -213,7 +232,9 @@ export const trackingCreditService = {
           .filter(Boolean)
           .join(", ") || "VegaMart Store";
 
+      const storeCount = masterOrder?.orders?.length || 1;
       const orderNumber = masterOrder?.order_number || orderId.slice(0, 8);
+      const storeSuffix = storeCount > 1 ? ` (${storeCount} Stores: ${vendorNames})` : ` (${vendorNames})`;
 
       const [updatedWallet, log] = await prisma.$transaction([
         prisma.trackingCreditWallet.update({
@@ -238,10 +259,13 @@ export const trackingCreditService = {
             customer_address: customerAddress,
             rider_name: riderName,
             vendor_names: vendorNames,
-            description: `Live Delivery Tracking for Order #${orderNumber}`,
+            description: `Live Delivery Tracking for Order #${orderNumber}${storeSuffix}`,
           },
         }),
       ]);
+
+      deductedOrderCache.add(targetOrderId);
+      deductedOrderCache.add(orderId);
 
       return {
         success: true,
@@ -251,6 +275,8 @@ export const trackingCreditService = {
     } catch (err) {
       console.error("[TrackingCreditService] Deduct error:", err);
       return null;
+    } finally {
+      inFlightDeductions.delete(orderId);
     }
   },
 

@@ -235,13 +235,27 @@ function RiderOrderTaskPage() {
                 )}
               </div>
 
-              {/* Store & Pickup Info */}
-              {tracking?.pickup_locations?.[0] && (
-                <div className="pt-3 border-t border-border/60 text-xs flex items-center justify-between">
-                  <span className="text-muted-foreground">Store:</span>
-                  <span className="font-bold text-foreground">
-                    {tracking.pickup_locations[0].name}
-                  </span>
+              {/* Stores & Pickup Sequence Info */}
+              {tracking?.pickup_locations && tracking.pickup_locations.length > 0 && (
+                <div className="pt-3 border-t border-border/60 space-y-2">
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Pickup Stores ({tracking.pickup_locations.length}):</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {tracking.pickup_locations.map((p: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between text-xs bg-muted/40 px-3 py-1.5 rounded-xl">
+                        <span className="font-semibold text-foreground">
+                          {idx + 1}. {p.name}
+                        </span>
+                        {p.phone && (
+                          <a href={`tel:${p.phone}`} className="text-emerald-600 font-bold text-[11px] hover:underline flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> Call
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

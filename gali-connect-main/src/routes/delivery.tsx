@@ -47,6 +47,7 @@ import { DeliverySettings } from "@/components/delivery/DeliverySettings";
 import { DeliveryWalletTab } from "@/components/delivery/DeliveryWalletTab";
 import { lazy, Suspense } from "react";
 import { ClientOnly } from "@/components/system/client-only";
+import { buildMultiStoreDeliveryPlan } from "@/lib/multistore-routing";
 const DeliveryMapModal =
   typeof window !== "undefined"
     ? lazy(() =>
@@ -1343,6 +1344,9 @@ function DeliveryDashboard() {
                                 onUpdateStatus={(status) => {
                                   updateStatusMutation.mutate({ orderId: o.id, status });
                                 }}
+                                onConfirmStorePickup={(subId) => {
+                                  confirmPickupMutation.mutate({ orderId: o.id, subId });
+                                }}
                                 onOpenOtpModal={() => {
                                   setSelectedOrder(o);
                                   setOtpModalOpen(true);
@@ -1723,83 +1727,43 @@ function DeliveryDashboard() {
                                 rLng = 82.9588;
                               }
 
-                              const intermediateStops = vendorList.slice(1).map((v: any) => ({
-                                lat: Number(v.latitude || v.lat),
-                                lng: Number(v.longitude || v.lng),
-                                label: v.business_name || "Merchant Store",
-                                type: "store" as const,
-                              }));
+                              const plan = buildMultiStoreDeliveryPlan(o, riderCoords);
+                              const isPickupPhase = plan.phase === "PICKUP";
 
-                              const isPickupPhase =
-                                o.status === "CONFIRMED" ||
-                                o.status === "READY_FOR_PICKUP" ||
-                                o.status === "PREPARING";
-
-                              if (isPickupPhase) {
-                                const endLat = vLat > 5 ? vLat : rLat + 0.005;
-                                const endLng = vLng > 60 ? vLng : rLng + 0.005;
-                                setMapData({
-                                  title: "Route to Store Pickup",
-                                  startLocation: {
-                                    lat: rLat,
-                                    lng: rLng,
-                                    label: "Your Live Location",
-                                  },
-                                  endLocation: {
-                                    lat: endLat,
-                                    lng: endLng,
-                                    label: firstVendor?.business_name || "Vendor Store",
-                                    address: firstVendor?.address || "",
-                                  },
-                                  intermediatePoints: intermediateStops,
-                                  directionsUrl: getGoogleMapsUrl(
-                                    vLat > 5 ? vLat : null,
-                                    vLng > 60 ? vLng : null,
-                                    firstVendor?.business_name,
-                                    rLat,
-                                    rLng
-                                  ),
-                                  orderNumber: o.order_number || o.id?.slice(0, 8),
-                                  storeName: firstVendor?.business_name || "Vendor Store",
-                                  customerName: o.user?.name || o.customer?.name || "Customer",
-                                  customerPhone: o.user?.phone || o.customer?.phone || o.address?.phone || "",
-                                  storePhone: firstVendor?.phone || o.vendor?.phone || "",
-                                  status: o.status,
-                                  isPickupPhase: true,
-                                });
-                              } else {
-                                const endLat = cLat > 5 ? cLat : (vLat > 5 ? vLat + 0.006 : rLat + 0.006);
-                                const endLng = cLng > 60 ? cLng : (vLng > 60 ? vLng + 0.006 : rLng + 0.006);
-                                setMapData({
-                                  title: "Route to Customer Dropoff",
-                                  startLocation: {
-                                    lat: rLat,
-                                    lng: rLng,
-                                    label: "Your Live Location",
-                                  },
-                                  endLocation: {
-                                    lat: endLat,
-                                    lng: endLng,
-                                    label: o.user?.name || o.customer?.name || "Customer",
-                                    address: o.address?.full_address || o.address?.line1 || "",
-                                  },
-                                  intermediatePoints: intermediateStops,
-                                  directionsUrl: getGoogleMapsUrl(
-                                    cLat > 5 ? cLat : null,
-                                    cLng > 60 ? cLng : null,
-                                    o.address?.full_address,
-                                    rLat,
-                                    rLng
-                                  ),
-                                  orderNumber: o.order_number || o.id?.slice(0, 8),
-                                  storeName: firstVendor?.business_name || "Vendor Store",
-                                  customerName: o.user?.name || o.customer?.name || "Customer",
-                                  customerPhone: o.user?.phone || o.customer?.phone || o.address?.phone || "",
-                                  storePhone: firstVendor?.phone || o.vendor?.phone || "",
-                                  status: o.status,
-                                  isPickupPhase: false,
-                                });
-                              }
+                              setMapData({
+                                title: isPickupPhase ? plan.activeTarget.title : "Route to Customer Dropoff",
+                                startLocation: {
+                                  lat: rLat,
+                                  lng: rLng,
+                                  label: "Your Live Location",
+                                },
+                                endLocation: {
+                                  lat: plan.activeTarget.lat,
+                                  lng: plan.activeTarget.lng,
+                                  label: plan.activeTarget.label,
+                                  address: plan.activeTarget.address,
+                                },
+                                intermediatePoints: plan.allWaypoints
+                                  .filter(
+                                    (w) =>
+                                      w.type !== "rider" &&
+                                      (w.lat !== plan.activeTarget.lat || w.lng !== plan.activeTarget.lng)
+                                  )
+                                  .map((w) => ({
+                                    lat: w.lat,
+                                    lng: w.lng,
+                                    label: w.label,
+                                    type: (w.type === "customer" ? "customer" : "store") as any,
+                                  })),
+                                directionsUrl: plan.googleMapsActiveUrl,
+                                orderNumber: o.order_number || o.id?.slice(0, 8),
+                                storeName: plan.activeTarget.label,
+                                customerName: o.user?.name || o.customer?.name || "Customer",
+                                customerPhone: o.user?.phone || o.customer?.phone || o.address?.phone || "",
+                                storePhone: plan.activeTarget.phone || "",
+                                status: o.status,
+                                isPickupPhase,
+                              });
                               setMapModalOpen(true);
                             }}
                             className="flex-1 py-3 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300 font-bold text-sm transition-colors flex items-center justify-center gap-2"
@@ -1809,34 +1773,28 @@ function DeliveryDashboard() {
 
                           {/* 1-Tap Google Maps Voice Navigation */}
                           {(() => {
-                            const isPickupPhase =
-                              o.status === "CONFIRMED" ||
-                              o.status === "READY_FOR_PICKUP" ||
-                              o.status === "PREPARING";
-                            const targetLat = isPickupPhase ? o.vendor?.latitude : o.address?.latitude;
-                            const targetLng = isPickupPhase ? o.vendor?.longitude : o.address?.longitude;
-                            const fallbackQuery = isPickupPhase
-                              ? `${o.vendor?.business_name || ""} ${o.vendor?.address || ""}`
-                              : `${o.address?.full_address || o.address?.street_address || ""} ${o.address?.city || ""}`;
+                            const plan = buildMultiStoreDeliveryPlan(o, riderCoords);
+                            const isPickup = plan.phase === "PICKUP";
+                            const btnLabel = isPickup
+                              ? plan.isMultiStore
+                                ? `Store ${plan.activeTarget.stopNumber || 1} Maps`
+                                : "Store Maps"
+                              : "Doorstep Maps";
 
                             return (
                               <a
-                                href={getGoogleMapsUrl(targetLat, targetLng, fallbackQuery)}
+                                href={plan.googleMapsActiveUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className={`px-3.5 py-3 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-1.5 shadow-2xs shrink-0 ${
-                                  isPickupPhase
+                                  isPickup
                                     ? "bg-emerald-600 hover:bg-emerald-500 text-white"
                                     : "bg-rose-600 hover:bg-rose-500 text-white"
                                 }`}
-                                title={
-                                  isPickupPhase
-                                    ? "Launch Turn-by-Turn GPS Navigation to Vendor Store in Google Maps"
-                                    : "Launch Turn-by-Turn GPS Navigation to Customer Doorstep in Google Maps"
-                                }
+                                title={`Launch Turn-by-Turn GPS Navigation to ${plan.activeTarget.label} in Google Maps`}
                               >
                                 <Navigation className="h-4 w-4" />
-                                <span>{isPickupPhase ? "Store Maps" : "Doorstep Maps"}</span>
+                                <span>{btnLabel}</span>
                               </a>
                             );
                           })()}

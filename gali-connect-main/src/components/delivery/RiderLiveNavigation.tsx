@@ -42,6 +42,11 @@ import {
   type RoadRoute,
   type ManeuverStep,
 } from "@/lib/road-routing";
+import {
+  buildMultiStoreDeliveryPlan,
+  type MultiStoreDeliveryPlan,
+  type StoreItem,
+} from "@/lib/multistore-routing";
 import { toast } from "sonner";
 
 export interface RiderLiveNavigationProps {
@@ -49,6 +54,7 @@ export interface RiderLiveNavigationProps {
   riderCoords: { lat: number; lng: number } | null;
   onUpdateStatus?: (status: string) => void;
   onOpenOtpModal?: () => void;
+  onConfirmStorePickup?: (subOrderId: string) => void;
   className?: string;
   defaultFullscreen?: boolean;
 }
@@ -172,6 +178,7 @@ export function RiderLiveNavigation({
   riderCoords,
   onUpdateStatus,
   onOpenOtpModal,
+  onConfirmStorePickup,
   className = "",
   defaultFullscreen = false,
 }: RiderLiveNavigationProps) {
@@ -260,78 +267,54 @@ export function RiderLiveNavigation({
     }, 5000);
   }, []);
 
-  // Extract vendors list (supports multi-store master orders)
-  const vendorList: any[] = useMemo(() => {
-    if (order?.sub_orders && order.sub_orders.length > 0) {
-      return order.sub_orders
-        .map((so: any) => so.vendor)
-        .filter(Boolean);
-    }
-    if (order?.vendor) return [order.vendor];
-    return [];
-  }, [order]);
+  // Intelligent Multi-Store Delivery Plan: Sequences Shop 1 -> Shop 2 -> Customer Doorstep
+  const deliveryPlan = useMemo<MultiStoreDeliveryPlan>(() => {
+    return buildMultiStoreDeliveryPlan(order, riderCoords);
+  }, [order, riderCoords]);
 
-  const firstVendor = vendorList[0];
-  const vLat = Number(firstVendor?.latitude || firstVendor?.lat || 0);
-  const vLng = Number(firstVendor?.longitude || firstVendor?.lng || 0);
-
-  const cLat = Number(order?.address?.latitude || order?.delivery_address?.latitude || 0);
-  const cLng = Number(order?.address?.longitude || order?.delivery_address?.longitude || 0);
-
-  const isPickupPhase =
-    order?.status === "CONFIRMED" ||
-    order?.status === "READY_FOR_PICKUP" ||
-    order?.status === "PREPARING";
+  const isPickupPhase = deliveryPlan.phase === "PICKUP";
 
   // Determine Origin (Rider live position or fallback to Sakti center)
   const origin = useMemo(() => {
     if (riderCoords && riderCoords.lat > 5 && riderCoords.lng > 60) {
       return riderCoords;
     }
-    if (vLat > 5 && vLng > 60) {
-      return { lat: vLat - 0.003, lng: vLng - 0.003 };
+    const firstWp = deliveryPlan.allWaypoints[0];
+    if (firstWp && firstWp.lat > 5 && firstWp.lng > 60) {
+      return { lat: firstWp.lat, lng: firstWp.lng };
     }
     return { lat: 21.9588, lng: 82.9588 }; // Sakti center
-  }, [riderCoords, vLat, vLng]);
+  }, [riderCoords, deliveryPlan]);
 
-  // Intermediate stops for multi-vendor pickups
+  // Intermediate stops for multi-vendor pickups (remaining pending stores)
   const intermediateStops = useMemo(() => {
-    if (vendorList.length <= 1) return [];
-    return vendorList.slice(1).map((v: any, idx: number) => ({
-      lat: Number(v.latitude || v.lat),
-      lng: Number(v.longitude || v.lng),
-      label: v.business_name || `Merchant #${idx + 2}`,
-    })).filter((p) => p.lat > 5 && p.lng > 60);
-  }, [vendorList]);
+    if (deliveryPlan.sequencedPendingStores.length <= 1) return [];
+    return deliveryPlan.sequencedPendingStores.slice(1).map((s, idx) => ({
+      lat: s.lat,
+      lng: s.lng,
+      label: s.businessName,
+      itemsCount: s.items.length,
+      stopNumber: (deliveryPlan.activeTarget.stopNumber || 1) + idx + 1,
+    }));
+  }, [deliveryPlan]);
 
   // Destination Target (Shop for pickup, or Customer for dropoff)
   const destination = useMemo(() => {
-    if (isPickupPhase) {
-      const lat = vLat > 5 ? vLat : origin.lat + 0.005;
-      const lng = vLng > 60 ? vLng : origin.lng + 0.005;
-      return {
-        lat,
-        lng,
-        label: firstVendor?.business_name || "Merchant Store",
-        address: firstVendor?.address || "",
-        phone: firstVendor?.phone || "",
-        type: "store" as const,
-      };
-    }
-
-    const lat = cLat > 5 ? cLat : (vLat > 5 ? vLat + 0.006 : origin.lat + 0.006);
-    const lng = cLng > 60 ? cLng : (vLng > 60 ? vLng + 0.006 : origin.lng + 0.006);
     return {
-      lat,
-      lng,
-      label: order?.user?.name || order?.customer?.name || "Customer",
-      address: order?.address?.full_address || order?.address?.line1 || "Customer Doorstep",
-      phone: order?.user?.phone || order?.customer?.phone || order?.address?.phone || "",
-      landmark: order?.address?.landmark || order?.delivery_address?.landmark || order?.delivery_location?.landmark || "",
-      exact_location: order?.address?.exact_location || order?.delivery_address?.exact_location || "",
-      type: "customer" as const,
+      lat: deliveryPlan.activeTarget.lat,
+      lng: deliveryPlan.activeTarget.lng,
+      label: deliveryPlan.activeTarget.label,
+      title: deliveryPlan.activeTarget.title,
+      subtitle: deliveryPlan.activeTarget.subtitle,
+      address: deliveryPlan.activeTarget.address,
+      phone: deliveryPlan.activeTarget.phone,
+      landmark: deliveryPlan.activeTarget.landmark,
+      exact_location: deliveryPlan.activeTarget.exact_location,
+      items: deliveryPlan.activeTarget.items,
+      subOrderId: deliveryPlan.activeTarget.subOrderId,
+      type: deliveryPlan.activeTarget.type.toLowerCase() as "store" | "customer",
     };
-  }, [isPickupPhase, vLat, vLng, cLat, cLng, origin, firstVendor, order]);
+  }, [deliveryPlan]);
 
   // Calculate real road route along street network
   useEffect(() => {
@@ -340,8 +323,8 @@ export function RiderLiveNavigation({
     async function loadRoute() {
       const waypoints = [
         origin,
-        ...intermediateStops,
         { lat: destination.lat, lng: destination.lng },
+        ...intermediateStops.map((s) => ({ lat: s.lat, lng: s.lng })),
       ];
 
       const res = await fetchRoadRoute(waypoints);
@@ -458,7 +441,7 @@ export function RiderLiveNavigation({
     return list;
   }, [fullRouteCoordinates]);
 
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&travelmode=driving`;
+  const googleMapsUrl = deliveryPlan.googleMapsActiveUrl;
 
   return (
     <div
@@ -475,11 +458,18 @@ export function RiderLiveNavigation({
             {getManeuverIcon(nextStep)}
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 block leading-tight">
-              {isPickupPhase ? "Pickup Navigation" : "Doorstep Dropoff"}
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 block leading-tight">
+                {destination.title || (isPickupPhase ? "Store Pickup" : "Doorstep Dropoff")}
+              </span>
+              {deliveryPlan.isMultiStore && (
+                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950 leading-none">
+                  Multi-Store ({deliveryPlan.totalStoresCount} Stores)
+                </span>
+              )}
+            </div>
             <h4 className="font-bold text-xs sm:text-sm text-white truncate leading-tight mt-0.5">
-              {nextStep?.instruction || `Head towards ${destination.label}`}
+              {nextStep?.instruction || destination.subtitle || `Head towards ${destination.label}`}
             </h4>
           </div>
         </div>
@@ -685,6 +675,38 @@ export function RiderLiveNavigation({
           </a>
         </div>
 
+        {/* Multi-Store Progress Sequence Strip */}
+        {deliveryPlan.nextTarget && (
+          <div className="flex items-center justify-between text-[11px] px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 text-amber-900 dark:text-amber-200">
+            <span className="font-bold flex items-center gap-1 truncate">
+              <ChevronRight className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+              <span>Next Stop: {deliveryPlan.nextTarget.label}</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
+              {deliveryPlan.nextTarget.subtitle}
+            </span>
+          </div>
+        )}
+
+        {/* Store Items To Collect Preview (Only during pickup phase) */}
+        {isPickupPhase && destination.items && destination.items.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 text-[11px] text-muted-foreground">
+            <span className="font-bold text-foreground shrink-0 flex items-center gap-1">
+              <Package className="h-3 w-3 text-emerald-600" /> Collect ({destination.items.length}):
+            </span>
+            {destination.items.slice(0, 3).map((it, idx) => (
+              <span key={idx} className="shrink-0 bg-muted/60 px-2 py-0.5 rounded-lg border text-[10px] font-semibold text-foreground">
+                {it.name} × {it.quantity}
+              </span>
+            ))}
+            {destination.items.length > 3 && (
+              <span className="shrink-0 text-[10px] text-muted-foreground font-bold">
+                +{destination.items.length - 3} more
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Destination Information & Action Buttons */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-0.5">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -723,10 +745,19 @@ export function RiderLiveNavigation({
 
             {isPickupPhase ? (
               <button
-                onClick={() => onUpdateStatus?.("out_for_delivery")}
+                onClick={() => {
+                  if (destination.subOrderId && onConfirmStorePickup) {
+                    onConfirmStorePickup(destination.subOrderId);
+                  } else {
+                    onUpdateStatus?.("out_for_delivery");
+                  }
+                }}
                 className="flex-1 sm:flex-none h-9 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-colors"
               >
-                <CheckCircle2 className="h-3.5 w-3.5" /> Confirm Pickup
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {deliveryPlan.isMultiStore
+                  ? `Pick Up Store ${deliveryPlan.activeTarget.stopNumber || 1}`
+                  : "Confirm Pickup"}
               </button>
             ) : (
               <button
