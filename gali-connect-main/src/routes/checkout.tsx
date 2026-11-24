@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { checkProductDeliverability } from "@/lib/deliverability";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — Vegamart" }] }),
@@ -450,9 +451,19 @@ function Checkout() {
     !vendorData.city.toLowerCase().trim().includes(selectedAddress.city.toLowerCase().trim()) &&
     !selectedAddress.city.toLowerCase().trim().includes(vendorData.city.toLowerCase().trim());
 
+  const undeliverableItems = useMemo(() => {
+    if (isSelfPickup) return [];
+    return items.filter((i) => {
+      const d = checkProductDeliverability(i.product, selectedAddress);
+      return !d.isDeliverable && (d.reason === "DIFFERENT_CITY" || d.reason === "OUT_OF_RADIUS");
+    });
+  }, [items, selectedAddress, isSelfPickup]);
+
   const isOutOfDeliveryRadius =
     !isSelfPickup &&
-    ((deliveryDistanceKm !== null && deliveryDistanceKm > vendorDeliveryRadius) || Boolean(isCityMismatch));
+    ((deliveryDistanceKm !== null && deliveryDistanceKm > vendorDeliveryRadius) ||
+      Boolean(isCityMismatch) ||
+      undeliverableItems.length > 0);
 
   const createAddressMutation = useMutation({
     mutationFn: async (data: any) => {

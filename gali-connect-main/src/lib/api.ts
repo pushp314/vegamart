@@ -568,8 +568,10 @@ export interface FeaturedProduct {
   vendor_id: string;
 }
 
-export const getFeaturedProducts = () =>
-  api.get<{ rows: FeaturedProduct[]; total: number }>("/products/featured");
+export const getFeaturedProducts = (city?: string) =>
+  api.get<{ rows: FeaturedProduct[]; total: number }>(
+    city ? `/products/featured?city=${encodeURIComponent(city)}` : "/products/featured"
+  );
 
 // ── Maintenance Reminders (Admin) ──────────────────────────────────────
 export interface MaintenanceTask {

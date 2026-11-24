@@ -47,6 +47,7 @@ import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability } from "@/lib/deliverability";
 import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { toast } from "sonner";
@@ -236,9 +237,9 @@ function renderSectionById(id: string, activeAddress: any) {
       return <ShopWiseProducts key={id} defaultAddress={activeAddress} />;
     case "trending":
     case "best_sellers":
-      return <Trending key={id} />;
+      return <Trending key={id} defaultAddress={activeAddress} />;
     case "featured_products":
-      return <FeaturedProducts key={id} />;
+      return <FeaturedProducts key={id} defaultAddress={activeAddress} />;
     case "recommended":
       return <Recommended key={id} />;
     case "recently_viewed":
@@ -803,14 +804,21 @@ function Hero() {
   );
 }
 
-function FeaturedProducts() {
+function FeaturedProducts({ defaultAddress }: { defaultAddress?: any }) {
+  const city = defaultAddress?.city;
   const { data: featuredResponse, isLoading } = useQuery({
-    queryKey: ["featured-products"],
-    queryFn: () => getFeaturedProducts().then((r) => r.data),
+    queryKey: ["featured-products", city],
+    queryFn: () => getFeaturedProducts(city).then((r) => r.data),
     staleTime: 5 * 60 * 1000,
   });
 
-  const products = featuredResponse?.rows ?? [];
+  const rawProducts = featuredResponse?.rows ?? [];
+  const products = useMemo(() => {
+    return rawProducts.filter((p: any) => {
+      const d = checkProductDeliverability(p, defaultAddress);
+      return d.isDeliverable;
+    });
+  }, [rawProducts, defaultAddress]);
 
   if (isLoading || products.length === 0) return null;
 
@@ -944,7 +952,7 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
         Number(b.vendor?.is_sponsored) - Number(a.vendor?.is_sponsored) ||
         a.vendor?.business_name?.localeCompare(b.vendor?.business_name || ""),
     );
-  }, [res?.data, defaultAddress?.latitude, defaultAddress?.longitude]);
+  }, [res?.data, defaultAddress?.latitude, defaultAddress?.longitude, defaultAddress?.city]);
 
   const totalShops = groups.length;
 
@@ -1863,14 +1871,26 @@ function RecentlyViewed() {
   );
 }
 
-function Trending() {
+function Trending({ defaultAddress }: { defaultAddress?: any }) {
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const city = defaultAddress?.city;
   const { data: res, isLoading } = useQuery({
-    queryKey: ["products", "trending"],
-    queryFn: () => api.get<any[]>("/products/trending"),
+    queryKey: ["products", "trending", city],
+    queryFn: () => {
+      const cityParam = city ? `?city=${encodeURIComponent(city)}` : "";
+      return api.get<any[]>(`/products/trending${cityParam}`);
+    },
   });
-  const list = res?.data?.slice(0, 6) || [];
+  const rawList = res?.data || [];
+  const list = useMemo(() => {
+    return rawList
+      .filter((p: any) => {
+        const d = checkProductDeliverability(p, defaultAddress);
+        return d.isDeliverable;
+      })
+      .slice(0, 6);
+  }, [rawList, defaultAddress]);
 
   return (
     <section className="pt-6 md:pt-10">

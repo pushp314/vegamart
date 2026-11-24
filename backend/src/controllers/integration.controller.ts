@@ -72,18 +72,21 @@ export const listBanners = asyncHandler(async (_req: Request, res: Response) => 
   return sendSuccess(res, await integrationService.listBanners());
 });
 
-export const listTrendingProducts = asyncHandler(async (_req: Request, res: Response) => {
+export const listTrendingProducts = asyncHandler(async (req: Request, res: Response) => {
+  const city = (req.query.city as string)?.trim() || undefined;
+  const cacheKey = city ? `trending:${city.toLowerCase()}` : "trending:all";
   const result = await cacheService.remember(
     "product",
-    "trending",
-    async () => await integrationService.listTrendingProducts(),
+    cacheKey,
+    async () => await integrationService.listTrendingProducts(city),
     300 // 5 minutes cache
   );
   return sendSuccess(res, result);
 });
 
-export const listFeaturedProducts = asyncHandler(async (_req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listFeaturedProducts());
+export const listFeaturedProducts = asyncHandler(async (req: Request, res: Response) => {
+  const city = (req.query.city as string)?.trim() || undefined;
+  return sendSuccess(res, await integrationService.listFeaturedProducts(city));
 });
 
 // ---------------------------------------------------------------------------

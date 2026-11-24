@@ -249,8 +249,15 @@ function VendorDetail() {
       ? calculateDistance(activeAddress.latitude, activeAddress.longitude, lat, lng)
       : null;
 
-  const deliveryRadiusKm = Number(profile.delivery_radius_km || 5);
-  const isOutOfDeliveryRange = distanceKm != null && distanceKm > deliveryRadiusKm;
+  const deliveryRadiusKm = Number(profile.delivery_radius_km || (vendor as any).delivery_radius_km || 5);
+  const vendorCity = profile.city || (vendor as any).city || "";
+  const isCityMismatch =
+    Boolean(activeAddress?.city) &&
+    Boolean(vendorCity) &&
+    !vendorCity.toLowerCase().trim().includes(activeAddress.city.toLowerCase().trim()) &&
+    !activeAddress.city.toLowerCase().trim().includes(vendorCity.toLowerCase().trim());
+  const isOutOfDeliveryRange =
+    Boolean(isCityMismatch) || (distanceKm != null && distanceKm > deliveryRadiusKm);
 
   const ownerName = profile.owner_name || vendor.business_name || "Verified Merchant";
   const phone = profile.phone || (vendor as any).phone || null;
@@ -523,17 +530,19 @@ function VendorDetail() {
           </div>
 
           {/* Out of Delivery Radius Geo-Fence Banner */}
-          {isOutOfDeliveryRange && distanceKm != null && (
+          {isOutOfDeliveryRange && (
             <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 text-xs font-medium">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-0.5">
                 <span className="font-bold">
-                  Your Location is Outside Store Delivery Range ({distanceKm.toFixed(1)} km away)
+                  {isCityMismatch
+                    ? `Delivery Not Available in ${activeAddress?.city || "Your City"}`
+                    : `Your Location is Outside Store Delivery Range (${distanceKm ? `${distanceKm.toFixed(1)} km away` : ""})`}
                 </span>
                 <p className="text-[11px] text-muted-foreground">
-                  {vendor.business_name} only delivers home orders within{" "}
-                  <strong>{deliveryRadiusKm} km</strong> in {profile.city || "this city"}. You can still browse
-                  products or select <strong>Self Pickup</strong> during checkout.
+                  {isCityMismatch
+                    ? `${vendor.business_name} operates in ${vendorCity}. Delivery is not available to ${activeAddress?.city}.`
+                    : `${vendor.business_name} only delivers home orders within ${deliveryRadiusKm} km in ${vendorCity || "this city"}. You can still browse products or select Self Pickup during checkout.`}
                 </p>
               </div>
             </div>

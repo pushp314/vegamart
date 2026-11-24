@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { Product, Vendor, CouponValidation } from "@/types";
 import { api, formatErrorMessage } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability } from "@/lib/deliverability";
 import { toast } from "sonner";
 import { Store, AlertTriangle, Trash2, ArrowRight } from "lucide-react";
 import {
@@ -54,6 +56,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { activeAddress } = useLocation();
   const [items, setItems] = useState<CartItem[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [appliedCouponData, setAppliedCouponData] = useState<AppliedCouponInfo | null>(null);
@@ -134,6 +137,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = (product: Product, quantity = 1, variantLabel?: string) => {
+    // Deliverability & Multi-City Service Area evaluation
+    const deliverability = checkProductDeliverability(product, activeAddress);
+    if (
+      !deliverability.isDeliverable &&
+      (deliverability.reason === "DIFFERENT_CITY" || deliverability.reason === "OUT_OF_RADIUS")
+    ) {
+      toast.error(
+        deliverability.message || "This product cannot be delivered to your selected location."
+      );
+      return;
+    }
+
     const isOutOfStock =
       product.is_available === false ||
       product.is_active === false ||

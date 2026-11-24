@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
+import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability } from "@/lib/deliverability";
 import { toast } from "sonner";
 
 export function ProductCard({
@@ -21,7 +23,13 @@ export function ProductCard({
 }) {
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { activeAddress } = useLocation();
   const wishlisted = isWishlisted(product.id);
+
+  const deliverability = checkProductDeliverability(product, activeAddress);
+  const isNotDeliverable =
+    !deliverability.isDeliverable &&
+    (deliverability.reason === "DIFFERENT_CITY" || deliverability.reason === "OUT_OF_RADIUS");
 
   const discount =
     product.mrp > product.price
@@ -39,7 +47,7 @@ export function ProductCard({
     isZeroStock ||
     vendorOffline;
   const lowStock =
-    !outOfStock && typeof product.stock === "number" && product.stock > 0 && product.stock <= 5;
+    !outOfStock && !isNotDeliverable && typeof product.stock === "number" && product.stock > 0 && product.stock <= 5;
 
   return (
     <div
@@ -80,11 +88,17 @@ export function ProductCard({
             {discount}% OFF
           </div>
         )}
-        {outOfStock && (
+        {isNotDeliverable ? (
+          <div className="absolute inset-x-0 bottom-0 z-[3] bg-amber-950/90 px-2 py-1 text-center text-[10px] font-black uppercase tracking-wider text-amber-300 backdrop-blur-xs border-t border-amber-500/30">
+            {deliverability.reason === "DIFFERENT_CITY"
+              ? `In ${product.vendor?.city || product.vendor?.profile?.city || "Other City"}`
+              : "Outside Delivery Zone"}
+          </div>
+        ) : outOfStock ? (
           <div className="absolute inset-x-0 bottom-0 z-[3] bg-zinc-950/85 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-xs border-t border-white/10">
             {vendorOffline ? "Store Closed" : "Out of Stock"}
           </div>
-        )}
+        ) : null}
         {lowStock && (
           <div className="absolute right-2 bottom-2 z-[3] rounded-md bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
             Only {product.stock} left
@@ -117,14 +131,14 @@ export function ProductCard({
       </div>
 
       <div className="relative mt-3">
-        <h4 className={`text-sm font-semibold truncate ${outOfStock ? "text-muted-foreground" : "text-foreground"}`}>
+        <h4 className={`text-sm font-semibold truncate ${outOfStock || isNotDeliverable ? "text-muted-foreground" : "text-foreground"}`}>
           {product.name}
         </h4>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
           <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
-            outOfStock ? "bg-muted text-muted-foreground" : "bg-amber-100/80 text-amber-700"
+            outOfStock || isNotDeliverable ? "bg-muted text-muted-foreground" : "bg-amber-100/80 text-amber-700"
           }`}>
-            <Star className={`h-2.5 w-2.5 ${outOfStock ? "fill-muted-foreground text-muted-foreground" : "fill-amber-400 text-amber-400"}`} />
+            <Star className={`h-2.5 w-2.5 ${outOfStock || isNotDeliverable ? "fill-muted-foreground text-muted-foreground" : "fill-amber-400 text-amber-400"}`} />
             {typeof product.rating === "number" && product.rating > 0
               ? product.rating.toFixed(1)
               : "New"}
@@ -136,7 +150,7 @@ export function ProductCard({
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="flex flex-col justify-center">
-            <span className={`text-sm font-bold leading-none ${outOfStock ? "text-muted-foreground line-through" : "text-foreground"}`}>
+            <span className={`text-sm font-bold leading-none ${outOfStock || isNotDeliverable ? "text-muted-foreground line-through" : "text-foreground"}`}>
               ₹{product.price}
             </span>
             {product.mrp > product.price && (
@@ -146,7 +160,14 @@ export function ProductCard({
             )}
           </div>
           {!hideAddToCart && (
-            outOfStock ? (
+            isNotDeliverable ? (
+              <span
+                className="relative z-[5] text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 px-2 py-1 rounded-lg shrink-0 cursor-not-allowed leading-tight text-center"
+                title={deliverability.message}
+              >
+                Not Deliverable
+              </span>
+            ) : outOfStock ? (
               <span className="relative z-[5] text-[10px] font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-200/80 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 px-2 py-1 rounded-lg shrink-0 cursor-not-allowed">
                 {vendorOffline ? "Closed" : "Out of stock"}
               </span>

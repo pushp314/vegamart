@@ -128,7 +128,7 @@ function VendorsPage() {
         tags.some((t) => t.toLowerCase().includes(q))
       );
     });
-  }, [activeCat, query, vendors, categories]);
+  }, [activeCat, query, vendors, categories, activeAddress?.city]);
 
   const liveVendorsCount = vendors.filter((v: any) => v.profile?.is_open || v.is_open).length;
 

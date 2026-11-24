@@ -369,24 +369,24 @@ export const integrationService = {
     }));
   },
 
-  async listTrendingProducts() {
+  async listTrendingProducts(city?: string) {
     const { rows } = await productRepo.listProducts(
-      { isAvailable: true, sort: "rating" },
+      { isAvailable: true, sort: "rating", city },
       0,
       10
     );
     return rows;
   },
 
-  async listFeaturedProducts() {
+  async listFeaturedProducts(city?: string) {
     let { rows } = await productRepo.listProducts(
-      { isAvailable: true, isFeatured: true, sort: "featured" },
+      { isAvailable: true, isFeatured: true, sort: "featured", city },
       0,
       10
     );
     if (rows.length === 0) {
       const fallback = await productRepo.listProducts(
-        { isAvailable: true, sort: "rating" },
+        { isAvailable: true, sort: "rating", city },
         0,
         10
       );

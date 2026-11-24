@@ -23,6 +23,7 @@ import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability } from "@/lib/deliverability";
 import { ReviewModal } from "@/components/marketplace/review-modal";
 
 export const Route = createFileRoute("/products/$productId")({
@@ -72,7 +73,7 @@ function ProductDetail() {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
-  const { displayLocation } = useLocation();
+  const { displayLocation, activeAddress } = useLocation();
 
   const { data: liveProductRes } = useQuery({
     queryKey: ["product", initialProduct.id],
@@ -81,6 +82,10 @@ function ProductDetail() {
   });
 
   const product = liveProductRes?.data || initialProduct;
+  const deliverability = checkProductDeliverability(product, activeAddress);
+  const isNotDeliverable =
+    !deliverability.isDeliverable &&
+    (deliverability.reason === "DIFFERENT_CITY" || deliverability.reason === "OUT_OF_RADIUS");
 
   // Real-time stock subscription for this product
   useEffect(() => {
@@ -194,6 +199,10 @@ function ProductDetail() {
     !isOutOfStock && typeof product.stock === "number" && product.stock > 0 && product.stock <= 5;
 
   const handleAdd = () => {
+    if (isNotDeliverable) {
+      toast.error(deliverability.message || "This product cannot be delivered to your selected location.");
+      return;
+    }
     if (vendorOffline) {
       toast.error(closedMessage);
       return;
@@ -207,6 +216,10 @@ function ProductDetail() {
   };
 
   const handleBuyNow = () => {
+    if (isNotDeliverable) {
+      toast.error(deliverability.message || "This product cannot be delivered to your selected location.");
+      return;
+    }
     if (vendorOffline) {
       toast.error(closedMessage);
       return;
@@ -493,20 +506,30 @@ function ProductDetail() {
                 {wishlisted ? "Saved" : "Save"}
               </button>
               <button
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || isNotDeliverable}
                 onClick={handleAdd}
                 className="inline-flex items-center gap-2 rounded-full border bg-card hover:bg-muted text-foreground text-sm font-bold h-12 px-6 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Plus className="h-4 w-4" /> {vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Add to cart"}
+                <Plus className="h-4 w-4" /> {isNotDeliverable ? "Not Deliverable" : vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Add to cart"}
               </button>
               <button
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || isNotDeliverable}
                 onClick={handleBuyNow}
                 className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-sm font-bold h-12 px-7 shadow-md hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
+                {isNotDeliverable ? "Not Deliverable" : vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Buy now"} {!isOutOfStock && !isNotDeliverable && <ArrowRight className="h-4 w-4" />}
               </button>
             </div>
+
+            {isNotDeliverable && (
+              <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-amber-900 dark:text-amber-200 flex items-start gap-2.5 text-xs font-semibold">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Delivery not available to {displayLocation}</span>
+                  <span className="text-[11px] text-muted-foreground">{deliverability.message}</span>
+                </div>
+              </div>
+            )}
 
             {vendorOffline && (
               <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-rose-800 dark:text-rose-200 flex items-center gap-2.5 text-xs font-semibold">
@@ -648,18 +671,18 @@ function ProductDetail() {
               </div>
             </div>
             <button
-              disabled={isOutOfStock}
+              disabled={isOutOfStock || isNotDeliverable}
               onClick={handleAdd}
               className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-primary font-semibold text-[13px] h-11 px-4 disabled:opacity-50"
             >
-              {vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Add"}
+              {isNotDeliverable ? "Not Deliverable" : vendorOffline ? "Store Closed" : isOutOfStock ? "Out of Stock" : "Add"}
             </button>
             <button
-              disabled={isOutOfStock}
+              disabled={isOutOfStock || isNotDeliverable}
               onClick={handleBuyNow}
               className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground font-semibold text-[13px] h-11 px-4 disabled:opacity-50"
             >
-              {vendorOffline ? "Store Closed" : isOutOfStock ? "Sold Out" : "Buy now"} {!isOutOfStock && <ArrowRight className="h-4 w-4" />}
+              {isNotDeliverable ? "Not Deliverable" : vendorOffline ? "Store Closed" : isOutOfStock ? "Sold Out" : "Buy now"} {!isOutOfStock && !isNotDeliverable && <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
         </div>

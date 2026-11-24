@@ -93,6 +93,12 @@ export type Vendor = {
     includes_sponsorship: boolean;
   } | null;
   profile?: VendorProfile;
+  city?: string;
+  state?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  delivery_radius_km?: number;
   provides_delivery?: boolean;
   is_open?: boolean;
   auto_schedule_enabled?: boolean;

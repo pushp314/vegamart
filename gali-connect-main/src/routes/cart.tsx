@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, ShoppingBag, Minus, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability } from "@/lib/deliverability";
 import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
 
 export const Route = createFileRoute("/cart")({
@@ -23,7 +25,15 @@ function Cart() {
     total,
     itemCount,
   } = useCart();
-  const { displayLocation } = useLocation();
+  const { displayLocation, activeAddress } = useLocation();
+
+  const undeliverableItems = useMemo(() => {
+    return items.filter((i) => {
+      const d = checkProductDeliverability(i.product, activeAddress);
+      return !d.isDeliverable && (d.reason === "DIFFERENT_CITY" || d.reason === "OUT_OF_RADIUS");
+    });
+  }, [items, activeAddress]);
+  const hasUndeliverableItems = undeliverableItems.length > 0;
 
   if (items.length === 0) {
     return (
@@ -56,6 +66,19 @@ function Cart() {
       />
       <main className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-4 md:pt-8 pb-40 md:pb-16 space-y-4">
         <MultiStoreLiveBadge />
+
+        {hasUndeliverableItems && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200 flex items-start gap-3 text-xs font-medium">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold text-sm block">Items not deliverable to {displayLocation}</span>
+              <p className="text-[12px] text-muted-foreground">
+                Some items in your basket are outside your delivery zone or in a different city. Please remove them before proceeding to checkout.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="md:grid md:grid-cols-[1fr_360px] md:gap-6 lg:gap-8">
           <div>
             <ul className="space-y-3">
@@ -63,14 +86,24 @@ function Cart() {
                 const image =
                   i.product.images?.[0]?.url ||
                   "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
+                const itemD = checkProductDeliverability(i.product, activeAddress);
+                const isItemUndeliverable =
+                  !itemD.isDeliverable &&
+                  (itemD.reason === "DIFFERENT_CITY" || itemD.reason === "OUT_OF_RADIUS");
+
                 return (
-                  <li key={i.id} className="flex gap-3 p-3 rounded-2xl bg-card border shadow-sm">
-                    <div className="h-20 w-20 md:h-24 md:w-24 shrink-0 overflow-hidden rounded-xl bg-muted">
+                  <li key={i.id} className={`flex gap-3 p-3 rounded-2xl bg-card border shadow-sm ${isItemUndeliverable ? "border-amber-500/40 bg-amber-500/5" : ""}`}>
+                    <div className="h-20 w-20 md:h-24 md:w-24 shrink-0 overflow-hidden rounded-xl bg-muted relative">
                       <img
                         src={image}
                         alt={i.product.name}
                         className="h-full w-full object-cover"
                       />
+                      {isItemUndeliverable && (
+                        <div className="absolute inset-x-0 bottom-0 bg-amber-950/90 text-amber-300 text-[9px] font-black uppercase text-center py-0.5">
+                          Not Deliverable
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start gap-2">
@@ -88,6 +121,12 @@ function Cart() {
                       <p className="text-[12px] text-muted-foreground">
                         {i.selectedVariant || i.product.unit}
                       </p>
+                      {isItemUndeliverable && (
+                        <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 px-2 py-0.5 rounded-md">
+                          <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                          <span>{itemD.message}</span>
+                        </div>
+                      )}
                       <div className="mt-2 flex items-center justify-between">
                         <div>
                           <span className="font-bold text-[15px]">
@@ -144,12 +183,21 @@ function Cart() {
                 <span className="font-semibold">Total</span>
                 <span className="font-display text-xl font-bold tabular-nums">₹{total}</span>
               </div>
-              <Link
-                to="/checkout"
-                className="hidden md:inline-flex mt-4 w-full items-center justify-center gap-2 rounded-full bg-primary text-primary-foreground font-semibold text-sm h-12"
-              >
-                Checkout <ArrowRight className="h-4 w-4" />
-              </Link>
+              {hasUndeliverableItems ? (
+                <button
+                  disabled
+                  className="hidden md:inline-flex mt-4 w-full items-center justify-center gap-2 rounded-full bg-muted text-muted-foreground font-semibold text-xs h-12 cursor-not-allowed border border-border"
+                >
+                  Remove undeliverable items to checkout
+                </button>
+              ) : (
+                <Link
+                  to="/checkout"
+                  className="hidden md:inline-flex mt-4 w-full items-center justify-center gap-2 rounded-full bg-primary text-primary-foreground font-semibold text-sm h-12"
+                >
+                  Checkout <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
             </section>
           </aside>
         </div>
@@ -170,12 +218,21 @@ function Cart() {
                 ₹{total}
               </div>
             </div>
-            <Link
-              to="/checkout"
-              className="inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm h-11 px-4"
-            >
-              Checkout <ArrowRight className="h-4 w-4" />
-            </Link>
+            {hasUndeliverableItems ? (
+              <button
+                disabled
+                className="inline-flex items-center gap-1 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-500 font-semibold text-xs h-11 px-3 cursor-not-allowed"
+              >
+                Undeliverable items
+              </button>
+            ) : (
+              <Link
+                to="/checkout"
+                className="inline-flex items-center gap-2 rounded-full bg-white text-emerald-900 font-semibold text-sm h-11 px-4"
+              >
+                Checkout <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
           </div>
         </div>
       </div>
