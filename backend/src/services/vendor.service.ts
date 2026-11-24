@@ -595,7 +595,11 @@ export const vendorService = {
           continue;
         }
         const { latitude, longitude, ...rest } = vendor;
-        results.push({ vendor: rest, distance_km: distance, latitude, longitude });
+        const enriched = enrichVendor(rest as any);
+        if (options.isOpen && !enriched.is_open) {
+          continue;
+        }
+        results.push({ vendor: enriched, distance_km: distance, latitude, longitude });
       }
 
       results.sort((a, b) => a.distance_km - b.distance_km);

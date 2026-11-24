@@ -63,6 +63,10 @@ function VendorOverviewPage() {
     mutationFn: (isOpen: boolean) => api.put("/vendors/me/availability", { is_open: isOpen }),
     onSuccess: (_, isOpen) => {
       queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
+      queryClient.invalidateQueries({ queryKey: ["myVendor"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor"] });
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success(isOpen ? "Your store is now ONLINE 🟢" : "Your store is now OFFLINE 🔴");
     },
     onError: (err: any) => {

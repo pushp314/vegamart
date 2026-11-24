@@ -833,13 +833,14 @@ function FeaturedProducts({ defaultAddress }: { defaultAddress?: any }) {
       <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
         {products.map((product) => {
           const image = product.images?.[0]?.url;
+          const isStoreClosed = (product as any).vendor?.is_open === false || (product as any).vendor?.store_availability?.isOpen === false;
           return (
             <Link
               key={product.id}
               to="/vendors/$vendorId"
               params={{ vendorId: product.vendor_id }}
               search={{ product: product.id }}
-              className="group rounded-2xl bg-card border hover:border-primary/40 transition-colors overflow-hidden"
+              className={`group rounded-2xl bg-card border hover:border-primary/40 transition-colors overflow-hidden ${isStoreClosed ? "opacity-75 grayscale-[25%]" : ""}`}
             >
               <div className="aspect-square bg-muted relative">
                 {image ? (
@@ -847,6 +848,11 @@ function FeaturedProducts({ defaultAddress }: { defaultAddress?: any }) {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                     <Heart className="h-8 w-8" />
+                  </div>
+                )}
+                {isStoreClosed && (
+                  <div className="absolute inset-x-0 bottom-0 z-[3] bg-zinc-950/85 px-2 py-1 text-center text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-xs border-t border-white/10">
+                    Store Closed
                   </div>
                 )}
               </div>
@@ -900,7 +906,7 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
       const cityParam = defaultAddress?.city ? `&city=${encodeURIComponent(defaultAddress.city)}` : "";
       return api.get<ShopProduct[]>(`/products/homepage?per_page=100&products_per_vendor=10&vendor_is_open=true${cityParam}`);
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   });
 
   const groups = useMemo(() => {
@@ -918,9 +924,8 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
       if (!vid) continue;
       const v: StoreVendor = p.vendor || { id: vid, business_name: "Store" };
 
-      // 1. FILTER OUT CLOSED SHOPS: only show opened stores
-      const isOpen = v.is_open === true && v.status !== "rejected" && v.status !== "suspended";
-      if (!isOpen) continue;
+      // 1. FILTER OUT REJECTED / SUSPENDED SHOPS
+      if (v.status === "rejected" || v.status === "suspended") continue;
 
       // 2. FILTER OUT OUT-OF-RANGE SHOPS: only show vendors within customer delivery radius
       if (defaultAddress?.latitude && defaultAddress?.longitude && v.latitude && v.longitude) {
@@ -947,11 +952,15 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
       }
       map.get(vid)!.products.push(p);
     }
-    return Array.from(map.values()).sort(
-      (a, b) =>
+    return Array.from(map.values()).sort((a, b) => {
+      const aOpen = a.vendor?.is_open !== false && (a.vendor as any)?.store_availability?.isOpen !== false;
+      const bOpen = b.vendor?.is_open !== false && (b.vendor as any)?.store_availability?.isOpen !== false;
+      if (aOpen !== bOpen) return bOpen ? 1 : -1;
+      return (
         Number(b.vendor?.is_sponsored) - Number(a.vendor?.is_sponsored) ||
-        a.vendor?.business_name?.localeCompare(b.vendor?.business_name || ""),
-    );
+        a.vendor?.business_name?.localeCompare(b.vendor?.business_name || "")
+      );
+    });
   }, [res?.data, defaultAddress?.latitude, defaultAddress?.longitude, defaultAddress?.city]);
 
   const totalShops = groups.length;
@@ -999,7 +1008,11 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
           const v = group.vendor;
           const logo = v.logo_url || v.profile?.logo_url;
           const hasRating = typeof v.rating === "number" && v.rating > 0;
-          const isOpen = v.is_open !== false && v.status !== "rejected" && v.status !== "suspended";
+          const isOpen =
+            v.is_open !== false &&
+            (v as any).store_availability?.isOpen !== false &&
+            v.status !== "rejected" &&
+            v.status !== "suspended";
 
           return (
             <div key={v.id} className="rounded-3xl border bg-card p-4 md:p-6 shadow-sm">
@@ -1052,15 +1065,19 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
                     )}
                     <span
                       className={`inline-flex items-center gap-1 font-semibold ${
-                        isOpen ? "text-emerald-600" : "text-muted-foreground"
+                        isOpen ? "text-emerald-600" : "text-rose-600 dark:text-rose-400"
                       }`}
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${
-                          isOpen ? "bg-emerald-500" : "bg-muted-foreground/50"
+                          isOpen ? "bg-emerald-500" : "bg-rose-500"
                         }`}
                       />
-                      {isOpen ? "Open now" : "Closed"}
+                      {isOpen
+                        ? "Open now"
+                        : (v as any).store_availability?.nextOpenTime
+                          ? `Closed · Opens ${(v as any).store_availability.nextOpenTime}`
+                          : "Closed"}
                     </span>
                     <span>{group.products.length} products</span>
                   </div>
@@ -1079,7 +1096,16 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
                 {group.products.map((p) => (
                   <div key={p.id} className="shrink-0 snap-start w-[140px] md:w-[180px]">
                     <ProductCard
-                      product={p}
+                      product={{
+                        ...p,
+                        vendor: {
+                          ...(p.vendor || v),
+                          is_open: isOpen,
+                          store_availability:
+                            (p.vendor as any)?.store_availability ||
+                            (v as any).store_availability,
+                        } as any,
+                      }}
                       linkTo="/vendors/$vendorId"
                       linkParams={{ vendorId: v.id }}
                       linkSearch={{ product: p.id }}
@@ -1390,7 +1416,12 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
 
   const roamingOnly = normalizedList.filter((v: any) => {
     if (!isRoamingVendor(v)) return false;
-    if (v.is_open === false || v.status === "rejected" || v.status === "suspended") return false;
+    const isVendorOpen =
+      v.is_open !== false &&
+      (v as any).store_availability?.isOpen !== false &&
+      v.status !== "rejected" &&
+      v.status !== "suspended";
+    if (!isVendorOpen) return false;
     if (defaultAddress?.latitude && defaultAddress?.longitude && v.latitude && v.longitude) {
       const custLat = Number(defaultAddress.latitude);
       const custLng = Number(defaultAddress.longitude);
@@ -1404,7 +1435,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
     }
     return true;
   });
-  const list = (roamingOnly.length > 0 ? roamingOnly : normalizedList).slice(0, 6);
+  const list = roamingOnly.slice(0, 6);
 
   return (
     <section className="pt-6 md:pt-10">
@@ -1603,10 +1634,9 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
       : item,
   );
 
-  const nonRoaming = normalizedList.filter((v) => {
+  const nearbyNonRoaming = normalizedList.filter((v) => {
     if (isRoamingVendor(v)) return false;
-    // 1. FILTER OUT CLOSED SHOPS: only show opened stores
-    if (v.is_open === false || v.status === "rejected" || v.status === "suspended") return false;
+    if (v.status === "rejected" || v.status === "suspended") return false;
     // 2. FILTER OUT OUT-OF-RANGE SHOPS: only show vendors within customer delivery radius
     if (defaultAddress?.latitude && defaultAddress?.longitude && v.latitude && v.longitude) {
       const custLat = Number(defaultAddress.latitude);
@@ -1627,7 +1657,18 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
     }
     return true;
   });
-  const list = (nonRoaming.length > 0 ? nonRoaming : normalizedList).slice(0, 6);
+
+  // Sort open stores first, then sponsored, then closest
+  const sortedShops = [...nearbyNonRoaming].sort((a, b) => {
+    const aOpen = a.is_open !== false && (a as any).store_availability?.isOpen !== false;
+    const bOpen = b.is_open !== false && (b as any).store_availability?.isOpen !== false;
+    if (aOpen !== bOpen) return bOpen ? 1 : -1;
+    return (
+      Number(b.is_sponsored) - Number(a.is_sponsored) ||
+      (a.distance_km ?? 999) - (b.distance_km ?? 999)
+    );
+  });
+  const list = sortedShops.slice(0, 6);
 
   return (
     <section className="pt-6 md:pt-10">
@@ -1682,12 +1723,14 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
               v.delivery_configs?.estimated_delivery_time ||
               (typeof v.eta_min === "number" ? `${v.eta_min} mins` : "20-30 mins");
 
+            const isShopOpen = v.is_open !== false && (v as any).store_availability?.isOpen !== false;
+
             return (
               <Link
                 key={v.id}
                 to="/vendors/$vendorId"
                 params={{ vendorId: v.id }}
-                className="group snap-start shrink-0 md:shrink w-[84%] sm:w-[320px] md:w-auto rounded-3xl bg-card border overflow-hidden shadow-soft hover:shadow-glow hover:border-primary/50 transition-all duration-300 flex flex-col"
+                className={`group snap-start shrink-0 md:shrink w-[84%] sm:w-[320px] md:w-auto rounded-3xl bg-card border overflow-hidden shadow-soft hover:shadow-glow hover:border-primary/50 transition-all duration-300 flex flex-col ${!isShopOpen ? "opacity-80 grayscale-[20%]" : ""}`}
               >
                 {/* Large Store Banner Cover */}
                 <div className="relative h-36 sm:h-44 w-full bg-muted overflow-hidden">
@@ -1701,7 +1744,11 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
 
                   {/* Badges Overlay */}
                   <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-                    {v.is_sponsored ? (
+                    {!isShopOpen ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-md">
+                        Closed
+                      </span>
+                    ) : v.is_sponsored ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-slate-950 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-md">
                         <Sparkles className="h-3 w-3 fill-slate-950" /> Featured
                       </span>
@@ -1751,9 +1798,15 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
                 {/* Card Content */}
                 <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
-                      <Clock className="h-3.5 w-3.5" /> {deliveryTime}
-                    </span>
+                    {isShopOpen ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                        <Clock className="h-3.5 w-3.5" /> {deliveryTime}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-bold">
+                        <Clock className="h-3.5 w-3.5" /> {(v as any).store_availability?.nextOpenTime ? `Opens ${(v as any).store_availability.nextOpenTime}` : "Store Closed"}
+                      </span>
+                    )}
                     {typeof v.distance_km === "number" ? (
                       <span className="inline-flex items-center gap-1 font-medium text-foreground">
                         <MapPin className="h-3.5 w-3.5 text-primary" /> {v.distance_km.toFixed(1)}{" "}
@@ -1910,6 +1963,7 @@ function Trending({ defaultAddress }: { defaultAddress?: any }) {
               p.images?.[0]?.url ||
               "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
             const wishlisted = isWishlisted(p.id);
+            const isStoreClosed = p.vendor?.is_open === false || (p.vendor as any)?.store_availability?.isOpen === false;
 
             return (
               <Link
@@ -1917,7 +1971,7 @@ function Trending({ defaultAddress }: { defaultAddress?: any }) {
                 to="/vendors/$vendorId"
                 params={{ vendorId: p.vendor_id }}
                 search={{ product: p.id }}
-                className="snap-start shrink-0 md:shrink w-[46%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors"
+                className={`snap-start shrink-0 md:shrink w-[46%] md:w-auto rounded-2xl bg-card border overflow-hidden shadow-sm hover:border-primary/40 transition-colors ${isStoreClosed ? "opacity-75 grayscale-[25%]" : ""}`}
               >
                 <div className="relative aspect-square bg-muted">
                   <img
@@ -1926,11 +1980,15 @@ function Trending({ defaultAddress }: { defaultAddress?: any }) {
                     className="h-full w-full object-cover"
                     loading="lazy"
                   />
-                  {disc > 0 && (
+                  {isStoreClosed ? (
+                    <div className="absolute inset-x-0 bottom-0 z-[3] bg-zinc-950/85 px-2 py-1 text-center text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-xs border-t border-white/10">
+                      Store Closed
+                    </div>
+                  ) : disc > 0 ? (
                     <span className="absolute top-2 left-2 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white">
                       {disc}% OFF
                     </span>
-                  )}
+                  ) : null}
                   <button
                     type="button"
                     onClick={(e) => {

@@ -39,7 +39,10 @@ export function ProductCard({
     product.images?.[0]?.url ||
     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop";
 
-  const vendorOffline = product.vendor?.is_open === false;
+  const vendorOffline =
+    product.vendor?.is_open === false ||
+    (product.vendor as any)?.store_availability?.isOpen === false ||
+    (product as any)?.vendor_is_open === false;
   const isZeroStock = typeof product.stock === "number" && product.stock <= 0;
   const outOfStock =
     product.is_available === false ||
@@ -168,8 +171,8 @@ export function ProductCard({
                 Not Deliverable
               </span>
             ) : outOfStock ? (
-              <span className="relative z-[5] text-[10px] font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-200/80 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 px-2 py-1 rounded-lg shrink-0 cursor-not-allowed">
-                {vendorOffline ? "Closed" : "Out of stock"}
+              <span className="relative z-[5] text-[10px] font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-200/90 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 px-2 py-1 rounded-lg shrink-0 cursor-not-allowed select-none">
+                {vendorOffline ? "Store Closed" : "Out of stock"}
               </span>
             ) : (
               <Button

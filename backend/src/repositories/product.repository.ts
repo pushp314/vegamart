@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import prisma from "../database/prisma";
+import { calculateStoreAvailability } from "../utils/store-schedule";
 
 const baseSelect = {
   id: true,
@@ -45,6 +46,10 @@ const baseSelect = {
       is_sponsored: true,
       free_delivery_min_order: true,
       is_open: true,
+      auto_schedule_enabled: true,
+      store_schedule: true,
+      manual_override_status: true,
+      manual_override_until: true,
       provides_delivery: true,
       city: true,
       state: true,
@@ -94,6 +99,11 @@ export type ProductRow = {
     is_sponsored?: boolean;
     free_delivery_min_order?: import("@prisma/client").Prisma.Decimal | null;
     is_open?: boolean;
+    auto_schedule_enabled?: boolean;
+    store_schedule?: any;
+    manual_override_status?: string | null;
+    manual_override_until?: Date | null;
+    store_availability?: any;
     provides_delivery?: boolean;
     city?: string;
     state?: string;
@@ -104,7 +114,13 @@ export type ProductRow = {
 };
 
 function mapRow(row: unknown): ProductRow {
-  return row as ProductRow;
+  const p = row as any;
+  if (p && p.vendor) {
+    const availability = calculateStoreAvailability(p.vendor);
+    p.vendor.is_open = availability.isOpen;
+    p.vendor.store_availability = availability;
+  }
+  return p as ProductRow;
 }
 
 export async function findById(id: string): Promise<ProductRow | null> {
@@ -379,9 +395,18 @@ export async function listProductsForHomepage(
       id: true,
       is_sponsored: true,
       business_name: true,
+      is_open: true,
+      auto_schedule_enabled: true,
+      store_schedule: true,
+      manual_override_status: true,
+      manual_override_until: true,
     },
     orderBy: [{ is_sponsored: "desc" }, { business_name: "asc" }],
   });
+
+  if (vendorIsOpen) {
+    vendors = vendors.filter((v) => calculateStoreAvailability(v).isOpen);
+  }
 
   if (vendors.length === 0 && vendorIsOpen) {
     delete vendorWhere.is_open;
@@ -391,6 +416,11 @@ export async function listProductsForHomepage(
         id: true,
         is_sponsored: true,
         business_name: true,
+        is_open: true,
+        auto_schedule_enabled: true,
+        store_schedule: true,
+        manual_override_status: true,
+        manual_override_until: true,
       },
       orderBy: [{ is_sponsored: "desc" }, { business_name: "asc" }],
     });

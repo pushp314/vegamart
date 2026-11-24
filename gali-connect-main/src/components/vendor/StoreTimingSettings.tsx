@@ -109,7 +109,10 @@ export function StoreTimingSettings({ vendorProfile }: StoreTimingSettingsProps)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myVendor"] });
+      queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
       queryClient.invalidateQueries({ queryKey: ["vendor"] });
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Store schedule & business hours saved successfully!");
     },
     onError: (err: any) => {
