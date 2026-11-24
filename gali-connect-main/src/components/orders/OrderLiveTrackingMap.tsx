@@ -26,6 +26,7 @@ import {
   Store,
   ChevronRight,
   Layers,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playArrivalChime } from "@/lib/chime";
@@ -419,12 +420,40 @@ export function OrderLiveTrackingMap({
       const pt = activeRoadRoute[i];
       if (pt) ahead.push(pt);
     }
-    if (validDelivery && ahead.length > 0) {
-      ahead.push([validDelivery.lat, validDelivery.lng]);
-    }
+    // Do NOT blindly append validDelivery as a solid road line!
+    // Appending customer coordinates directly creates a false solid highway cutting across fields/plots.
+    // Instead, active road stops on the street, and doorstepConnector renders a Google Maps-style dotted footpath.
 
     return { pathAhead: ahead.length > 0 ? ahead : activeRoadRoute, pathTrail: trail };
-  }, [activeRoadRoute, routeIndex, validDriver, validDelivery]);
+  }, [activeRoadRoute, routeIndex, validDriver]);
+
+  // Google Maps-style dotted doorstep connector from road terminus to house pin
+  const doorstepConnector = useMemo<[number, number][] | null>(() => {
+    if (!validDelivery) return null;
+    const roadEnd = pathAhead.length > 0 ? pathAhead[pathAhead.length - 1] : activeRoadRoute[activeRoadRoute.length - 1];
+    if (!roadEnd) return null;
+
+    // Distance in meters between the road end and the actual house pin
+    const dLat = (validDelivery.lat - roadEnd[0]) * 111320;
+    const dLng = (validDelivery.lng - roadEnd[1]) * 111320 * Math.cos((validDelivery.lat * Math.PI) / 180);
+    const distMeters = Math.hypot(dLat, dLng);
+
+    // If house is offset from road between 15m and 1500m, show dotted access pathway
+    if (distMeters >= 15 && distMeters <= 1500) {
+      return [roadEnd, [validDelivery.lat, validDelivery.lng]];
+    }
+    return null;
+  }, [pathAhead, activeRoadRoute, validDelivery]);
+
+  // 1-Tap Google Maps Turn-by-Turn Navigation URL for rider & customer
+  const googleMapsDirectionsUrl = useMemo(() => {
+    if (!validDelivery) return null;
+    const origin = validDriver || validPickups[0];
+    if (origin) {
+      return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${validDelivery.lat},${validDelivery.lng}&travelmode=driving`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${validDelivery.lat},${validDelivery.lng}`;
+  }, [validDriver, validPickups, validDelivery]);
 
   // Clean directional arrow chevrons along the road route
   const directionArrows = useMemo(() => {
@@ -956,6 +985,19 @@ export function OrderLiveTrackingMap({
             <Navigation className="h-3.5 w-3.5 mr-1 text-emerald-600" />
             Recenter
           </Button>
+
+          {googleMapsDirectionsUrl && (
+            <a
+              href={googleMapsDirectionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-bold rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 transition-colors shadow-2xs"
+              title="Open real turn-by-turn route in Google Maps"
+            >
+              <ExternalLink className="h-3.5 w-3.5 mr-1 text-sky-600 dark:text-sky-400" />
+              Google Maps
+            </a>
+          )}
         </div>
       </div>
 
@@ -1043,6 +1085,18 @@ export function OrderLiveTrackingMap({
                 lineJoin="round"
               />
             </>
+          )}
+
+          {/* Dotted Footpath Connector to Doorstep (Google Maps style off-road access line) */}
+          {doorstepConnector && (
+            <Polyline
+              positions={doorstepConnector}
+              color="#059669"
+              weight={3}
+              dashArray="6, 8"
+              opacity={0.85}
+              lineCap="round"
+            />
           )}
 
           {/* Direction Chevrons along Road Route */}
@@ -1329,6 +1383,18 @@ export function OrderLiveTrackingMap({
           </div>
 
           <div className="flex items-center gap-2">
+            {googleMapsDirectionsUrl && (
+              <a
+                href={googleMapsDirectionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl font-bold text-xs bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800 transition-colors shadow-2xs"
+                title="Open turn-by-turn route in Google Maps"
+              >
+                <Navigation className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                Google Maps
+              </a>
+            )}
             {activeRider.phone && (
               <a
                 href={`tel:${activeRider.phone}`}

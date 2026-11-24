@@ -6,7 +6,7 @@ export interface RouteResult {
   points: [number, number][]; // [lat, lng] array
   distanceMeters: number;
   durationSeconds: number;
-  provider: "ors" | "osrm" | "haversine";
+  provider: "google" | "ors" | "osrm" | "haversine";
 }
 
 export interface IRouteProvider {
@@ -58,10 +58,15 @@ export class OsrmRouteProvider implements IRouteProvider {
 
     // OSRM coordinates format: lng,lat;lng,lat
     const coordsStr = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
+    const first = waypoints[0]!;
+    const last = waypoints[waypoints.length - 1]!;
+    const straightDist = haversineDistanceMeters(first.lat, first.lng, last.lat, last.lng);
+
     const urls = [
-      `${this.baseUrl.replace(/\/+$/, "")}/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`,
-      `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`,
-      `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`,
+      `${this.baseUrl.replace(/\/+$/, "")}/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&continue_straight=false`,
+      `https://routing.openstreetmap.de/routed-bike/route/v1/bicycle/${coordsStr}?overview=full&geometries=geojson`,
+      `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&continue_straight=false`,
+      `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&continue_straight=false`,
     ];
 
     for (const url of urls) {
@@ -82,6 +87,17 @@ export class OsrmRouteProvider implements IRouteProvider {
           continue;
         }
 
+        const routeDist = Math.round(route.distance || 0);
+        // If route distance is more than 3x straight distance on short trips (<1.5 km), it's an unmapped rural phantom detour
+        if (straightDist > 0 && straightDist < 1500 && routeDist > 2.8 * straightDist) {
+          log.warn("OSRM returned abnormal detour around unmapped roads, checking alternative", {
+            straightDist,
+            routeDist,
+            ratio: (routeDist / straightDist).toFixed(2),
+          });
+          continue;
+        }
+
         const rawCoords: [number, number][] = route.geometry.coordinates;
         // Convert OSRM [lng, lat] GeoJSON to Leaflet [lat, lng]
         const points = normalizePolyline(rawCoords);
@@ -89,7 +105,7 @@ export class OsrmRouteProvider implements IRouteProvider {
 
         return {
           points,
-          distanceMeters: Math.round(route.distance || 0),
+          distanceMeters: routeDist,
           durationSeconds: Math.round(route.duration || 0),
           provider: "osrm",
         };
@@ -101,6 +117,102 @@ export class OsrmRouteProvider implements IRouteProvider {
     }
 
     throw new Error("All OSRM routing providers failed or timed out");
+  }
+}
+
+function decodeGooglePolyline(encoded: string): [number, number][] {
+  const points: [number, number][] = [];
+  let index = 0;
+  const len = encoded.length;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < len) {
+    let b: number;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = result & 1 ? ~(result >> 1) : result >> 1;
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = result & 1 ? ~(result >> 1) : result >> 1;
+    lng += dlng;
+
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return points;
+}
+
+export class GoogleRouteProvider implements IRouteProvider {
+  constructor(private apiKey: string) {}
+
+  async calculateRoute(waypoints: Array<{ lat: number; lng: number }>): Promise<RouteResult> {
+    if (waypoints.length < 2) {
+      return new DirectHaversineFallbackProvider().calculateRoute(waypoints);
+    }
+
+    const origin = waypoints[0]!;
+    const destination = waypoints[waypoints.length - 1]!;
+    const intermediates = waypoints.slice(1, -1);
+
+    let waypointsParam = "";
+    if (intermediates.length > 0) {
+      waypointsParam = `&waypoints=${intermediates.map((w) => `${w.lat},${w.lng}`).join("|")}`;
+    }
+
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}${waypointsParam}&mode=driving&key=${this.apiKey}`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) {
+        throw new Error(`Google Directions HTTP ${res.status}: ${res.statusText}`);
+      }
+      const data = (await res.json()) as any;
+      if (data.status !== "OK" || !data.routes?.[0]) {
+        throw new Error(`Google Directions API error: ${data.status} - ${data.error_message || "No route"}`);
+      }
+
+      const route = data.routes[0];
+      const encodedPolyline = route.overview_polyline?.points;
+      if (!encodedPolyline) {
+        throw new Error("No overview_polyline in Google Directions response");
+      }
+
+      const points = decodeGooglePolyline(encodedPolyline);
+      let totalDistance = 0;
+      let totalDuration = 0;
+
+      if (Array.isArray(route.legs)) {
+        for (const leg of route.legs) {
+          totalDistance += leg.distance?.value || 0;
+          totalDuration += leg.duration?.value || 0;
+        }
+      }
+
+      return {
+        points,
+        distanceMeters: Math.round(totalDistance),
+        durationSeconds: Math.round(totalDuration),
+        provider: "google",
+      };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 
@@ -162,7 +274,10 @@ export class RoutingService implements IRouteProvider {
 
   constructor() {
     const env = loadEnv();
-    if (env.ROUTING_PROVIDER === "ors" && env.ORS_API_KEY) {
+    const googleKey = env.GOOGLE_MAPS_API_KEY || env.GOOGLE_DIRECTIONS_API_KEY;
+    if ((env.ROUTING_PROVIDER === "google" || googleKey) && googleKey) {
+      this.primaryProvider = new GoogleRouteProvider(googleKey);
+    } else if (env.ROUTING_PROVIDER === "ors" && env.ORS_API_KEY) {
       this.primaryProvider = new OrsRouteProvider(env.ORS_API_KEY);
     } else {
       this.primaryProvider = new OsrmRouteProvider(env.OSRM_BASE_URL);

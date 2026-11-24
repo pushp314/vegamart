@@ -210,3 +210,61 @@ export const reverseGeocode = asyncHandler(async (req: Request, res: Response) =
     map_url: `https://www.google.com/maps?q=${lat},${lng}`,
   });
 });
+
+import { routingService } from "../modules/tracking/route.provider";
+
+export const getDirections = asyncHandler(async (req: Request, res: Response) => {
+  const originStr = req.query.origin as string;
+  const destStr = req.query.destination as string;
+  const waypointsStr = req.query.waypoints as string;
+
+  if (!originStr || !destStr) {
+    return sendSuccess(res, { coordinates: [], distanceKm: 0, durationMinutes: 0 });
+  }
+
+  const origParts = originStr.split(",").map(Number);
+  const destParts = destStr.split(",").map(Number);
+
+  const origLat = origParts[0];
+  const origLng = origParts[1];
+  const destLat = destParts[0];
+  const destLng = destParts[1];
+
+  if (
+    origLat === undefined ||
+    origLng === undefined ||
+    destLat === undefined ||
+    destLng === undefined ||
+    Number.isNaN(origLat) ||
+    Number.isNaN(origLng) ||
+    Number.isNaN(destLat) ||
+    Number.isNaN(destLng)
+  ) {
+    return sendSuccess(res, { coordinates: [], distanceKm: 0, durationMinutes: 0 });
+  }
+
+  const waypoints: Array<{ lat: number; lng: number }> = [{ lat: origLat, lng: origLng }];
+
+  if (waypointsStr) {
+    const rawPts = waypointsStr.split(";");
+    for (const p of rawPts) {
+      const parts = p.split(",").map(Number);
+      const wLat = parts[0];
+      const wLng = parts[1];
+      if (wLat !== undefined && wLng !== undefined && !Number.isNaN(wLat) && !Number.isNaN(wLng)) {
+        waypoints.push({ lat: wLat, lng: wLng });
+      }
+    }
+  }
+
+  waypoints.push({ lat: destLat, lng: destLng });
+
+  const result = await routingService.calculateRoute(waypoints);
+
+  return sendSuccess(res, {
+    coordinates: result.points,
+    distanceKm: Math.round((result.distanceMeters / 1000) * 10) / 10,
+    durationMinutes: Math.max(1, Math.round(result.durationSeconds / 60)),
+    provider: result.provider,
+  });
+});

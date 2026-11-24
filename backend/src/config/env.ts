@@ -78,7 +78,9 @@ const envSchema = z
 
     // ── Live Delivery Tracking ──────────────────────────────────────────────
     LIVE_TRACKING_ENABLED: booleanFromStringDefaultTrue,
-    ROUTING_PROVIDER: z.enum(["ors", "osrm"]).default("osrm"),
+    ROUTING_PROVIDER: z.enum(["google", "ors", "osrm"]).default("osrm"),
+    GOOGLE_MAPS_API_KEY: stringOrEmpty,
+    GOOGLE_DIRECTIONS_API_KEY: stringOrEmpty,
     ORS_API_KEY: stringOrEmpty,
     OSRM_BASE_URL: z.string().default("https://router.project-osrm.org"),
     LIVE_TRACKING_REROUTE_LIMIT: z.coerce.number().int().positive().default(5),

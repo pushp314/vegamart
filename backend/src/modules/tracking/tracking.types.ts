@@ -21,7 +21,7 @@ export interface DecodedRoadRoute {
   durationSeconds: number;
   version: number;
   updatedAt: number;
-  provider: "ors" | "osrm" | "haversine";
+  provider: "google" | "ors" | "osrm" | "haversine";
 }
 
 export interface LiveTrackingState {
