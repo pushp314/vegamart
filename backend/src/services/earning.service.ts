@@ -23,6 +23,7 @@ export interface OrderEarningInput {
   delivery_fee: number;
   discount: number;
   commission_rate: number;
+  payment_method?: string;
   items: Array<{ total_price: number; status: string; category_commission_rate?: number | null }>;
 }
 
@@ -100,7 +101,35 @@ export function computeVendorEarning(basis: OrderEarningInput): VendorEarningBre
  * transaction where applicable.
  */
 export async function createOrderEarnings(order: OrderEarningInput, db: DbClient = prisma): Promise<void> {
-  const { net } = computeVendorEarning(order);
+  const { net, commission } = computeVendorEarning(order);
+
+  // Self-Delivery COD Protection:
+  // When an order is delivered by the vendor's own staff and paid via Cash-on-Delivery (COD),
+  // the customer pays the full cash directly to the vendor's staff at the doorstep.
+  // The vendor has ALREADY collected the cash in hand! Crediting their digital wallet with 'net'
+  // would cause a double payout. Instead, the platform commission owed by the vendor on the order
+  // is recorded as a deduction row.
+  const isVendorSelfDeliveryCod =
+    order.payment_method === "COD" && !order.delivery_partner_id;
+
+  if (isVendorSelfDeliveryCod) {
+    if (commission > 0) {
+      await db.vendorEarning.createMany({
+        data: [
+          {
+            vendor_id: order.vendor_id,
+            order_id: order.id,
+            type: "REFUND", // Acts as negative deduction from vendor's pending/settled balance
+            amount: -round2(commission),
+            status: "PENDING",
+            reference_id: `commission-deduction-COD`,
+          },
+        ],
+        skipDuplicates: true,
+      });
+    }
+    return;
+  }
 
   // FLAW 3 FIX: Use createMany + skipDuplicates with a deterministic reference_id
   // so the @@unique([order_id, reference_id]) constraint atomically prevents duplicates.

@@ -200,6 +200,7 @@ export async function completeDelivery(input: CompleteDeliveryInput): Promise<Or
           delivery_fee: Number(row.delivery_fee),
           discount: Number(row.discount),
           commission_rate: Number(row.vendor?.commission_rate ?? 0),
+          payment_method: String(row.payment_method || ""),
           items: (row.items || []).map((item: any) => ({
             total_price: Number(item.total_price),
             status: item.status,

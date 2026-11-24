@@ -564,6 +564,10 @@ function Checkout() {
   };
 
   const handleRetryRazorpayFlow = async (ordersList: any[]) => {
+    if (!ordersList || ordersList.length === 0) {
+      await handlePlaceOrder();
+      return;
+    }
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded) {
       throw new Error("Razorpay SDK failed to load. Are you online?");
@@ -771,9 +775,14 @@ function Checkout() {
                 clearCart();
                 toast.success("Payment successful! Your order has been placed.");
                 const firstOrder = verifyRes.data?.orders?.[0]?.order;
+                const masterId =
+                  verifyRes?.data?.master_order_id ||
+                  verifyRes?.data?.masterOrderId ||
+                  firstOrder?.id ||
+                  "";
                 navigate({
                   to: "/order-success",
-                  search: { orderId: verifyRes?.data?.master_order_id || "" },
+                  search: { orderId: masterId },
                 });
                 resolve();
               } else {
@@ -992,10 +1001,15 @@ function Checkout() {
     0,
   );
   const totalExtraCharges = displayDeliveryFee + displayTax + additionalChargesTotal;
-  const finalOrderTotal = Math.max(
+  const calculatedTotal = Math.max(
     0,
     subtotal + displayDeliveryFee + displayTax + additionalChargesTotal - discount,
   );
+  // Authoritative server-calculated total ensures zero discrepancy between Checkout UI and Razorpay Gateway
+  const finalOrderTotal =
+    summary?.total && displayDeliveryFee === Number(summary.delivery_fee ?? 0)
+      ? Number(summary.total)
+      : Math.round(calculatedTotal * 100) / 100;
   const isAdvanceSelected =
     paymentType === "ADVANCE" && selectedOptionObj.advancePaymentEnabled && payment !== "cod";
   const advancePct = selectedOptionObj.advancePct || 20;
@@ -1957,8 +1971,27 @@ function Checkout() {
         isOpen={failureModalOpen}
         onClose={() => setFailureModalOpen(false)}
         orders={pendingFailedOrders}
+        totalAmount={finalOrderTotal}
         errorMessage={paymentFailureReason}
         onRetryRazorpay={handleRetryRazorpayFlow}
+        onSwitchToCod={() => {
+          setFailureModalOpen(false);
+          setPayment("cod");
+          toast.info("Switched to Cash on Delivery. Placing order...");
+          const payload = {
+            address_id: selectedAddress?.id || "",
+            payment_method: "cod",
+            delivery_slot: selectedOptionId,
+            payment_type: paymentType,
+            coupon_code: appliedCoupon || undefined,
+            items: items.map((i) => ({
+              product_id: i.product.id,
+              quantity: i.quantity,
+              selected_unit: i.selectedVariant || i.product.unit || "unit",
+            })),
+          };
+          createOrderMutation.mutate(payload);
+        }}
       />
     </div>
   );

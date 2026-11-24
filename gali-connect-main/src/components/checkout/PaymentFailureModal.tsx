@@ -29,16 +29,20 @@ interface PaymentFailureModalProps {
   isOpen: boolean;
   onClose: () => void;
   orders: any[]; // The created order(s)
+  totalAmount?: number;
   errorMessage?: string;
   onRetryRazorpay: (orders: any[]) => Promise<void>;
+  onSwitchToCod?: () => void;
 }
 
 export function PaymentFailureModal({
   isOpen,
   onClose,
   orders,
+  totalAmount,
   errorMessage,
   onRetryRazorpay,
+  onSwitchToCod,
 }: PaymentFailureModalProps) {
   const navigate = useNavigate();
   const { clearCart } = useCart();
@@ -47,7 +51,7 @@ export function PaymentFailureModal({
   const [isSwitchingCod, setIsSwitchingCod] = useState(false);
 
   const firstOrder = orders?.[0]?.order || orders?.[0] || null;
-  const orderTotal = orders.reduce((sum, o) => sum + (Number(o?.order?.total || o?.total || 0)), 0);
+  const orderTotal = totalAmount ?? orders.reduce((sum, o) => sum + (Number(o?.order?.total || o?.total || 0)), 0);
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -62,6 +66,11 @@ export function PaymentFailureModal({
   };
 
   const handleSwitchToCod = async () => {
+    if (onSwitchToCod) {
+      onSwitchToCod();
+      onClose();
+      return;
+    }
     if (!firstOrder?.id) {
       toast.error("Order reference not found. Please place order again.");
       onClose();
