@@ -2495,6 +2495,10 @@ export const deliveryService = {
     }
     if (!order) throw new NotFoundError("Order not found.");
 
+    if (order.status === "DELIVERED" || order.status === "CANCELLED") {
+      return { success: false, message: "Order is already completed or cancelled." };
+    }
+
     const targetOrderId = order.id;
 
     // Update deliveryTracking

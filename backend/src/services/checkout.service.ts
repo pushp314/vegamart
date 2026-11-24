@@ -35,8 +35,6 @@ import { cartFromItems } from "../utils/cart";
 import type { CheckoutPreviewBody, CreateOrderFromCartBody, PlaceOrderBody } from "../validators/checkout.validators";
 
 import { normalizeDeliveryConfigs, type VendorDeliveryConfigs } from "./vendor.service";
-import log from "../config/logger";
-import { payoutService } from "./payout.service";
 
 interface VendorGroup {
   vendor_id: string;
@@ -1701,10 +1699,6 @@ export const checkoutService = {
             price: it.unit_price,
           })),
           created_at: new Date().toISOString(),
-        });
-
-        payoutService.settleVendorOrderEarnings(entry.order.id, verifiedPayment.razorpay_payment_id).catch((e) => {
-          log.warn(`[checkout] Could not settle vendor earnings for order ${entry.order.id}: ${String(e)}`);
         });
       }
     }

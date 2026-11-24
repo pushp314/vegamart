@@ -155,6 +155,18 @@ export async function fetchRoadRoute(
       Math.sin(dLon / 2);
   const straightDistKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
+  // If start and destination are already at the doorstep (< 45 meters), avoid road routing loops
+  if (straightDistKm < 0.045) {
+    const directResult: RoadRoute = {
+      coordinates: [[first.lat, first.lng], [last.lat, last.lng]],
+      distanceKm: 0,
+      durationMinutes: 1,
+      steps: [],
+    };
+    routeCache.set(cacheKey, { route: directResult, timestamp: Date.now() });
+    return directResult;
+  }
+
   // 1. Direct Google Directions if VITE_GOOGLE_MAPS_API_KEY is configured
   const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   if (googleApiKey && typeof googleApiKey === "string" && googleApiKey.trim().length > 10) {
@@ -264,7 +276,7 @@ export async function fetchRoadRoute(
       const distanceKm = Math.round((route.distance / 1000) * 10) / 10;
 
       // Reject phantom detours on short distances (where OSM lacks a local village lane and loops 3km on a highway)
-      if (straightDistKm > 0 && straightDistKm < 1.5 && distanceKm > 2.8 * straightDistKm) {
+      if (straightDistKm > 0 && straightDistKm < 2.5 && distanceKm > 1.8 * straightDistKm) {
         continue;
       }
 
@@ -327,19 +339,21 @@ export async function fetchRoadRoute(
 export function snapPointToPolyline(
   point: { lat: number; lng: number },
   polyline: Array<[number, number]>
-): { lat: number; lng: number; heading: number; distanceMeters: number } {
+): { lat: number; lng: number; heading: number; distanceMeters: number; segmentIndex: number } {
   if (polyline.length < 2) {
     return {
       lat: point.lat,
       lng: point.lng,
       heading: 0,
       distanceMeters: 0,
+      segmentIndex: 0,
     };
   }
 
   let minDistance = Infinity;
   let bestPoint = { lat: point.lat, lng: point.lng };
   let bestHeading = 0;
+  let bestSegmentIndex = 0;
 
   for (let i = 0; i < polyline.length - 1; i++) {
     const a = polyline[i];
@@ -353,6 +367,7 @@ export function snapPointToPolyline(
       minDistance = dist;
       bestPoint = projected;
       bestHeading = (computeBearing(a[0], a[1], b[0], b[1]) + 360) % 360;
+      bestSegmentIndex = i;
     }
   }
 
@@ -364,6 +379,7 @@ export function snapPointToPolyline(
     lng: useSnapped ? bestPoint.lng : point.lng,
     heading: bestHeading,
     distanceMeters: minDistance,
+    segmentIndex: bestSegmentIndex,
   };
 }
 

@@ -33,7 +33,7 @@ import { playArrivalChime } from "@/lib/chime";
 import { toast } from "sonner";
 import { MAP_LAYERS, type MapLayerType } from "../maps/map-layers";
 import { MapLayerToggle } from "../maps/MapLayerToggle";
-import { fetchRoadRoute } from "@/lib/road-routing";
+import { fetchRoadRoute, snapPointToPolyline } from "@/lib/road-routing";
 
 // Fix standard default icon assets
 import iconUrl from "leaflet/dist/images/marker-icon.png";
@@ -349,6 +349,16 @@ export function OrderLiveTrackingMap({
       waypoints.push({ lat: validPickups[0].lat, lng: validPickups[0].lng });
     } else if (isOutForDelivery) {
       // In delivery phase, the rider already picked up the order! Target is ONLY customer doorstep.
+      if (validDriver && validDelivery) {
+        const dist = getDistanceMeters(validDriver.lat, validDriver.lng, validDelivery.lat, validDelivery.lng);
+        if (dist <= 45) {
+          // Rider is already at the doorstep (< 45m). Clear road route to eliminate phantom OSRM loops.
+          setClientRoadRoute([]);
+          setClientRoadMeta({ distanceKm: 0, durationMinutes: 1 });
+          return;
+        }
+      }
+
       if (validDriver) {
         waypoints.push({ lat: validDriver.lat, lng: validDriver.lng });
       } else if (validPickups[0]) {
@@ -402,48 +412,94 @@ export function OrderLiveTrackingMap({
     return [];
   }, [hasDetailedBackendRoute, routePoints, clientRoadRoute]);
 
-  // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead"
-  const { pathAhead, pathTrail } = useMemo(() => {
+  // Split road route polyline into "Shrinking Trail" (already passed) and "Path Ahead" (upcoming)
+  // Snaps driver position perpendicularly to the road so the line NEVER loops backwards across fields!
+  const { pathAhead, pathTrail, riderOffRoadConnector, doorstepConnector } = useMemo(() => {
     if (activeRoadRoute.length < 2) {
-      // NEVER draw straight lines across buildings/lakes!
-      return { pathAhead: [] as [number, number][], pathTrail: [] as [number, number][] };
+      return {
+        pathAhead: [] as [number, number][],
+        pathTrail: [] as [number, number][],
+        riderOffRoadConnector: null as [number, number][] | null,
+        doorstepConnector: null as [number, number][] | null,
+      };
     }
 
-    const safeIndex = Math.max(0, Math.min(routeIndex, activeRoadRoute.length - 1));
-    const trail = activeRoadRoute.slice(0, safeIndex + 1);
-
-    const ahead: [number, number][] = [];
-    if (validDriver) {
-      ahead.push([validDriver.lat, validDriver.lng]);
+    // 1. If rider has arrived at doorstep (< 45m), clear remaining path ahead completely
+    if (validDriver && validDelivery) {
+      const distToDoorstep = getDistanceMeters(
+        validDriver.lat,
+        validDriver.lng,
+        validDelivery.lat,
+        validDelivery.lng
+      );
+      if (distToDoorstep <= 45) {
+        return {
+          pathAhead: [] as [number, number][],
+          pathTrail: activeRoadRoute,
+          riderOffRoadConnector: null,
+          doorstepConnector: null,
+        };
+      }
     }
-    for (let i = safeIndex; i < activeRoadRoute.length; i++) {
-      const pt = activeRoadRoute[i];
-      if (pt) ahead.push(pt);
+
+    // 2. If no driver location yet, display full upcoming route
+    if (!validDriver) {
+      let doorstep: [number, number][] | null = null;
+      if (validDelivery && activeRoadRoute.length > 0) {
+        const roadEnd = activeRoadRoute[activeRoadRoute.length - 1]!;
+        const dToHouse = getDistanceMeters(roadEnd[0], roadEnd[1], validDelivery.lat, validDelivery.lng);
+        if (dToHouse >= 15 && dToHouse <= 1500) {
+          doorstep = [roadEnd, [validDelivery.lat, validDelivery.lng]];
+        }
+      }
+      return {
+        pathAhead: activeRoadRoute,
+        pathTrail: [] as [number, number][],
+        riderOffRoadConnector: null,
+        doorstepConnector: doorstep,
+      };
     }
-    // Do NOT blindly append validDelivery as a solid road line!
-    // Appending customer coordinates directly creates a false solid highway cutting across fields/plots.
-    // Instead, active road stops on the street, and doorstepConnector renders a Google Maps-style dotted footpath.
 
-    return { pathAhead: ahead.length > 0 ? ahead : activeRoadRoute, pathTrail: trail };
-  }, [activeRoadRoute, routeIndex, validDriver]);
+    // 3. Snap driver's live GPS perpendicularly onto the nearest road segment
+    const snap = snapPointToPolyline(validDriver, activeRoadRoute);
+    const segIdx = snap.segmentIndex;
+    const snappedPoint: [number, number] = [snap.lat, snap.lng];
 
-  // Google Maps-style dotted doorstep connector from road terminus to house pin
-  const doorstepConnector = useMemo<[number, number][] | null>(() => {
-    if (!validDelivery) return null;
-    const roadEnd = pathAhead.length > 0 ? pathAhead[pathAhead.length - 1] : activeRoadRoute[activeRoadRoute.length - 1];
-    if (!roadEnd) return null;
+    // Trail: Start of route up to rider's current road position
+    const trail: [number, number][] = [
+      ...activeRoadRoute.slice(0, segIdx + 1),
+      snappedPoint,
+    ];
 
-    // Distance in meters between the road end and the actual house pin
-    const dLat = (validDelivery.lat - roadEnd[0]) * 111320;
-    const dLng = (validDelivery.lng - roadEnd[1]) * 111320 * Math.cos((validDelivery.lat * Math.PI) / 180);
-    const distMeters = Math.hypot(dLat, dLng);
+    // Ahead: From rider's snapped road position forward to the road terminus (NEVER backwards!)
+    const ahead: [number, number][] = [
+      snappedPoint,
+      ...activeRoadRoute.slice(segIdx + 1),
+    ];
 
-    // If house is offset from road between 15m and 1500m, show dotted access pathway
-    if (distMeters >= 15 && distMeters <= 1500) {
-      return [roadEnd, [validDelivery.lat, validDelivery.lng]];
+    // Dotted off-road connector from rider's exact GPS to road entrance (Google Maps style)
+    let offRoad: [number, number][] | null = null;
+    if (snap.distanceMeters > 12 && snap.distanceMeters <= 800) {
+      offRoad = [[validDriver.lat, validDriver.lng], snappedPoint];
     }
-    return null;
-  }, [pathAhead, activeRoadRoute, validDelivery]);
+
+    // Dotted doorstep connector from road end to customer house pin
+    let doorstep: [number, number][] | null = null;
+    if (validDelivery && ahead.length > 0) {
+      const roadEnd = ahead[ahead.length - 1]!;
+      const dToHouse = getDistanceMeters(roadEnd[0], roadEnd[1], validDelivery.lat, validDelivery.lng);
+      if (dToHouse >= 15 && dToHouse <= 1500) {
+        doorstep = [roadEnd, [validDelivery.lat, validDelivery.lng]];
+      }
+    }
+
+    return {
+      pathAhead: ahead,
+      pathTrail: trail,
+      riderOffRoadConnector: offRoad,
+      doorstepConnector: doorstep,
+    };
+  }, [activeRoadRoute, validDriver, validDelivery]);
 
   // 1-Tap Google Maps Turn-by-Turn Navigation URL for rider & customer
   const googleMapsDirectionsUrl = useMemo(() => {
@@ -898,6 +954,19 @@ export function OrderLiveTrackingMap({
         </div>
 
         <div className="flex items-center gap-2">
+          {googleMapsDirectionsUrl && (
+            <a
+              href={googleMapsDirectionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-bold rounded-xl border border-sky-400 bg-sky-50 hover:bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800 transition-colors shadow-2xs shrink-0"
+              title="Open real turn-by-turn route in Google Maps"
+            >
+              <Navigation className="h-3.5 w-3.5 mr-1 text-sky-600 dark:text-sky-400" />
+              Google Maps
+            </a>
+          )}
+
           {/* Audio Chime Alert Toggle */}
           <Button
             variant="outline"
@@ -985,19 +1054,6 @@ export function OrderLiveTrackingMap({
             <Navigation className="h-3.5 w-3.5 mr-1 text-emerald-600" />
             Recenter
           </Button>
-
-          {googleMapsDirectionsUrl && (
-            <a
-              href={googleMapsDirectionsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-bold rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 transition-colors shadow-2xs"
-              title="Open real turn-by-turn route in Google Maps"
-            >
-              <ExternalLink className="h-3.5 w-3.5 mr-1 text-sky-600 dark:text-sky-400" />
-              Google Maps
-            </a>
-          )}
         </div>
       </div>
 
@@ -1085,6 +1141,18 @@ export function OrderLiveTrackingMap({
                 lineJoin="round"
               />
             </>
+          )}
+
+          {/* Off-Road Connector from Rider to Street (Google Maps style dotted access pathway) */}
+          {riderOffRoadConnector && (
+            <Polyline
+              positions={riderOffRoadConnector}
+              color="#0284c7"
+              weight={3}
+              dashArray="5, 7"
+              opacity={0.9}
+              lineCap="round"
+            />
           )}
 
           {/* Dotted Footpath Connector to Doorstep (Google Maps style off-road access line) */}

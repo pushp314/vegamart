@@ -56,11 +56,17 @@ export class OsrmRouteProvider implements IRouteProvider {
       return new DirectHaversineFallbackProvider().calculateRoute(waypoints);
     }
 
-    // OSRM coordinates format: lng,lat;lng,lat
-    const coordsStr = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
     const first = waypoints[0]!;
     const last = waypoints[waypoints.length - 1]!;
     const straightDist = haversineDistanceMeters(first.lat, first.lng, last.lat, last.lng);
+
+    // If start and destination are already at doorstep (< 45 meters), avoid road routing loops
+    if (straightDist < 45) {
+      return new DirectHaversineFallbackProvider().calculateRoute(waypoints);
+    }
+
+    // OSRM coordinates format: lng,lat;lng,lat
+    const coordsStr = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
 
     const urls = [
       `${this.baseUrl.replace(/\/+$/, "")}/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&continue_straight=false`,
@@ -88,8 +94,8 @@ export class OsrmRouteProvider implements IRouteProvider {
         }
 
         const routeDist = Math.round(route.distance || 0);
-        // If route distance is more than 3x straight distance on short trips (<1.5 km), it's an unmapped rural phantom detour
-        if (straightDist > 0 && straightDist < 1500 && routeDist > 2.8 * straightDist) {
+        // If route distance is more than 1.8x straight distance on short trips (<2.5 km), it's an unmapped rural phantom detour
+        if (straightDist > 0 && straightDist < 2500 && routeDist > 1.8 * straightDist) {
           log.warn("OSRM returned abnormal detour around unmapped roads, checking alternative", {
             straightDist,
             routeDist,
