@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import {
   Banknote,
   Building2,
@@ -217,7 +217,7 @@ export function AdminPayouts() {
     try {
       setIsExporting(true);
       const token = localStorage.getItem("vegamart_access_token") || localStorage.getItem("token") || "";
-      const res = await fetch(`${api.defaults?.baseURL || "/api/v1"}/admin/payouts/export-csv`, {
+      const res = await fetch(`${API_BASE_URL}/admin/payouts/export-csv`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

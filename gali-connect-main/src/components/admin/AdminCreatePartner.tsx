@@ -32,7 +32,8 @@ export function AdminCreatePartner() {
   const [category, setCategory] = useState("vegetables");
   const [vendorType, setVendorType] = useState<"shop" | "roaming">("shop");
   const [address, setAddress] = useState("");
-  const [city, setCity] = useState("Bengaluru");
+  const [city, setCity] = useState("Sakti");
+  const [stateName, setStateName] = useState("Chhattisgarh");
   const [pincode, setPincode] = useState("");
 
   // Delivery Fields
@@ -109,7 +110,7 @@ export function AdminCreatePartner() {
             phone,
             address,
             city,
-            state: "Karnataka",
+            state: stateName || "Chhattisgarh",
             pincode,
             subscription_plan: "pro",
           }),

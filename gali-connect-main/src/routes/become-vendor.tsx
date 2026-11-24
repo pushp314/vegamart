@@ -33,8 +33,8 @@ function BecomeVendorPage() {
   const [category, setCategory] = useState("vegetables");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [city, setCity] = useState("Bengaluru");
-  const [stateName, setStateName] = useState("Karnataka");
+  const [city, setCity] = useState("Sakti");
+  const [stateName, setStateName] = useState("Chhattisgarh");
   const [pincode, setPincode] = useState("");
   const [description, setDescription] = useState("");
   const [subscriptionPlan, setSubscriptionPlan] = useState("basic");

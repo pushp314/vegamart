@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import {
   Wallet,
   Loader2,
@@ -76,7 +76,7 @@ function VendorEarningsPage() {
     setIsExporting(true);
     try {
       const token = localStorage.getItem("vegamart_access_token") || localStorage.getItem("accessToken") || "";
-      const res = await fetch(`${api.defaults?.baseURL || "/api/v1"}/vendors/me/wallet/statement/export`, {
+      const res = await fetch(`${API_BASE_URL}/vendors/me/wallet/statement/export`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
