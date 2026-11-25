@@ -22,13 +22,8 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import {
-  api,
-  authStorage,
-  getVendorDailyLocation,
-  WS_BASE_URL,
-  type DailyLocationData,
-} from "@/lib/api";
+import { api, authStorage, getVendorDailyLocation, WS_BASE_URL, type DailyLocationData } from "@/lib/api";
+import { citiesMatch } from "@/lib/deliverability";
 import type { Vendor, Product } from "@/types";
 import { useCart } from "@/context/cart-context";
 import { useLocation } from "@/hooks/use-location";
@@ -249,13 +244,12 @@ function VendorDetail() {
       ? calculateDistance(activeAddress.latitude, activeAddress.longitude, lat, lng)
       : null;
 
-  const deliveryRadiusKm = Number(profile.delivery_radius_km || (vendor as any).delivery_radius_km || 5);
+  const deliveryRadiusKm = Number(profile.delivery_radius_km || (vendor as any).delivery_radius_km || 10);
   const vendorCity = profile.city || (vendor as any).city || "";
   const isCityMismatch =
     Boolean(activeAddress?.city) &&
     Boolean(vendorCity) &&
-    !vendorCity.toLowerCase().trim().includes(activeAddress.city.toLowerCase().trim()) &&
-    !activeAddress.city.toLowerCase().trim().includes(vendorCity.toLowerCase().trim());
+    !citiesMatch(vendorCity, activeAddress.city);
   const isOutOfDeliveryRange =
     Boolean(isCityMismatch) || (distanceKm != null && distanceKm > deliveryRadiusKm);
 

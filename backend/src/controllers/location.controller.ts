@@ -2,6 +2,14 @@ import type { Request, Response } from "express";
 import prisma from "../database/prisma";
 import { sendSuccess } from "../utils/ApiResponse";
 import asyncHandler from "../utils/asyncHandler";
+import {
+  formatCanonicalCityName,
+  getKnownCityCenter,
+  normalizeCityName,
+  reverseGeocodeCoords,
+} from "../utils/geocoding";
+import { calculateStoreAvailability } from "../utils/store-schedule";
+import { routingService } from "../modules/tracking/route.provider";
 
 export interface ServiceableCity {
   city: string;
@@ -27,6 +35,10 @@ export const getServiceableCities = asyncHandler(async (_req: Request, res: Resp
       longitude: true,
       delivery_radius_km: true,
       is_open: true,
+      auto_schedule_enabled: true,
+      store_schedule: true,
+      manual_override_status: true,
+      manual_override_until: true,
     },
   });
 
@@ -45,20 +57,25 @@ export const getServiceableCities = asyncHandler(async (_req: Request, res: Resp
   >();
 
   for (const v of vendors) {
-    const rawCity = (v.city || "").trim();
-    if (!rawCity || rawCity.toLowerCase() === "city") continue;
-    const key = rawCity.toLowerCase();
+    const canonicalCity = formatCanonicalCityName(v.city);
+    const key = normalizeCityName(canonicalCity);
+    if (!canonicalCity || !key || key === "city") continue;
     const existing = cityMap.get(key);
-    const hasCoords = v.latitude !== null && v.longitude !== null;
-    const radius = Number(v.delivery_radius_km || 5);
+    const hasCoords =
+      v.latitude !== null &&
+      v.longitude !== null &&
+      Number(v.latitude) > 5 &&
+      Number(v.longitude) > 60;
+    const radius = Number(v.delivery_radius_km || 10);
+    const isVendorOpen = calculateStoreAvailability(v).isOpen;
     let stateVal = (v.state || "").trim() || "India";
-    if (key === "sakti") {
+    if (key === "sakti" || key === "bhilai" || key === "durg") {
       stateVal = "Chhattisgarh";
     }
 
     if (existing) {
       existing.vendor_count += 1;
-      if (v.is_open) existing.open_vendor_count += 1;
+      if (isVendorOpen) existing.open_vendor_count += 1;
       if (radius > existing.maxRadius) existing.maxRadius = radius;
       if (hasCoords) {
         existing.latSum += Number(v.latitude);
@@ -67,10 +84,10 @@ export const getServiceableCities = asyncHandler(async (_req: Request, res: Resp
       }
     } else {
       cityMap.set(key, {
-        city: rawCity,
+        city: canonicalCity,
         state: stateVal,
         vendor_count: 1,
-        open_vendor_count: v.is_open ? 1 : 0,
+        open_vendor_count: isVendorOpen ? 1 : 0,
         latSum: hasCoords ? Number(v.latitude) : 0,
         lngSum: hasCoords ? Number(v.longitude) : 0,
         coordCount: hasCoords ? 1 : 0,
@@ -82,15 +99,24 @@ export const getServiceableCities = asyncHandler(async (_req: Request, res: Resp
   // Only return cities that have actual approved vendors
   let result: ServiceableCity[] = Array.from(cityMap.values())
     .filter((c) => c.vendor_count > 0)
-    .map((c) => ({
-      city: c.city,
-      state: c.city.toLowerCase() === "sakti" ? "Chhattisgarh" : c.state,
-      vendor_count: c.vendor_count,
-      open_vendor_count: c.open_vendor_count,
-      latitude: c.coordCount > 0 ? Math.round((c.latSum / c.coordCount) * 10000) / 10000 : null,
-      longitude: c.coordCount > 0 ? Math.round((c.lngSum / c.coordCount) * 10000) / 10000 : null,
-      delivery_radius_km: c.maxRadius,
-    }));
+    .map((c) => {
+      const known = getKnownCityCenter(c.city);
+      return {
+        city: c.city,
+        state: normalizeCityName(c.city) === "sakti" ? "Chhattisgarh" : c.state,
+        vendor_count: c.vendor_count,
+        open_vendor_count: c.open_vendor_count,
+        latitude:
+          c.coordCount > 0
+            ? Math.round((c.latSum / c.coordCount) * 10000) / 10000
+            : (known?.lat ?? null),
+        longitude:
+          c.coordCount > 0
+            ? Math.round((c.lngSum / c.coordCount) * 10000) / 10000
+            : (known?.lng ?? null),
+        delivery_radius_km: c.maxRadius,
+      };
+    });
 
   // If no vendors exist anywhere in DB yet, fallback solely to primary launch city Sakti
   if (result.length === 0) {
@@ -139,79 +165,9 @@ export const reverseGeocode = asyncHandler(async (req: Request, res: Response) =
     });
   }
 
-  let streetName = "";
-  let areaName = "";
-  let cityName = "";
-  let stateName = "";
-  let pincode = "";
-  let displayName = "";
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const osmRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-      {
-        headers: {
-          "User-Agent": "VegaMart/1.0 (contact@vegamart.in)",
-          "Accept-Language": "en",
-        },
-        signal: controller.signal,
-      }
-    );
-    clearTimeout(timeoutId);
-
-    if (osmRes.ok) {
-      const data: any = await osmRes.json();
-      const addr = data.address || {};
-      streetName = addr.road || addr.street || addr.residential || addr.neighbourhood || "";
-      areaName = addr.suburb || addr.neighbourhood || addr.village || addr.subdistrict || "";
-      cityName = addr.city || addr.town || addr.village || addr.state_district || addr.county || "";
-      stateName = addr.state || "";
-      pincode = addr.postcode || "";
-      displayName = data.display_name || "";
-    }
-  } catch (_err) {
-    // If Nominatim times out, continue to fallback calculation
-  }
-
-  // If city is still blank, match closest known city by distance
-  if (!cityName) {
-    const knownCities = [
-      { name: "Sakti", state: "Chhattisgarh", lat: 21.959, lng: 82.961 },
-      { name: "Raigarh", state: "Chhattisgarh", lat: 21.897, lng: 83.395 },
-      { name: "Bilaspur", state: "Chhattisgarh", lat: 22.079, lng: 82.140 },
-      { name: "Raipur", state: "Chhattisgarh", lat: 21.251, lng: 81.629 },
-      { name: "Bengaluru", state: "Karnataka", lat: 12.971, lng: 77.594 },
-    ];
-    let closest = knownCities[0]!;
-    let minD = Infinity;
-    for (const c of knownCities) {
-      const d = Math.hypot(lat - c.lat, lng - c.lng);
-      if (d < minD) {
-        minD = d;
-        closest = c;
-      }
-    }
-    cityName = closest.name;
-    if (!stateName) stateName = closest.state;
-  }
-
-  return sendSuccess(res, {
-    line1: streetName,
-    line2: areaName,
-    city: cityName,
-    state: stateName,
-    pincode,
-    exact_location: displayName || [streetName, areaName, cityName, stateName, pincode].filter(Boolean).join(", "),
-    lat,
-    lng,
-    map_url: `https://www.google.com/maps?q=${lat},${lng}`,
-  });
+  const result = await reverseGeocodeCoords(lat, lng);
+  return sendSuccess(res, result);
 });
-
-import { routingService } from "../modules/tracking/route.provider";
 
 export const getDirections = asyncHandler(async (req: Request, res: Response) => {
   const originStr = req.query.origin as string;

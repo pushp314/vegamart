@@ -188,6 +188,7 @@ export const nearbyVendorsQuerySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
   radius: z.coerce.number().min(0.5).max(50).optional(),
+  city: z.string().trim().max(100).optional(),
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   category: z.string().trim().max(120).optional(),

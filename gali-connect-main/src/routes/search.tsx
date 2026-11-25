@@ -8,6 +8,7 @@ import type { Product, Vendor, Category } from "@/types";
 import { AppHeader } from "@/components/layout/app-header";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability, checkVendorDeliverability, citiesMatch } from "@/lib/deliverability";
 
 const TRENDING = [
   "Fresh Tomatoes",
@@ -90,7 +91,7 @@ function SearchPage() {
   const [debounced, setDebounced] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const { recent, push, clear, remove } = useRecent();
-  const { selectedCity } = useLocation();
+  const { selectedCity, activeAddress } = useLocation();
 
   const { data: pRes } = useQuery({
     queryKey: ["products", "search", debounced, selectedCity],
@@ -128,19 +129,27 @@ function SearchPage() {
 
   const productResults = useMemo(() => {
     if (!debounced) return [];
-    return products.slice(0, 48);
-  }, [debounced, products]);
+    return products
+      .filter((p: any) => {
+        const d = checkProductDeliverability(p, activeAddress);
+        return d.reason !== "DIFFERENT_CITY" && d.reason !== "OUT_OF_RADIUS";
+      })
+      .slice(0, 48);
+  }, [debounced, products, activeAddress]);
 
   const vendorResults = useMemo(() => {
     if (!debounced) return [];
     return vendors
       .filter((v) => {
         const nameMatch = v.business_name?.toLowerCase().includes(debounced) || false;
-        return nameMatch;
+        if (!nameMatch) return false;
+        if (selectedCity && v.city && !citiesMatch(selectedCity, v.city)) return false;
+        const d = checkVendorDeliverability(v, activeAddress);
+        return d.reason !== "DIFFERENT_CITY" && d.reason !== "OUT_OF_RADIUS";
       })
       .sort((a, b) => Number(Boolean(b.is_sponsored)) - Number(Boolean(a.is_sponsored)))
       .slice(0, 6);
-  }, [debounced, vendors]);
+  }, [debounced, vendors, selectedCity, activeAddress]);
 
   const categoryResults = useMemo(() => {
     if (!debounced) return [];

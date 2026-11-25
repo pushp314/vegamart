@@ -232,9 +232,10 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
 
       // If text/place query without raw lat/lng, attempt Nominatim geocoding
       const query = pastedLink.trim();
+      const cityHint = selectedCity && selectedCity.toLowerCase() !== "city" ? selectedCity : "";
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query + " Sakti Chhattisgarh India"
+          `${query} ${cityHint} Chhattisgarh India`.trim()
         )}&limit=1`,
         { headers: { "Accept-Language": "en" } }
       );
@@ -642,7 +643,7 @@ export function AddressModal({ open, onClose, onSave, initialData }: AddressModa
                   required
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Sakti"
+                  placeholder="e.g. Bhilai, Sakti"
                   className="w-full rounded-2xl bg-muted border border-border h-11 px-3.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 />
               </label>

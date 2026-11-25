@@ -25,6 +25,7 @@ import { razorpayGateway } from "../payments/razorpay.gateway";
 import { ApiError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { haversineDistanceKm } from "../utils/geo";
+import { citiesMatch } from "../utils/geocoding";
 import { generateDeliveryOtp, generateInvoiceNumber, generateOrderNumber } from "../utils/order";
 import { computeCustomerFees } from "../utils/feeCalculator";
 import * as checkoutIdempotencyRepo from "../repositories/checkout-idempotency.repository";
@@ -40,6 +41,75 @@ interface VendorGroup {
   vendor_id: string;
   items: cartRepo.CartRow["items"];
   subtotal: number;
+}
+
+function assertVendorDeliveryZone(
+  vendor: {
+    business_name: string;
+    city: string;
+    latitude: number | null;
+    longitude: number | null;
+    delivery_radius_km?: number | null;
+  },
+  address: {
+    city?: string | null;
+    full_address?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  }
+): void {
+  if (vendor.city && address.city && !citiesMatch(vendor.city, address.city)) {
+    throw new ApiError(
+      HttpStatus.BAD_REQUEST,
+      `Store ${vendor.business_name} only delivers in ${vendor.city}. Your delivery address is in ${address.city}. Please select an address in ${vendor.city} or choose Self Pickup.`,
+      {
+        code: "OUT_OF_SERVICEABLE_CITY",
+        details: {
+          vendor_city: vendor.city,
+          address_city: address.city,
+          vendor_name: vendor.business_name,
+        },
+      }
+    );
+  }
+
+  if (vendor.latitude && vendor.longitude) {
+    if (!address.latitude || !address.longitude) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Delivery address coordinates are required for delivery from ${vendor.business_name}. Please update your delivery address pin on the map or select Self Pickup.`,
+        {
+          code: "ADDRESS_COORDINATES_REQUIRED",
+          details: {
+            vendor_name: vendor.business_name,
+          },
+        }
+      );
+    }
+
+    const distKm = haversineDistanceKm(
+      Number(address.latitude),
+      Number(address.longitude),
+      Number(vendor.latitude),
+      Number(vendor.longitude)
+    );
+    const maxRadius = Number(vendor.delivery_radius_km || 10);
+    if (distKm > maxRadius) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        `Delivery address in ${address.city || address.full_address || "selected location"} is ${distKm.toFixed(1)} km away. ${vendor.business_name} only delivers within ${maxRadius} km in ${vendor.city}. Please choose a closer address or select Self Pickup.`,
+        {
+          code: "OUT_OF_DELIVERY_RADIUS",
+          details: {
+            distance_km: String(Math.round(distKm * 10) / 10),
+            max_radius_km: String(maxRadius),
+            vendor_name: vendor.business_name,
+            address_city: address.city || "",
+          },
+        }
+      );
+    }
+  }
 }
 
 function groupByVendor(cart: cartRepo.CartRow): VendorGroup[] {
@@ -442,60 +512,7 @@ export const checkoutService = {
         const address = await findAddressById(input.address_id);
         const isPickup = slotRaw.includes("self") || slotRaw.includes("pickup") || slotRaw.includes("takeaway");
         if (address && !isPickup) {
-          const vendorCity = (vendor.city || "").trim().toLowerCase();
-          const addressCity = (address.city || "").trim().toLowerCase();
-          if (vendorCity && addressCity && !vendorCity.includes(addressCity) && !addressCity.includes(vendorCity)) {
-            throw new ApiError(
-              HttpStatus.BAD_REQUEST,
-              `Store ${vendor.business_name} only delivers in ${vendor.city}. Your address is in ${address.city}. Please select an address in ${vendor.city} or choose Self Pickup.`,
-              {
-                code: "OUT_OF_SERVICEABLE_CITY",
-                details: {
-                  vendor_city: vendor.city,
-                  address_city: address.city,
-                  vendor_name: vendor.business_name,
-                },
-              }
-            );
-          }
-
-          if (vendor.latitude && vendor.longitude) {
-            if (!address.latitude || !address.longitude) {
-              throw new ApiError(
-                HttpStatus.BAD_REQUEST,
-                `Delivery address coordinates are required for delivery from ${vendor.business_name}. Please update your delivery address pin on the map or select Self Pickup.`,
-                {
-                  code: "ADDRESS_COORDINATES_REQUIRED",
-                  details: {
-                    vendor_name: vendor.business_name,
-                  },
-                }
-              );
-            }
-
-            const distKm = haversineDistanceKm(
-              Number(address.latitude),
-              Number(address.longitude),
-              Number(vendor.latitude),
-              Number(vendor.longitude)
-            );
-            const maxRadius = Number(vendor.delivery_radius_km || 5);
-            if (distKm > maxRadius) {
-              throw new ApiError(
-                HttpStatus.BAD_REQUEST,
-                `Delivery address in ${address.city || address.full_address || "selected location"} is ${distKm.toFixed(1)} km away. ${vendor.business_name} only delivers within ${maxRadius} km in ${vendor.city}. Please choose a closer address or select Self Pickup.`,
-                {
-                  code: "OUT_OF_DELIVERY_RADIUS",
-                  details: {
-                    distance_km: String(Math.round(distKm * 10) / 10),
-                    max_radius_km: String(maxRadius),
-                    vendor_name: vendor.business_name,
-                    address_city: address.city || "",
-                  },
-                }
-              );
-            }
-          }
+          assertVendorDeliveryZone(vendor, address);
         }
       }
 
@@ -750,60 +767,7 @@ export const checkoutService = {
       for (const group of summary.groups) {
         const vendor = await findVendorById(group.vendor_id);
         if (vendor) {
-          const vendorCity = (vendor.city || "").trim().toLowerCase();
-          const addressCity = (address.city || "").trim().toLowerCase();
-          if (vendorCity && addressCity && !vendorCity.includes(addressCity) && !addressCity.includes(vendorCity)) {
-            throw new ApiError(
-              HttpStatus.BAD_REQUEST,
-              `Store ${vendor.business_name} only delivers in ${vendor.city}. Your delivery address is in ${address.city}. Please select an address in ${vendor.city} or choose Self Pickup.`,
-              {
-                code: "OUT_OF_SERVICEABLE_CITY",
-                details: {
-                  vendor_city: vendor.city,
-                  address_city: address.city,
-                  vendor_name: vendor.business_name,
-                },
-              }
-            );
-          }
-
-          if (vendor.latitude && vendor.longitude) {
-            if (!address.latitude || !address.longitude) {
-              throw new ApiError(
-                HttpStatus.BAD_REQUEST,
-                `Delivery address coordinates are required for delivery from ${vendor.business_name}. Please update your delivery address pin on the map or select Self Pickup.`,
-                {
-                  code: "ADDRESS_COORDINATES_REQUIRED",
-                  details: {
-                    vendor_name: vendor.business_name,
-                  },
-                }
-              );
-            }
-
-            const distKm = haversineDistanceKm(
-              Number(address.latitude),
-              Number(address.longitude),
-              Number(vendor.latitude),
-              Number(vendor.longitude)
-            );
-            const maxRadius = Number(vendor.delivery_radius_km || 5);
-            if (distKm > maxRadius) {
-              throw new ApiError(
-                HttpStatus.BAD_REQUEST,
-                `Selected delivery address in ${address.city || address.full_address || "selected area"} is ${distKm.toFixed(1)} km away. ${vendor.business_name} only delivers within ${maxRadius} km in ${vendor.city}. Please choose a closer address or select Self Pickup.`,
-                {
-                  code: "OUT_OF_DELIVERY_RADIUS",
-                  details: {
-                    distance_km: String(Math.round(distKm * 10) / 10),
-                    max_radius_km: String(maxRadius),
-                    vendor_name: vendor.business_name,
-                    address_city: address.city || "",
-                  },
-                }
-              );
-            }
-          }
+          assertVendorDeliveryZone(vendor, address);
         }
       }
     }
@@ -1318,60 +1282,7 @@ export const checkoutService = {
       for (const group of summary.groups) {
         const vendor = await findVendorById(group.vendor_id);
         if (vendor) {
-          const vendorCity = (vendor.city || "").trim().toLowerCase();
-          const addressCity = (address.city || "").trim().toLowerCase();
-          if (vendorCity && addressCity && !vendorCity.includes(addressCity) && !addressCity.includes(vendorCity)) {
-            throw new ApiError(
-              HttpStatus.BAD_REQUEST,
-              `Store ${vendor.business_name} only delivers in ${vendor.city}. Your delivery address is in ${address.city}. Please select an address in ${vendor.city} or choose Self Pickup.`,
-              {
-                code: "OUT_OF_SERVICEABLE_CITY",
-                details: {
-                  vendor_city: vendor.city,
-                  address_city: address.city,
-                  vendor_name: vendor.business_name,
-                },
-              }
-            );
-          }
-
-          if (vendor.latitude && vendor.longitude) {
-            if (!address.latitude || !address.longitude) {
-              throw new ApiError(
-                HttpStatus.BAD_REQUEST,
-                `Delivery address coordinates are required for delivery from ${vendor.business_name}. Please update your delivery address pin on the map or select Self Pickup.`,
-                {
-                  code: "ADDRESS_COORDINATES_REQUIRED",
-                  details: {
-                    vendor_name: vendor.business_name,
-                  },
-                }
-              );
-            }
-
-            const distKm = haversineDistanceKm(
-              Number(address.latitude),
-              Number(address.longitude),
-              Number(vendor.latitude),
-              Number(vendor.longitude)
-            );
-            const maxRadius = Number(vendor.delivery_radius_km || 5);
-            if (distKm > maxRadius) {
-              throw new ApiError(
-                HttpStatus.BAD_REQUEST,
-                `Selected delivery address in ${address.city || address.full_address || "selected area"} is ${distKm.toFixed(1)} km away. ${vendor.business_name} only delivers within ${maxRadius} km in ${vendor.city}. Please choose a closer address or select Self Pickup.`,
-                {
-                  code: "OUT_OF_DELIVERY_RADIUS",
-                  details: {
-                    distance_km: String(Math.round(distKm * 10) / 10),
-                    max_radius_km: String(maxRadius),
-                    vendor_name: vendor.business_name,
-                    address_city: address.city || "",
-                  },
-                }
-              );
-            }
-          }
+          assertVendorDeliveryZone(vendor, address);
         }
       }
     }

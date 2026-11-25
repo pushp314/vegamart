@@ -32,7 +32,8 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
-import { checkProductDeliverability } from "@/lib/deliverability";
+import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability, citiesMatch } from "@/lib/deliverability";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — Vegamart" }] }),
@@ -393,6 +394,7 @@ function Checkout() {
   };
 
   const { user, isAuthenticated, isGuest, isLoading: authLoading } = useAuth();
+  const { selectedAddressId: navSelectedAddressId, selectedCity } = useLocation();
   const { data: addrRes, isLoading: loadingAddr } = useQuery({
     queryKey: ["addresses"],
     queryFn: () => api.get<AddressData[]>("/users/me/addresses"),
@@ -404,9 +406,15 @@ function Checkout() {
 
   useEffect(() => {
     if (addresses.length > 0 && !selectedAddressId) {
-      setSelectedAddressId(addresses[0]?.id ?? "");
+      const fromNav = navSelectedAddressId && addresses.find((a: any) => a.id === navSelectedAddressId);
+      const matchingCity = selectedCity
+        ? addresses.find((a: any) => a.city && citiesMatch(a.city, selectedCity))
+        : null;
+      const def = addresses.find((a: any) => a.is_default);
+      const chosen = fromNav || matchingCity || def || addresses[0];
+      setSelectedAddressId(chosen?.id ?? "");
     }
-  }, [addresses, selectedAddressId]);
+  }, [addresses, selectedAddressId, navSelectedAddressId, selectedCity]);
 
   function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371;
@@ -427,7 +435,7 @@ function Checkout() {
   // Geofence & Delivery Radius calculation
   const vendorLat = vendorData?.latitude || vendorGroup?.latitude;
   const vendorLng = vendorData?.longitude || vendorGroup?.longitude;
-  const vendorDeliveryRadius = Number(vendorData?.delivery_radius_km || 5);
+  const vendorDeliveryRadius = Number(vendorData?.delivery_radius_km || 10);
 
   const addressLat = selectedAddress?.latitude ? Number(selectedAddress.latitude) : null;
   const addressLng = selectedAddress?.longitude ? Number(selectedAddress.longitude) : null;
@@ -446,18 +454,21 @@ function Checkout() {
   const vendorCityName = vendorData?.city || vendorGroup?.vendor_city || "local area";
   const isCityMismatch =
     !isSelfPickup &&
-    selectedAddress?.city &&
-    vendorData?.city &&
-    !vendorData.city.toLowerCase().trim().includes(selectedAddress.city.toLowerCase().trim()) &&
-    !selectedAddress.city.toLowerCase().trim().includes(vendorData.city.toLowerCase().trim());
+    Boolean(selectedAddress?.city) &&
+    Boolean(vendorData?.city) &&
+    !citiesMatch(vendorData.city, selectedAddress.city);
 
   const undeliverableItems = useMemo(() => {
     if (isSelfPickup) return [];
     return items.filter((i) => {
-      const d = checkProductDeliverability(i.product, selectedAddress);
+      const freshProduct =
+        vendorData && (i.product.vendor_id === vendorData.id || i.product.vendor?.id === vendorData.id)
+          ? { ...i.product, vendor: vendorData }
+          : i.product;
+      const d = checkProductDeliverability(freshProduct, selectedAddress);
       return !d.isDeliverable && (d.reason === "DIFFERENT_CITY" || d.reason === "OUT_OF_RADIUS");
     });
-  }, [items, selectedAddress, isSelfPickup]);
+  }, [items, selectedAddress, isSelfPickup, vendorData]);
 
   const isOutOfDeliveryRadius =
     !isSelfPickup &&
@@ -1221,7 +1232,9 @@ function Checkout() {
                       <span>
                         {isCityMismatch
                           ? `Different City: Store is in ${vendorCityName}`
-                          : `Address Out of Delivery Zone (${deliveryDistanceKm} km away)`}
+                          : deliveryDistanceKm !== null
+                            ? `Address Out of Delivery Zone (${deliveryDistanceKm} km away)`
+                            : "Address Out of Delivery Zone"}
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">

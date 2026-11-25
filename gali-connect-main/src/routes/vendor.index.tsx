@@ -215,6 +215,29 @@ function VendorOverviewPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Real-time sales, customer visits, commission, and earnings overview.
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <Link
+              to="/vendor/location"
+              className="inline-flex items-center gap-1.5 rounded-full bg-card border border-border px-3 py-1 font-bold text-foreground hover:border-primary/40 transition-colors"
+            >
+              <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+              <span>
+                {vendor?.city || "City Not Set"}
+                {vendor?.address ? ` • ${vendor.address}` : ""}
+              </span>
+              <span className="text-muted-foreground font-medium">
+                ({vendor?.delivery_radius_km || 10} km radius)
+              </span>
+            </Link>
+            {!(vendor?.latitude && vendor?.longitude) && (
+              <Link
+                to="/vendor/location"
+                className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:text-amber-300"
+              >
+                ⚠️ Pin GPS Location
+              </Link>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3 bg-card border border-border px-4 py-2 rounded-2xl shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -272,7 +295,11 @@ function VendorOverviewPage() {
         </Link>
       </div>
 
-      <LiveBroadcaster isRoaming={vendor?.roaming === true || vendor?.profile?.roaming === true} defaultIsOpen={vendor?.is_open === true} />
+      <LiveBroadcaster
+        isRoaming={vendor?.roaming === true || vendor?.profile?.roaming === true}
+        defaultIsOpen={vendor?.is_open === true}
+        vendorCity={vendor?.city || vendor?.profile?.city}
+      />
 
       {/* ⭐ VEGAMART COMMISSION & NET EARNINGS HERO BANNER ⭐ */}
       <section className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-emerald-500/5 p-6 shadow-soft relative overflow-hidden">

@@ -8,6 +8,7 @@ import { api, type DailyLocationData, getNearbyDailyLocations } from "@/lib/api"
 import type { Vendor, Category } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useLocation } from "@/hooks/use-location";
+import { checkVendorDeliverability, citiesMatch } from "@/lib/deliverability";
 import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 import { MultiStoreLiveBadge } from "@/components/marketplace/MultiStoreLiveBadge";
 
@@ -64,10 +65,11 @@ function VendorsPage() {
       const cityParam = activeAddress?.city ? `&city=${encodeURIComponent(activeAddress.city)}` : "";
       if (activeAddress?.latitude && activeAddress?.longitude) {
         const url = `/vendors/nearby?lat=${activeAddress.latitude}&lng=${activeAddress.longitude}&radius=50${cityParam}`;
-        const res = await api.get<Vendor[]>(url);
-        return res;
+        const res = await api.get<any[]>(url);
+        const items = Array.isArray(res?.data) ? res.data : [];
+        if (items.length > 0) return res;
       }
-      return api.get<Vendor[]>(`/vendors?${cityParam.replace('&', '')}`);
+      return api.get<Vendor[]>(`/vendors?${cityParam.replace("&", "")}`);
     },
   });
 
@@ -86,7 +88,22 @@ function VendorsPage() {
   const dailyLocations: (DailyLocationData & { distance_km: number; business_name: string })[] =
     (dailyLocationsRes?.data as any) || [];
 
-  const vendors = vendorsRes?.data || [];
+  const rawVendors = Array.isArray(vendorsRes?.data) ? vendorsRes.data : [];
+  const vendors: any[] = useMemo(
+    () =>
+      rawVendors.map((item: any) =>
+        item.vendor
+          ? {
+              ...item.vendor,
+              distance_km: item.distance_km ?? item.distance,
+              eta_min: item.eta_min ?? item.eta,
+              latitude: item.latitude ?? item.vendor.latitude,
+              longitude: item.longitude ?? item.vendor.longitude,
+            }
+          : item,
+      ),
+    [rawVendors],
+  );
   const categories = catsRes?.data || [];
 
   const filtered = useMemo(() => {
@@ -96,16 +113,21 @@ function VendorsPage() {
     )?.name;
     const targetCat = activeCatName || activeCat;
     return vendors.filter((v) => {
+      if (v.status === "rejected" || v.status === "suspended") return false;
       const profile: any = v.profile || v;
       const catMatch = targetCat === "all" || profile?.category === targetCat;
       if (!catMatch) return false;
 
       if (activeAddress?.city) {
-        const vCity = (profile?.city || (v as any).city || "").trim().toLowerCase();
-        const aCity = activeAddress.city.trim().toLowerCase();
-        if (vCity && aCity && !vCity.includes(aCity) && !aCity.includes(vCity)) {
+        const vCity = (profile?.city || (v as any).city || "").trim();
+        if (vCity && !citiesMatch(vCity, activeAddress.city)) {
           return false;
         }
+      }
+
+      const d = checkVendorDeliverability(v, activeAddress);
+      if (d.reason === "DIFFERENT_CITY" || d.reason === "OUT_OF_RADIUS") {
+        return false;
       }
 
       if (!q) return true;
@@ -123,12 +145,12 @@ function VendorsPage() {
       }
 
       return (
-        v.business_name.toLowerCase().includes(q) ||
+        (v.business_name || "").toLowerCase().includes(q) ||
         (profile?.address || "").toLowerCase().includes(q) ||
         tags.some((t) => t.toLowerCase().includes(q))
       );
     });
-  }, [activeCat, query, vendors, categories, activeAddress?.city]);
+  }, [activeCat, query, vendors, categories, activeAddress]);
 
   const liveVendorsCount = vendors.filter((v: any) => v.profile?.is_open || v.is_open).length;
 
@@ -317,16 +339,17 @@ function VendorsPage() {
                       No Stores Delivering to {displayLocation}
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      VegaMart currently delivers fresh produce and groceries exclusively across <strong>Sakti District</strong>. Shops outside your immediate delivery radius are hidden to avoid undeliverable orders.
+                      No verified local stores were found within delivery range for <strong>{activeAddress?.city || displayLocation}</strong>. Shops in other cities or outside delivery radius are kept separate so you only see deliverable stores.
                     </p>
                   </div>
                   <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
-                    <Link
-                      to="/addresses"
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => setIsCityModalOpen(true)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors cursor-pointer"
                     >
-                      <MapPin className="h-3.5 w-3.5" /> Switch Address to Sakti
-                    </Link>
+                      <MapPin className="h-3.5 w-3.5" /> Change City / Location
+                    </button>
                   </div>
                 </div>
               ) : (

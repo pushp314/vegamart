@@ -101,11 +101,13 @@ export const addRecentlyViewed = asyncHandler(async (req: Request, res: Response
 });
 
 export const listRecentlyViewed = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listRecentlyViewed(req.user!.id));
+  const city = (req.query.city as string)?.trim() || undefined;
+  return sendSuccess(res, await integrationService.listRecentlyViewed(req.user!.id, city));
 });
 
 export const listRecommended = asyncHandler(async (req: Request, res: Response) => {
-  return sendSuccess(res, await integrationService.listRecommended(req.user!.id));
+  const city = (req.query.city as string)?.trim() || undefined;
+  return sendSuccess(res, await integrationService.listRecommended(req.user!.id, city));
 });
 
 // ---------------------------------------------------------------------------

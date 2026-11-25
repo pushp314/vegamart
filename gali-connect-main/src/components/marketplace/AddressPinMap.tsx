@@ -15,10 +15,15 @@ interface AddressPinMapProps {
 }
 
 const CITY_COORDS: Record<string, [number, number]> = {
+  bhilai: [21.1938, 81.3509],
+  "bhilai nagar": [21.1938, 81.3509],
+  durg: [21.1904, 81.2849],
+  raipur: [21.2514, 81.6296],
+  bilaspur: [22.0797, 82.1409],
   sakti: [21.9588, 82.9588],
   raigarh: [21.8974, 83.3950],
-  bilaspur: [22.0797, 82.1409],
-  raipur: [21.2514, 81.6296],
+  korba: [22.3595, 82.7501],
+  rajnandgaon: [21.0972, 81.0282],
   bengaluru: [12.9716, 77.5946],
 };
 

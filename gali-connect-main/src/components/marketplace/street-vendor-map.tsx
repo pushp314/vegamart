@@ -3,6 +3,8 @@ import { Loader2, LocateFixed } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { api, WS_BASE_URL } from "@/lib/api";
+import { useLocation } from "@/hooks/use-location";
+import { checkVendorDeliverability, citiesMatch } from "@/lib/deliverability";
 
 export interface RoamingVendor {
   id: string;
@@ -96,6 +98,7 @@ export function StreetVendorMap() {
   const userIconRef = useRef<any>(null);
   const fetchedVendorIdsRef = useRef<Set<string>>(new Set());
 
+  const { selectedCity, activeAddress } = useLocation();
   const [vendors, setVendors] = useState<RoamingVendor[]>([]);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [ready, setReady] = useState(false);
@@ -171,20 +174,28 @@ export function StreetVendorMap() {
     }
   }, []);
 
-  // ── 2. Get user geolocation ───────────────────────────────────────
+  // ── 2. Sync user geolocation & active city center ─────────────────
   useEffect(() => {
-    if (!("geolocation" in navigator)) return;
+    const aLat = Number(activeAddress?.latitude);
+    const aLng = Number(activeAddress?.longitude);
+    if (aLat > 5 && aLng > 60) {
+      setUserLoc({ lat: aLat, lng: aLng });
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      setUserLoc({ lat: 21.1938, lng: 81.3509 });
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       () => {
-        // Fallback to Sakti city center if geolocation is denied or unavailable
-        setUserLoc({ lat: 21.9588, lng: 82.9588 });
+        setUserLoc({ lat: 21.1938, lng: 81.3509 });
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
     );
-  }, []);
+  }, [activeAddress?.latitude, activeAddress?.longitude, selectedCity]);
 
   // ── 3. Initialize Leaflet map once we have a location ─────────────
   useEffect(() => {
@@ -257,13 +268,20 @@ export function StreetVendorMap() {
     userCircleRef.current?.setLatLng(latlng);
   }, [userLoc]);
 
-  // ── 5. Fetch live vendor data from API ────────────────────────────
+  // ── 5. Fetch live vendor data from API (city-scoped) ──────────────
   const { data: realVendorsData, isError: vendorsError } = useQuery({
-    queryKey: ["live-vendors"],
-    queryFn: () => api.get<any[]>("/vendors?is_open=true"),
+    queryKey: ["live-vendors", selectedCity],
+    queryFn: () => {
+      const cityParam = selectedCity ? `&city=${encodeURIComponent(selectedCity)}` : "";
+      return api.get<any[]>(`/vendors?is_open=true${cityParam}`);
+    },
     refetchInterval: 10000,
     retry: false,
   });
+
+  useEffect(() => {
+    hasFittedRef.current = false;
+  }, [selectedCity]);
 
   useEffect(() => {
     if (vendorsError) {
@@ -279,7 +297,12 @@ export function StreetVendorMap() {
         : [];
 
     const list: RoamingVendor[] = (rawList || [])
-      .filter((v: any) => v.latitude && v.longitude)
+      .filter((v: any) => {
+        if (!v.latitude || !v.longitude) return false;
+        if (selectedCity && v.city && !citiesMatch(selectedCity, v.city)) return false;
+        const d = checkVendorDeliverability(v, activeAddress);
+        return d.reason !== "DIFFERENT_CITY" && d.reason !== "OUT_OF_RADIUS";
+      })
       .map((v: any) => ({
         id: v.id,
         name: v.business_name || v.name || "Local Vendor",
@@ -295,8 +318,8 @@ export function StreetVendorMap() {
         slug: v.slug || v.id,
       }));
 
-    if (list.length > 0) setVendors(list);
-  }, [realVendorsData]);
+    setVendors(list);
+  }, [realVendorsData, selectedCity, activeAddress]);
 
   // ── 6. WebSocket for real-time location updates ───────────────────
   useEffect(() => {
@@ -323,6 +346,13 @@ export function StreetVendorMap() {
             const v = res?.data?.data ?? res?.data;
             if (!v || !v.latitude || !v.longitude || v.is_open === false) {
               fetchedVendorIdsRef.current.delete(vendorId);
+              return;
+            }
+            if (selectedCity && v.city && !citiesMatch(selectedCity, v.city)) {
+              return;
+            }
+            const d = checkVendorDeliverability({ ...v, latitude: lat, longitude: lng }, activeAddress);
+            if (d.reason === "DIFFERENT_CITY" || d.reason === "OUT_OF_RADIUS") {
               return;
             }
             setVendors((curr) =>

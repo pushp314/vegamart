@@ -95,13 +95,14 @@ export const listVendors = asyncHandler(async (req: Request, res: Response) => {
  *         description: Vendors sorted by distance.
  */
 export const nearbyVendors = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as { lat?: string; lng?: string; radius?: string; category?: string; is_open?: string; page?: string; per_page?: string };
+  const query = req.query as { lat?: string; lng?: string; radius?: string; city?: string; category?: string; is_open?: string; page?: string; per_page?: string };
   const lat = Number(query.lat);
   const lng = Number(query.lng);
   const radius = query.radius ? Number(query.radius) : 10;
   const page = query.page ? Number(query.page) : 1;
   const perPage = query.per_page ? Number(query.per_page) : 20;
   const result = await vendorService.nearby(lat, lng, radius, {
+    city: query.city,
     category: query.category,
     isOpen: query.is_open !== undefined ? query.is_open === "true" : undefined,
     page,

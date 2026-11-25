@@ -24,6 +24,8 @@ import * as refreshTokenRepo from "../repositories/refresh-token.repository";
 import { ApiError, ForbiddenError, NotFoundError } from "../utils/ApiError";
 import { HttpStatus } from "../utils/httpStatus";
 import { realtime } from "../realtime/realtime";
+import { calculateStoreAvailability } from "../utils/store-schedule";
+import { normalizeCityName } from "../utils/geocoding";
 import type {
   CreateOrderAliasBody,
   RingBellBody,
@@ -418,9 +420,23 @@ export const integrationService = {
     return { ok: true };
   },
 
-  async listRecentlyViewed(userId: string) {
+  async listRecentlyViewed(userId: string, city?: string) {
+    const cleanCity = (city || "").trim();
+    const normCity = normalizeCityName(cleanCity);
     const rows = await prisma.recentlyViewed.findMany({
-      where: { user_id: userId },
+      where: {
+        user_id: userId,
+        product: {
+          deleted_at: null,
+          is_active: true,
+          is_available: true,
+          vendor: {
+            status: "APPROVED",
+            deleted_at: null,
+            ...(cleanCity ? { city: { contains: normCity || cleanCity, mode: "insensitive" } } : {}),
+          },
+        },
+      },
       orderBy: { viewed_at: "desc" },
       take: 20,
       select: {
@@ -436,34 +452,73 @@ export const integrationService = {
             is_vegetarian: true,
             rating: true,
             review_count: true,
+            stock: true,
+            is_active: true,
+            is_available: true,
             images: { orderBy: { sort_order: "asc" }, take: 1, select: { url: true } },
-            vendor: { select: { id: true, business_name: true } },
+            vendor: {
+              select: {
+                id: true,
+                business_name: true,
+                city: true,
+                state: true,
+                latitude: true,
+                longitude: true,
+                delivery_radius_km: true,
+                is_open: true,
+                status: true,
+                auto_schedule_enabled: true,
+                store_schedule: true,
+                manual_override_status: true,
+                manual_override_until: true,
+              },
+            },
           },
         },
         viewed_at: true,
       },
     });
-    return rows.map((r) => ({
-      viewed_at: r.viewed_at,
-      product: {
-        id: r.product.id,
-        name: r.product.name,
-        slug: r.product.slug,
-        price: r.product.price.toNumber(),
-        mrp: r.product.mrp.toNumber(),
-        unit: r.product.unit,
-        tag: r.product.tag,
-        is_vegetarian: r.product.is_vegetarian,
-        rating: r.product.rating,
-        review_count: r.product.review_count,
-        image: r.product.images[0]?.url ?? null,
-        vendor_id: r.product.vendor.id,
-        vendor_name: r.product.vendor.business_name,
-      },
-    }));
+    return rows.map((r) => {
+      const availability = calculateStoreAvailability(r.product.vendor);
+      return {
+        viewed_at: r.viewed_at,
+        product: {
+          id: r.product.id,
+          name: r.product.name,
+          slug: r.product.slug,
+          price: r.product.price.toNumber(),
+          mrp: r.product.mrp.toNumber(),
+          unit: r.product.unit,
+          tag: r.product.tag,
+          is_vegetarian: r.product.is_vegetarian,
+          rating: r.product.rating,
+          review_count: r.product.review_count,
+          stock: r.product.stock,
+          is_active: r.product.is_active,
+          is_available: r.product.is_available,
+          image: r.product.images[0]?.url ?? null,
+          vendor_id: r.product.vendor.id,
+          vendor_name: r.product.vendor.business_name,
+          vendor: {
+            id: r.product.vendor.id,
+            business_name: r.product.vendor.business_name,
+            city: r.product.vendor.city,
+            state: r.product.vendor.state,
+            latitude: r.product.vendor.latitude,
+            longitude: r.product.vendor.longitude,
+            delivery_radius_km: r.product.vendor.delivery_radius_km,
+            is_open: availability.isOpen,
+            status: r.product.vendor.status,
+            store_availability: availability,
+          },
+        },
+      };
+    });
   },
 
-  async listRecommended(userId: string) {
+  async listRecommended(userId: string, city?: string) {
+    const cleanCity = (city || "").trim();
+    const normCity = normalizeCityName(cleanCity);
     const viewed = await prisma.recentlyViewed.findMany({
       where: { user_id: userId },
       orderBy: { viewed_at: "desc" },
@@ -476,31 +531,34 @@ export const integrationService = {
     });
 
     const categoryIds = new Set<string>();
-    const vendorIds = new Set<string>();
     const excluded = new Set<string>();
     for (const v of viewed) {
       excluded.add(v.product.id);
       if (v.product.category_id) categoryIds.add(v.product.category_id);
-      if (v.product.vendor_id) vendorIds.add(v.product.vendor_id);
     }
     for (const item of cart?.items ?? []) {
       excluded.add(item.product.id);
       if (item.product.category_id) categoryIds.add(item.product.category_id);
-      if (item.product.vendor_id) vendorIds.add(item.product.vendor_id);
     }
 
-    const where: Prisma.ProductWhereInput = { deleted_at: null, is_active: true, is_available: true };
-    if (categoryIds.size > 0 || vendorIds.size > 0) {
-      where.OR = [
-        ...(categoryIds.size > 0 ? [{ category_id: { in: [...categoryIds] } }] : []),
-        ...(vendorIds.size > 0 ? [{ vendor_id: { in: [...vendorIds] } }] : []),
-      ];
+    const where: Prisma.ProductWhereInput = {
+      deleted_at: null,
+      is_active: true,
+      is_available: true,
+      vendor: {
+        status: "APPROVED",
+        deleted_at: null,
+        ...(cleanCity ? { city: { contains: normCity || cleanCity, mode: "insensitive" } } : {}),
+      },
+    };
+    if (categoryIds.size > 0) {
+      where.category_id = { in: [...categoryIds] };
     }
     if (excluded.size > 0) {
       where.NOT = { id: { in: [...excluded] } };
     }
 
-    const rows = await prisma.product.findMany({
+    let rows = await prisma.product.findMany({
       where,
       orderBy: { rating: "desc" },
       take: 10,
@@ -515,26 +573,108 @@ export const integrationService = {
         is_vegetarian: true,
         rating: true,
         review_count: true,
+        stock: true,
+        is_active: true,
+        is_available: true,
         vendor_id: true,
         images: { orderBy: { sort_order: "asc" }, take: 1, select: { url: true } },
-        vendor: { select: { business_name: true } },
+        vendor: {
+          select: {
+            id: true,
+            business_name: true,
+            city: true,
+            state: true,
+            latitude: true,
+            longitude: true,
+            delivery_radius_km: true,
+            is_open: true,
+            status: true,
+            auto_schedule_enabled: true,
+            store_schedule: true,
+            manual_override_status: true,
+            manual_override_until: true,
+          },
+        },
       },
     });
-    return rows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      price: p.price.toNumber(),
-      mrp: p.mrp.toNumber(),
-      unit: p.unit,
-      tag: p.tag,
-      is_vegetarian: p.is_vegetarian,
-      rating: p.rating,
-      review_count: p.review_count,
-      image: p.images[0]?.url ?? null,
-      vendor_id: p.vendor_id,
-      vendor_name: p.vendor.business_name,
-    }));
+
+    // If category-matched products in the customer's city are empty, show top rated products in that city only
+    if (rows.length === 0 && categoryIds.size > 0) {
+      delete where.category_id;
+      rows = await prisma.product.findMany({
+        where,
+        orderBy: { rating: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          mrp: true,
+          unit: true,
+          tag: true,
+          is_vegetarian: true,
+          rating: true,
+          review_count: true,
+          stock: true,
+          is_active: true,
+          is_available: true,
+          vendor_id: true,
+          images: { orderBy: { sort_order: "asc" }, take: 1, select: { url: true } },
+          vendor: {
+            select: {
+              id: true,
+              business_name: true,
+              city: true,
+              state: true,
+              latitude: true,
+              longitude: true,
+              delivery_radius_km: true,
+              is_open: true,
+              status: true,
+              auto_schedule_enabled: true,
+              store_schedule: true,
+              manual_override_status: true,
+              manual_override_until: true,
+            },
+          },
+        },
+      });
+    }
+
+    return rows.map((p) => {
+      const availability = calculateStoreAvailability(p.vendor);
+      return {
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        price: p.price.toNumber(),
+        mrp: p.mrp.toNumber(),
+        unit: p.unit,
+        tag: p.tag,
+        is_vegetarian: p.is_vegetarian,
+        rating: p.rating,
+        review_count: p.review_count,
+        stock: p.stock,
+        is_active: p.is_active,
+        is_available: p.is_available,
+        image: p.images[0]?.url ?? null,
+        vendor_id: p.vendor_id,
+        vendor_name: p.vendor.business_name,
+        vendor: {
+          id: p.vendor.id,
+          business_name: p.vendor.business_name,
+          city: p.vendor.city,
+          state: p.vendor.state,
+          latitude: p.vendor.latitude,
+          longitude: p.vendor.longitude,
+          delivery_radius_km: p.vendor.delivery_radius_km,
+          is_open: availability.isOpen,
+          status: p.vendor.status,
+          store_availability: availability,
+        },
+      };
+    });
   },
 
   // ---------------------------------------------------------------------------

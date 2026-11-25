@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { Store, MapPin, Phone, CheckCircle2, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Store, MapPin, Phone, CheckCircle2, ArrowRight, Loader2, Sparkles, Navigation } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/context/auth-context";
+import { useLocation } from "@/hooks/use-location";
 import { api } from "@/lib/api";
 import type { Category } from "@/types";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/become-vendor")({
 function BecomeVendorPage() {
   const navigate = useNavigate();
   const { user, isAuthenticated, register, refreshSession } = useAuth();
+  const { selectedCity } = useLocation();
 
   // If user is already a vendor, redirect to vendor dashboard
   useEffect(() => {
@@ -33,9 +35,12 @@ function BecomeVendorPage() {
   const [category, setCategory] = useState("vegetables");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [city, setCity] = useState("Sakti");
+  const [city, setCity] = useState(() => selectedCity || "");
   const [stateName, setStateName] = useState("Chhattisgarh");
   const [pincode, setPincode] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const [description, setDescription] = useState("");
   const [subscriptionPlan, setSubscriptionPlan] = useState("basic");
   const [vendorType, setVendorType] = useState<"shop" | "roaming">("shop");
@@ -94,9 +99,11 @@ function BecomeVendorPage() {
         roaming: vendorType === "roaming",
         phone,
         address,
-        city,
-        state: stateName,
+        city: city.trim() || "Sakti",
+        state: stateName.trim() || "Chhattisgarh",
         pincode,
+        ...(latitude !== null && longitude !== null ? { latitude, longitude } : {}),
+        delivery_radius_km: 10,
         description: description || undefined,
       });
 
@@ -275,8 +282,56 @@ function BecomeVendorPage() {
 
               {/* Right Column: Category & Location */}
               <div className="space-y-5">
-                <div className="text-xs font-black uppercase tracking-wider text-emerald-600">
-                  Location & Category
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-black uppercase tracking-wider text-emerald-600">
+                    Location & Category
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isLocating}
+                    onClick={() => {
+                      if (!navigator.geolocation) {
+                        toast.error("Geolocation is not supported by your browser");
+                        return;
+                      }
+                      setIsLocating(true);
+                      navigator.geolocation.getCurrentPosition(
+                        async (pos) => {
+                          setIsLocating(false);
+                          const lat = pos.coords.latitude;
+                          const lng = pos.coords.longitude;
+                          setLatitude(lat);
+                          setLongitude(lng);
+                          try {
+                            const rev = await api.get<any>(`/locations/reverse-geocode?lat=${lat}&lng=${lng}`);
+                            const geo = rev?.data;
+                            if (geo?.city) setCity(geo.city);
+                            if (geo?.state) setStateName(geo.state);
+                            if (geo?.pincode) setPincode(geo.pincode);
+                            if (geo?.line1 && !address) {
+                              setAddress(`${geo.line1}${geo.line2 ? `, ${geo.line2}` : ""}`);
+                            }
+                            toast.success(`Location pinned in ${geo?.city || "your area"}! 📍`);
+                          } catch {
+                            toast.success("GPS coordinates captured! Please verify city & pincode.");
+                          }
+                        },
+                        () => {
+                          setIsLocating(false);
+                          toast.error("Unable to get GPS location. Please allow permission or enter city manually.");
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 }
+                      );
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-3 py-1 text-[11px] font-bold transition-colors disabled:opacity-50"
+                  >
+                    {isLocating ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Navigation className="h-3 w-3" />
+                    )}
+                    {latitude ? `Pinned (${city || "GPS"})` : "Detect Location (GPS)"}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -333,10 +388,12 @@ function BecomeVendorPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <div className="mb-1.5 text-xs font-bold text-foreground">City</div>
+                    <div className="mb-1.5 text-xs font-bold text-foreground">City *</div>
                     <input
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
+                      placeholder="e.g. Bhilai, Sakti"
+                      required
                       className="w-full rounded-2xl bg-muted border border-border h-12 px-4 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                     />
                   </label>

@@ -47,7 +47,7 @@ import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useLocation } from "@/hooks/use-location";
-import { checkProductDeliverability } from "@/lib/deliverability";
+import { checkProductDeliverability, citiesMatch } from "@/lib/deliverability";
 import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { toast } from "sonner";
@@ -241,9 +241,9 @@ function renderSectionById(id: string, activeAddress: any) {
     case "featured_products":
       return <FeaturedProducts key={id} defaultAddress={activeAddress} />;
     case "recommended":
-      return <Recommended key={id} />;
+      return <Recommended key={id} defaultAddress={activeAddress} />;
     case "recently_viewed":
-      return <RecentlyViewed key={id} />;
+      return <RecentlyViewed key={id} defaultAddress={activeAddress} />;
     case "brand_footer":
     case "trust_badges":
     case "app_download":
@@ -942,9 +942,7 @@ function ShopWiseProducts({ defaultAddress }: { defaultAddress?: any }) {
 
       // 3. FILTER BY CITY: ensure data from different cities is properly separated
       if (defaultAddress?.city && (v as any).city) {
-        const cCity = String(defaultAddress.city).trim().toLowerCase();
-        const vCity = String((v as any).city).trim().toLowerCase();
-        if (cCity && vCity && !cCity.includes(vCity) && !vCity.includes(cCity)) continue;
+        if (!citiesMatch(defaultAddress.city, (v as any).city)) continue;
       }
 
       if (!map.has(vid)) {
@@ -1292,9 +1290,7 @@ function SponsoredVendors({ defaultAddress }: { defaultAddress?: any }) {
     }
     // 3. FILTER BY CITY
     if (defaultAddress?.city && v.city) {
-      const cCity = String(defaultAddress.city).trim().toLowerCase();
-      const vCity = String(v.city).trim().toLowerCase();
-      if (cCity && vCity && !cCity.includes(vCity) && !vCity.includes(cCity)) return false;
+      if (!citiesMatch(defaultAddress.city, v.city)) return false;
     }
     return true;
   });
@@ -1375,7 +1371,7 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
       const cityParam = defaultAddress?.city ? `&city=${encodeURIComponent(defaultAddress.city)}` : "";
       if (defaultAddress?.latitude && defaultAddress?.longitude) {
         const nearbyRes = await api.get<any[]>(
-          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10${cityParam}`
+          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=25${cityParam}`
         );
         const rawData: any = nearbyRes?.data;
         const items = Array.isArray(rawData)
@@ -1432,6 +1428,9 @@ function LiveVendors({ defaultAddress }: { defaultAddress?: any }) {
         const maxRadius = Number(v.delivery_radius_km || 10);
         if (distKm > maxRadius) return false;
       }
+    }
+    if (defaultAddress?.city && v.city) {
+      if (!citiesMatch(defaultAddress.city, v.city)) return false;
     }
     return true;
   });
@@ -1595,7 +1594,7 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
       const cityParam = defaultAddress?.city ? `&city=${encodeURIComponent(defaultAddress.city)}` : "";
       if (defaultAddress?.latitude && defaultAddress?.longitude) {
         const nearbyRes = await api.get<any[]>(
-          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=10${cityParam}`
+          `/vendors/nearby?lat=${defaultAddress.latitude}&lng=${defaultAddress.longitude}&radius=25${cityParam}`
         );
         const rawData: any = nearbyRes?.data;
         const items = Array.isArray(rawData)
@@ -1651,9 +1650,7 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
     }
     // 3. FILTER BY CITY
     if (defaultAddress?.city && v.city) {
-      const cCity = String(defaultAddress.city).trim().toLowerCase();
-      const vCity = String(v.city).trim().toLowerCase();
-      if (cCity && vCity && !cCity.includes(vCity) && !vCity.includes(cCity)) return false;
+      if (!citiesMatch(defaultAddress.city, v.city)) return false;
     }
     return true;
   });
@@ -1835,17 +1832,28 @@ function ShopsNearYou({ defaultAddress }: { defaultAddress?: any }) {
   );
 }
 
-function RecentlyViewed() {
+function RecentlyViewed({ defaultAddress }: { defaultAddress?: any }) {
   const { user } = useAuth();
   const { addToCart } = useCart();
+  const city = defaultAddress?.city;
 
   const { data: res, isLoading } = useQuery({
-    queryKey: ["recently_viewed"],
-    queryFn: () => api.get<any[]>("/users/me/recently-viewed"),
+    queryKey: ["recently_viewed", city],
+    queryFn: () => {
+      const cityParam = city ? `?city=${encodeURIComponent(city)}` : "";
+      return api.get<any[]>(`/users/me/recently-viewed${cityParam}`);
+    },
     enabled: !!user,
   });
 
-  const list = res?.data || [];
+  const rawList = res?.data || [];
+  const list = useMemo(() => {
+    return rawList.filter((entry) => {
+      const p = entry?.product ?? entry;
+      const d = checkProductDeliverability(p, defaultAddress);
+      return d.reason !== "DIFFERENT_CITY" && d.reason !== "OUT_OF_RADIUS";
+    });
+  }, [rawList, defaultAddress]);
 
   if (!user || list.length === 0) return null;
 
@@ -2264,17 +2272,27 @@ function BrandFooter() {
   );
 }
 
-function Recommended() {
+function Recommended({ defaultAddress }: { defaultAddress?: any }) {
   const { user } = useAuth();
   const { addToCart } = useCart();
+  const city = defaultAddress?.city;
 
   const { data: res, isLoading } = useQuery({
-    queryKey: ["recommended_products"],
-    queryFn: () => api.get<any[]>("/users/me/recommended"),
+    queryKey: ["recommended_products", city],
+    queryFn: () => {
+      const cityParam = city ? `?city=${encodeURIComponent(city)}` : "";
+      return api.get<any[]>(`/users/me/recommended${cityParam}`);
+    },
     enabled: !!user,
   });
 
-  const list = res?.data || [];
+  const rawList = res?.data || [];
+  const list = useMemo(() => {
+    return rawList.filter((p) => {
+      const d = checkProductDeliverability(p, defaultAddress);
+      return d.reason !== "DIFFERENT_CITY" && d.reason !== "OUT_OF_RADIUS";
+    });
+  }, [rawList, defaultAddress]);
 
   if (!user || list.length === 0) return null;
 

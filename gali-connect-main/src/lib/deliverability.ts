@@ -22,6 +22,31 @@ export interface DeliverabilityStatus {
   maxRadiusKm?: number;
 }
 
+const CITY_ALIASES: Record<string, string> = {
+  "bhilai nagar": "bhilai",
+  "bhilai-durg": "bhilai",
+  bangalore: "bengaluru",
+};
+
+export function normalizeCityName(raw?: string | null): string {
+  if (!raw) return "";
+  const s = String(raw)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\b(municipal corporation|district|tahsil|tehsil|city)\b/g, "")
+    .trim();
+  if (!s) return "";
+  return CITY_ALIASES[s] ?? s;
+}
+
+export function citiesMatch(cityA?: string | null, cityB?: string | null): boolean {
+  const normA = normalizeCityName(cityA);
+  const normB = normalizeCityName(cityB);
+  if (!normA || !normB) return true;
+  return normA === normB || normA.includes(normB) || normB.includes(normA);
+}
+
 export function computeDistanceKm(
   lat1: number,
   lon1: number,
@@ -39,6 +64,59 @@ export function computeDistanceKm(
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 10) / 10;
+}
+
+export function checkVendorDeliverability(
+  vendor: any,
+  customerLocation?: CustomerLocationCoords | null
+): DeliverabilityStatus {
+  if (!vendor) return { isDeliverable: true };
+
+  if (vendor.is_open === false || vendor.store_availability?.isOpen === false) {
+    const nextTime = vendor.store_availability?.nextOpenTime;
+    return {
+      isDeliverable: false,
+      reason: "STORE_CLOSED",
+      message: nextTime ? `Store Closed (Opens at ${nextTime})` : "Store Closed",
+    };
+  }
+
+  if (!customerLocation) return { isDeliverable: true };
+
+  const custCity = (customerLocation.city || "").trim();
+  const vendorCity = (vendor.city || vendor.profile?.city || "").trim();
+
+  if (normalizeCityName(custCity) && normalizeCityName(vendorCity)) {
+    if (!citiesMatch(custCity, vendorCity)) {
+      return {
+        isDeliverable: false,
+        reason: "DIFFERENT_CITY",
+        message: `Only available in ${vendorCity}`,
+      };
+    }
+  }
+
+  const cLat = Number(customerLocation.latitude);
+  const cLng = Number(customerLocation.longitude);
+  const vLat = Number(vendor.latitude || vendor.lat || vendor.profile?.latitude);
+  const vLng = Number(vendor.longitude || vendor.lng || vendor.profile?.longitude);
+
+  if (cLat > 5 && cLng > 60 && vLat > 5 && vLng > 60) {
+    const distKm = computeDistanceKm(cLat, cLng, vLat, vLng);
+    const maxRadius = Number(vendor.delivery_radius_km || vendor.profile?.delivery_radius_km || 10);
+
+    if (distKm > maxRadius) {
+      return {
+        isDeliverable: false,
+        reason: "OUT_OF_RADIUS",
+        message: `Outside delivery radius (${distKm} km away, max ${maxRadius} km)`,
+        distanceKm: distKm,
+        maxRadiusKm: maxRadius,
+      };
+    }
+  }
+
+  return { isDeliverable: true };
 }
 
 export function checkProductDeliverability(
@@ -65,58 +143,5 @@ export function checkProductDeliverability(
   const vendor = product.vendor;
   if (!vendor) return { isDeliverable: true };
 
-  // 2. Vendor Open Status
-  if (vendor.is_open === false) {
-    const nextTime = vendor.store_availability?.nextOpenTime;
-    return {
-      isDeliverable: false,
-      reason: "STORE_CLOSED",
-      message: nextTime ? `Store Closed (Opens at ${nextTime})` : "Store Closed",
-    };
-  }
-
-  // If customer location is not yet known, assume deliverable by default
-  if (!customerLocation) return { isDeliverable: true };
-
-  const custCity = (customerLocation.city || "").trim().toLowerCase();
-  const vendorCity = (vendor.city || vendor.profile?.city || "").trim().toLowerCase();
-
-  // 3. Multi-City Separation: Different cities cannot cross-deliver
-  if (custCity && vendorCity) {
-    const isSameCity =
-      custCity === vendorCity ||
-      custCity.includes(vendorCity) ||
-      vendorCity.includes(custCity);
-
-    if (!isSameCity) {
-      return {
-        isDeliverable: false,
-        reason: "DIFFERENT_CITY",
-        message: `Only available in ${vendor.city || vendor.profile?.city || "their local city"}`,
-      };
-    }
-  }
-
-  // 4. Delivery Radius Evaluation (Haversine Distance vs vendor delivery_radius_km)
-  const cLat = Number(customerLocation.latitude);
-  const cLng = Number(customerLocation.longitude);
-  const vLat = Number(vendor.latitude || vendor.lat || vendor.profile?.latitude);
-  const vLng = Number(vendor.longitude || vendor.lng || vendor.profile?.longitude);
-
-  if (cLat > 5 && cLng > 60 && vLat > 5 && vLng > 60) {
-    const distKm = computeDistanceKm(cLat, cLng, vLat, vLng);
-    const maxRadius = Number(vendor.delivery_radius_km || vendor.profile?.delivery_radius_km || 10);
-
-    if (distKm > maxRadius) {
-      return {
-        isDeliverable: false,
-        reason: "OUT_OF_RADIUS",
-        message: `Outside delivery radius (${distKm} km away, max ${maxRadius} km)`,
-        distanceKm: distKm,
-        maxRadiusKm: maxRadius,
-      };
-    }
-  }
-
-  return { isDeliverable: true };
+  return checkVendorDeliverability(vendor, customerLocation);
 }

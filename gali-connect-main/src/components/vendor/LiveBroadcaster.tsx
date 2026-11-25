@@ -1,12 +1,27 @@
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Navigation } from "lucide-react";
+import { Navigation, MapPin } from "lucide-react";
 
-export function LiveBroadcaster({ isRoaming, defaultIsOpen }: { isRoaming: boolean; defaultIsOpen: boolean }) {
+export function LiveBroadcaster({
+  isRoaming,
+  defaultIsOpen,
+  vendorCity,
+}: {
+  isRoaming: boolean;
+  defaultIsOpen: boolean;
+  vendorCity?: string;
+}) {
+  const queryClient = useQueryClient();
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [liveCity, setLiveCity] = useState<string>(vendorCity || "");
   const watchIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (vendorCity) setLiveCity(vendorCity);
+  }, [vendorCity]);
 
   useEffect(() => {
     return () => {
@@ -40,14 +55,19 @@ export function LiveBroadcaster({ isRoaming, defaultIsOpen }: { isRoaming: boole
     }
 
     toast.info("Requesting location access...");
-    
+
     watchIdRef.current = navigator.geolocation.watchPosition(
       async (position) => {
         setIsBroadcasting(true);
         const { latitude, longitude } = position.coords;
         try {
-          await api.put("/vendors/me/location", { lat: latitude, lng: longitude });
+          const res = await api.put<any>("/vendors/me/location", { lat: latitude, lng: longitude });
+          const updatedCity = res?.data?.city || res?.data?.data?.city;
+          if (updatedCity) setLiveCity(updatedCity);
           setLastUpdated(new Date());
+          queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
+          queryClient.invalidateQueries({ queryKey: ["vendors"] });
+          queryClient.invalidateQueries({ queryKey: ["products"] });
         } catch (err) {
           console.error("Failed to update location", err);
         }
@@ -67,7 +87,7 @@ export function LiveBroadcaster({ isRoaming, defaultIsOpen }: { isRoaming: boole
       {isBroadcasting && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] aspect-square rounded-full border border-emerald-500/20 animate-ping opacity-20 pointer-events-none" style={{ animationDuration: '3s' }} />
       )}
-      
+
       <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className={`h-12 w-12 rounded-full flex items-center justify-center shrink-0 ${isBroadcasting ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 animate-pulse' : 'bg-muted text-muted-foreground'}`}>
@@ -78,14 +98,23 @@ export function LiveBroadcaster({ isRoaming, defaultIsOpen }: { isRoaming: boole
               Live Radar Broadcasting {isBroadcasting && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />}
             </h3>
             <p className="text-sm text-muted-foreground mt-0.5 max-w-sm">
-              {isBroadcasting 
-                ? "Your location is actively updating on the customer map."
-                : "Start broadcasting so customers can find your cart in real-time on the map."}
+              {isBroadcasting
+                ? `Your live location${liveCity ? ` in ${liveCity}` : ""} is actively updating on the customer map.`
+                : "Start broadcasting so customers in your city can find your cart in real-time on the map."}
             </p>
-            {isBroadcasting && lastUpdated && (
-              <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase tracking-wider">
-                Last ping: {lastUpdated.toLocaleTimeString()}
-              </p>
+            {(liveCity || lastUpdated) && (
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                {liveCity && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                    <MapPin className="h-3 w-3" /> {liveCity}
+                  </span>
+                )}
+                {isBroadcasting && lastUpdated && (
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                    Last ping: {lastUpdated.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -94,10 +123,10 @@ export function LiveBroadcaster({ isRoaming, defaultIsOpen }: { isRoaming: boole
           onClick={toggleBroadcasting}
           disabled={!defaultIsOpen && !isBroadcasting}
           className={`shrink-0 px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow-sm ${
-            !defaultIsOpen && !isBroadcasting 
+            !defaultIsOpen && !isBroadcasting
               ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-              : isBroadcasting 
-                ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200' 
+              : isBroadcasting
+                ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200'
                 : 'bg-emerald-500 text-white hover:bg-emerald-600 hover:shadow-emerald-500/20 hover:shadow-lg'
           }`}
         >

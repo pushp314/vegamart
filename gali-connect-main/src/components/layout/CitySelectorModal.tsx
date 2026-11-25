@@ -286,7 +286,7 @@ export function CitySelectorModal({ open, onOpenChange }: CitySelectorModalProps
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search city or town (e.g. Sakti)..."
+                  placeholder="Search city or town (e.g. Bhilai, Sakti)..."
                   className="pl-8 h-9 rounded-xl text-xs bg-muted/40 border-muted"
                 />
               </div>
@@ -295,7 +295,7 @@ export function CitySelectorModal({ open, onOpenChange }: CitySelectorModalProps
               <div className="space-y-1 max-h-[140px] overflow-y-auto pr-0.5">
                 {filteredCities.length === 0 ? (
                   <div className="py-4 text-center text-xs text-muted-foreground">
-                    No active cities match &quot;{searchTerm}&quot;. VegaMart is currently live in Sakti.
+                    No active cities match &quot;{searchTerm}&quot;. Try &quot;Use Current Location (GPS)&quot; above.
                   </div>
                 ) : (
                   filteredCities.map((c) => {

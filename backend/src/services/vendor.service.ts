@@ -22,6 +22,12 @@ import * as sessionRepo from "../repositories/session.repository";
 import * as refreshTokenRepo from "../repositories/refresh-token.repository";
 import * as userRepo from "../repositories/user.repository";
 import { boundingBox, haversineDistanceKm } from "../utils/geo";
+import {
+  citiesMatch,
+  formatCanonicalCityName,
+  normalizeCityName,
+  reverseGeocodeCoords,
+} from "../utils/geocoding";
 import { HttpStatus } from "../utils/httpStatus";
 import { uniqueSlug } from "../utils/slug";
 import { deleteObject, extractKeyFromUrl } from "../storage/r2.client";
@@ -212,13 +218,13 @@ export const vendorService = {
       banner_url: input.banner_url ?? null,
       address: input.address.trim(),
       landmark: input.landmark ?? null,
-      city: input.city.trim(),
+      city: formatCanonicalCityName(input.city) || input.city.trim(),
       state: input.state.trim(),
       country: input.country ?? "India",
       pincode: input.pincode,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
-      delivery_radius_km: input.delivery_radius_km ?? 5,
+      delivery_radius_km: input.delivery_radius_km ?? 10,
       business_hours: input.business_hours ?? null,
       min_order: input.min_order ?? 0,
       delivery_fee: input.delivery_fee ?? 0,
@@ -276,7 +282,7 @@ export const vendorService = {
     }
     if (input.address !== undefined) data.address = input.address.trim();
     if (input.landmark !== undefined) data.landmark = input.landmark || null;
-    if (input.city !== undefined) data.city = input.city.trim();
+    if (input.city !== undefined) data.city = formatCanonicalCityName(input.city) || input.city.trim();
     if (input.state !== undefined) data.state = input.state.trim();
     if (input.country !== undefined) data.country = input.country.trim();
     if (input.pincode !== undefined) data.pincode = input.pincode;
@@ -285,6 +291,22 @@ export const vendorService = {
     if (lat !== undefined) data.latitude = lat;
     if (lng !== undefined) data.longitude = lng;
     if (input.delivery_radius_km !== undefined) data.delivery_radius_km = input.delivery_radius_km;
+    if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
+      const numLat = Number(lat);
+      const numLng = Number(lng);
+      const explicitCityNorm = normalizeCityName(input.city);
+      const missingCity = !normalizeCityName(vendor.city) || normalizeCityName(vendor.city) === "city";
+      const movedFar =
+        vendor.latitude !== null &&
+        vendor.longitude !== null &&
+        haversineDistanceKm(Number(vendor.latitude), Number(vendor.longitude), numLat, numLng) > 15;
+      if (!explicitCityNorm && (missingCity || movedFar) && numLat > 5 && numLng > 60) {
+        const geo = await reverseGeocodeCoords(numLat, numLng);
+        if (geo.city) data.city = geo.city;
+        if (geo.state && (!vendor.state || movedFar)) data.state = geo.state;
+        if (geo.pincode && (!vendor.pincode || movedFar)) data.pincode = geo.pincode;
+      }
+    }
     if (input.business_hours !== undefined) data.business_hours = input.business_hours || null;
     if (input.min_order !== undefined) data.min_order = input.min_order;
     if (input.delivery_fee !== undefined) data.delivery_fee = input.delivery_fee;
@@ -443,14 +465,31 @@ export const vendorService = {
     req: Request
   ): Promise<vendorRepo.VendorRow> {
     const vendor = await this.getMyVendor(userId);
-    const updated = await vendorRepo.updateVendor(vendor.id, { latitude, longitude });
+    const updateData: Record<string, unknown> = { latitude, longitude };
+    const missingCity = !normalizeCityName(vendor.city) || normalizeCityName(vendor.city) === "city";
+    const movedKm =
+      vendor.latitude !== null && vendor.longitude !== null
+        ? haversineDistanceKm(Number(vendor.latitude), Number(vendor.longitude), latitude, longitude)
+        : 999;
+
+    if ((missingCity || movedKm > 15) && latitude > 5 && longitude > 60) {
+      const geo = await reverseGeocodeCoords(latitude, longitude);
+      if (geo.city) updateData.city = geo.city;
+      if (geo.state) updateData.state = geo.state;
+      if (geo.pincode && (!vendor.pincode || movedKm > 15)) updateData.pincode = geo.pincode;
+    }
+
+    const updated = await vendorRepo.updateVendor(vendor.id, updateData as never);
     await cacheService.invalidateNamespace("vendor");
+    if (movedKm > 0.3 || updateData.city) {
+      await cacheService.invalidateNamespace("product");
+    }
     realtime.publishRoamingVendor(vendor.id, latitude, longitude);
     await auditService.record(
-      { userId, action: AUDIT_ACTIONS.VENDOR_LOCATION_UPDATED, entityType: "vendor", entityId: vendor.id, newValues: { latitude, longitude } },
+      { userId, action: AUDIT_ACTIONS.VENDOR_LOCATION_UPDATED, entityType: "vendor", entityId: vendor.id, newValues: updateData },
       req
     );
-    return updated;
+    return enrichVendor(updated);
   },
 
   async updateLocation(
@@ -467,11 +506,28 @@ export const vendorService = {
     if (lng !== undefined) data.longitude = lng;
     if (input.address !== undefined) data.address = input.address.trim();
     if (input.landmark !== undefined) data.landmark = input.landmark || null;
-    if (input.city !== undefined) data.city = input.city.trim();
+    if (input.city !== undefined) data.city = formatCanonicalCityName(input.city) || input.city.trim();
     if (input.state !== undefined) data.state = input.state.trim();
     if (input.country !== undefined) data.country = input.country.trim();
     if (input.pincode !== undefined) data.pincode = input.pincode;
     if (input.delivery_radius_km !== undefined) data.delivery_radius_km = input.delivery_radius_km;
+
+    if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
+      const numLat = Number(lat);
+      const numLng = Number(lng);
+      const explicitCityNorm = normalizeCityName(input.city);
+      const missingCity = !normalizeCityName(vendor.city) || normalizeCityName(vendor.city) === "city";
+      const movedFar =
+        vendor.latitude !== null &&
+        vendor.longitude !== null &&
+        haversineDistanceKm(Number(vendor.latitude), Number(vendor.longitude), numLat, numLng) > 15;
+      if (!explicitCityNorm && (missingCity || movedFar) && numLat > 5 && numLng > 60) {
+        const geo = await reverseGeocodeCoords(numLat, numLng);
+        if (geo.city) data.city = geo.city;
+        if (geo.state && (!vendor.state || movedFar)) data.state = geo.state;
+        if (geo.pincode && (!vendor.pincode || movedFar)) data.pincode = geo.pincode;
+      }
+    }
 
     if (Object.keys(data).length === 0) {
       throw new ApiError(HttpStatus.BAD_REQUEST, "No location fields to update.", {
@@ -481,11 +537,12 @@ export const vendorService = {
 
     const updated = await vendorRepo.updateVendor(vendor.id, data as never);
     await cacheService.invalidateNamespace("vendor");
+    await cacheService.invalidateNamespace("product");
     await auditService.record(
       { userId, action: AUDIT_ACTIONS.VENDOR_LOCATION_UPDATED, entityType: "vendor", entityId: vendor.id, newValues: data },
       req
     );
-    return updated;
+    return enrichVendor(updated);
   },
 
   async getMyLocation(userId: string) {
@@ -572,18 +629,21 @@ export const vendorService = {
     lat: number,
     lng: number,
     radiusKm: number,
-    options: { category?: string; isOpen?: boolean; page?: number; perPage?: number } = {}
+    options: { city?: string; category?: string; isOpen?: boolean; page?: number; perPage?: number } = {}
   ): Promise<{ vendors: NearbyVendor[]; total: number; page: number; perPage: number }> {
     const radius = radiusKm || 10;
     const page = Math.max(1, options.page ?? 1);
     const perPage = Math.min(100, Math.max(1, options.perPage ?? 20));
     const bounds = boundingBox(lat, lng, radius);
-    const key = `nearby:${lat.toFixed(3)}:${lng.toFixed(3)}:${radius}:${options.category ?? ""}:${options.isOpen ? "open" : "any"}:${page}:${perPage}`;
+    const key = `nearby:${lat.toFixed(3)}:${lng.toFixed(3)}:${radius}:${normalizeCityName(options.city)}:${options.category ?? ""}:${options.isOpen ? "open" : "any"}:${page}:${perPage}`;
     const compute = async (): Promise<{ vendors: NearbyVendor[]; total: number }> => {
       const vendors = await vendorRepo.listWithinBoundingBox(bounds, options.isOpen === true);
 
       const results: NearbyVendor[] = [];
       for (const vendor of vendors) {
+        if (options.city && !citiesMatch(vendor.city, options.city)) {
+          continue;
+        }
         if (options.category && !vendor.category?.toLowerCase().includes(options.category.toLowerCase())) {
           continue;
         }

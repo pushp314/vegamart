@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useLocation } from "@/hooks/use-location";
+import { checkProductDeliverability } from "@/lib/deliverability";
 import type { Category, Product, ProductImage } from "@/types";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { useRouterState } from "@tanstack/react-router";
@@ -48,7 +49,7 @@ function ProductsPage() {
   const { category, q } = useSearch({ from: "/products" });
   const [input, setInput] = useState(q || "");
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { selectedCity } = useLocation();
+  const { selectedCity, activeAddress } = useLocation();
 
   const setSearch = useCallback((updates: { category?: string; q?: string }) => {
     navigate({
@@ -96,7 +97,10 @@ function ProductsPage() {
 
   const filtered = useMemo(() => {
     const qn = q?.trim().toLowerCase();
-    let rows = products;
+    let rows = products.filter((p) => {
+      const d = checkProductDeliverability(p, activeAddress);
+      return d.reason !== "DIFFERENT_CITY" && d.reason !== "OUT_OF_RADIUS";
+    });
     if (qn) {
       rows = rows.filter((p) => {
         const vendorName = p.vendor?.business_name || "";
@@ -106,7 +110,7 @@ function ProductsPage() {
     return [...rows].sort(
       (a, b) => Number(b.vendor?.is_sponsored) - Number(a.vendor?.is_sponsored),
     );
-  }, [products, q]);
+  }, [products, q, activeAddress]);
 
   // If we're on a child route (e.g., /products/$productId), render the outlet
   // Check if pathname is exactly /products or has a child segment

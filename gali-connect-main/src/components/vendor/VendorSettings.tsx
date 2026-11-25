@@ -620,14 +620,14 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
                 <div className="h-9 w-9 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20">
                   <Bike className="h-5 w-5" />
                 </div>
-                Store Delivery & Customer Visibility Radius (Sakti District)
+                Store Delivery & Customer Visibility Radius ({profile.city || "Your City"})
               </CardTitle>
               <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 font-mono">
-                {deliveryRadiusKm || 5} km Radius
+                {deliveryRadiusKm || 10} km Radius
               </span>
             </div>
             <CardDescription className="text-xs">
-              Configure how far your store delivers. Customers beyond this radius (e.g. other districts like Bilaspur) cannot place home delivery orders.
+              Configure how far your store delivers in {profile.city || "your city"}. Customers beyond this radius or in other cities cannot place home delivery orders.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 p-6">
@@ -666,10 +666,10 @@ export function VendorSettings({ vendorProfile }: { vendorProfile?: any }) {
               <div className="flex flex-wrap gap-2 pt-1">
                 {[
                   { label: "3 km (Hyperlocal)", val: "3" },
-                  { label: "5 km (Town / City)", val: "5" },
-                  { label: "10 km (Suburban)", val: "10" },
-                  { label: "15 km (District Edge)", val: "15" },
-                  { label: "25 km (Full Sakti District)", val: "25" },
+                  { label: "5 km (Neighborhood)", val: "5" },
+                  { label: "10 km (City Standard)", val: "10" },
+                  { label: "15 km (Full City)", val: "15" },
+                  { label: "25 km (District / Metro)", val: "25" },
                 ].map((preset) => (
                   <button
                     key={preset.val}

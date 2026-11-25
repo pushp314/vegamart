@@ -20,6 +20,8 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { MapLayerToggle } from "@/components/maps/MapLayerToggle";
 import { MAP_LAYERS, type MapLayerType } from "@/components/maps/map-layers";
+import { KNOWN_CITY_COORDS } from "@/hooks/use-location";
+import { normalizeCityName } from "@/lib/deliverability";
 
 interface VendorStoreLocationModalProps {
   vendor: any;
@@ -113,15 +115,30 @@ export function VendorStoreLocationModal({
     if (isPinned) {
       return [Number(vendor.latitude), Number(vendor.longitude)];
     }
-    // Default to Sakti, Chhattisgarh
-    return [21.9588, 82.9588];
+    const known = KNOWN_CITY_COORDS[normalizeCityName(vendor?.city)];
+    return known ? [known.lat, known.lng] : [21.1938, 81.3509];
   });
 
   const [hasUserSelected, setHasUserSelected] = useState<boolean>(isPinned);
-  const [radiusKm, setRadiusKm] = useState<number>(() => Number(vendor?.delivery_radius_km || 5));
+  const [radiusKm, setRadiusKm] = useState<number>(() => Number(vendor?.delivery_radius_km || 10));
+  const [city, setCity] = useState<string>(() => vendor?.city || "");
+  const [stateName, setStateName] = useState<string>(() => vendor?.state || "");
+  const [pincode, setPincode] = useState<string>(() => vendor?.pincode || "");
   const [mapLink, setMapLink] = useState("");
   const [isLocating, setIsLocating] = useState(false);
   const [currentLayer, setCurrentLayer] = useState<MapLayerType>("streets");
+
+  const reverseGeocodePoint = async (lat: number, lng: number) => {
+    try {
+      const res = await api.get<any>(`/locations/reverse-geocode?lat=${lat}&lng=${lng}`);
+      const geo = res?.data;
+      if (geo?.city) setCity(geo.city);
+      if (geo?.state) setStateName(geo.state);
+      if (geo?.pincode) setPincode(geo.pincode);
+    } catch {
+      // keep existing fields if reverse-geocode fails
+    }
+  };
 
   useEffect(() => {
     if (isPinned) {
@@ -131,7 +148,10 @@ export function VendorStoreLocationModal({
     if (vendor?.delivery_radius_km) {
       setRadiusKm(Number(vendor.delivery_radius_km));
     }
-  }, [vendor?.latitude, vendor?.longitude, vendor?.delivery_radius_km, isPinned]);
+    if (vendor?.city && !city) setCity(vendor.city);
+    if (vendor?.state && !stateName) setStateName(vendor.state);
+    if (vendor?.pincode && !pincode) setPincode(vendor.pincode);
+  }, [vendor?.latitude, vendor?.longitude, vendor?.delivery_radius_km, vendor?.city, vendor?.state, vendor?.pincode, isPinned]);
 
   useEffect(() => {
     // If not controlled, auto-open if location is not set and hasn't been dismissed in session
@@ -163,12 +183,13 @@ export function VendorStoreLocationModal({
     }
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         setIsLocating(false);
         const lat = Math.round(pos.coords.latitude * 1000000) / 1000000;
         const lng = Math.round(pos.coords.longitude * 1000000) / 1000000;
         setPosition([lat, lng]);
         setHasUserSelected(true);
+        await reverseGeocodePoint(lat, lng);
         toast.success("Shop location detected via GPS! 📍");
       },
       (err) => {
@@ -179,7 +200,7 @@ export function VendorStoreLocationModal({
     );
   };
 
-  const handleParseMapLink = () => {
+  const handleParseMapLink = async () => {
     if (!mapLink.trim()) return;
     const trimmed = mapLink.trim();
 
@@ -191,6 +212,7 @@ export function VendorStoreLocationModal({
       if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
         setPosition([lat, lng]);
         setHasUserSelected(true);
+        await reverseGeocodePoint(lat, lng);
         toast.success("Coordinates extracted from input! 🎯");
         setMapLink("");
         return;
@@ -212,6 +234,7 @@ export function VendorStoreLocationModal({
         const lng = parseFloat(match[2]);
         setPosition([lat, lng]);
         setHasUserSelected(true);
+        await reverseGeocodePoint(lat, lng);
         toast.success("Store location extracted from Google Maps link! 🎯");
         setMapLink("");
         return;
@@ -223,13 +246,16 @@ export function VendorStoreLocationModal({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const payload: Record<string, unknown> = {
         lat: position[0],
         lng: position[1],
         latitude: position[0],
         longitude: position[1],
         delivery_radius_km: radiusKm,
       };
+      if (city.trim()) payload.city = city.trim();
+      if (stateName.trim()) payload.state = stateName.trim();
+      if (pincode.trim()) payload.pincode = pincode.trim();
 
       // Try canonical /vendors/me first
       const res = await api.put<any>("/vendors/me", payload);
@@ -238,10 +264,7 @@ export function VendorStoreLocationModal({
       }
 
       // Fallback to /vendors/me/location
-      const locRes = await api.put<any>("/vendors/me/location", {
-        lat: position[0],
-        lng: position[1],
-      });
+      const locRes = await api.put<any>("/vendors/me/location", payload);
       if (locRes.success) {
         return locRes.data;
       }
@@ -250,7 +273,10 @@ export function VendorStoreLocationModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendorProfile"] });
-      toast.success("🎉 Store location saved! Delivery partners can now navigate to your shop for order pickups.");
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["serviceableCities"] });
+      toast.success("🎉 Store location & city saved! Customers in your city can now order from your shop.");
       sessionStorage.removeItem(DISMISSED_SESSION_KEY);
       handleClose();
     },
@@ -368,6 +394,7 @@ export function VendorStoreLocationModal({
                 onChange={(newPos) => {
                   setPosition(newPos);
                   setHasUserSelected(true);
+                  void reverseGeocodePoint(newPos[0], newPos[1]);
                 }}
               />
               {hasUserSelected && (
@@ -397,8 +424,21 @@ export function VendorStoreLocationModal({
             </div>
           </div>
 
-          {/* Coordinates status & Delivery Radius */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+          {/* City, Coordinates & Delivery Radius */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block">
+                Service City *
+              </label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. Bhilai"
+                className="h-9 w-full rounded-xl border border-border bg-background px-2.5 text-xs font-bold text-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
             <div className="rounded-xl bg-muted/40 p-2.5 border border-border/50 text-[11px]">
               <span className="font-semibold text-muted-foreground">Coordinates: </span>
               <span className="font-mono font-bold text-foreground">
@@ -414,7 +454,7 @@ export function VendorStoreLocationModal({
               <input
                 type="range"
                 min="1"
-                max="20"
+                max="30"
                 step="0.5"
                 value={radiusKm}
                 onChange={(e) => setRadiusKm(parseFloat(e.target.value))}

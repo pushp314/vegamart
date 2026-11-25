@@ -1,9 +1,12 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { StreetVendorMap } from "@/components/marketplace/street-vendor-map";
-import { Store, Phone, Star, Sparkles, Navigation } from "lucide-react";
+import { Store, Phone, Star, Sparkles, Navigation, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useLocation } from "@/hooks/use-location";
+import { checkVendorDeliverability, citiesMatch } from "@/lib/deliverability";
+import { CitySelectorModal } from "@/components/layout/CitySelectorModal";
 
 export const Route = createFileRoute("/street-vendors")({
   head: () => ({ meta: [{ title: "Live Street Vendors & Roaming Carts — Vegamart" }] }),
@@ -12,9 +15,14 @@ export const Route = createFileRoute("/street-vendors")({
 
 function StreetVendorsRoute() {
   const navigate = useNavigate();
+  const { selectedCity, activeAddress, isCityModalOpen, setIsCityModalOpen } = useLocation();
+
   const { data: vendorsRes, isLoading } = useQuery({
-    queryKey: ["allVendors"],
-    queryFn: () => api.get<any[]>("/vendors"),
+    queryKey: ["allVendors", selectedCity],
+    queryFn: () => {
+      const cityParam = selectedCity ? `?city=${encodeURIComponent(selectedCity)}` : "";
+      return api.get<any[]>(`/vendors${cityParam}`);
+    },
   });
 
   const vendorList: any[] = Array.isArray(vendorsRes?.data)
@@ -24,8 +32,16 @@ function StreetVendorsRoute() {
       : [];
 
   const filteredVendors = useMemo(() => {
-    return vendorList; // Show all vendors as requested
-  }, [vendorList]);
+    return vendorList.filter((v) => {
+      if (v.status === "rejected" || v.status === "suspended") return false;
+      const vendorCity = v.city || v.profile?.city;
+      if (selectedCity && vendorCity && !citiesMatch(selectedCity, vendorCity)) {
+        return false;
+      }
+      const d = checkVendorDeliverability(v, activeAddress);
+      return d.reason !== "DIFFERENT_CITY" && d.reason !== "OUT_OF_RADIUS";
+    });
+  }, [vendorList, selectedCity, activeAddress]);
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-8">
@@ -36,14 +52,23 @@ function StreetVendorsRoute() {
         </div>
 
         {/* Live Vendors Cards */}
-        <div className="flex items-center justify-between px-1">
+        <div className="flex items-center justify-between px-1 gap-2">
           <h2 className="font-display text-lg font-black text-foreground flex items-center gap-2">
             <Navigation className="h-5 w-5 text-emerald-600" />
-            Live Street Vendors
+            Live Street Vendors {selectedCity ? `in ${selectedCity}` : ""}
           </h2>
-          <span className="text-xs font-bold text-muted-foreground">
-            {filteredVendors.length} nearby
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsCityModalOpen(true)}
+              className="inline-flex items-center gap-1 rounded-full border bg-card px-2.5 py-1 text-xs font-bold text-primary hover:bg-muted transition-colors"
+            >
+              <MapPin className="h-3 w-3" /> {selectedCity || "Change City"}
+            </button>
+            <span className="text-xs font-bold text-muted-foreground">
+              {filteredVendors.length} nearby
+            </span>
+          </div>
         </div>
 
         {isLoading ? (
@@ -53,9 +78,11 @@ function StreetVendorsRoute() {
         ) : filteredVendors.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-2xl border border-dashed border-border bg-card/50">
             <Store className="h-12 w-12 text-muted-foreground/40 mb-3" />
-            <h3 className="text-sm font-bold text-foreground">No street vendors available right now</h3>
+            <h3 className="text-sm font-bold text-foreground">
+              No street vendors available in {selectedCity || "your area"} right now
+            </h3>
             <p className="text-xs text-muted-foreground max-w-xs mt-1">
-              There are currently no active street vendors or roaming carts. Please check back shortly.
+              There are currently no active street vendors or shops within delivery range in {selectedCity || "this city"}.
             </p>
           </div>
         ) : (
@@ -63,13 +90,14 @@ function StreetVendorsRoute() {
             {filteredVendors.map((vendor) => {
               const profile = vendor.profile || {};
               const isRoaming = vendor.roaming === true || profile.roaming === true;
+              const isOpen = vendor.is_open !== false && vendor.store_availability?.isOpen !== false;
               const phoneNum = (profile.phone || vendor.phone || "").trim();
 
               return (
                 <div
                   key={vendor.id}
                   onClick={() => navigate({ to: "/vendors/$vendorId", params: { vendorId: vendor.id } })}
-                  className="rounded-2xl border bg-card p-4 shadow-soft hover:shadow-glow hover:border-emerald-500/40 transition-all space-y-3 cursor-pointer"
+                  className={`rounded-2xl border bg-card p-4 shadow-soft hover:shadow-glow hover:border-emerald-500/40 transition-all space-y-3 cursor-pointer ${!isOpen ? "opacity-75" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1 min-w-0">
@@ -91,8 +119,14 @@ function StreetVendorsRoute() {
                             </>
                           )}
                         </span>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                          🟢 Live
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isOpen
+                              ? "text-emerald-700 bg-emerald-100/70"
+                              : "text-rose-700 bg-rose-100/80"
+                          }`}
+                        >
+                          {isOpen ? "🟢 Live" : "🔴 Closed"}
                         </span>
                       </div>
                       <h3 className="font-display text-sm font-bold text-foreground truncate">
@@ -113,10 +147,10 @@ function StreetVendorsRoute() {
 
                   <div className="bg-muted/60 rounded-xl p-2 text-xs text-muted-foreground flex items-center justify-between gap-2">
                     <span className="truncate font-medium">
-                      📍 {profile.address || vendor.address || "Street / Roaming Location"}
+                      📍 {profile.address || vendor.address || vendor.city || "Local Store"}
                     </span>
-                    <span className="text-[10px] font-bold text-emerald-700 shrink-0">
-                      {isRoaming ? "Moving" : "Open Now"}
+                    <span className={`text-[10px] font-bold shrink-0 ${isOpen ? "text-emerald-700" : "text-rose-600"}`}>
+                      {!isOpen ? "Closed" : isRoaming ? "Moving" : "Open Now"}
                     </span>
                   </div>
 
@@ -152,6 +186,7 @@ function StreetVendorsRoute() {
           </div>
         )}
       </main>
+      <CitySelectorModal open={isCityModalOpen} onOpenChange={setIsCityModalOpen} />
     </div>
   );
 }
